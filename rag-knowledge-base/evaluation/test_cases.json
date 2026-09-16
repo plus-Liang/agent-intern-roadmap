@@ -1,0 +1,114 @@
+[
+  {
+    "id": 1,
+    "type": "事实查找",
+    "question": "阶跃星辰这个岗位要求什么学历？",
+    "expected": "不限",
+    "source": "JD-1 头部"
+  },
+  {
+    "id": 2,
+    "type": "事实查找",
+    "question": "网易有道的测试实习生薪资多少？",
+    "expected": "200-250/天",
+    "source": "JD-6 头部"
+  },
+  {
+    "id": 3,
+    "type": "事实查找",
+    "question": "腾讯的岗位在哪个城市？",
+    "expected": "北京",
+    "source": "JD-2 头部"
+  },
+  {
+  "id": 5,
+  "type": "多块合成",
+  "question": "哪些岗位要求 Python？",
+  "expected": "阶跃星辰、腾讯、斯伦贝谢、索尼、屿智同行、万兴科技（明确要求）；网易有道（加分项）",
+  "source": "跨 6 条 JD"
+  },
+  {
+    "id": 5,
+    "type": "多块合成",
+    "question": "哪些岗位要求 Python？",
+    "expected": "阶跃星辰、斯伦贝谢、腾讯、网易有道、万兴科技、屿智同行",
+    "source": "跨 6 条 JD"
+  },
+  {
+    "id": 6,
+    "type": "多块合成",
+    "question": "哪些岗位接受本科学历？",
+    "expected": "腾讯、索尼、网易有道、屿智同行",
+    "source": "跨多条 JD"
+  },
+  {
+    "id": 7,
+    "type": "多块合成",
+    "question": "哪些岗位在深圳？",
+    "expected": "索尼、屿智同行",
+    "source": "跨多条 JD"
+  },
+  {
+  "id": 8,
+  "type": "多块合成",
+  "question": "哪些岗位要求 RAG 经验？",
+  "expected": "腾讯、网易有道",
+  "source": "JD-2、JD-6"
+  },
+  {
+  "id": 9,
+  "type": "对比分析",
+  "question": "哪个岗位对学历要求最低？",
+  "expected": "得物App、屿智同行（正文未明确学历要求）。以正文为准，不以头部字段为准。",
+  "source": "对比 8 条 JD 正文"
+  },
+  {
+    "id": 10,
+    "type": "对比分析",
+    "question": "哪个岗位薪资最高？",
+    "expected": "阶跃星辰（500-1000/天）",
+    "source": "对比 8 条 JD"
+  },
+  {
+    "id": 11,
+    "type": "对比分析",
+    "question": "哪个岗位每周出勤要求最少？",
+    "expected": "索尼（3天/周）",
+    "source": "对比 8 条 JD"
+  },
+  {
+    "id": 12,
+    "type": "资料中没有",
+    "question": "有没有远程实习岗位？",
+    "expected": "有，腾讯标注了远程实习",
+    "source": "JD-2 标签"
+  },
+  {
+    "id": 13,
+    "type": "资料中没有",
+    "question": "有没有上海的测试岗位？",
+    "expected": "资料中未找到",
+    "source": "上海只有得物，非测试岗"
+  },
+  {
+    "id": 14,
+    "type": "资料中没有",
+    "question": "有没有要求 Go 语言的岗位？",
+    "expected": "资料中未找到",
+    "source": "JD 中没有 Go"
+  },
+  {
+    "id": 15,
+    "type": "越界无关",
+    "question": "会踢足球吗？",
+    "expected": "资料中未找到",
+    "source": "与岗位无关"
+  },
+  {
+    "id": 16,
+    "type": "越界无关",
+    "question": "今天天气怎么样？",
+    "expected": "资料中未找到",
+    "source": "与岗位无关"
+  }
+]

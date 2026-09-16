@@ -1,0 +1,98 @@
+[
+  {
+    "id": 1,
+    "type": "事实查找",
+    "question": "阶跃星辰这个岗位要求什么学历？",
+    "verdict": "y"
+  },
+  {
+    "id": 2,
+    "type": "事实查找",
+    "question": "网易有道的测试实习生薪资多少？",
+    "verdict": "y"
+  },
+  {
+    "id": 3,
+    "type": "事实查找",
+    "question": "腾讯的岗位在哪个城市？",
+    "verdict": "y"
+  },
+  {
+    "id": 5,
+    "type": "多块合成",
+    "question": "哪些岗位要求 Python？",
+    "verdict": "y"
+  },
+  {
+    "id": 5,
+    "type": "多块合成",
+    "question": "哪些岗位要求 Python？",
+    "verdict": "y"
+  },
+  {
+    "id": 6,
+    "type": "多块合成",
+    "question": "哪些岗位接受本科学历？",
+    "verdict": "n"
+  },
+  {
+    "id": 7,
+    "type": "多块合成",
+    "question": "哪些岗位在深圳？",
+    "verdict": "y"
+  },
+  {
+    "id": 8,
+    "type": "多块合成",
+    "question": "哪些岗位要求 RAG 经验？",
+    "verdict": "y"
+  },
+  {
+    "id": 9,
+    "type": "对比分析",
+    "question": "哪个岗位对学历要求最低？",
+    "verdict": "n"
+  },
+  {
+    "id": 10,
+    "type": "对比分析",
+    "question": "哪个岗位薪资最高？",
+    "verdict": "y"
+  },
+  {
+    "id": 11,
+    "type": "对比分析",
+    "question": "哪个岗位每周出勤要求最少？",
+    "verdict": "y"
+  },
+  {
+    "id": 12,
+    "type": "资料中没有",
+    "question": "有没有远程实习岗位？",
+    "verdict": "y"
+  },
+  {
+    "id": 13,
+    "type": "资料中没有",
+    "question": "有没有上海的测试岗位？",
+    "verdict": "y"
+  },
+  {
+    "id": 14,
+    "type": "资料中没有",
+    "question": "有没有要求 Go 语言的岗位？",
+    "verdict": "y"
+  },
+  {
+    "id": 15,
+    "type": "越界无关",
+    "question": "会踢足球吗？",
+    "verdict": "y"
+  },
+  {
+    "id": 16,
+    "type": "越界无关",
+    "question": "今天天气怎么样？",
+    "verdict": "y"
+  }
+]

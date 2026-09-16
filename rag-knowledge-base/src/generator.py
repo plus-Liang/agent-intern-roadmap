@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
-CHAT_MODEL = os.getenv("ARK_CHAT_MODEL", "ep-m-20260906214614-2ndmb")
+CHAT_MODEL = os.getenv("ARK_CHAT_MODEL", "deepseek-v4-flash-ga-260731")
 
 _client = None
 
@@ -30,6 +30,12 @@ SYSTEM_PROMPT = """你是一个岗位 JD 知识库问答助手。
 3. 如果片段部分相关，只用相关部分回答，并注明来源。
 4. 每条结论都要注明来源岗位名和原文片段。
 5. 对比、统计类问题，逐条列出出处。
+
+【字段使用规则】
+- 薪资、城市、出勤、岗位标签、级别类型等字段：正常使用头部元信息。
+- 学历字段：如果头部"学历"与正文"任职要求"中的学历要求不一致，
+  以【正文任职要求】为准。如果正文中没有明确学历要求，
+  则头部"学历"字段仍可作为参考。
 
 输出格式：
 结论：
