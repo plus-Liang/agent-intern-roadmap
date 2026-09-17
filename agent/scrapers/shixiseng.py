@@ -5,9 +5,24 @@
     import asyncio
     from agent.scrapers.shixiseng import search_shixiseng
 
-    jobs = asyncio.run(search_shixiseng("Agent 开发", city="北京", limit=20))
+    jobs = asyncio.run(search_shixiseng("Agent 开发", city="北京", limit=20, max_pages=3))
 
-设计说明（重要）：
+    翻页说明（实测结论）：
+      * 每页固定 **20 条**；`?page=N` 直接请求即可生效，与点击
+        `.pagination-wrap .el-pagination button.btn-next` 结果完全一致。
+      * ⚠️ 必须用站点**完整参数形态**（见 `_build_search_url`）。裸拼
+        `?keyword=X&city=Y&page=N` 会被站点静默重置回 page=1 且返回 0 条，
+        看起来像"这一页没岗位"，极易误判。
+      * 跨页按 job_id 去重；某页没有新增岗位即停止翻页。
+
+    发布时间说明（实测结论）：
+      * **列表页没有发布时间**（3 页 × 20 张卡片全扫过，无「X天前」也无具体日期；
+        筛选栏的「发布时间：」只是搜索过滤条件）。
+      * 详情页 `.job_date` 内首个 span 是**刷新时间**，形如 "2026-07-07 21:51:33 刷新"，
+        实测 12/12 命中；本模块统一格式化为 "YYYY-MM-DD"，拿不到则填 ""。
+      * 别和 `.job_deadline`（截止日期，**截止**不是发布）混用。
+
+    设计说明（重要）：
     实习僧搜索列表页对**标题和薪资**做了字体混淆（CMap 反爬）：
     真实文字被替换成私有区码位（U+E000~U+F8FF），页面上再通过
     动态 @font-face（/interns/iconfonts/file?rand=...）把这些码位渲染成正确形状。
@@ -40,6 +55,7 @@ import pathlib
 import random
 import re
 import sys
+from datetime import date, timedelta
 from typing import Any, Optional
 
 from playwright.async_api import async_playwright
@@ -69,6 +85,10 @@ CARD_TIMEOUT_MS = 15_000          # wait_for_selector 等卡片，15 秒
 DETAIL_TIMEOUT_MS = 20_000
 # 详情页限流：每次请求前随机等待 0.5~1.5 秒，降低被站点限流/风控的概率
 DETAIL_SLEEP_RANGE = (0.5, 1.5)
+
+# max_pages<=0（不限页数）时的硬上限安全阀。
+# 实测 keyword=实习 无城市时有 46 页，这里给到 50 足以覆盖，同时防止无限循环。
+MAX_PAGES_HARD_LIMIT = 50
 
 DEBUG_DIR = pathlib.Path(__file__).resolve().parent
 DEBUG_SCREENSHOT = DEBUG_DIR / "shixiseng_debug.png"
@@ -137,6 +157,14 @@ DETAIL_SELECTORS = {
         "[class*='job_position']",
         "[class*='job_city']",
     ],
+    # 「刷新时间」候选选择器（实测命中 .job_date，见下方说明）
+    "publish_date": [
+        ".job_date",
+        ".job-header .job_date",
+        "[class*='job_date']",
+        "[class*='refresh']",
+        "[class*='publish']",
+    ],
 }
 
 # JD 正文（岗位职责 / 任职要求）候选选择器：按「精确 -> 兜底」优先级排列，
@@ -179,6 +207,34 @@ MAX_HEADING_LEN = 40
 
 # Job.description 的段落标签格式：【岗位职责】/【任职要求】/【职位描述】
 SECTION_LABEL_FMT = "【{label}】"
+
+# ---------------------------------------------------------------------------
+# 发布时间（刷新型）相关常量
+#
+# 实测结论（2026-09 实抓，勿轻易改动）：
+#   * **列表页没有任何发布时间**。卡片只有 岗位名/薪资/城市/公司/福利标签/公司简介，
+#     3 页 × 20 张卡片全扫过，既无「X天前」也无具体日期；筛选栏里的
+#     「发布时间：」只是搜索过滤条件（对应 URL 参数 publishTime），不是岗位数据。
+#   * **详情页有刷新时间**，容器 `.job_date`，内部首个 span（class 含 cutom_font）：
+#         <div class="job_date"><span class="cutom_font">2026-07-07 21:51:33</span> <span>刷新</span></div>
+#     实测 12/12 命中，格式恒为 "YYYY-MM-DD HH:MM:SS"，语义是**刷新时间**（站点无首次发布时间）。
+#   * 注意别和 `.job_deadline`（截止日期：2026-10-08）混用——那是截止，不是发布。
+#
+# 站点目前给的是绝对日期，因此「X天前」换算只是兜底（防站点改版），主路径是直接截取日期。
+# ---------------------------------------------------------------------------
+PUBLISH_DATE_FMT = "%Y-%m-%d"
+RELATIVE_PUBLISH_RE = re.compile(r"(\d+)\s*(天|小时|分钟|周|月)\s*前")
+ABS_PUBLISH_RE = re.compile(r"(\d{4})\s*[-/年]\s*(\d{1,2})\s*[-/月]\s*(\d{1,2})")
+TODAY_WORDS = ("刚刚", "今天", "今日")
+YESTERDAY_WORDS = ("昨天", "昨日")
+
+# 最近一次 search_shixiseng 抓到的 job_id -> "YYYY-MM-DD" 映射。
+#
+# 为什么要有它：agent.tools.job_search.Job **没有 publish_date 字段**，而本任务
+# 明确禁止修改 job_search.py，所以日期不塞进 Job（避免破坏 dataclass 契约），
+# 而是放在这里 + 诊断输出 + shixiseng_result.json 里，供清洗器/入库环节按 job_id 取用。
+# 每次 search_shixiseng 开始时会清空，避免误用上一轮的陈旧数据。
+LAST_PUBLISH_DATES: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +347,79 @@ async def _first_text_int(page: Any, selectors: list[str]) -> str:
             if txt:
                 return txt
     return ""
+
+
+# ---------------------------------------------------------------------------
+# 发布时间解析
+# ---------------------------------------------------------------------------
+def _format_publish_date(raw: str) -> str:
+    """
+    把详情页的刷新时间文本统一格式化为 "YYYY-MM-DD"；拿不到返回 ""。
+
+    支持的输入形态（按优先级）：
+        1) 绝对日期："2026-07-07 21:51:33" / "2026-07-07" / "2026年7月7日"
+        2) 相对日期："3天前" / "5小时前" / "2周前" / "1个月前"（兜底，站点目前不用）
+        3) 相对词：  "刚刚" / "今天" / "昨天"
+
+    注意：文本里通常还带「刷新」二字（如 "2026-07-07 21:51:33 刷新"），
+    以及可能混入「截止日期：2026-10-08」这类别的日期；本函数只负责把**第一个**
+    可识别的日期转成 YYYY-MM-DD，取错字段的责任在选择器层（.job_date 已实测正确）。
+    """
+    s = _clean(raw)
+    if not s:
+        return ""
+
+    # 1) 绝对日期
+    m = ABS_PUBLISH_RE.search(s)
+    if m:
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return date(y, mo, d).strftime(PUBLISH_DATE_FMT)
+        except ValueError:
+            return ""          # 例如 2026-02-30 这种非法日期
+
+    # 2) 相对日期（兜底）
+    rel = RELATIVE_PUBLISH_RE.search(s)
+    if rel:
+        n = int(rel.group(1))
+        unit = rel.group(2)
+        days = {"天": n, "周": n * 7, "月": n * 30, "小时": 0, "分钟": 0}[unit]
+        return (date.today() - timedelta(days=days)).strftime(PUBLISH_DATE_FMT)
+
+    # 3) 相对词
+    if any(w in s for w in TODAY_WORDS):
+        return date.today().strftime(PUBLISH_DATE_FMT)
+    if any(w in s for w in YESTERDAY_WORDS):
+        return (date.today() - timedelta(days=1)).strftime(PUBLISH_DATE_FMT)
+
+    return ""
+
+
+async def _extract_publish_date(page: Any) -> tuple[str, str]:
+    """
+    从详情页抽「刷新时间」，返回 (YYYY-MM-DD, 命中的选择器)。
+
+    实测命中 `.job_date`（形如 "2026-07-07 21:51:33 刷新"）。
+    拿不到时返回 ("", "")，绝不抛异常——时间字段缺失不应该拖垮整条岗位的抓取。
+    """
+    for sel in DETAIL_SELECTORS["publish_date"]:
+        # 先试容器内首个 span（最精确），再退回容器整体文本
+        for target in (f"{sel} span", sel):
+            try:
+                loc = page.locator(target)
+                count = await loc.count()
+            except Exception:  # noqa: BLE001 - 选择器非法就试下一个
+                continue
+            if not count:
+                continue
+            try:
+                txt = await loc.first.inner_text(timeout=3_000)
+            except Exception:  # noqa: BLE001
+                continue
+            fmt = _format_publish_date(txt)
+            if fmt:
+                return fmt, target
+    return "", ""
 
 
 # ---------------------------------------------------------------------------
@@ -514,6 +643,53 @@ async def _launch_browser(playwright: Any, headless: bool) -> Any:
 # ---------------------------------------------------------------------------
 # 列表页解析
 # ---------------------------------------------------------------------------
+# 每页条数（实测 20 条/页，keyword=实习 无城市时有 46 页）
+PAGE_SIZE = 20
+
+# 站点的完整搜索参数模板。
+#
+# ⚠️ 用完整参数而不是裸拼 `?keyword=X&city=Y&page=N`，是本任务实测踩到过的坑：
+#   裸拼 URL 会被站点**重置回 page=1 并返回 0 条**（静默失败，不报错也不跳转），
+#   看起来就像"这一页没有岗位"，非常容易误判。缺任何一个参数都可能触发。
+SEARCH_PARAM_ORDER = [
+    "page", "type", "keyword", "area", "months", "days", "degree",
+    "official", "enterprise", "salary", "publishTime", "sortType",
+    "city", "internExtend",
+]
+
+
+def _build_search_url(keyword: str, city: Optional[str], page: int) -> str:
+    """
+    生成第 page 页的搜索 URL（站点完整参数形态，已实测 page 参数生效）。
+
+    page 从 1 开始；站点固定参数沿用其默认值：
+        salary=-0（薪资不限）、其余过滤项为空。
+    """
+    from urllib.parse import quote
+
+    params = {
+        "page": str(page),
+        "type": "intern",
+        "keyword": keyword,
+        "area": "",
+        "months": "",
+        "days": "",
+        "degree": "",
+        "official": "",
+        "enterprise": "",
+        "salary": "-0",
+        "publishTime": "",
+        "sortType": "",
+        "city": city or "",
+        "internExtend": "",
+    }
+    # 注意：这里不能过滤空值——站点需要这些参数**存在且为空**，缺参数会导致 page 失效
+    query = "&".join(
+        f"{k}={quote(params[k])}" for k in SEARCH_PARAM_ORDER
+    )
+    return f"{SEARCH_URL}?{query}"
+
+
 async def _find_card_selector(page: Any) -> tuple[str, int]:
     """wait_for_selector 等卡片出现，返回命中的选择器和数量。"""
     for sel in CARD_SELECTORS:
@@ -611,6 +787,9 @@ async def _fetch_detail(page: Any, url: str) -> dict[str, Any]:
 
         city = await _first_text_int(page, DETAIL_SELECTORS["city"])
 
+        # 刷新时间（发布时间）—— 列表页没有这个字段，只能从详情页取
+        publish_date, publish_src = await _extract_publish_date(page)
+
         # JD 正文（岗位职责 / 任职要求）—— RAG 检索的主料
         description, desc_source, desc_obfuscated = await _extract_jd(page)
 
@@ -620,6 +799,8 @@ async def _fetch_detail(page: Any, url: str) -> dict[str, Any]:
             out["salary"] = salary
         if city and not _has_obfuscated(city):
             out["city"] = city
+        out["publish_date"] = publish_date
+        out["publish_date_source"] = publish_src
         out["description"] = description
         out["description_source"] = desc_source
         out["description_obfuscated"] = desc_obfuscated
@@ -637,36 +818,45 @@ async def search_shixiseng(
     limit: int = 20,
     headless: bool = False,
     fetch_detail: bool = True,
+    max_pages: int = 3,
 ) -> list[Job]:
     """
-    抓取实习僧搜索页岗位。
+    抓取实习僧搜索页岗位（支持翻页 + 跨页去重）。
 
     参数：
         keyword: 搜索关键词，如 "Agent 开发"
         city: 城市，如 "北京"；None 表示不限
         limit: 返回数量上限
         headless: 是否无头模式（默认 False，可视化便于调试）
-        fetch_detail: 是否访问详情页补齐明文 title/salary 与 JD 正文
-                      （列表页 title/salary 被字体混淆，且正文只在详情页，
+        fetch_detail: 是否访问详情页补齐明文 title/salary、JD 正文与发布时间
+                      （列表页 title/salary 被字体混淆，且正文/发布时间只在详情页，
                        强烈建议 True）
+        max_pages: 最多翻多少页（每页实测 20 条，默认 3 页 ≈ 60 条）。
+                   <=0 表示不设上限，翻到没有新岗位为止（有硬上限安全阀）。
 
     返回：
         list[Job]（复用 agent.tools.job_search.Job）
-    """
-    from urllib.parse import quote
 
-    params = f"keyword={quote(keyword)}"
-    if city:
-        params += f"&city={quote(city)}"
-    url = f"{SEARCH_URL}?{params}"
+    去重：
+        按 job_id 去重（同一条岗位重复出现时只留最先遇到的一条）。
+        另维护模块级 LAST_PUBLISH_DATES（job_id -> "YYYY-MM-DD"）：
+        Job dataclass 没有 publish_date 字段且不允许改 job_search.py，
+        所以日期不塞进 Job，放在那里供清洗/入库环节按 job_id 取用。
+    """
+    if max_pages is None or max_pages < 0:
+        max_pages = 0          # 0 = 不设上限
+
+    # 每轮清空，避免调用方误读上一轮的日期
+    LAST_PUBLISH_DATES.clear()
 
     print("=" * 70)
-    print(f"[诊断] 访问 URL：{url}")
-    print(f"[诊断] keyword={keyword!r} city={city!r} limit={limit}  headless={headless}")
+    print(f"[诊断] keyword={keyword!r} city={city!r} limit={limit} "
+          f"max_pages={max_pages or '不限'}  headless={headless}")
 
     jobs: list[Job] = []
-    parsed_count = 0
-    card_count = 0
+    raw_unique: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    page_stats: list[dict[str, Any]] = []
 
     async with async_playwright() as p:
         browser = await _launch_browser(p, headless)
@@ -678,50 +868,123 @@ async def search_shixiseng(
         )
         page = await context.new_page()
         try:
-            resp = await page.goto(url, wait_until="domcontentloaded", timeout=60_000)
-            print(f"[诊断] HTTP 状态：{resp.status if resp else 'N/A'}  最终 URL：{page.url}")
+            # ------------------------------------------------------------------
+            # 翻页抓列表：每页解析卡片 -> 按 job_id 去重累加
+            # ------------------------------------------------------------------
+            page_no = 1
+            while True:
+                if max_pages and page_no > max_pages:
+                    print(f"[诊断] 已达 max_pages={max_pages}，停止翻页。")
+                    break
 
-            card_selector, card_count = await _find_card_selector(page)
-            print(f"[诊断] 命中卡片选择器：{card_selector!r}  卡片数：{card_count}")
+                url = _build_search_url(keyword, city, page_no)
+                print("-" * 70)
+                print(f"[诊断] 第 {page_no} 页 URL：{url}")
 
-            # 等页面渲染稳定一点再截图
-            await page.wait_for_timeout(1_500)
+                try:
+                    resp = await page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+                except Exception as exc:  # noqa: BLE001 - 单页导航失败不放弃整轮
+                    print(f"[诊断][警告] 第 {page_no} 页导航失败："
+                          f"{type(exc).__name__}: {str(exc).splitlines()[0][:140]}")
+                    break
 
-            # 要求 d) 截图（首次调试用）
-            try:
-                await page.screenshot(path=str(DEBUG_SCREENSHOT), full_page=True)
-                print(f"[诊断] 已保存截图：{DEBUG_SCREENSHOT}")
-            except Exception as exc:  # noqa: BLE001
-                print(f"[诊断] 截图失败：{type(exc).__name__}: {exc}")
+                print(f"[诊断] 第 {page_no} 页 HTTP 状态："
+                      f"{resp.status if resp else 'N/A'}  最终 URL：{page.url}")
+                # 站点在参数不全时会静默把 page 重置回 1，这里明确告警，避免误判成"本页没岗位"
+                if page_no > 1 and f"page={page_no}" not in page.url:
+                    print(f"[诊断][警告] 站点未接受 page={page_no}，最终 URL 为 {page.url}"
+                          "（可能被重置回第 1 页）。")
 
-            if not card_count:
-                # 要求 7) 选择器找不到 -> 保存截图 + HTML 便于人工分析
-                print("[诊断] 未找到任何岗位卡片，保存页面快照供人工分析。")
-                await _dump_debug(page, note="没有命中任何卡片选择器")
+                card_selector, card_count = await _find_card_selector(page)
+                print(f"[诊断] 第 {page_no} 页命中卡片选择器：{card_selector!r}  "
+                      f"卡片数：{card_count}")
+
+                # 等页面渲染稳定一点再截图
+                await page.wait_for_timeout(1_500)
+
+                # 要求 d) 截图（只截第 1 页，避免每页都刷盘）
+                if page_no == 1:
+                    try:
+                        await page.screenshot(path=str(DEBUG_SCREENSHOT), full_page=True)
+                        print(f"[诊断] 已保存截图：{DEBUG_SCREENSHOT}")
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"[诊断] 截图失败：{type(exc).__name__}: {exc}")
+
+                if not card_count:
+                    # 要求 7) 选择器找不到 -> 保存截图 + HTML 便于人工分析
+                    print(f"[诊断] 第 {page_no} 页未找到任何岗位卡片，停止翻页。")
+                    if page_no == 1:
+                        await _dump_debug(page, note="没有命中任何卡片选择器")
+                    break
+
+                cards = page.locator(card_selector)
+                page_items: list[dict[str, Any]] = []
+                page_dupes = 0
+                for i in range(card_count):
+                    item = await _parse_card(cards.nth(i), i)
+                    if not item:
+                        continue
+                    jid = item["job_id"]
+                    if jid and jid in seen_ids:
+                        page_dupes += 1
+                        continue
+                    if jid:
+                        seen_ids.add(jid)
+                    item["page"] = page_no
+                    page_items.append(item)
+
+                raw_unique.extend(page_items)
+                page_stats.append({
+                    "page": page_no,
+                    "cards": card_count,
+                    "parsed": len(page_items) + page_dupes,
+                    "new": len(page_items),
+                    "dupes": page_dupes,
+                })
+
+                # 要求：诊断输出每页抓到几条、累计多少条、去重后多少条
+                print(f"[诊断] 第 {page_no} 页小结：卡片 {card_count} 条，"
+                      f"解析成功 {len(page_items) + page_dupes} 条，"
+                      f"本页去重丢弃 {page_dupes} 条，新增 {len(page_items)} 条")
+                print(f"[诊断] 累计：抓取总数 {sum(s['parsed'] for s in page_stats)} 条，"
+                      f"去重后 {len(raw_unique)} 条")
+
+                # 保存首卡 HTML，便于后续核对选择器（只存第 1 页第一张）
+                if page_no == 1:
+                    try:
+                        first_html = await cards.first.inner_html()
+                        DEBUG_CARDS.write_text(first_html, encoding="utf-8")
+                        print(f"[诊断] 首卡 HTML 已保存：{DEBUG_CARDS}")
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"[诊断] 保存首卡 HTML 失败：{type(exc).__name__}: {exc}")
+
+                # 翻页终止条件：本页没有新增岗位（可能到末页，也可能站点把翻页重置了）
+                if not page_items:
+                    print(f"[诊断] 第 {page_no} 页没有新增岗位，停止翻页。")
+                    break
+
+                # 安全阀：max_pages<=0（不限）时避免无限翻
+                if not max_pages and page_no >= MAX_PAGES_HARD_LIMIT:
+                    print(f"[诊断][警告] 达到硬上限 {MAX_PAGES_HARD_LIMIT} 页，停止翻页。")
+                    break
+
+                page_no += 1
+
+            print("-" * 70)
+            print("[诊断] 翻页汇总（每页：卡片 / 解析 / 去重丢弃 / 新增）：")
+            for st in page_stats:
+                print(f"[诊断]   第 {st['page']:2d} 页：卡片 {st['cards']:3d}  "
+                      f"解析 {st['parsed']:3d}  去重丢弃 {st['dupes']:3d}  新增 {st['new']:3d}")
+            total_parsed = sum(s["parsed"] for s in page_stats)
+            total_dupes = sum(s["dupes"] for s in page_stats)
+            print(f"[诊断] 抓取总数 {total_parsed} 条，跨页去重丢弃 {total_dupes} 条，"
+                  f"去重后 {len(raw_unique)} 条")
+
+            if not raw_unique:
+                await _dump_debug(page, note="卡片存在但全部解析失败")
                 return jobs
 
-            cards = page.locator(card_selector)
-            raw_items: list[dict[str, Any]] = []
-            for i in range(card_count):
-                item = await _parse_card(cards.nth(i), i)
-                if item:
-                    raw_items.append(item)
-            parsed_count = len(raw_items)
-            print(f"[诊断] 卡片解析成功数：{parsed_count}/{card_count}")
-
-            # 保存首卡 HTML，便于后续核对选择器
-            try:
-                first_html = await cards.first.inner_html()
-                DEBUG_CARDS.write_text(first_html, encoding="utf-8")
-                print(f"[诊断] 首卡 HTML 已保存：{DEBUG_CARDS}")
-            except Exception as exc:  # noqa: BLE001
-                print(f"[诊断] 保存首卡 HTML 失败：{type(exc).__name__}: {exc}")
-
-            # 只对「最终会返回的那 limit 条」补抓详情页：
-            # 详情页有限流（每条 0.5~1.5s + 页面加载），不必要地多抓会拖慢并增加被风控概率。
-            # 注意：以前只对 title/salary 被混淆的岗位补抓；现在 JD 正文也只有详情页才有，
-            # 所以只要 fetch_detail=True，就对所有候选岗位逐条补抓。
-            candidates = raw_items[:limit] if limit else raw_items
+            candidates = raw_unique[:limit] if limit else raw_unique
             need_detail = candidates if fetch_detail else []
             obf_count = sum(
                 1 for it in candidates
@@ -729,13 +992,14 @@ async def search_shixiseng(
                 or not it["title_raw"] or not it["salary_raw"]
             )
             print(f"[诊断] 需要访问详情页的岗位数：{len(need_detail)}"
-                  f"（候选 {len(candidates)}/{parsed_count}，limit={limit}，"
+                  f"（候选 {len(candidates)}/{len(raw_unique)}，limit={limit}，"
                   f"其中 title/salary 需补全 {obf_count} 条）")
             if need_detail:
                 print("[诊断] 说明：实习僧列表页对 标题/薪资 做了字体混淆（私有区码位），"
-                      "且 JD 正文只存在于详情页，故逐条补抓详情页。")
+                      "且 JD 正文与发布时间只存在于详情页，故逐条补抓详情页。")
 
             empty_jd: list[str] = []
+            missing_date: list[str] = []
             if need_detail:
                 for n, item in enumerate(need_detail, 1):
                     print(f"[诊断] ({n}/{len(need_detail)}) 详情页：{item['url']}")
@@ -746,10 +1010,16 @@ async def search_shixiseng(
                     item["description"] = detail.get("description", "")
                     item["description_source"] = detail.get("description_source", "")
                     item["description_obfuscated"] = detail.get("description_obfuscated", False)
+                    item["publish_date"] = detail.get("publish_date", "")
+                    item["publish_date_source"] = detail.get("publish_date_source", "")
 
-                    # 要求：打印每条 JD 正文长度
+                    # 要求：打印每条 JD 正文长度 + 发布时间
                     print(f"[诊断]     JD 正文长度：{len(item['description'])} 字符"
                           f"（来源选择器：{item['description_source'] or '未命中'}）")
+                    print(f"[诊断]     发布时间：{item['publish_date'] or '（未取到）'}"
+                          f"（来源选择器：{item['publish_date_source'] or '未命中'}）")
+                    if not item["publish_date"]:
+                        missing_date.append(item["job_id"])
                     if not item["description"]:
                         # 要求：正文为空必须明确报出来，不许静默
                         print(f"[诊断][警告] 岗位 {item['job_id']} 的 JD 正文为空！"
@@ -763,7 +1033,7 @@ async def search_shixiseng(
 
             # 组装 Job，最多 limit 条
             flagged = 0
-            for item in raw_items:
+            for item in raw_unique:
                 if len(jobs) >= limit:
                     break
                 title = item.get("title_detail") or item["title_raw"]
@@ -773,6 +1043,8 @@ async def search_shixiseng(
                     flagged += 1
                     title = _clean(title)
                     salary = _clean(salary)
+                if item.get("publish_date"):
+                    LAST_PUBLISH_DATES[item["job_id"]] = item["publish_date"]
                 jobs.append(
                     Job(
                         platform=PLATFORM,
@@ -793,6 +1065,16 @@ async def search_shixiseng(
             if flagged:
                 print(f"[诊断] 其中 {flagged} 条的 title/salary 仍含字体混淆字符（详情页补全失败）")
 
+            # 发布时间汇总（要求：拿不到就明确告警，不许静默）
+            dated = [LAST_PUBLISH_DATES.get(j.job_id, "") for j in jobs]
+            filled = [d for d in dated if d]
+            print(f"[诊断] 发布时间汇总：{len(filled)}/{len(jobs)} 条拿到日期"
+                  f"（格式 YYYY-MM-DD）")
+            if filled:
+                print(f"[诊断]   最早 {min(filled)}，最新 {max(filled)}")
+            if missing_date:
+                print(f"[诊断][警告] 以下岗位未取到发布时间：{', '.join(missing_date)}")
+
             # 要求：JD 正文长度汇总 + 空正文明确告警
             jd_lens = [len(j.description or "") for j in jobs]
             if jd_lens:
@@ -803,7 +1085,7 @@ async def search_shixiseng(
                 if empty_n:
                     print(f"[诊断][警告] 以下岗位 JD 正文为空：{', '.join(empty_jd) or '（见上方逐条告警）'}")
             elif not fetch_detail:
-                print("[诊断] fetch_detail=False，未抓取 JD 正文（description 全为空）。")
+                print("[诊断] fetch_detail=False，未抓取 JD 正文与发布时间。")
 
             if not jobs:
                 await _dump_debug(page, note="卡片存在但全部解析失败")
@@ -852,14 +1134,17 @@ if __name__ == "__main__":
     KEYWORD = "Agent 开发"
     CITY = "北京"
     LIMIT = 20
+    MAX_PAGES = 3
     # 冒烟测试用：--no-detail 跳过详情页（列表页的 title/salary 会是混淆字符，正文也为空）
     FETCH_DETAIL = "--no-detail" not in _sys.argv
     if "--limit" in _sys.argv:
         LIMIT = int(_sys.argv[_sys.argv.index("--limit") + 1])
+    if "--max-pages" in _sys.argv:
+        MAX_PAGES = int(_sys.argv[_sys.argv.index("--max-pages") + 1])
 
     results = asyncio.run(
         search_shixiseng(KEYWORD, city=CITY, limit=LIMIT, headless=False,
-                         fetch_detail=FETCH_DETAIL)
+                         fetch_detail=FETCH_DETAIL, max_pages=MAX_PAGES)
     )
 
     print()
@@ -873,6 +1158,7 @@ if __name__ == "__main__":
         print(f"    salary  : {job.salary}")
         print(f"    url     : {job.url}")
         print(f"    job_id  : {job.job_id}")
+        print(f"    发布时间: {LAST_PUBLISH_DATES.get(job.job_id, '') or '（未取到）'}")
         print(f"    JD 正文 : {len(desc)} 字符")
         if not desc:
             print("    [警告] JD 正文为空！")
@@ -892,6 +1178,9 @@ if __name__ == "__main__":
             "salary": j.salary,
             "url": j.url,
             "tags": j.tags,
+            # 发布时间（详情页 .job_date 的刷新时间，已格式化为 YYYY-MM-DD；拿不到为 ""）
+            # 注意：不放进 Job dataclass（不改 job_search.py），这里从映射里取
+            "publish_date": LAST_PUBLISH_DATES.get(j.job_id, ""),
             # 正文：岗位职责 + 任职要求，用【】标签分段、\n 保留段落结构
             "description": j.description,
             "description_chars": len(j.description or ""),
@@ -904,4 +1193,7 @@ if __name__ == "__main__":
     empty = [j.job_id for j in results if not (j.description or "")]
     if empty:
         print(f"[警告] 有 {len(empty)} 条岗位 JD 正文为空：{', '.join(empty)}")
+    nodate = [j.job_id for j in results if not LAST_PUBLISH_DATES.get(j.job_id)]
+    if nodate:
+        print(f"[警告] 有 {len(nodate)} 条岗位未取到发布时间：{', '.join(nodate)}")
     print(f"结果已保存：{out_path}")
