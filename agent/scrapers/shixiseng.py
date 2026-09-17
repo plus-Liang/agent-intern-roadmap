@@ -228,13 +228,9 @@ ABS_PUBLISH_RE = re.compile(r"(\d{4})\s*[-/年]\s*(\d{1,2})\s*[-/月]\s*(\d{1,2}
 TODAY_WORDS = ("刚刚", "今天", "今日")
 YESTERDAY_WORDS = ("昨天", "昨日")
 
-# 最近一次 search_shixiseng 抓到的 job_id -> "YYYY-MM-DD" 映射。
-#
-# 为什么要有它：agent.tools.job_search.Job **没有 publish_date 字段**，而本任务
-# 明确禁止修改 job_search.py，所以日期不塞进 Job（避免破坏 dataclass 契约），
-# 而是放在这里 + 诊断输出 + shixiseng_result.json 里，供清洗器/入库环节按 job_id 取用。
-# 每次 search_shixiseng 开始时会清空，避免误用上一轮的陈旧数据。
-LAST_PUBLISH_DATES: dict[str, str] = {}
+# 发布时间存放位置：**Job.publish_date 字段**（agent.tools.job_search.Job）。
+# 早先版本因为 Job 没有该字段，把日期存在模块级 LAST_PUBLISH_DATES 映射里；
+# 现在 Job 已有 publish_date 字段，该映射已删除，避免两处状态不一致。
 
 
 # ---------------------------------------------------------------------------
@@ -839,15 +835,10 @@ async def search_shixiseng(
 
     去重：
         按 job_id 去重（同一条岗位重复出现时只留最先遇到的一条）。
-        另维护模块级 LAST_PUBLISH_DATES（job_id -> "YYYY-MM-DD"）：
-        Job dataclass 没有 publish_date 字段且不允许改 job_search.py，
-        所以日期不塞进 Job，放在那里供清洗/入库环节按 job_id 取用。
+        发布时间直接落在 Job.publish_date 字段（"YYYY-MM-DD"，拿不到为 ""）。
     """
     if max_pages is None or max_pages < 0:
         max_pages = 0          # 0 = 不设上限
-
-    # 每轮清空，避免调用方误读上一轮的日期
-    LAST_PUBLISH_DATES.clear()
 
     print("=" * 70)
     print(f"[诊断] keyword={keyword!r} city={city!r} limit={limit} "
@@ -1043,8 +1034,6 @@ async def search_shixiseng(
                     flagged += 1
                     title = _clean(title)
                     salary = _clean(salary)
-                if item.get("publish_date"):
-                    LAST_PUBLISH_DATES[item["job_id"]] = item["publish_date"]
                 jobs.append(
                     Job(
                         platform=PLATFORM,
@@ -1055,9 +1044,11 @@ async def search_shixiseng(
                         salary=salary,
                         url=item["url"],
                         tags=item.get("tags"),
-                        # 说明：Job 只有一个 description 字段（不改 job_search.py），
+                        # 说明：Job 只有一个 description 字段，
                         # 这里存「岗位职责 + 任职要求」的拼接文本，用【】标签分段。
                         description=item.get("description", ""),
+                        # 发布时间（详情页 .job_date 的刷新时间，已格式化为 YYYY-MM-DD）
+                        publish_date=item.get("publish_date", ""),
                     )
                 )
 
@@ -1066,7 +1057,7 @@ async def search_shixiseng(
                 print(f"[诊断] 其中 {flagged} 条的 title/salary 仍含字体混淆字符（详情页补全失败）")
 
             # 发布时间汇总（要求：拿不到就明确告警，不许静默）
-            dated = [LAST_PUBLISH_DATES.get(j.job_id, "") for j in jobs]
+            dated = [j.publish_date or "" for j in jobs]
             filled = [d for d in dated if d]
             print(f"[诊断] 发布时间汇总：{len(filled)}/{len(jobs)} 条拿到日期"
                   f"（格式 YYYY-MM-DD）")
@@ -1125,6 +1116,152 @@ async def _dump_debug(page: Any, note: str = "") -> None:
         print(f"[诊断]   保存 HTML 失败：{type(exc).__name__}: {exc}")
 
 
+async def search_multi_keywords(
+    keywords: list[str],
+    city: str = None,
+    max_pages_per_keyword: int = 2,
+    limit_total: int = 100,
+    limit_per_keyword: int = 40,
+    headless: bool = False,
+    fetch_detail: bool = True,
+) -> list[Job]:
+    """
+    多关键词搜索：逐个关键词调用 search_shixiseng -> 合并 -> 按 job_id 去重。
+
+    为什么需要它：
+        单个关键词在某个城市（例如 广州 + "Agent"）常常只有个位数甚至 3 条，
+        不足以支撑 RAG 建库。用一组近义/相关关键词分别搜，再合并去重，
+        是成本最低的扩容方式（同一个岗位会被多个关键词命中，必须去重）。
+
+    参数：
+        keywords: 关键词列表，如 ["Agent", "大模型", "LLM", "AI", "RAG", "智能体"]
+        city: 城市，如 "广州"；None 表示不限
+        max_pages_per_keyword: 每个关键词最多翻几页（每页 20 条）
+        limit_total: 合并去重后返回的**总条数上限**
+        limit_per_keyword: 单个关键词的候选上限（防止一个宽泛关键词吃满预算；
+                           按列表页顺序取前 N 条，默认 40 = 2 页）
+        headless: 是否无头模式
+        fetch_detail: 是否访问详情页补齐明文 title/salary、JD 正文与发布时间
+
+    去重规则：
+        按 job_id 去重，**先到先得**——保留最早命中的那个关键词对应的 Job 对象。
+        因此 keywords 的顺序会影响「哪个关键词贡献了这条岗位」的归属，
+        但不影响最终结果集合（各关键词的 Job 字段内容一致）。
+
+        注意：每个关键词都单独调用 search_shixiseng，会**各自启动一次浏览器**。
+        这是有意为之：单次调用内部共用 page，多关键词之间重新开浏览器更稳妥
+        （避免上一轮的风控/登录态/页面状态残留），代价是每关键词多几秒启动开销。
+
+    返回：
+        list[Job]，每个 job_id 只出现一次，长度 <= limit_total。
+    """
+    keywords = [k for k in (keywords or []) if k and k.strip()]
+    if not keywords:
+        print("[多关键词][警告] keywords 为空，返回空列表。")
+        return []
+
+    print("=" * 70)
+    print(f"[多关键词] 开始：关键词数={len(keywords)} city={city!r} "
+          f"max_pages_per_keyword={max_pages_per_keyword} limit_total={limit_total} "
+          f"fetch_detail={fetch_detail}")
+    print(f"[多关键词] 关键词列表：{keywords}")
+
+    merged: list[Job] = []
+    seen: dict[str, str] = {}          # job_id -> 首次命中的关键词
+    owner_count: dict[str, int] = {}   # 关键词 -> 最终归属它的岗位数
+    stats: list[dict[str, Any]] = []
+    empty_keywords: list[str] = []
+    errors: list[str] = []
+
+    for idx, kw in enumerate(keywords, 1):
+        print("=" * 70)
+        print(f"[多关键词] ({idx}/{len(keywords)}) 关键词：{kw!r}")
+        kw_jobs: list[Job] = []
+        try:
+            kw_jobs = await search_shixiseng(
+                kw,
+                city=city,
+                limit=limit_per_keyword,
+                headless=headless,
+                fetch_detail=fetch_detail,
+                max_pages=max_pages_per_keyword,
+            )
+        except Exception as exc:  # noqa: BLE001 - 单个关键词失败不拖垮整轮
+            msg = f"{kw}: {type(exc).__name__}: {str(exc).splitlines()[0][:160]}"
+            errors.append(msg)
+            print(f"[多关键词][警告] 关键词 {kw!r} 抓取失败，跳过：{msg}")
+
+        new_n = 0
+        for job in kw_jobs:
+            jid = job.job_id
+            if not jid:
+                # 没有 job_id 就无法去重：保留但不去重（正常抓取不该出现）
+                merged.append(job)
+                new_n += 1
+                continue
+            if jid in seen:
+                continue
+            seen[jid] = kw
+            merged.append(job)
+            new_n += 1
+
+        if not kw_jobs:
+            empty_keywords.append(kw)
+        owner_count[kw] = new_n
+        stats.append({
+            "keyword": kw,
+            "raw": len(kw_jobs),
+            "new": new_n,
+            "dupes": len(kw_jobs) - new_n,
+            "cum": len(merged),
+        })
+        print(f"[多关键词] 关键词 {kw!r} 抓到 {len(kw_jobs)} 条，"
+              f"新增（去重后）{new_n} 条，与前面重复 {len(kw_jobs) - new_n} 条，"
+              f"累计 {len(merged)} 条")
+
+    raw_total = sum(s["raw"] for s in stats)
+    deduped_total = len(merged)
+    dropped_by_limit = max(0, deduped_total - limit_total) if limit_total else 0
+    result = merged[:limit_total] if limit_total else merged
+
+    # ------------------------------------------------------------------
+    # 要求：诊断输出 [多关键词汇总] 关键词数：N  原始：X 条  去重后：Y 条
+    # 注意：这里先打印**去重后的全量**，再打印 limit_total 截断后的最终条数，
+    #      否则 limit_total 一截断，"去重后"的数字会看起来自相矛盾。
+    # ------------------------------------------------------------------
+    print("=" * 70)
+    print(f"[多关键词汇总] 关键词数：{len(keywords)}  原始：{raw_total} 条  "
+          f"去重后：{deduped_total} 条")
+
+    print(f"[多关键词] 逐关键词明细（{len(keywords)} 个关键词）：")
+    for s in stats:
+        note = "  [未命中]" if s["raw"] == 0 else ""
+        print(f"[多关键词]   {s['keyword']:<12} 抓到 {s['raw']:3d} 条  "
+              f"去重后新增 {s['new']:3d} 条  与前面重复 {s['dupes']:3d} 条  "
+              f"累计 {s['cum']:3d} 条{note}")
+
+    if limit_total and dropped_by_limit:
+        print(f"[多关键词] 已按 limit_total={limit_total} 截断，"
+              f"丢弃 {dropped_by_limit} 条（去重后 {deduped_total} 条 -> 最终 {len(result)} 条）")
+    print(f"[多关键词] 最终产出 Job 数：{len(result)}")
+
+    # 相邻关键词互换：同一岗位到底算谁的？这里只做「专属 vs 共享」统计，
+    # 因为一条岗位被 N 个关键词命中时，归属取决于顺序，说成"某关键词独有"会误导。
+    multi_hit = sum(1 for s in stats if s["new"] > 0)
+    print(f"[多关键词] 有 {multi_hit}/{len(keywords)} 个关键词做出了新增贡献"
+          f"（另 {len(empty_keywords)} 个关键词零命中）")
+
+    if empty_keywords:
+        print(f"[多关键词][警告] 以下关键词一条也没抓到：{', '.join(empty_keywords)}")
+    if errors:
+        print(f"[多关键词][警告] 以下关键词抓取报错：{'; '.join(errors)}")
+    if not result:
+        print("[多关键词][警告] 最终结果为空！可能城市/关键词组合确实没有岗位，"
+              "也可能是站点风控或选择器失效，请看上方逐关键词诊断。")
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # 直接运行测试
 # ---------------------------------------------------------------------------
@@ -1135,17 +1272,41 @@ if __name__ == "__main__":
     CITY = "北京"
     LIMIT = 20
     MAX_PAGES = 3
+    # 多关键词模式（--multi）：验证合并去重路径，默认跑广州那组关键词
+    MULTI_KEYWORDS = ["Agent", "大模型", "LLM", "AI", "RAG", "智能体"]
+    LIMIT_TOTAL = 100
+    LIMIT_PER_KEYWORD = 40
     # 冒烟测试用：--no-detail 跳过详情页（列表页的 title/salary 会是混淆字符，正文也为空）
     FETCH_DETAIL = "--no-detail" not in _sys.argv
     if "--limit" in _sys.argv:
         LIMIT = int(_sys.argv[_sys.argv.index("--limit") + 1])
     if "--max-pages" in _sys.argv:
         MAX_PAGES = int(_sys.argv[_sys.argv.index("--max-pages") + 1])
+    if "--city" in _sys.argv:
+        CITY = _sys.argv[_sys.argv.index("--city") + 1]
+    if "--limit-total" in _sys.argv:
+        LIMIT_TOTAL = int(_sys.argv[_sys.argv.index("--limit-total") + 1])
+    if "--limit-per-keyword" in _sys.argv:
+        LIMIT_PER_KEYWORD = int(_sys.argv[_sys.argv.index("--limit-per-keyword") + 1])
+    if "--keywords" in _sys.argv:
+        MULTI_KEYWORDS = [
+            k.strip() for k in _sys.argv[_sys.argv.index("--keywords") + 1].split(",")
+            if k.strip()
+        ]
 
-    results = asyncio.run(
-        search_shixiseng(KEYWORD, city=CITY, limit=LIMIT, headless=False,
-                         fetch_detail=FETCH_DETAIL, max_pages=MAX_PAGES)
-    )
+    if "--multi" in _sys.argv:
+        results = asyncio.run(
+            search_multi_keywords(
+                MULTI_KEYWORDS, city=CITY, max_pages_per_keyword=MAX_PAGES,
+                limit_total=LIMIT_TOTAL, limit_per_keyword=LIMIT_PER_KEYWORD,
+                headless=False, fetch_detail=FETCH_DETAIL,
+            )
+        )
+    else:
+        results = asyncio.run(
+            search_shixiseng(KEYWORD, city=CITY, limit=LIMIT, headless=False,
+                             fetch_detail=FETCH_DETAIL, max_pages=MAX_PAGES)
+        )
 
     print()
     print(f"抓到岗位数：{len(results)}")
@@ -1158,7 +1319,7 @@ if __name__ == "__main__":
         print(f"    salary  : {job.salary}")
         print(f"    url     : {job.url}")
         print(f"    job_id  : {job.job_id}")
-        print(f"    发布时间: {LAST_PUBLISH_DATES.get(job.job_id, '') or '（未取到）'}")
+        print(f"    发布时间: {job.publish_date or '（未取到）'}")
         print(f"    JD 正文 : {len(desc)} 字符")
         if not desc:
             print("    [警告] JD 正文为空！")
@@ -1179,8 +1340,7 @@ if __name__ == "__main__":
             "url": j.url,
             "tags": j.tags,
             # 发布时间（详情页 .job_date 的刷新时间，已格式化为 YYYY-MM-DD；拿不到为 ""）
-            # 注意：不放进 Job dataclass（不改 job_search.py），这里从映射里取
-            "publish_date": LAST_PUBLISH_DATES.get(j.job_id, ""),
+            "publish_date": j.publish_date,
             # 正文：岗位职责 + 任职要求，用【】标签分段、\n 保留段落结构
             "description": j.description,
             "description_chars": len(j.description or ""),
@@ -1193,7 +1353,7 @@ if __name__ == "__main__":
     empty = [j.job_id for j in results if not (j.description or "")]
     if empty:
         print(f"[警告] 有 {len(empty)} 条岗位 JD 正文为空：{', '.join(empty)}")
-    nodate = [j.job_id for j in results if not LAST_PUBLISH_DATES.get(j.job_id)]
+    nodate = [j.job_id for j in results if not j.publish_date]
     if nodate:
         print(f"[警告] 有 {len(nodate)} 条岗位未取到发布时间：{', '.join(nodate)}")
     print(f"结果已保存：{out_path}")
