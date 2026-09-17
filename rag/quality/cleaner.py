@@ -8,7 +8,8 @@
 
 依次应用四道过滤（命中即计数并丢弃，一条只计一次，按下列顺序判定）：
     a) relevance 相关性：标题或正文含 Agent / LLM / 大模型 / RAG / 智能体
-       —— 单独出现 "AI" 不作为命中（太宽泛），例外是 "AI Agent" / "AI 大模型"
+       —— 单独出现 "AI" 不作为命中（太宽泛）；
+          只有"标题含 AI"且"正文含上述关键词"才算命中
     b) city      城市：city == 目标城市 或 city == "全国"
     c) age       时间：publish_date 距今天 <= max_age_days（publish_date 为空则不参与时间过滤）
     d) length    正文长度：len(description) >= min_desc_len
@@ -32,13 +33,24 @@ REPO_DIR = RAG_DIR.parent
 DEFAULT_INPUT = REPO_DIR / "agent" / "scrapers" / "shixiseng_result.json"
 DEFAULT_OUTPUT = RAG_DIR / "data" / "cleaned_jd.json"
 
+# 时间过滤默认值：60 天
+DEFAULT_MAX_AGE_DAYS = 60
+
+# 正文长度默认值
+DEFAULT_MIN_DESC_LEN = 200
+
 # 相关性关键词。
-# - 中文关键词按原文大小写敏感匹配（"AI Agent" / "AI 大模型" 两种写法都列出来）
+# - 中文关键词按原文大小写敏感匹配
 # - 英文关键词用 lower() 做大小写不敏感匹配（"Agent" / "agent" / "AGENT" 都算）
 # - 不收录单独的 "AI"：广州搜索里 "AI原画"、"AI短视频创意"、"AI产品经理" 这类
 #   泛 AI 岗位命中率太高，会让 clean_jobs 失去筛选意义
-RELEVANCE_KEYWORDS_ZH = ("大模型", "智能体", "AI Agent", "AI 大模型")
+# - 也不再收录 "AI Agent" / "AI 大模型" 这类带 "AI" 的中文例外：它们本身就分别包含
+#   "agent" / "大模型"，已经被关键词覆盖，单列出来只会让规则看起来比实际更宽
+RELEVANCE_KEYWORDS_ZH = ("大模型", "智能体")
 RELEVANCE_KEYWORDS_EN = ("agent", "llm", "rag")
+
+# 标题侧标记："标题含 AI" 是识别 AI 类岗位的唯一线索，但必须配合正文关键词才放行
+AI_TITLE_MARKER = "ai"
 
 # 输出字段顺序 = Job 的字段顺序（不含 tags，抓取结果里也没有 tags）
 # 抓取结果里的 description_chars 是抓取器自己的统计字段，不进入清洗结果
@@ -64,8 +76,8 @@ def _job_field(job, name):
     return value if isinstance(value, str) else str(value)
 
 
-def _is_relevant(text):
-    """判断一段文本（标题或正文）是否命中相关性关键词。"""
+def _hits_keyword(text):
+    """文本是否命中任一相关性关键词（中文大小写敏感，英文忽略大小写）。"""
     if not text:
         return False
     for keyword in RELEVANCE_KEYWORDS_ZH:
@@ -76,6 +88,22 @@ def _is_relevant(text):
         if keyword in lowered:
             return True
     return False
+
+
+def _is_relevant(title, description):
+    """相关性判定（收窄后）。
+
+    1) 标题或正文命中关键词（Agent / LLM / 大模型 / RAG / 智能体）→ 保留；
+    2) 标题含 "AI" 且正文命中关键词 → 保留；
+    3) 只是标题或正文出现 "AI"（如 "AI原画" / "AI产品经理"）→ 不算命中。
+
+    说明：规则 2 在逻辑上被规则 1 覆盖（正文一旦命中关键词，规则 1 就已放行），
+    这里显式写出来是为了让"AI 类岗位"的判定条件留下可读的痕迹；
+    它对结果的影响是 0，真正起收窄作用的是删掉 "AI Agent" / "AI 大模型" 例外。
+    """
+    if _hits_keyword(title) or _hits_keyword(description):
+        return True
+    return AI_TITLE_MARKER in (title or "").lower() and _hits_keyword(description)
 
 
 def _parse_date(value):
@@ -116,8 +144,8 @@ def _normalize_job(job):
 
 
 def clean_jobs(jobs: list[dict], city: str = "广州",
-               max_age_days: int = 30,
-               min_desc_len: int = 200,
+               max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+               min_desc_len: int = DEFAULT_MIN_DESC_LEN,
                today: date | None = None) -> dict:
     """
     清洗岗位列表。
@@ -125,7 +153,7 @@ def clean_jobs(jobs: list[dict], city: str = "广州",
     参数：
         jobs:         原始岗位 dict 列表
         city:         目标城市（city == 该值，或 city == "全国" 时保留）
-        max_age_days: publish_date 距今天最大天数
+        max_age_days: publish_date 距今天最大天数（默认 60）
         min_desc_len: 正文最小长度
         today:        基准日期，默认取系统当天；测试时可显式传入
 
@@ -149,8 +177,8 @@ def clean_jobs(jobs: list[dict], city: str = "广州",
         job_city = _job_field(job, "city").strip()
         publish_date = _job_field(job, "publish_date").strip()
 
-        # a) 相关性：标题或正文命中关键词
-        if not _is_relevant(title) and not _is_relevant(description):
+        # a) 相关性：标题/正文命中关键词，或"标题含 AI + 正文命中关键词"
+        if not _is_relevant(title, description):
             removed["relevance"] += 1
             continue
 
@@ -207,7 +235,7 @@ def _print_summary(result):
     print("-" * 60)
     print("按过滤原因移除：")
     labels = {
-        "relevance": "相关性（标题/正文无 Agent/LLM/大模型/RAG/智能体）",
+        "relevance": "相关性（标题/正文无 Agent/LLM/大模型/RAG/智能体，且非「标题含 AI + 正文命中」）",
         "city": "城市（非目标城市且非全国）",
         "age": "时间（publish_date 超出天数上限）",
         "length": "正文长度（description 太短）",
@@ -246,7 +274,12 @@ def main(argv=None):
     output_path = Path(argv[1]) if len(argv) > 1 else DEFAULT_OUTPUT
 
     jobs = load_jobs(input_path)
-    result = clean_jobs(jobs, city="广州", max_age_days=30, min_desc_len=200)
+    result = clean_jobs(
+        jobs,
+        city="广州",
+        max_age_days=DEFAULT_MAX_AGE_DAYS,
+        min_desc_len=DEFAULT_MIN_DESC_LEN,
+    )
     _print_summary(result)
 
     saved = save_cleaned(result["jobs"], output_path)
