@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import pathlib
+import random
 import re
 import sys
 from typing import Any, Optional
@@ -55,7 +56,8 @@ UA = (
 VIEWPORT = {"width": 1440, "height": 900}
 CARD_TIMEOUT_MS = 15_000          # wait_for_selector 等卡片，15 秒
 DETAIL_TIMEOUT_MS = 20_000
-DETAIL_PAUSE_MS = 700             # 每个详情页之间的礼貌间隔
+# 详情页限流：每次请求前随机等待 0.5~1.5 秒，降低被站点限流/风控的概率
+DETAIL_SLEEP_RANGE = (0.5, 1.5)
 
 DEBUG_DIR = pathlib.Path(__file__).resolve().parent
 DEBUG_SCREENSHOT = DEBUG_DIR / "shixiseng_debug.png"
@@ -213,26 +215,35 @@ async def _first_text_int(page: Any, selectors: list[str]) -> str:
 
 async def _launch_browser(playwright: Any, headless: bool) -> Any:
     """
-    启动浏览器。
+    启动浏览器，采用「回退策略」：chromium -> chrome -> msedge，取第一个能启动的。
 
-    注意：本机 Playwright 只下载了 chromium 的注册信息，
-    实际可执行文件 C:\\Users\\...\\ms-playwright\\chromium-1243 并不存在；
-    系统上可用的是 Microsoft Edge，因此按
-        chromium -> chrome -> msedge
-    顺序尝试，取第一个能启动的。
+    为什么需要回退（本机实测结论，勿轻易简化）：
+      1) Chromium 在此环境**没有安装成功**。Playwright 的注册信息还在
+         （playwright.chromium.executable_path 会返回
+         C:\\Users\\<user>\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe），
+         但该目录/可执行文件实际不存在；headless 模式还需要额外缺失的
+         chromium_headless_shell。因此第 1 个候选通常会抛
+         "Executable doesn't exist"，属于**预期失败**，直接落到下一个候选。
+      2) 系统已安装 Google Chrome / Microsoft Edge 时，可用 Playwright 的
+         channel 参数直接驱动它们。Edge 与 Chromium 同源，**内核兼容 Playwright API**，
+         本机实测由 channel="msedge" 启动成功并完整跑通抓取。
+      3) 一旦执行 `python -m playwright install chromium` 装好自带 chromium，
+         第 1 个候选就会自动生效，无需改动本函数。
+
+    这样既能在当前环境下开箱可用，又能在装好 chromium 后无感切换。
     """
     attempts: list[dict[str, Any]] = [
-        {"name": "chromium(自带)", "kwargs": {}},
-        {"name": "chrome", "kwargs": {"channel": "chrome"}},
-        {"name": "msedge", "kwargs": {"channel": "msedge"}},
+        # 第 1 候选：Playwright 自带的 chromium（本机未装成功，会失败并回退）
+        {"name": "chromium(Playwright 自带)", "kwargs": {}},
+        # 第 2 候选：系统安装的 Google Chrome
+        {"name": "chrome(系统安装)", "kwargs": {"channel": "chrome"}},
+        # 第 3 候选：系统安装的 Microsoft Edge（本机实际可用，内核兼容 Playwright API）
+        {"name": "msedge(系统安装)", "kwargs": {"channel": "msedge"}},
     ]
     errors: list[str] = []
     for attempt in attempts:
-        kwargs = dict(attempt["kwargs"])
-        if kwargs.get("channel") == "chromium":
-            kwargs.pop("channel")
         try:
-            browser = await playwright.chromium.launch(headless=headless, **kwargs)
+            browser = await playwright.chromium.launch(headless=headless, **attempt["kwargs"])
             print(f"[诊断] 浏览器已启动：{attempt['name']} (headless={headless})")
             return browser
         except Exception as exc:  # noqa: BLE001
@@ -308,12 +319,16 @@ async def _fetch_detail(page: Any, url: str) -> dict[str, str]:
     """访问详情页，返回明文 title/salary/city。失败返回空字典。"""
     out: dict[str, str] = {}
     try:
+        # 限流：每次详情请求前随机等待 0.5~1.5 秒，避免高频请求被站点限流
+        delay = random.uniform(*DETAIL_SLEEP_RANGE)
+        await asyncio.sleep(delay)
+
         await page.goto(url, wait_until="domcontentloaded", timeout=DETAIL_TIMEOUT_MS)
         try:
             await page.wait_for_selector(".job-header, .new_job_name", timeout=10_000)
         except Exception:  # noqa: BLE001 - 结构变了也别直接放弃
             pass
-        await page.wait_for_timeout(DETAIL_PAUSE_MS)
+        await page.wait_for_timeout(300)
 
         title = await _first_text_int(page, DETAIL_SELECTORS["title"])
         if not title or _has_obfuscated(title):
@@ -406,7 +421,7 @@ async def search_shixiseng(
 
             # 要求 d) 截图（首次调试用）
             try:
-                await page.screenshot(path=str(DEBUG_SCREENSHOT), full_page=False)
+                await page.screenshot(path=str(DEBUG_SCREENSHOT), full_page=True)
                 print(f"[诊断] 已保存截图：{DEBUG_SCREENSHOT}")
             except Exception as exc:  # noqa: BLE001
                 print(f"[诊断] 截图失败：{type(exc).__name__}: {exc}")
@@ -434,12 +449,16 @@ async def search_shixiseng(
             except Exception as exc:  # noqa: BLE001
                 print(f"[诊断] 保存首卡 HTML 失败：{type(exc).__name__}: {exc}")
 
+            # 只对「最终会返回的那 limit 条」补抓详情页：
+            # 详情页有限流（每条 0.5~1.5s + 页面加载），不必要地多抓会拖慢并增加被风控概率
+            candidates = raw_items[:limit] if limit else raw_items
             need_detail = [
-                it for it in raw_items
+                it for it in candidates
                 if fetch_detail and (it["title_obfuscated"] or it["salary_obfuscated"]
                                      or not it["title_raw"] or not it["salary_raw"])
             ]
-            print(f"[诊断] 需要访问详情页补全的岗位数：{len(need_detail)}/{parsed_count}")
+            print(f"[诊断] 需要访问详情页补全的岗位数：{len(need_detail)}"
+                  f"（候选 {len(candidates)}/{parsed_count}，limit={limit}）")
             if need_detail:
                 print("[诊断] 说明：实习僧列表页对 标题/薪资 做了字体混淆（私有区码位），"
                       "详情页为明文，故补抓详情页。")
@@ -503,7 +522,7 @@ async def _dump_debug(page: Any, note: str = "") -> None:
     """保存截图 + HTML，便于人工分析选择器。"""
     print(f"[诊断] 保存调试快照（{note}）")
     try:
-        await page.screenshot(path=str(DEBUG_SCREENSHOT), full_page=False)
+        await page.screenshot(path=str(DEBUG_SCREENSHOT), full_page=True)
         print(f"[诊断]   截图 -> {DEBUG_SCREENSHOT}")
     except Exception as exc:  # noqa: BLE001
         print(f"[诊断]   截图失败：{type(exc).__name__}: {exc}")

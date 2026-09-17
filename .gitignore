@@ -7,3 +7,9 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+
+# 抓取器调试产物与示例结果（含整页 HTML/截图，体积大且为一次性产物，不入库）
+agent/scrapers/shixiseng_debug.png
+agent/scrapers/shixiseng_debug.html
+agent/scrapers/shixiseng_debug_cards.html
+agent/scrapers/shixiseng_result.json
