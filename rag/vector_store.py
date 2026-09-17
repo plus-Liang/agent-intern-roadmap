@@ -64,7 +64,7 @@ if __name__ == "__main__":
     from rag.loader import load_jd_file
     from rag.splitter import split_jds
 
-    jds = load_jd_file(str(DATA_DIR / "jd_sample.txt"))
+    jds = load_jd_file(str(DATA_DIR / "scraped_jd.txt"))
     chunks = split_jds(jds)
     add_chunks(chunks)
 
