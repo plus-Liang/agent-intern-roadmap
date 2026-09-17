@@ -13,6 +13,11 @@ JD 数据质量校验模块（只检测，不修复）
   d) 字段缺失：structured 里 city/education/salary_min/salary_max 有空的
   e) 正文缺失：jd_text 里找不到「岗位职责」或「任职要求」段落
 
+问题分级（见 CHECK_SEVERITY）：
+  errors   严重问题 —— 字段缺失、正文缺失，会让 passed=False
+  warnings 提示问题 —— 头部与正文学历表述不一致，只提示，不影响 passed
+  passed 只由 errors 决定：没有 errors 就是通过，warnings 不参与判定。
+
 依赖：仅标准库 re / json / pathlib。
 """
 
@@ -54,6 +59,41 @@ _EDU_PATTERNS = (
     ("不限", r"不限"),
 )
 _MISSING = object()
+
+# ---------------------------------------------------------------------------
+# 问题分级表：error 计入 passed=False，warning 只提示、不影响通过。
+# 每个检测项的级别集中在这里声明，调整分级只需要改这一处。
+# ---------------------------------------------------------------------------
+SEVERITY_ERROR = "error"
+SEVERITY_WARNING = "warning"
+
+CHECK_SEVERITY = {
+    # 头部「不限」vs 正文「本科/硕士」、头部「本科」vs 正文「硕士」等
+    # 表述宽严不一致的情况：属于提示，不判失败
+    "education_conflict": SEVERITY_WARNING,
+    # 头部与结构化字段（salary/city）不一致：本次未要求降级，保持原有语义
+    "salary_conflict": SEVERITY_ERROR,
+    "city_conflict": SEVERITY_ERROR,
+    # 字段缺失 / 正文缺失 / 结构化记录缺失：严重问题
+    "missing_field": SEVERITY_ERROR,
+    "missing_section": SEVERITY_ERROR,
+    "missing_record": SEVERITY_ERROR,
+}
+
+
+def _severity_of(kind):
+    """查某个检测项的分级；未登记的检测项按严重问题处理。"""
+    return CHECK_SEVERITY.get(kind, SEVERITY_ERROR)
+
+
+def _record(errors, warnings, kind, message):
+    """按 kind 的分级把 message 放进 errors 或 warnings；message 为空则忽略。"""
+    if not message:
+        return
+    if _severity_of(kind) == SEVERITY_WARNING:
+        warnings.append(message)
+    else:
+        errors.append(message)
 
 
 def _norm_edu(value):
@@ -175,7 +215,10 @@ def extract_section(jd_text, section):
 
 
 def check_missing_fields(structured):
-    """检测 structured 里必填字段缺失（city/education/salary_min/salary_max）。"""
+    """检测 structured 里必填字段缺失（city/education/salary_min/salary_max）。
+
+    返回 messages 列表，由调用方按 CHECK_SEVERITY["missing_field"] 分级。
+    """
     issues = []
     for field in ("city", "education", "salary_min", "salary_max"):
         value = structured.get(field, _MISSING) if isinstance(structured, dict) else _MISSING
@@ -185,7 +228,11 @@ def check_missing_fields(structured):
 
 
 def check_education_conflict(header_edu, body_edu):
-    """头部学历与正文学历冲突检测（任一侧缺失时不报冲突）。"""
+    """头部学历与正文学历冲突检测（任一侧缺失时不报冲突）。
+
+    返回提示级 message（见 CHECK_SEVERITY["education_conflict"]）：头部「不限」vs
+    正文「本科/硕士」、头部「本科」vs 正文「硕士」都只算 warning，不判失败。
+    """
     if not header_edu or not body_edu:
         return None
     if header_edu == body_edu:
@@ -221,38 +268,48 @@ def check_city_conflict(header_city, structured):
 
 
 def check_jd_quality(jd_text: str, structured: dict) -> dict:
-    """校验单条 JD。返回 {passed: bool, issues: list[str]}"""
-    issues = []
+    """校验单条 JD。
+
+    返回 {passed: bool, errors: list[str], warnings: list[str]}
+      - errors   严重问题（字段缺失、正文缺失、薪资/城市不一致）
+      - warnings 提示问题（学历表述不一致）
+      - passed   等价于 not errors，warnings 不影响通过
+    """
+    errors = []
+    warnings = []
 
     header_edu = _norm_edu(_extract_header(jd_text, HEADER_EDU_RE))
     body_edu = _extract_required_education(jd_text)
 
-    # a) 学历冲突
-    education_issue = check_education_conflict(header_edu, body_edu)
-    if education_issue:
-        issues.append(education_issue)
+    # a) 学历冲突 -> warning（头部与正文表述不一致，只提示）
+    _record(errors, warnings, "education_conflict",
+            check_education_conflict(header_edu, body_edu))
 
     # b) 薪资冲突
     header_salary = _extract_header(jd_text, HEADER_SALARY_RE)
-    salary_issue = check_salary_conflict(header_salary, structured)
-    if salary_issue:
-        issues.append(salary_issue)
+    _record(errors, warnings, "salary_conflict",
+            check_salary_conflict(header_salary, structured))
 
     # c) 城市冲突
     header_city = _extract_header(jd_text, HEADER_CITY_RE)
-    city_issue = check_city_conflict(header_city, structured)
-    if city_issue:
-        issues.append(city_issue)
+    _record(errors, warnings, "city_conflict",
+            check_city_conflict(header_city, structured))
 
     # d) 字段缺失
-    issues.extend(check_missing_fields(structured))
+    for message in check_missing_fields(structured):
+        _record(errors, warnings, "missing_field", message)
 
     # e) 正文缺失
     for section, label in (("duty", "岗位职责"), ("requirement", "任职要求")):
         if extract_section(jd_text, section) is None:
-            issues.append("正文缺失：找不到「%s」段落" % label)
+            _record(errors, warnings, "missing_section",
+                    "正文缺失：找不到「%s」段落" % label)
 
-    return {"passed": not issues, "issues": issues}
+    return {
+        "passed": not errors,
+        "errors": errors,
+        "warnings": warnings,
+    }
 
 
 def load_jd_texts(jd_file):
@@ -317,10 +374,17 @@ def check_all(jd_file: str, structured_file: str) -> dict:
     返回：
     {
       "total": 8,
-      "passed": N,
-      "failed": M,
+      "passed": 8,             # 没有 errors 的条数
+      "failed": 0,             # 有 errors 的条数
+      "error_count": 0,        # 所有条目 errors 条数之和
+      "warning_count": 2,      # 所有条目 warnings 条数之和
       "details": [
-        {"company": "阶跃星辰", "passed": false, "issues": ["学历冲突：头部'不限'，正文'本科'"]},
+        {
+          "company": "阶跃星辰",
+          "passed": true,
+          "errors": [],
+          "warnings": ["学历冲突：头部'不限'，正文'本科'"]
+        },
         ...
       ]
     }
@@ -335,26 +399,46 @@ def check_all(jd_file: str, structured_file: str) -> dict:
             details.append({
                 "company": company,
                 "passed": False,
-                "issues": ["字段缺失：jd_structured.json 中找不到该公司记录"],
+                "errors": ["字段缺失：jd_structured.json 中找不到该公司记录"],
+                "warnings": [],
             })
             continue
         result = check_jd_quality(block_text, structured)
         item = {
             "company": company,
             "passed": result["passed"],
-            "issues": result["issues"],
+            "errors": result["errors"],
+            "warnings": result["warnings"],
         }
         if company != structured.get("company"):
             item["note"] = "公司名经归一化匹配到结构化记录：%s" % structured.get("company")
         details.append(item)
 
     passed = sum(1 for item in details if item["passed"])
+    error_count = sum(len(item["errors"]) for item in details)
+    warning_count = sum(len(item["warnings"]) for item in details)
     return {
         "total": len(details),
         "passed": passed,
         "failed": len(details) - passed,
+        "error_count": error_count,
+        "warning_count": warning_count,
         "details": details,
     }
+
+
+def _print_items(items):
+    """按 company 分组打印某一级别的明细；items 为 [(company, [message, ...]), ...]。"""
+    printed = False
+    for company, messages in items:
+        if not messages:
+            continue
+        printed = True
+        print("\n【%s】" % company)
+        for message in messages:
+            print("  - %s" % message)
+    if not printed:
+        print("  （无）")
 
 
 def main():
@@ -363,6 +447,7 @@ def main():
     report_file = QUALITY_DIR / "report.json"
 
     report = check_all(str(jd_file), str(structured_file))
+    details = report["details"]
 
     print("=" * 60)
     print("JD 数据质量校验汇总")
@@ -370,18 +455,16 @@ def main():
     print("总数：%d" % report["total"])
     print("通过：%d" % report["passed"])
     print("失败：%d" % report["failed"])
-    print("-" * 60)
+    print("errors（严重，计入失败）：%d" % report["error_count"])
+    print("warnings（提示，不影响通过）：%d" % report["warning_count"])
 
-    if report["failed"]:
-        print("失败明细：")
-        for item in report["details"]:
-            if item["passed"]:
-                continue
-            print("\n【%s】" % item["company"])
-            for issue in item["issues"]:
-                print("  - %s" % issue)
-    else:
-        print("全部通过。")
+    print("-" * 60)
+    print("errors 明细（严重问题）：")
+    _print_items([(item["company"], item["errors"]) for item in details])
+
+    print("-" * 60)
+    print("warnings 明细（提示问题）：")
+    _print_items([(item["company"], item["warnings"]) for item in details])
 
     print("-" * 60)
     QUALITY_DIR.mkdir(parents=True, exist_ok=True)

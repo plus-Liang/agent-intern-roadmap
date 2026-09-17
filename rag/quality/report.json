@@ -1,50 +1,60 @@
 {
   "total": 8,
-  "passed": 6,
-  "failed": 2,
+  "passed": 8,
+  "failed": 0,
+  "error_count": 0,
+  "warning_count": 2,
   "details": [
     {
       "company": "阶跃星辰",
-      "passed": false,
-      "issues": [
+      "passed": true,
+      "errors": [],
+      "warnings": [
         "学历冲突：头部'不限'，正文'本科'"
       ]
     },
     {
       "company": "腾讯",
       "passed": true,
-      "issues": []
+      "errors": [],
+      "warnings": []
     },
     {
       "company": "斯伦贝谢",
       "passed": true,
-      "issues": []
+      "errors": [],
+      "warnings": []
     },
     {
       "company": "索尼（中国）",
       "passed": true,
-      "issues": [],
+      "errors": [],
+      "warnings": [],
       "note": "公司名经归一化匹配到结构化记录：索尼"
     },
     {
       "company": "得物App",
       "passed": true,
-      "issues": []
+      "errors": [],
+      "warnings": []
     },
     {
       "company": "网易有道",
       "passed": true,
-      "issues": []
+      "errors": [],
+      "warnings": []
     },
     {
       "company": "屿智同行",
       "passed": true,
-      "issues": []
+      "errors": [],
+      "warnings": []
     },
     {
       "company": "万兴科技Wondershare",
-      "passed": false,
-      "issues": [
+      "passed": true,
+      "errors": [],
+      "warnings": [
         "学历冲突：头部'不限'，正文'硕士'"
       ],
       "note": "公司名经归一化匹配到结构化记录：万兴科技"
