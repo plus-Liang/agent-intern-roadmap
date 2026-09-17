@@ -12,7 +12,11 @@ from typing import Optional
 
 @dataclass
 class Job:
-    """统一的岗位数据结构"""
+    """统一的岗位数据结构。
+
+    publish_date 由具体抓取器填充（实习僧取详情页的刷新时间，格式 YYYY-MM-DD）；
+    mock 数据与拿不到日期的平台保持 ""。
+    """
     platform: str        # 平台名：shixiseng / boss / ...
     job_id: str          # 平台内唯一 ID
     title: str           # 岗位名
@@ -22,6 +26,7 @@ class Job:
     url: str             # 详情链接
     tags: list[str] = None  # 标签
     description: str = ""   # 描述（可选）
+    publish_date: str = ""  # 发布时间 "YYYY-MM-DD"，拿不到填 ""
 
 
 def search_jobs(
