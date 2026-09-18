@@ -5,10 +5,6 @@ JD 数据质量校验模块（只检测，不修复）
 校验对象：
   - rag/data/scraped_jd.txt     JD 原始文本（真实入库数据），每条以「【数字】公司：」开头，
                                 正文里有【岗位职责】/【任职要求】/【加分项】等段落标题
-  - rag/data/jd_structured.json 结构化字段（可选，需显式传入），含 company/salary_min/salary_max/
-                                city/education。真实数据没有这个文件，默认不校验结构化字段，
-                                只跑文本校验；仓库里残留的那份是旧 mock 数据，公司名与
-                                scraped_jd.txt 对不上，自动加载只会把 15 条全判失败。
 
 检测项：
   a) 学历冲突：头部「学历：X」与正文「任职要求」段落里的学历要求不一致
@@ -21,8 +17,8 @@ JD 数据质量校验模块（只检测，不修复）
   errors   严重问题 —— 字段缺失、正文缺失，会让 passed=False
   warnings 提示问题 —— 头部与正文学历表述不一致，只提示，不影响 passed
   passed 只由 errors 决定：没有 errors 就是通过，warnings 不参与判定。
-  没有 structured 文件时 b/c/d 三项无法执行，记在 report["skipped"] 里，不计入
-  errors，也不影响 passed。
+  b/c/d 三项依赖结构化字段：结构化数据默认不加载（需显式传入），缺省时这三项
+  记在 report["skipped"] 里，不计入 errors，也不影响 passed。
 
 依赖：仅标准库 re / json / sys / pathlib。
 """

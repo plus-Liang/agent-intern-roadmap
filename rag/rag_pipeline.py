@@ -17,9 +17,24 @@ FIELD_TEMPLATES = {
 
 STRUCTURED_PATH = DATA_DIR / "jd_structured.json"
 
+# 结构化数据不可用时的统一提示：comparison 路由降级走 RAG
+STRUCTURED_UNAVAILABLE_MSG = "结构化数据不可用，降级走 RAG"
+
 
 def load_structured() -> list[dict]:
-    return json.loads(STRUCTURED_PATH.read_text(encoding="utf-8"))
+    """读取结构化数据；读不到（文件不存在/内容损坏）时返回 []，不抛异常。
+
+    结构化数据是 comparison 路由的加速路径，属于可选数据：
+    缺失时由调用方降级走 RAG，不能因为读不到而让整条链路崩溃。
+    """
+    try:
+        data = json.loads(STRUCTURED_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        print(f"[{STRUCTURED_UNAVAILABLE_MSG}] 读取 {STRUCTURED_PATH} 失败：{e}")
+        return []
+    if isinstance(data, dict):
+        return [data]
+    return data if isinstance(data, list) else []
 
 
 def _llm_json(prompt: str, retries: int = 3) -> dict:
@@ -72,8 +87,26 @@ def classify_question(question: str) -> dict:
         return {"type": "factual", "field": None, "direction": None}
 
 
+def _rag_answer(question: str, top_k: int, route: str) -> dict:
+    """retrieve + rerank + generate 的公共实现，返回带路由标记的结果。"""
+    candidates = retrieve(question, top_k=12)
+    hits = rerank(question, candidates, top_k=top_k)
+    context = format_context(hits)
+    return {
+        "question": question,
+        "answer": generate(question, context),
+        "hits": hits,
+        "route": route,
+    }
+
+
 def handle_comparison(question: str, field: str, direction: str) -> dict:
     data = load_structured()
+
+    if not data:
+        # 结构化数据缺失：不猜答案，降级走 RAG，让生成层基于检索片段回答
+        print(f"[{STRUCTURED_UNAVAILABLE_MSG}] 问题：{question}")
+        return _rag_answer(question, top_k=5, route="rag_fallback")
 
     if field == "education":
         for d in data:
@@ -117,16 +150,7 @@ def answer(question: str, top_k: int = 5) -> dict:
     if intent.get("type") == "comparison" and intent.get("field"):
         return handle_comparison(question, intent["field"], intent["direction"])
 
-    candidates = retrieve(question, top_k=12)
-    hits = rerank(question, candidates, top_k=top_k)
-    context = format_context(hits)
-    answer_text = generate(question, context)
-    return {
-        "question": question,
-        "answer": answer_text,
-        "hits": hits,
-        "route": "rag",
-    }
+    return _rag_answer(question, top_k=top_k, route="rag")
 
 
 if __name__ == "__main__":
