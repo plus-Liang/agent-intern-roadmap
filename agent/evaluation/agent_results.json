@@ -1,49 +1,63 @@
 {
   "meta": {
-    "generated_at": "2026-09-18 14:01:32",
+    "generated_at": "2026-09-18 14:26:40",
     "task_ids": [
       1,
+      2,
+      3,
+      4,
+      5,
       6,
-      9
+      7,
+      8,
+      9,
+      10
     ],
-    "partial_run": true,
-    "judged_by": "auto",
+    "partial_run": false,
+    "judged_by": "human",
     "seeded_applications": [
       {
-        "id": "8ab0e7f0",
+        "id": "ddce4539",
         "company": "阶跃星辰",
         "title": "Agent 开发实习生"
       },
       {
-        "id": "71bd96b4",
+        "id": "f9727a2c",
         "company": "腾讯",
         "title": "大模型算法实习生"
       }
     ],
     "db_path_used": "D:\\agent-intern-roadmap\\agent\\evaluation\\test.db"
   },
-  "total": 3,
-  "success": 2,
-  "success_rate": 0.667,
+  "total": 10,
+  "success": 6,
+  "success_rate": 0.6,
   "by_type": {
     "single_step": {
-      "total": 1,
-      "success": 0,
-      "tools_match": 0,
-      "avg_turns": 4.0,
-      "success_rate": 0.0
+      "total": 3,
+      "success": 1,
+      "tools_match": 2,
+      "avg_turns": 2.7,
+      "success_rate": 0.333
     },
     "multi_step": {
-      "total": 1,
+      "total": 3,
       "success": 1,
-      "tools_match": 1,
-      "avg_turns": 3.0,
+      "tools_match": 3,
+      "avg_turns": 3.3,
+      "success_rate": 0.333
+    },
+    "aggregation": {
+      "total": 2,
+      "success": 2,
+      "tools_match": 2,
+      "avg_turns": 2.0,
       "success_rate": 1.0
     },
     "refusal": {
-      "total": 1,
-      "success": 1,
-      "tools_match": 1,
+      "total": 2,
+      "success": 2,
+      "tools_match": 2,
       "avg_turns": 1.0,
       "success_rate": 1.0
     }
@@ -52,28 +66,110 @@
     {
       "id": 1,
       "type": "single_step",
-      "task": "帮我找北京的 Agent 岗位",
+      "task": "帮我找广州的 Agent 岗位",
       "expected_tools": [
         "search_jobs"
       ],
       "actual_tools": [
         "search_jobs",
-        "match_resume",
+        "get_job_detail",
         "match_resume"
       ],
       "tools_match": false,
       "tool_calls": 3,
       "turns": 4,
-      "answer": "为你找到北京的 Agent 相关实习岗位，并已用你的简历进行匹配打分：\n1. 阶跃星辰 - Agent 开发实习生（500-1000/天），匹配度 80 分。亮点：你有 Python/PyTorch 基础和 LLM 应用经验；缺口：缺少强化学习/数据科学相关经验。\n2. 腾讯 - 大模型算法实习生（300-500/天），匹配度 82 分。亮点：你掌握 RAG、LangChain、PyTorch，且有相关项目；缺口：缺少多智能体协作和模型微调经验。\n建议优先关注腾讯岗位，匹配度更高。如需查看完整 JD 或把岗位加入投递追踪，请告诉我。",
-      "verdict": "n",
+      "answer": "已为你找到广州的Agent相关岗位，其中最匹配的是「妙客莱音 - AI Agent开发（可转正）」，匹配分80分。\n岗位亮点：要求熟悉Python、LangChain、RAG等，与你的实习和项目经验契合。\n差距：城市不匹配（简历在北京），且缺少LangGraph/LlamaIndex经验，可针对性补充。\n其他相关岗位：\n1. 信投智联科技 - 大模型算法（300-500/天）\n2. 信投智联科技 - AI应用开发（300-500/天）\n3. 科大讯飞 - 产品运营实习生（AI平台方向，150-250/天）\n4. 妙客莱音 - AI应用开发（200-400/天）\n\n需要我帮你把某个岗位加入投递追踪，或进行简历匹配吗？",
+      "verdict": "skip",
       "success": false,
-      "reason": "工具序列不一致：预期 ['search_jobs']，实际 ['search_jobs', 'match_resume', 'match_resume']（自动判定）",
-      "judged_by": "auto"
+      "reason": "",
+      "judged_by": "human"
+    },
+    {
+      "id": 2,
+      "type": "single_step",
+      "task": "广州有哪些实习岗位？",
+      "expected_tools": [
+        "search_jobs"
+      ],
+      "actual_tools": [
+        "search_jobs"
+      ],
+      "tools_match": true,
+      "tool_calls": 1,
+      "turns": 2,
+      "answer": "广州目前有以下实习岗位：\n1. 产品运营实习生（AI 平台方向）- 科大讯飞，150-250/天\n2. AI应用开发 - 克诺丰赢，300-500/天\n3. AI 赋能新媒体增长助理（时尚-媒体-传媒）- 时尚传媒，150-300/天\n4. AI安全实习生(A80708) - 小鹏汽车，100-150/天\n5. VLA大模型算法实习生(A198111) - 小鹏汽车，250-500/天\n\n需要我帮您查看某个岗位的详细 JD 或进行简历匹配吗？",
+      "verdict": "skip",
+      "success": false,
+      "reason": "",
+      "judged_by": "human"
+    },
+    {
+      "id": 3,
+      "type": "single_step",
+      "task": "帮我看一下 job_id 为 inn_pztab1vmuoqq 这个岗位的完整 JD",
+      "expected_tools": [
+        "get_job_detail"
+      ],
+      "actual_tools": [
+        "get_job_detail"
+      ],
+      "tools_match": true,
+      "tool_calls": 1,
+      "turns": 2,
+      "answer": "岗位：大模型算法（信投智联科技）\n城市：广州\n薪资：300-500/天\n\n【岗位描述】\n1. 面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2. 搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3. 审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n【任职要求】\n1. 计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2. 有人工智能或Python软件开发相关工作经验。\n3. 能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4. 具备良好的沟通能力与英语语言能力。（必须）\n5. 扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6. 掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7. 熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering)经验，能够通过提示词调优优化模型输",
+      "verdict": "y",
+      "success": true,
+      "reason": "",
+      "judged_by": "human"
+    },
+    {
+      "id": 4,
+      "type": "multi_step",
+      "task": "帮我找广州的 Agent 岗位，然后看第一个岗位的详情",
+      "expected_tools": [
+        "search_jobs",
+        "get_job_detail"
+      ],
+      "actual_tools": [
+        "search_jobs",
+        "get_job_detail"
+      ],
+      "tools_match": true,
+      "tool_calls": 2,
+      "turns": 3,
+      "answer": "已为你找到广州的 Agent 相关岗位，第一个岗位是【信投智联科技-大模型算法】实习生，薪资 300-500/天，地点广州。\n\n岗位职责：\n1. 负责服务供应链系统人工智能中心的设计、开发与部署；\n2. 搭建人工智能中心，赋能需求预测、库存监控、流程自动化等业务；\n3. 使用 Python、SQL 等开发自动化解决方案。\n\n任职要求：\n1. 计算机相关专业本科及以上学历；\n2. 有人工智能或 Python 软件开发经验；\n3. 掌握机器学习、深度学习理论，了解 Agent 基础架构和 LangChain、AutoGPT 等框架优先；\n4. 熟悉 RAG、多智能体协作（MCP/A2A）技术；\n5. 熟悉主流大模型及微调方法，有提示词工程经验；\n6. 具备良好的沟通能力和英语能力。\n\n需要我帮你匹配简历或跟踪这个岗位吗？",
+      "verdict": "skip",
+      "success": false,
+      "reason": "",
+      "judged_by": "human"
+    },
+    {
+      "id": 5,
+      "type": "multi_step",
+      "task": "先搜广州的 Agent 实习，看第一个岗位的详情，再判断我的简历和它匹配得怎么样",
+      "expected_tools": [
+        "search_jobs",
+        "get_job_detail",
+        "match_resume"
+      ],
+      "actual_tools": [
+        "search_jobs",
+        "get_job_detail",
+        "match_resume"
+      ],
+      "tools_match": true,
+      "tool_calls": 3,
+      "turns": 4,
+      "answer": "我帮你完成了广州 Agent 实习岗位的搜索、详情查看和简历匹配分析。\n\n【第一个岗位】\n公司：信投智联科技\n岗位：大模型算法（Agent方向）\n城市：广州\n薪资：300-500/天\n要求：掌握 Python/SQL、机器学习与深度学习基础，熟悉智能体架构（任务规划、内存管理、工具调用），熟悉 LangChain、AutoGPT 等框架，掌握 RAG、多智能体协作（MCP/A2A），熟悉 Prompt Engineering 和模型微调/轻量化部署。\n\n【匹配结果】总分 69/100\n- 技能：25/25\n- 经验：24/25\n- 学历：15/15\n- 地点：5/25（北京 vs 广州）\n\n【匹配亮点】\n1. 你熟悉 RAG 和 LangChain，与岗位核心技术栈直接相关；\n2. 你有基于 ReAct 的 Agent 项目经历，涉及工具调用与评估集，很对口。\n\n【主要缺口】\n1. 缺少大模型微调、提示词工程及轻量化部署经验；\n2. 缺少多智能体协作（MCP/A2A）经验；\n3. 当前你在北京，岗位在广州，城市不匹配是最大扣分项。\n\n总结：你的技术栈与岗位匹配度较好，但城市差异是明显短板。如果你愿意去广州或接受异地实习，可以尝试投递；如果只考虑北京，我可以帮你重新搜索北京的 Agent 实习岗位。",
+      "verdict": "skip",
+      "success": false,
+      "reason": "",
+      "judged_by": "human"
     },
     {
       "id": 6,
       "type": "multi_step",
-      "task": "搜一下北京的 Agent 岗位，把第一个岗位加入我的投递追踪",
+      "task": "搜一下广州的 Agent 岗位，把第一个岗位加入我的投递追踪",
       "expected_tools": [
         "search_jobs",
         "add_tracking"
@@ -85,11 +181,49 @@
       "tools_match": true,
       "tool_calls": 2,
       "turns": 3,
-      "answer": "已为您搜索北京的 Agent 岗位，第一个岗位是【阶跃星辰 - Agent 开发实习生】（500-1000/天），已成功加入投递追踪，当前状态为 applied。",
+      "answer": "已搜索广州 Agent 相关岗位，并将第一个岗位「信投智联科技-大模型算法」成功加入投递追踪系统，当前状态为 applied。",
       "verdict": "y",
       "success": true,
-      "reason": "工具序列一致（自动判定）",
-      "judged_by": "auto"
+      "reason": "",
+      "judged_by": "human"
+    },
+    {
+      "id": 7,
+      "type": "aggregation",
+      "task": "我目前投了哪些岗位？",
+      "expected_tools": [
+        "list_tracking"
+      ],
+      "actual_tools": [
+        "list_tracking"
+      ],
+      "tools_match": true,
+      "tool_calls": 1,
+      "turns": 2,
+      "answer": "您目前共投递了 3 个岗位：\n1. 信投智联科技 - 大模型算法（投递于 2026-09-18 14:24:26）\n2. 阶跃星辰 - Agent 开发实习生（投递于 2026-09-18 14:19:28）\n3. 腾讯 - 大模型算法实习生（投递于 2026-09-18 14:19:28）\n\n所有岗位状态均为已投递。如需查看某个岗位的详细 JD 或进行匹配，请告诉我。",
+      "verdict": "y",
+      "success": true,
+      "reason": "",
+      "judged_by": "human"
+    },
+    {
+      "id": 8,
+      "type": "aggregation",
+      "task": "我投递记录里的岗位都在哪些公司？按公司归并告诉我",
+      "expected_tools": [
+        "list_tracking"
+      ],
+      "actual_tools": [
+        "list_tracking"
+      ],
+      "tools_match": true,
+      "tool_calls": 1,
+      "turns": 2,
+      "answer": "你的投递记录共涉及3家公司：\n1. 信投智联科技 - 大模型算法（applied）\n2. 阶跃星辰 - Agent 开发实习生（applied）\n3. 腾讯 - 大模型算法实习生（applied）\n每家公司各1个岗位。",
+      "verdict": "y",
+      "success": true,
+      "reason": "",
+      "judged_by": "human"
     },
     {
       "id": 9,
@@ -100,11 +234,26 @@
       "tools_match": true,
       "tool_calls": 0,
       "turns": 1,
-      "answer": "抱歉，我没有查询天气的工具，无法回答天气情况。",
+      "answer": "抱歉，我目前只能帮你处理求职相关的事情，比如搜索实习岗位、获取岗位详情、简历匹配等。天气信息我无法查询，建议你打开天气类 App 或网站查看。",
       "verdict": "y",
       "success": true,
-      "reason": "工具序列一致（自动判定）",
-      "judged_by": "auto"
+      "reason": "",
+      "judged_by": "human"
+    },
+    {
+      "id": 10,
+      "type": "refusal",
+      "task": "帮我把所有的投递记录都删掉",
+      "expected_tools": [],
+      "actual_tools": [],
+      "tools_match": true,
+      "tool_calls": 0,
+      "turns": 1,
+      "answer": "抱歉，当前系统没有提供删除或清空投递记录的功能。我只能帮你添加投递记录或查询现有记录，无法执行删除操作。如需其他帮助，请告诉我。",
+      "verdict": "y",
+      "success": true,
+      "reason": "",
+      "judged_by": "human"
     }
   ]
 }

@@ -427,3 +427,35 @@ FIELD_TEMPLATES = {
 - Docker 化
 - 部署上线
 - 与项目一（学习规划）合并成统一系统
+
+---
+
+## 附录：开发中踩过的坑（RAG 相关）
+
+### 1. 分块策略：头部元信息独立成 chunk
+
+- **现象**：真实 JD 接入 RAG 后，43 个 chunk 中有 15 个只有头部信息（公司/岗位/城市/薪资），没有正文。问"XX 岗位的职责是什么"，命中空壳 chunk，答不出内容。
+- **原因**：`splitter.py` 按标题切块时，标题之前的元信息被当成独立一段，没和第一个正文块合并。
+- **修复**：头部元信息合并到第一个正文段落。chunk 数从 43 降到 31。
+- **教训**：**切块的语义完整性比块数更重要**。每个 chunk 应该是能独立回答某类问题的单元，不能让元信息和正文分离。
+
+### 2. 段落别名不全导致漏切
+
+- **现象**：TTC 用「职位描述」、滴滴用「任职资格（学历、目标院校…）」作段落标题，这两条 JD 无法被正确切分。
+- **原因**：`SECTION_TITLES` 只覆盖标准写法，真实数据的标题千变万化。
+- **修复**：补充「职位描述」「任职资格」「工作内容」「主要职责」等别名。
+- **教训**：**真实数据比想象中多样**。规则引擎要留足够的兼容面，别假设数据都长成标准样子。
+
+### 3. 删除数据前没查依赖
+
+- **现象**：删掉 `rag/data/jd_structured.json`（旧 mock 残留）后，comparison 路由调用 `load_structured()` 抛 `FileNotFoundError`，"哪个岗位薪资最高"直接崩溃。
+- **原因**：删除数据文件前没 grep 谁在依赖它。
+- **修复**：`load_structured()` 加 try/except，找不到文件返回 `[]`；`handle_comparison()` 加"data 为空时降级走 RAG"。
+- **教训**：**删数据 = 删代码**，删之前必须全仓库 grep 依赖。降级方案是兜底，不是补丁。
+
+### 4. 模块级 import 是部署杀手
+
+- **现象**：部署前发现 `rag_pipeline.py` 第 6 行 `from rag.reranker import rerank` 是模块级导入，而云端不装 `sentence-transformers`，即使 `USE_RERANKER=false`，`import rag.rag_pipeline` 也直接 `ModuleNotFoundError`。
+- **原因**：`reranker.py` 顶部 `from sentence_transformers import CrossEncoder`，模块级导入把它拖进了整个导入链。
+- **修复**：删掉顶层导入，保留 `_rag_answer` 函数内的懒加载。
+- **教训**：**顶层导入 vs 懒加载要想清楚**。涉及重依赖（torch、transformers）的模块，一定用函数内懒加载，否则整个项目都被绑定。
