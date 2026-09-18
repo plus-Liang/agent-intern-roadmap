@@ -2,47 +2,47 @@
   {
     "id": 1,
     "type": "single_step",
-    "task": "帮我找北京的 Agent 岗位",
+    "task": "帮我找广州的 Agent 岗位",
     "expected_tools": ["search_jobs"],
-    "expected_behavior": "调用 search_jobs 一次（city=北京），返回岗位列表",
-    "acceptance": "答案里包含至少 1 个北京的岗位名或公司名（阶跃星辰 / 腾讯）"
+    "expected_behavior": "调用 search_jobs 一次（city=广州），返回岗位列表",
+    "acceptance": "答案里包含至少 1 个广州的岗位名或公司名（信投智联科技 / 科大讯飞 / 妙客莱音）"
   },
   {
     "id": 2,
     "type": "single_step",
-    "task": "深圳有哪些实习岗位？",
+    "task": "广州有哪些实习岗位？",
     "expected_tools": ["search_jobs"],
-    "expected_behavior": "调用 search_jobs 一次（city=深圳），返回岗位列表",
-    "acceptance": "答案里提到索尼（中国）或 VLM Agent 实习生"
+    "expected_behavior": "调用 search_jobs 一次（city=广州），返回岗位列表",
+    "acceptance": "答案里提到广州的真实公司（如科大讯飞 / 妙客莱音 / 小鹏汽车）或它们的岗位名"
   },
   {
     "id": 3,
     "type": "single_step",
-    "task": "帮我看一下 job_id 为 mock_002 这个岗位的完整 JD",
+    "task": "帮我看一下 job_id 为 inn_pztab1vmuoqq 这个岗位的完整 JD",
     "expected_tools": ["get_job_detail"],
-    "expected_behavior": "直接调用 get_job_detail 一次（job_id=mock_002），返回 JD 详情",
-    "acceptance": "答案里包含公司名腾讯，并说出岗位职责或任职要求中的具体内容（如 RAG / Python），不是只复述岗位名"
+    "expected_behavior": "直接调用 get_job_detail 一次（job_id=inn_pztab1vmuoqq），返回 JD 详情",
+    "acceptance": "答案里包含公司名信投智联科技，并说出岗位职责或任职要求中的具体内容（如 RAG / Python / Agent），不是只复述岗位名"
   },
   {
     "id": 4,
     "type": "multi_step",
-    "task": "帮我找北京的 Agent 岗位，然后看第一个岗位的详情",
+    "task": "帮我找广州的 Agent 岗位，然后看第一个岗位的详情",
     "expected_tools": ["search_jobs", "get_job_detail"],
-    "expected_behavior": "先 search_jobs 搜北京，再用结果里第一个岗位的 job_id 调 get_job_detail",
-    "acceptance": "两个工具都调用了，且 get_job_detail 的 job_id 来自 search_jobs 的结果（mock_001），答案含 JD 细节"
+    "expected_behavior": "先 search_jobs 搜广州，再用结果里第一个岗位的 job_id 调 get_job_detail",
+    "acceptance": "两个工具都调用了，且 get_job_detail 的 job_id 严格等于 search_jobs 返回的第一个岗位的 job_id（不是凭空编的 id），答案含该岗位的 JD 细节"
   },
   {
     "id": 5,
     "type": "multi_step",
-    "task": "先搜深圳的 Agent 实习，看第一个岗位的详情，再判断我的简历和它匹配得怎么样",
+    "task": "先搜广州的 Agent 实习，看第一个岗位的详情，再判断我的简历和它匹配得怎么样",
     "expected_tools": ["search_jobs", "get_job_detail", "match_resume"],
     "expected_behavior": "search_jobs → get_job_detail → match_resume，三步串联，后一步依赖前一步的输出",
-    "acceptance": "三个工具按序调用，答案里给出匹配分数或分维度评价（不是空泛地说“很匹配”）"
+    "acceptance": "三个工具按序调用，get_job_detail 用的是搜索结果的 job_id，答案里给出匹配分数或分维度评价（不是空泛地说“很匹配”）"
   },
   {
     "id": 6,
     "type": "multi_step",
-    "task": "搜一下北京的 Agent 岗位，把第一个岗位加入我的投递追踪",
+    "task": "搜一下广州的 Agent 岗位，把第一个岗位加入我的投递追踪",
     "expected_tools": ["search_jobs", "add_tracking"],
     "expected_behavior": "search_jobs → add_tracking，用搜索结果里的公司名和岗位名写入追踪",
     "acceptance": "两个工具都调用了，add_tracking 的 company/title 来自搜索结果，答案是确认已添加（含记录 id 或状态）"

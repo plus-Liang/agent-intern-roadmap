@@ -47,7 +47,7 @@ with tab1:
     with col1:
         keyword = st.text_input("关键词", value="Agent 开发", key="search_kw")
     with col2:
-        city = st.text_input("城市（留空不限）", value="北京", key="search_city")
+        city = st.text_input("城市（留空不限）", value="广州", key="search_city")
     with col3:
         st.write("")
         st.write("")
@@ -205,7 +205,7 @@ with tab3:
         name = st.text_input("姓名", value="张三")
         skills = st.text_area("技能（逗号分隔）", value="Python, RAG, LangChain, Chroma, Git")
         education = st.selectbox("学历", ["本科", "硕士", "博士"], index=0)
-        city = st.text_input("城市", value="北京")
+        city = st.text_input("城市", value="广州")
         exp_text = st.text_area(
             "实习经历（每行一条：公司|岗位|月数）",
             value="某创业公司|后端实习生|3",
@@ -217,8 +217,11 @@ with tab3:
 
     with col2:
         st.subheader("目标岗位")
-        job_id = st.text_input("岗位 ID", value="mock_001")
-        st.caption("可用 ID：mock_001（阶跃星辰）、mock_002（腾讯）、mock_003（索尼）")
+        job_id = st.text_input("岗位 ID", value="inn_pztab1vmuoqq")
+        st.caption(
+            "可用 ID 示例：inn_pztab1vmuoqq（信投智联科技 · 大模型算法）、"
+            "inn_bvmuxglatdbv（科大讯飞 · 产品运营）、inn_78xqcaa6aktp（妙客莱音 · AI Agent 开发）"
+        )
 
         if st.button("🎯 计算匹配度"):
             try:
