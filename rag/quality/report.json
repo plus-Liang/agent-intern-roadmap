@@ -1,63 +1,169 @@
 {
-  "total": 8,
-  "passed": 8,
-  "failed": 0,
-  "error_count": 0,
-  "warning_count": 2,
+  "total": 15,
+  "passed": 13,
+  "failed": 2,
+  "error_count": 2,
+  "warning_count": 45,
+  "structured_used": false,
+  "skipped": [
+    "字段缺失",
+    "薪资冲突",
+    "城市冲突"
+  ],
   "details": [
     {
-      "company": "阶跃星辰",
+      "company": "信投智联科技",
       "passed": true,
       "errors": [],
       "warnings": [
-        "学历冲突：头部'不限'，正文'本科'"
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
       ]
     },
     {
-      "company": "腾讯",
-      "passed": true,
-      "errors": [],
-      "warnings": []
-    },
-    {
-      "company": "斯伦贝谢",
-      "passed": true,
-      "errors": [],
-      "warnings": []
-    },
-    {
-      "company": "索尼（中国）",
-      "passed": true,
-      "errors": [],
-      "warnings": [],
-      "note": "公司名经归一化匹配到结构化记录：索尼"
-    },
-    {
-      "company": "得物App",
-      "passed": true,
-      "errors": [],
-      "warnings": []
-    },
-    {
-      "company": "网易有道",
-      "passed": true,
-      "errors": [],
-      "warnings": []
-    },
-    {
-      "company": "屿智同行",
-      "passed": true,
-      "errors": [],
-      "warnings": []
-    },
-    {
-      "company": "万兴科技Wondershare",
+      "company": "信投智联科技",
       "passed": true,
       "errors": [],
       "warnings": [
-        "学历冲突：头部'不限'，正文'硕士'"
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "科大讯飞",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "克诺丰赢",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "时尚传媒",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "妙客莱音",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "妙客莱音",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "妙客莱音",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "妙客莱音",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "东集文业",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "小鹏汽车",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "小鹏汽车",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "小鹏汽车",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "TTC",
+      "passed": false,
+      "errors": [
+        "正文缺失：找不到「任职要求」段落"
       ],
-      "note": "公司名经归一化匹配到结构化记录：万兴科技"
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
+    },
+    {
+      "company": "滴滴",
+      "passed": false,
+      "errors": [
+        "正文缺失：找不到「任职要求」段落"
+      ],
+      "warnings": [
+        "跳过校验（无 jd_structured.json）：字段缺失",
+        "跳过校验（无 jd_structured.json）：薪资冲突",
+        "跳过校验（无 jd_structured.json）：城市冲突"
+      ]
     }
   ]
 }

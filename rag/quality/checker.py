@@ -3,8 +3,12 @@
 JD 数据质量校验模块（只检测，不修复）
 
 校验对象：
-  - rag/data/jd_sample.txt      JD 原始文本，每条以「【数字】公司：」开头
-  - rag/data/jd_structured.json 结构化字段，含 company/salary_min/salary_max/city/education/days_per_week
+  - rag/data/scraped_jd.txt     JD 原始文本（真实入库数据），每条以「【数字】公司：」开头，
+                                正文里有【岗位职责】/【任职要求】/【加分项】等段落标题
+  - rag/data/jd_structured.json 结构化字段（可选，需显式传入），含 company/salary_min/salary_max/
+                                city/education。真实数据没有这个文件，默认不校验结构化字段，
+                                只跑文本校验；仓库里残留的那份是旧 mock 数据，公司名与
+                                scraped_jd.txt 对不上，自动加载只会把 15 条全判失败。
 
 检测项：
   a) 学历冲突：头部「学历：X」与正文「任职要求」段落里的学历要求不一致
@@ -17,17 +21,24 @@ JD 数据质量校验模块（只检测，不修复）
   errors   严重问题 —— 字段缺失、正文缺失，会让 passed=False
   warnings 提示问题 —— 头部与正文学历表述不一致，只提示，不影响 passed
   passed 只由 errors 决定：没有 errors 就是通过，warnings 不参与判定。
+  没有 structured 文件时 b/c/d 三项无法执行，记在 report["skipped"] 里，不计入
+  errors，也不影响 passed。
 
-依赖：仅标准库 re / json / pathlib。
+依赖：仅标准库 re / json / sys / pathlib。
 """
 
 import json
 import re
+import sys
 from pathlib import Path
 
 # 本文件所在目录（rag/quality），以及 rag 目录
 QUALITY_DIR = Path(__file__).resolve().parent
 RAG_DIR = QUALITY_DIR.parent
+
+# 默认数据源：真实入库的 JD 文本；结构化字段可选
+DEFAULT_JD_FILE = RAG_DIR / "data" / "scraped_jd.txt"
+DEFAULT_STRUCTURED_FILE = RAG_DIR / "data" / "jd_structured.json"
 
 # 「【1】公司：阶跃星辰」——块起始行；要求行内是 【数字】公司：，以排除末尾的说明段落
 BLOCK_RE = re.compile(r"^【\d+】\s*公司[:：]\s*(?P<company>\S+?)\s*$", re.MULTILINE)
@@ -78,6 +89,8 @@ CHECK_SEVERITY = {
     "missing_field": SEVERITY_ERROR,
     "missing_section": SEVERITY_ERROR,
     "missing_record": SEVERITY_ERROR,
+    # 没有 jd_structured.json 时结构化校验无法执行：不是问题，只登记跳过
+    "check_skipped": SEVERITY_WARNING,
 }
 
 
@@ -267,8 +280,27 @@ def check_city_conflict(header_city, structured):
     return None
 
 
-def check_jd_quality(jd_text: str, structured: dict) -> dict:
+def skipped_checks():
+    """没有 structured 数据时无法执行的检测项名称。"""
+    return ["字段缺失", "薪资冲突", "城市冲突"]
+
+
+# 「跳过校验」提示的统一前缀：控制台汇总时按前缀折叠，report.json 里仍逐条保留
+SKIP_PREFIX = "跳过校验（无 jd_structured.json）："
+
+
+def skipped_message(name):
+    """构造一条跳过校验的提示文本。"""
+    return SKIP_PREFIX + name
+
+
+def check_jd_quality(jd_text: str, structured: dict | None) -> dict:
     """校验单条 JD。
+
+    参数：
+      jd_text     单条 JD 的原始文本块（含「【n】公司：」块头那一行）
+      structured  结构化字段 dict；传 None 表示没有结构化数据，
+                  薪资/城市/字段缺失三项不做判定
 
     返回 {passed: bool, errors: list[str], warnings: list[str]}
       - errors   严重问题（字段缺失、正文缺失、薪资/城市不一致）
@@ -285,19 +317,25 @@ def check_jd_quality(jd_text: str, structured: dict) -> dict:
     _record(errors, warnings, "education_conflict",
             check_education_conflict(header_edu, body_edu))
 
-    # b) 薪资冲突
-    header_salary = _extract_header(jd_text, HEADER_SALARY_RE)
-    _record(errors, warnings, "salary_conflict",
-            check_salary_conflict(header_salary, structured))
+    if structured is None:
+        # 真实数据没有 jd_structured.json：b) 薪资冲突 c) 城市冲突 d) 字段缺失
+        # 三项无从校验，跳过。正文缺失（e）不依赖 structured，照常校验。
+        for message in skipped_checks():
+            _record(errors, warnings, "check_skipped", skipped_message(message))
+    else:
+        # b) 薪资冲突
+        header_salary = _extract_header(jd_text, HEADER_SALARY_RE)
+        _record(errors, warnings, "salary_conflict",
+                check_salary_conflict(header_salary, structured))
 
-    # c) 城市冲突
-    header_city = _extract_header(jd_text, HEADER_CITY_RE)
-    _record(errors, warnings, "city_conflict",
-            check_city_conflict(header_city, structured))
+        # c) 城市冲突
+        header_city = _extract_header(jd_text, HEADER_CITY_RE)
+        _record(errors, warnings, "city_conflict",
+                check_city_conflict(header_city, structured))
 
-    # d) 字段缺失
-    for message in check_missing_fields(structured):
-        _record(errors, warnings, "missing_field", message)
+        # d) 字段缺失
+        for message in check_missing_fields(structured):
+            _record(errors, warnings, "missing_field", message)
 
     # e) 正文缺失
     for section, label in (("duty", "岗位职责"), ("requirement", "任职要求")):
@@ -313,7 +351,10 @@ def check_jd_quality(jd_text: str, structured: dict) -> dict:
 
 
 def load_jd_texts(jd_file):
-    """读取 jd_sample.txt，按「【n】公司：」切块；返回 [(company, block_text), ...]。"""
+    """读取 JD 文本文件（默认 scraped_jd.txt），按「【n】公司：」切块。
+
+    返回 [(company, block_text), ...]；block_text 含块头那一行。
+    """
     text = Path(jd_file).read_text(encoding="utf-8")
     matches = list(BLOCK_RE.finditer(text))
     if not matches:
@@ -367,33 +408,55 @@ def _match_structured(company, records, index):
     return None, None
 
 
-def check_all(jd_file: str, structured_file: str) -> dict:
+def check_all(jd_file: str, structured_file: str | None = None) -> dict:
     """
-    读两份数据，逐条校验。
+    读 JD 文本（和可选的结构化字段），逐条校验。
+
+    参数：
+      jd_file          JD 文本路径，默认 rag/data/scraped_jd.txt
+      structured_file  结构化 JSON 路径；传 None 或文件不存在时，
+                       薪资/城市/字段缺失三项整体跳过
 
     返回：
     {
-      "total": 8,
-      "passed": 8,             # 没有 errors 的条数
-      "failed": 0,             # 有 errors 的条数
-      "error_count": 0,        # 所有条目 errors 条数之和
-      "warning_count": 2,      # 所有条目 warnings 条数之和
+      "total": 15,
+      "passed": 13,            # 没有 errors 的条数
+      "failed": 2,             # 有 errors 的条数
+      "error_count": 2,        # 所有条目 errors 条数之和
+      "warning_count": 45,     # 所有条目 warnings 条数之和
+      "structured_used": false,# 是否用上了结构化字段
+      "skipped": ["字段缺失", "薪资冲突", "城市冲突"],  # 没用结构化字段时被跳过的检测项
       "details": [
         {
-          "company": "阶跃星辰",
+          "company": "信投智联科技",
           "passed": true,
           "errors": [],
-          "warnings": ["学历冲突：头部'不限'，正文'本科'"]
+          "warnings": ["跳过校验（无 jd_structured.json）：薪资冲突"]
         },
         ...
       ]
     }
     """
     blocks = load_jd_texts(jd_file)
-    records, index = load_structured(structured_file)
+    structured_used = bool(structured_file) and Path(structured_file).is_file()
+    if structured_used:
+        records, index = load_structured(structured_file)
+    else:
+        records, index = [], {}
 
     details = []
     for company, block_text in blocks:
+        if not structured_used:
+            # 没有结构化数据：直接做文本校验
+            result = check_jd_quality(block_text, None)
+            details.append({
+                "company": company,
+                "passed": result["passed"],
+                "errors": result["errors"],
+                "warnings": result["warnings"],
+            })
+            continue
+
         structured, matched_by = _match_structured(company, records, index)
         if structured is None:
             details.append({
@@ -423,6 +486,8 @@ def check_all(jd_file: str, structured_file: str) -> dict:
         "failed": len(details) - passed,
         "error_count": error_count,
         "warning_count": warning_count,
+        "structured_used": structured_used,
+        "skipped": skipped_checks() if not structured_used else [],
         "details": details,
     }
 
@@ -441,22 +506,39 @@ def _print_items(items):
         print("  （无）")
 
 
-def main():
-    jd_file = RAG_DIR / "data" / "jd_sample.txt"
-    structured_file = RAG_DIR / "data" / "jd_structured.json"
-    report_file = QUALITY_DIR / "report.json"
+def _print_report(report, jd_file, structured_file, structured_used, report_file):
+    """打印校验汇总与明细。
 
-    report = check_all(str(jd_file), str(structured_file))
+    「跳过校验」提示在控制台折叠成一行（15 条 JD × 3 项会刷屏），
+    report.json 里仍然逐条保留。
+    """
     details = report["details"]
+    skip_count = sum(
+        1 for item in details for message in item["warnings"]
+        if message.startswith(SKIP_PREFIX)
+    )
+    real_warnings = [
+        (item["company"], [m for m in item["warnings"] if not m.startswith(SKIP_PREFIX)])
+        for item in details
+    ]
 
     print("=" * 60)
     print("JD 数据质量校验汇总")
     print("=" * 60)
+    print("JD 文本：%s" % jd_file)
+    print("结构化：%s" % (structured_file if structured_used else "（无，结构化校验已跳过）"))
+    print("-" * 60)
     print("总数：%d" % report["total"])
     print("通过：%d" % report["passed"])
     print("失败：%d" % report["failed"])
     print("errors（严重，计入失败）：%d" % report["error_count"])
     print("warnings（提示，不影响通过）：%d" % report["warning_count"])
+
+    if not structured_used:
+        print("-" * 60)
+        print("跳过校验（%d 条）——缺结构化文件，无法比对：%s"
+              % (skip_count, "、".join(report["skipped"])))
+        print("  提示：把结构化 JSON 作为第二个参数传入即可启用这三项校验")
 
     print("-" * 60)
     print("errors 明细（严重问题）：")
@@ -464,17 +546,42 @@ def main():
 
     print("-" * 60)
     print("warnings 明细（提示问题）：")
-    _print_items([(item["company"], item["warnings"]) for item in details])
+    _print_items(real_warnings)
 
     print("-" * 60)
+    print("报告已保存：%s" % report_file)
+    return report
+
+
+def main(argv=None):
+    """命令行入口。
+
+    用法：
+      python -m rag.quality.checker                       # 只校验 scraped_jd.txt 的文本项
+      python -m rag.quality.checker <jd.txt> <struct.json> # 额外校验薪资/城市/字段缺失
+    """
+    argv = list(sys.argv[1:] if argv is None else argv)
+    jd_file = Path(argv[0]) if argv else DEFAULT_JD_FILE
+    # 结构化字段必须显式传入：真实数据没有 jd_structured.json，
+    # 仓库里残留的那份是旧 mock 数据，自动加载会把 15 条真实 JD 全判失败
+    structured_file = Path(argv[1]) if len(argv) > 1 else None
+    report_file = QUALITY_DIR / "report.json"
+
+    structured_used = bool(structured_file) and structured_file.is_file()
+    if structured_file and not structured_used:
+        print("提示：结构化文件不存在，已跳过结构化校验：%s" % structured_file)
+
+    report = check_all(
+        str(jd_file),
+        str(structured_file) if structured_used else None,
+    )
+
     QUALITY_DIR.mkdir(parents=True, exist_ok=True)
     report_file.write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    print("报告已保存：%s" % report_file)
-
-    return report
+    return _print_report(report, jd_file, structured_file, structured_used, report_file)
 
 
 if __name__ == "__main__":
