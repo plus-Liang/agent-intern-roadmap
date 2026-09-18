@@ -3,9 +3,32 @@
 根据 job_id 获取完整 JD。
 
 接口：get_job_detail(platform, job_id) -> JobDetail
+实现：优先读本地真实数据 rag/data/cleaned_jd.json，读不到时回退硬编码 mock
 """
+import json
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
+
+
+# 真实数据路径：<repo_root>/rag/data/cleaned_jd.json
+# 本文件位于 <repo_root>/agent/tools/job_detail.py，parents[2] 即仓库根目录
+REAL_JD_PATH = Path(__file__).resolve().parents[2] / "rag" / "data" / "cleaned_jd.json"
+
+# JD 正文里的分节标记：真实数据把职责和要求写在一段 description 里，用这些标记切分
+_REQUIREMENT_MARKERS = (
+    "【任职要求】",
+    "【岗位要求】",
+    "【任职资格】",
+    "任职资格（学历、目标院校、语言、技能、性格等要求）",
+    "任职要求",
+    "岗位要求",
+    "任职资格",
+)
+_BONUS_MARKERS = ("【加分项】", "加分项")
+# description 开头的容器标记，去掉只是排版清理
+_DESCRIPTION_PREFIXES = ("【职位描述】", "【岗位描述】", "【工作职责】", "【职位信息】", "【岗位职责】")
 
 
 @dataclass
@@ -32,12 +55,15 @@ def get_job_detail(platform: str, job_id: str) -> JobDetail:
     获取岗位详情。
 
     参数：
-        platform: 平台名
+        platform: "mock"（本地真实数据，查不到时回退硬编码 mock）；
+                  别名 "agent" 等价于 "mock"；"shixiseng" 为在线抓取（待实现）
         job_id: 岗位 ID
 
     返回：JobDetail
+
+    异常：未找到该 job_id 时抛 ValueError
     """
-    if platform == "mock":
+    if platform in ("mock", "agent"):
         return _mock_detail(job_id)
     elif platform == "shixiseng":
         return _fetch_from_shixiseng(job_id)
@@ -45,8 +71,98 @@ def get_job_detail(platform: str, job_id: str) -> JobDetail:
         raise ValueError(f"不支持的平台：{platform}")
 
 
+def _split_description(text: str) -> tuple[str, str, str]:
+    """把一整段 JD 切成 (岗位职责/描述, 任职要求, 加分项)。
+
+    只做原文切片，不改写、不新增内容；找不到分节标记时，
+    整段文本留在 description，requirements / bonus 为空字符串。
+    """
+    text = text or ""
+    if not text.strip():
+        return "", "", ""
+
+    def _first_marker(markers: tuple[str, ...]) -> tuple[int, str]:
+        """返回出现位置最靠前的标记（同一位置优先取最长的那个，避免残留 "】"）。"""
+        hits = [(text.find(m), m) for m in markers]
+        hits = [(i, m) for i, m in hits if i != -1]
+        if not hits:
+            return -1, ""
+        position = min(i for i, _ in hits)
+        return position, max((m for i, m in hits if i == position), key=len)
+
+    req_index, req_marker = _first_marker(_REQUIREMENT_MARKERS)
+
+    if req_index == -1:
+        description = text.strip()
+        for prefix in _DESCRIPTION_PREFIXES:
+            if description.startswith(prefix):
+                description = description[len(prefix):].strip()
+                break
+        return description, "", ""
+
+    description = text[:req_index].strip()
+    for prefix in _DESCRIPTION_PREFIXES:
+        if description.startswith(prefix):
+            description = description[len(prefix):].strip()
+            break
+    rest = text[req_index + len(req_marker):].strip()
+
+    bonus_index, bonus_marker = _first_marker(_BONUS_MARKERS)
+    # 加分项必须在 requirements 段内出现才算
+    bonus = ""
+    if bonus_index != -1 and bonus_index >= req_index + len(req_marker):
+        bonus = text[bonus_index + len(bonus_marker):].strip()
+        rest = text[req_index + len(req_marker):bonus_index].strip()
+
+    return description or text.strip(), rest, bonus
+
+
+def _load_real_details() -> dict[str, JobDetail]:
+    """从 rag/data/cleaned_jd.json 读取所有岗位，返回 {job_id: JobDetail}。
+
+    返回空 dict 表示"真实数据不可用"（文件不存在 / JSON 损坏 / 结构不是 list），
+    调用方据此回退到硬编码 mock 数据。
+    """
+    try:
+        with REAL_JD_PATH.open(encoding="utf-8") as f:
+            raw = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[job_detail] 读取真实数据失败，回退 mock：{REAL_JD_PATH}（{exc}）", file=sys.stderr)
+        return {}
+
+    if not isinstance(raw, list):
+        print(f"[job_detail] 真实数据格式异常（期望 list）：{REAL_JD_PATH}", file=sys.stderr)
+        return {}
+
+    details: dict[str, JobDetail] = {}
+    for item in raw:
+        if not isinstance(item, dict) or not item.get("job_id"):
+            continue
+        description, requirements, bonus = _split_description(item.get("description") or "")
+        job_id = str(item["job_id"])
+        details[job_id] = JobDetail(
+            platform=item.get("platform") or "shixiseng",
+            job_id=job_id,
+            title=item.get("title") or "",
+            company=item.get("company") or "",
+            city=item.get("city") or "",
+            salary=item.get("salary") or "",
+            url=item.get("url") or "",
+            description=description,
+            requirements=requirements,
+            bonus=bonus,
+            tags=list(item["tags"]) if item.get("tags") else [],
+        )
+    return details
+
+
 def _mock_detail(job_id: str) -> JobDetail:
-    """Mock 实现：返回硬编码详情"""
+    """默认实现：优先从 rag/data/cleaned_jd.json 查真实岗位，查不到再回退硬编码 mock。"""
+    real_db = _load_real_details()
+    if job_id in real_db:
+        return real_db[job_id]
+
+    # ---- fallback：真实数据不可用（或该 id 属于旧 mock 数据）时使用硬编码详情 ----
     mock_db = {
         "mock_001": JobDetail(
             platform="mock",
@@ -133,8 +249,24 @@ def _fetch_from_shixiseng(job_id: str) -> JobDetail:
 
 
 if __name__ == "__main__":
-    detail = get_job_detail("mock", "mock_001")
-    print(f"【{detail.company}】{detail.title}")
-    print(f"城市：{detail.city} | 薪资：{detail.salary} | 学历：{detail.education}")
-    print(f"\n岗位职责：\n{detail.description}")
-    print(f"\n任职要求：\n{detail.requirements}")
+    real_db = _load_real_details()
+    print(f"数据源：{REAL_JD_PATH}（exists={REAL_JD_PATH.exists()}，{len(real_db)} 条真实岗位）")
+
+    # 优先取真实数据里的岗位，真实数据不可用时回退到 mock_001
+    target_id = next(iter(real_db), "mock_001")
+    detail = get_job_detail("agent", target_id)
+    print(f"\n【{detail.company}】{detail.title}")
+    print(f"platform：{detail.platform} | id：{detail.job_id}")
+    print(f"城市：{detail.city} | 薪资：{detail.salary} | 学历：{detail.education or '（数据未提供）'}")
+    print(f"URL：{detail.url}")
+    print(f"\n岗位职责（{len(detail.description)} 字）：\n{detail.description[:300]}")
+    print(f"\n任职要求（{len(detail.requirements)} 字）：\n{detail.requirements[:300]}")
+    if detail.bonus:
+        print(f"\n加分项（{len(detail.bonus)} 字）：\n{detail.bonus[:300]}")
+
+    try:
+        get_job_detail("agent", "__no_such_job_id__")
+    except ValueError as exc:
+        print(f"\n[OK] 未知 job_id 正确抛 ValueError：{exc}")
+    else:
+        raise AssertionError("未知 job_id 应抛 ValueError")
