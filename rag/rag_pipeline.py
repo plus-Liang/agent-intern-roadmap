@@ -3,7 +3,6 @@ import time
 from shared.config import DATA_DIR
 from shared.llm_client import chat
 from rag.retriever import retrieve, format_context
-from rag.reranker import rerank
 from rag.generator import generate
 import os
 
