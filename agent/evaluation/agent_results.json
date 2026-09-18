@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "generated_at": "2026-09-18 14:01:32",
+    "task_ids": [
+      1,
+      6,
+      9
+    ],
+    "partial_run": true,
+    "judged_by": "auto",
+    "seeded_applications": [
+      {
+        "id": "8ab0e7f0",
+        "company": "阶跃星辰",
+        "title": "Agent 开发实习生"
+      },
+      {
+        "id": "71bd96b4",
+        "company": "腾讯",
+        "title": "大模型算法实习生"
+      }
+    ],
+    "db_path_used": "D:\\agent-intern-roadmap\\agent\\evaluation\\test.db"
+  },
+  "total": 3,
+  "success": 2,
+  "success_rate": 0.667,
+  "by_type": {
+    "single_step": {
+      "total": 1,
+      "success": 0,
+      "tools_match": 0,
+      "avg_turns": 4.0,
+      "success_rate": 0.0
+    },
+    "multi_step": {
+      "total": 1,
+      "success": 1,
+      "tools_match": 1,
+      "avg_turns": 3.0,
+      "success_rate": 1.0
+    },
+    "refusal": {
+      "total": 1,
+      "success": 1,
+      "tools_match": 1,
+      "avg_turns": 1.0,
+      "success_rate": 1.0
+    }
+  },
+  "details": [
+    {
+      "id": 1,
+      "type": "single_step",
+      "task": "帮我找北京的 Agent 岗位",
+      "expected_tools": [
+        "search_jobs"
+      ],
+      "actual_tools": [
+        "search_jobs",
+        "match_resume",
+        "match_resume"
+      ],
+      "tools_match": false,
+      "tool_calls": 3,
+      "turns": 4,
+      "answer": "为你找到北京的 Agent 相关实习岗位，并已用你的简历进行匹配打分：\n1. 阶跃星辰 - Agent 开发实习生（500-1000/天），匹配度 80 分。亮点：你有 Python/PyTorch 基础和 LLM 应用经验；缺口：缺少强化学习/数据科学相关经验。\n2. 腾讯 - 大模型算法实习生（300-500/天），匹配度 82 分。亮点：你掌握 RAG、LangChain、PyTorch，且有相关项目；缺口：缺少多智能体协作和模型微调经验。\n建议优先关注腾讯岗位，匹配度更高。如需查看完整 JD 或把岗位加入投递追踪，请告诉我。",
+      "verdict": "n",
+      "success": false,
+      "reason": "工具序列不一致：预期 ['search_jobs']，实际 ['search_jobs', 'match_resume', 'match_resume']（自动判定）",
+      "judged_by": "auto"
+    },
+    {
+      "id": 6,
+      "type": "multi_step",
+      "task": "搜一下北京的 Agent 岗位，把第一个岗位加入我的投递追踪",
+      "expected_tools": [
+        "search_jobs",
+        "add_tracking"
+      ],
+      "actual_tools": [
+        "search_jobs",
+        "add_tracking"
+      ],
+      "tools_match": true,
+      "tool_calls": 2,
+      "turns": 3,
+      "answer": "已为您搜索北京的 Agent 岗位，第一个岗位是【阶跃星辰 - Agent 开发实习生】（500-1000/天），已成功加入投递追踪，当前状态为 applied。",
+      "verdict": "y",
+      "success": true,
+      "reason": "工具序列一致（自动判定）",
+      "judged_by": "auto"
+    },
+    {
+      "id": 9,
+      "type": "refusal",
+      "task": "今天天气怎么样？",
+      "expected_tools": [],
+      "actual_tools": [],
+      "tools_match": true,
+      "tool_calls": 0,
+      "turns": 1,
+      "answer": "抱歉，我没有查询天气的工具，无法回答天气情况。",
+      "verdict": "y",
+      "success": true,
+      "reason": "工具序列一致（自动判定）",
+      "judged_by": "auto"
+    }
+  ]
+}
