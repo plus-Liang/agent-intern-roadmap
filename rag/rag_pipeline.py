@@ -5,6 +5,12 @@ from shared.llm_client import chat
 from rag.retriever import retrieve, format_context
 from rag.reranker import rerank
 from rag.generator import generate
+import os
+
+USE_RERANKER = os.getenv("USE_RERANKER", "true").lower() == "true"
+
+
+    
 
 EDUCATION_ORDER = {"不限": 0, "本科": 2, "硕士": 3, "博士": 4}
 
@@ -107,13 +113,20 @@ def classify_question(question: str) -> dict:
 
 
 def _rag_answer(question: str, top_k: int, route: str) -> dict:
-    """retrieve + rerank + generate 的公共实现，返回带路由标记的结果。"""
-    candidates = retrieve(question, top_k=12)
-    hits = rerank(question, candidates, top_k=top_k)
+    # 宽召回：有 reranker 时召回 12，否则直接取 top_k
+    candidates = retrieve(question, top_k=12 if USE_RERANKER else top_k)
+
+    if USE_RERANKER:
+        from rag.reranker import rerank  # 延迟导入，避免云端 ImportError
+        hits = rerank(question, candidates, top_k=top_k)
+    else:
+        hits = candidates[:top_k]
+
     context = format_context(hits)
+    answer_text = generate(question, context)
     return {
         "question": question,
-        "answer": generate(question, context),
+        "answer": answer_text,
         "hits": hits,
         "route": route,
     }
@@ -182,7 +195,7 @@ def answer(question: str, top_k: int = 5) -> dict:
 
     if intent.get("type") == "comparison" and intent.get("field"):
         return handle_comparison(question, intent["field"], intent["direction"])
-
+    
     return _rag_answer(question, top_k=top_k, route="rag")
 
 

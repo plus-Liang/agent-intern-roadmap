@@ -1,0 +1,10 @@
+streamlit==1.63.0
+pandas==3.0.5
+numpy==2.5.3
+openai==3.8.0
+chromadb==1.5.9
+rank-bm25==0.2.2
+jieba==0.42.1
+python-dotenv==1.2.3
+json5==0.15.0
+pypdf==6.18.1

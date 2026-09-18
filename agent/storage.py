@@ -10,8 +10,14 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from shared.config import ROOT_DIR
+import os
+from pathlib import Path
 
-DB_PATH = ROOT_DIR / "agent" / "data" / "applications.db"
+DB_PATH = Path(os.getenv(
+    "APP_DB_PATH",
+    str(ROOT_DIR / "agent" / "data" / "applications.db")
+))
+
 
 
 def _get_conn():
