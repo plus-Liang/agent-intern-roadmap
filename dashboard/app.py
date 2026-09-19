@@ -1,9 +1,11 @@
 """
 求职 Dashboard。
-三个 Tab：
+五个 Tab：
 1. 岗位列表：搜索、标记想投/不合适
 2. 投递追踪：查看投递记录和状态
 3. 匹配结果：简历-JD 匹配打分
+4. Token 成本：LLM 用量按天/模型/来源统计
+5. 简历管理：多版本简历的新建/上传/设默认/删除
 """
 import sys
 import json
@@ -18,6 +20,7 @@ from agent import storage
 from agent.tools.job_search import search_jobs
 from agent.tools.job_detail import get_job_detail
 from agent.tools.resume_match import match_resume_to_jd, Resume
+from shared import token_tracker
 
 
 # 初始化数据库
@@ -31,8 +34,10 @@ st.set_page_config(
 
 st.title("🎯 求职助手 Dashboard")
 
-# 三个 Tab
-tab1, tab2, tab3 = st.tabs(["📋 岗位列表", "📊 投递追踪", "🎯 匹配打分"])
+# 五个 Tab
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📋 岗位列表", "📊 投递追踪", "🎯 匹配打分", "💰 Token 成本", "📄 简历管理",
+])
 
 
 # ============================================================
@@ -91,7 +96,7 @@ with tab1:
             })
 
         df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
 
         # 标记区域
         st.subheader("标记操作")
@@ -184,7 +189,7 @@ with tab2:
             }
             for a in apps
         ])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
 
         # 查看时间线
         st.subheader("查看时间线")
@@ -306,3 +311,177 @@ with tab3:
 
             except Exception as e:
                 st.error(f"匹配失败：{e}")
+
+
+# ============================================================
+# Tab 4：Token 成本
+# ============================================================
+with tab4:
+    st.header("Token 成本")
+    st.caption(
+        "所有 LLM 调用的用量都会记进 `logs/token_usage.db`（按调用来源区分），"
+        "这里直接看总量和分布。"
+    )
+
+    range_days = st.segmented_control(
+        "统计区间",
+        options=[7, 14, 30],
+        default=7,
+        format_func=lambda d: f"近 {d} 天",
+        key="token_range",
+    ) or 7
+
+    usage = token_tracker.query_usage(days=range_days)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("总 token", f"{usage['total_tokens']:,}")
+    col2.metric("调用次数", f"{usage['total_calls']:,}")
+    col3.metric(
+        "平均每次",
+        f"{usage['total_tokens'] / usage['total_calls']:,.0f}"
+        if usage["total_calls"] else "—",
+    )
+
+    if not usage["total_calls"]:
+        st.info("这个区间还没有用量记录。跑一次对话或匹配后再来看。")
+    else:
+        st.subheader("按天")
+        st.bar_chart(
+            pd.DataFrame(usage["daily"]), x="date", y="tokens", height=260
+        )
+        st.caption("流式调用拿不到 usage 时会记 0，并把来源标成 `xxx:stream_no_usage`。")
+
+        left, right = st.columns(2)
+        with left:
+            st.subheader("按来源")
+            st.dataframe(
+                pd.DataFrame([
+                    {"来源": src, "token": v["tokens"], "调用次数": v["calls"]}
+                    for src, v in usage["by_source"].items()
+                ]),
+                width="stretch",
+                hide_index=True,
+            )
+        with right:
+            st.subheader("按模型")
+            st.dataframe(
+                pd.DataFrame([
+                    {"模型": model, "token": v["tokens"], "调用次数": v["calls"]}
+                    for model, v in usage["by_model"].items()
+                ]),
+                width="stretch",
+                hide_index=True,
+            )
+
+
+# ============================================================
+# Tab 5：简历管理（多版本）
+# ============================================================
+with tab5:
+    st.header("简历管理")
+    st.caption(
+        "同一个岗位方向存一份简历（技术岗版 / 产品岗版…）。"
+        "Agent 需要简历时会用「默认」那一份，切换方向只要改默认即可。"
+    )
+
+    notice = st.session_state.pop("resume_notice", None)
+    if notice:
+        st.success(notice)
+
+    resumes = storage.list_resumes()
+    default_resume = storage.get_default_resume()
+    default_id = default_resume["id"] if default_resume else None
+
+    if resumes:
+        st.dataframe(
+            pd.DataFrame([
+                {
+                    "默认": "✅" if r["id"] == default_id else "",
+                    "名称": r["name"],
+                    "ID": r["id"],
+                    "创建时间": r["created_at"],
+                }
+                for r in resumes
+            ]),
+            width="stretch",
+            hide_index=True,
+        )
+    else:
+        st.info("还没有简历，用下面的表单新建一份。")
+
+    st.subheader("新建 / 上传简历")
+    with st.form("resume_form", clear_on_submit=True):
+        resume_name = st.text_input("简历名称", placeholder="技术岗版", key="resume_name")
+        uploaded = st.file_uploader(
+            "上传文件（.json / .txt / .md，可选；上传了就优先用文件内容）",
+            type=["json", "txt", "md"],
+            key="resume_upload",
+        )
+        resume_content = st.text_area(
+            "简历内容",
+            height=200,
+            key="resume_content",
+            placeholder=(
+                '{"name": "张三", "skills": ["Python", "RAG"], '
+                '"experience": [], "projects": [], "education": "本科", "city": "广州"}\n'
+                "或直接粘贴纯文本简历（Agent 会在匹配时自行解析）"
+            ),
+        )
+        submitted = st.form_submit_button("保存简历", key="resume_submit")
+
+    if submitted:
+        text = (
+            uploaded.getvalue().decode("utf-8", errors="replace")
+            if uploaded is not None else resume_content
+        )
+        if not str(text).strip():
+            st.error("简历内容不能为空。")
+        else:
+            new_id = storage.save_resume(resume_name, text)
+            saved = storage.get_resume(new_id) or {}
+            st.session_state["resume_notice"] = (
+                f"已保存「{saved.get('name', resume_name)}」，ID = {new_id}"
+            )
+            st.rerun()
+
+    if resumes:
+        st.divider()
+        st.subheader("设为默认 / 删除")
+
+        labels = {
+            r["id"]: f"{r['name']}（{r['id']}）"
+                     + ("　· 当前默认" if r["id"] == default_id else "")
+            for r in resumes
+        }
+        selected = st.selectbox(
+            "选择一份简历",
+            options=[r["id"] for r in resumes],
+            format_func=lambda rid: labels[rid],
+            key="resume_pick",
+        )
+
+        col_set, col_confirm, col_del = st.columns([1, 1, 1])
+        with col_set:
+            if st.button("✅ 设为默认", key="resume_set_default"):
+                if storage.set_default_resume(selected):
+                    st.session_state["resume_notice"] = f"已把 {selected} 设为默认简历。"
+                else:
+                    st.session_state["resume_notice"] = f"设置失败：找不到简历 {selected}。"
+                st.rerun()
+        with col_confirm:
+            confirm_delete = st.checkbox("确认删除", key="resume_confirm_delete")
+        with col_del:
+            if st.button("🗑️ 删除", key="resume_delete", disabled=not confirm_delete):
+                ok = storage.delete_resume(selected)
+                st.session_state["resume_notice"] = (
+                    f"已删除简历 {selected}。" if ok else f"删除失败：找不到简历 {selected}。"
+                )
+                st.rerun()
+
+        detail = storage.get_resume(selected)
+        with st.expander("查看这份简历的内容"):
+            content = (detail or {}).get("content")
+            if isinstance(content, (dict, list)):
+                st.json(content)
+            else:
+                st.code(str(content or "") or "（空）")

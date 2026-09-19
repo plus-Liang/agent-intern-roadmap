@@ -293,3 +293,178 @@ def get_mark(job_id: str) -> str:
     return row["mark"] if row else "untagged"
 
 
+# ========== C1：多版本简历（一份简历一个 JSON 文件） ==========
+#
+# 为什么不用 SQLite：简历内容是自由文本/JSON，体量小、份数少，
+# 一个文件一份最直观，也方便用户直接看/改/备份。
+#
+# 存放位置：ROOT_DIR/agent/data/resumes/{resume_id}.json
+#   {"id": "a1b2c3d4", "name": "技术岗版", "content": {...} 或 "文本", "created_at": "..."}
+# 另有一个 _default.json 记录「默认使用哪一份」（只存 id，不存内容）。
+# 可用环境变量 RESUME_DIR 覆盖目录——测试请指向临时目录。
+
+RESUME_DIR = Path(os.getenv(
+    "RESUME_DIR",
+    str(ROOT_DIR / "agent" / "data" / "resumes"),
+))
+
+_DEFAULT_RESUME_FILE = "_default.json"
+
+
+def _ensure_resume_dir():
+    RESUME_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _resume_path(resume_id: str) -> Path:
+    return RESUME_DIR / f"{resume_id}.json"
+
+
+def _normalize_resume_content(content):
+    """内容可以是 dict/list（结构化简历），也可以是字符串。
+
+    字符串先尝试按 JSON 解析（用户在 Dashboard 里粘 JSON 是最常见的用法），
+    解析失败就当纯文本原样保存——简历文本后面还要交给 LLM 解析，不该在这里报错。
+    """
+    if isinstance(content, (dict, list)):
+        return content
+    if isinstance(content, str):
+        text = content.strip()
+        if not text:
+            return ""
+        try:
+            parsed = json.loads(text)
+        except (ValueError, TypeError):
+            return content
+        return parsed if isinstance(parsed, (dict, list)) else content
+    return "" if content is None else str(content)
+
+
+def _read_resume_file(path: Path) -> dict | None:
+    """读单个简历文件，坏文件返回 None（不让一份脏数据毁掉整个列表）"""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    data.setdefault("id", path.stem)
+    return data
+
+
+def save_resume(name: str, content) -> str:
+    """保存一份简历，返回 resume_id（uuid 前 8 位）。
+
+    content 支持 dict/list（结构化简历）或字符串（JSON 文本 / 纯文本）。
+    同名简历不覆盖——每次保存都是新的一份，方便对比不同版本。
+    """
+    _ensure_resume_dir()
+    resume_id = str(uuid.uuid4())[:8]
+    record = {
+        "id": resume_id,
+        "name": str(name or "").strip() or "未命名简历",
+        "content": _normalize_resume_content(content),
+        "created_at": now(),
+    }
+    with open(_resume_path(resume_id), "w", encoding="utf-8") as f:
+        json.dump(record, f, ensure_ascii=False, indent=2)
+    return resume_id
+
+
+def list_resumes() -> list[dict]:
+    """列出所有简历（不含 content），按创建时间倒序（最新的在前）。
+
+    下划线开头的文件是内部文件（_default.json 记录默认简历），不算简历。
+    """
+    if not RESUME_DIR.is_dir():
+        return []
+
+    items = []
+    for path in RESUME_DIR.glob("*.json"):
+        if path.name.startswith("_"):
+            continue
+        data = _read_resume_file(path)
+        if not data:
+            continue
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        items.append({
+            "id": data.get("id", path.stem),
+            "name": data.get("name", "未命名简历"),
+            "created_at": data.get("created_at", ""),
+            # created_at 只精确到秒，同一秒内保存的多份用文件 mtime 兜底排序
+            "_mtime": mtime,
+        })
+
+    items.sort(key=lambda r: (r["created_at"], r["_mtime"]), reverse=True)
+    for item in items:
+        item.pop("_mtime", None)
+    return items
+
+
+def get_resume(resume_id: str) -> dict | None:
+    """按 id 取一份简历（含 content），不存在返回 None"""
+    if not resume_id:
+        return None
+    path = _resume_path(str(resume_id).strip())
+    if not path.is_file():
+        return None
+    return _read_resume_file(path)
+
+
+def delete_resume(resume_id: str) -> bool:
+    """删除一份简历，成功返回 True，不存在返回 False。
+
+    如果删掉的正好是默认简历，顺手清掉默认指针（避免指向一个不存在的 id）。
+    """
+    path = _resume_path(str(resume_id or "").strip())
+    if not path.is_file():
+        return False
+    try:
+        path.unlink()
+    except OSError:
+        return False
+    if _read_default_resume_id() == str(resume_id).strip():
+        try:
+            (RESUME_DIR / _DEFAULT_RESUME_FILE).unlink()
+        except OSError:
+            pass
+    return True
+
+
+def set_default_resume(resume_id: str) -> bool:
+    """把某份简历设为默认使用；id 不存在返回 False（不写坏指针）"""
+    if get_resume(resume_id) is None:
+        return False
+    _ensure_resume_dir()
+    with open(RESUME_DIR / _DEFAULT_RESUME_FILE, "w", encoding="utf-8") as f:
+        json.dump({"id": str(resume_id).strip()}, f, ensure_ascii=False)
+    return True
+
+
+def _read_default_resume_id() -> str | None:
+    path = RESUME_DIR / _DEFAULT_RESUME_FILE
+    data = _read_resume_file(path)
+    if not data:
+        return None
+    rid = data.get("id")
+    return str(rid) if rid else None
+
+
+def get_default_resume() -> dict | None:
+    """取默认简历：优先 set_default_resume 指定的那份；
+    没指定过（或指定的那份已被删）就退回最新保存的一份；一份都没有则 None。
+    """
+    pointed = _read_default_resume_id()
+    if pointed:
+        data = get_resume(pointed)
+        if data:
+            return data
+    items = list_resumes()
+    if not items:
+        return None
+    return get_resume(items[0]["id"])
+
+

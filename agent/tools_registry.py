@@ -140,6 +140,80 @@ def _update_tracking_notes(company, notes):
     return {"company": record["company"], "notes": notes or ""}
 
 
+# ========== C1：多版本简历工具 ==========
+#
+# 「当前使用哪份简历」是会话级状态：工具函数拿不到 Chainlit 的 user_session，
+# 所以放在本模块的进程级字典里（同一个 Agent 进程内共享）。
+# 进程重启后回落到 storage.get_default_resume()（默认/最新一份），不会丢功能。
+
+_SESSION_STATE = {"current_resume_id": None}
+
+
+def save_resume_tool(name, content):
+    """保存一份简历（多版本），返回 resume_id"""
+    resume_id = storage.save_resume(name, content)
+    return {
+        "id": resume_id,
+        "name": name,
+        "saved": True,
+        "hint": "用 use_resume 把它设为当前使用；用 list_resumes 查看所有版本。",
+    }
+
+
+def list_resumes_tool():
+    """列出所有简历版本（不含内容）"""
+    items = storage.list_resumes()
+    default = storage.get_default_resume()
+    default_id = default["id"] if default else None
+    current_id = _SESSION_STATE.get("current_resume_id")
+    return [
+        {
+            "id": r["id"],
+            "name": r["name"],
+            "created_at": r["created_at"],
+            "is_default": r["id"] == default_id,
+            "is_current": r["id"] == current_id,
+        }
+        for r in items
+    ]
+
+
+def get_resume_tool(resume_id):
+    """取某份简历的完整内容（含 content）"""
+    data = storage.get_resume(resume_id)
+    if not data:
+        raise ValueError(f"未找到简历：{resume_id}（可用 list_resumes 查看现有版本）")
+    return data
+
+
+def use_resume(resume_id):
+    """把某份简历设为当前使用（本会话内生效），切换技术岗版 / 产品岗版"""
+    data = storage.get_resume(resume_id)
+    if not data:
+        raise ValueError(f"未找到简历：{resume_id}（可用 list_resumes 查看现有版本）")
+    _SESSION_STATE["current_resume_id"] = str(resume_id).strip()
+    return {
+        "id": data["id"],
+        "name": data.get("name", ""),
+        "current": True,
+        "hint": "之后需要简历的匹配/改写都会用这一份。",
+    }
+
+
+def get_current_resume():
+    """取当前该用的简历：会话里 use_resume 设过的优先，否则用默认/最新一份。
+
+    给 react_agent 用：调用方没显式传 resume_data 时，自动挂上当前简历。
+    """
+    current_id = _SESSION_STATE.get("current_resume_id")
+    if current_id:
+        data = storage.get_resume(current_id)
+        if data:
+            return data
+        _SESSION_STATE["current_resume_id"] = None      # 那份已被删，清理掉
+    return storage.get_default_resume()
+
+
 TOOLS = {
     "search_jobs": {
         "description": "搜索实习岗位，返回岗位列表。",
@@ -215,6 +289,42 @@ TOOLS = {
             "notes": "新的备注内容（覆盖原备注，传空字符串表示清空）",
         },
         "func": _update_tracking_notes,
+    },
+    "save_resume": {
+        "description": (
+            "保存一份简历（支持多版本，比如「技术岗版」「产品岗版」）。"
+            "同名简历不会覆盖，每次保存都是新的一份。"
+        ),
+        "parameters": {
+            "name": "简历名称，如「技术岗版」",
+            "content": (
+                "简历内容：JSON 字符串/对象（含 name/skills/experience/projects/"
+                "education/city）或纯文本简历"
+            ),
+        },
+        "func": save_resume_tool,
+    },
+    "list_resumes": {
+        "description": "列出已有的所有简历版本（只给 id/名称/创建时间，不含内容）。",
+        "parameters": {},
+        "func": list_resumes_tool,
+    },
+    "get_resume": {
+        "description": "取某一份简历的完整内容。",
+        "parameters": {
+            "resume_id": "简历 ID（list_resumes 返回的 id）",
+        },
+        "func": get_resume_tool,
+    },
+    "use_resume": {
+        "description": (
+            "把某一份简历设为当前使用（本会话内生效）。"
+            "用户说「换用产品岗版简历」时调用它，之后需要简历的操作都会用这一份。"
+        ),
+        "parameters": {
+            "resume_id": "简历 ID（list_resumes 返回的 id）",
+        },
+        "func": use_resume,
     },
 }
 

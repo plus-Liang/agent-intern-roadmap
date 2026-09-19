@@ -8,7 +8,7 @@ import json
 import os
 import re
 from shared.llm_client import chat
-from agent.tools_registry import list_tools_description, call_tool
+from agent.tools_registry import list_tools_description, call_tool, get_current_resume
 
 
 MAX_TURNS = 6
@@ -120,7 +120,7 @@ def _summarize_messages(messages: list, verbose: bool = True) -> str:
         summary = chat([{
             "role": "user",
             "content": SUMMARY_PROMPT_TEMPLATE.format(history=history),
-        }])
+        }], source="react_agent_summary")
         summary = " ".join(str(summary or "").split())     # 压成单行，别让摘要自己变长
         if summary:
             return summary
@@ -134,6 +134,21 @@ def _summarize_messages(messages: list, verbose: bool = True) -> str:
     return flat[:500] + ("…" if len(flat) > 500 else "")
 
 
+def _is_tool_result(msg: dict) -> bool:
+    """判断一条消息是不是「工具返回结果」的观察消息。
+
+    react_agent 里的工具调用是成对写入的：
+        助手：{"thought": ..., "action": ...}
+        用户：工具返回结果：\n{...}\n\n请继续。
+    这对消息必须同生共死——只留后者会被模型当成一条来路不明的用户消息。
+    """
+    return (
+        isinstance(msg, dict)
+        and msg.get("role") == "user"
+        and str(msg.get("content", "")).startswith("工具返回结果")
+    )
+
+
 def compact_messages(messages: list, max_history: int = None, verbose: bool = True) -> list:
     """把 messages 压到 max_history 条以内（默认取 MAX_HISTORY / 环境变量）。
 
@@ -142,7 +157,12 @@ def compact_messages(messages: list, max_history: int = None, verbose: bool = Tr
     - 保留最近 max_history - 2 条原始消息；
     - 中间部分（system 之后、最近 N 条之前）交给 LLM 摘要，
       以「之前对话摘要：…」插在 system prompt 之后，这 1 条摘要本身也计入上限；
-    - 没超限时原样返回（返回新列表，不改动入参）。
+    - 没超限时原样返回（返回新列表，不改动入参）；
+    - 切点如果正好落在「工具返回结果」上，会往前多留一条（见下方注释）。
+
+    注意：触发上面最后一条配对修复时，返回条数会是 max_history + 1。
+    这是有意为之——多留一条原文换取消息对的完整，比省一条更划算；
+    多出来的那条本来就在尾部窗口边上，摘要覆盖的中段反而少了一条，token 量基本不变。
     """
     limit = max_history or _get_max_history()
     if len(messages) <= limit:
@@ -150,6 +170,17 @@ def compact_messages(messages: list, max_history: int = None, verbose: bool = Tr
 
     system_msg = messages[0]
     keep_tail = max(0, limit - 2)                  # 留 1 条名额给摘要
+    if keep_tail:
+        # 切尾部之前先看切点：如果尾部第一条是「工具返回结果」，说明它对应的
+        # assistant 消息（含 action）被切进了摘要区。只保留结果、丢掉产生它的
+        # 那次工具调用，会让模型看到一条没有来源的用户消息，轻则重复调工具，
+        # 重则把工具结果误当成用户说的话。所以把窗口往前扩，把那个
+        # assistant 消息一起留在尾部，保证 (assistant, 工具返回结果) 成对。
+        while True:
+            cut = len(messages) - keep_tail
+            if cut <= 1 or cut >= len(messages) or not _is_tool_result(messages[cut]):
+                break
+            keep_tail += 1
     tail = messages[len(messages) - keep_tail:] if keep_tail else []
     middle = messages[1:len(messages) - keep_tail] if keep_tail else messages[1:]
 
@@ -174,6 +205,16 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
     """运行 ReAct 循环
     resume_data: 当前用户的简历（dict），会注入到 system prompt
     """
+    # 多版本简历：调用方没显式给简历时，用「当前使用」的那份
+    # （use_resume 设过的 → 否则取默认/最新一份），支持技术岗版 / 产品岗版切换。
+    if resume_data is None:
+        try:
+            resume_data = get_current_resume()
+        except Exception as e:                  # 读简历失败不该让对话直接挂掉
+            if verbose:
+                print(f"[简历] 读取当前简历失败（忽略）：{e}")
+            resume_data = None
+
     tools_desc = list_tools_description()
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         tools=tools_desc, max_turns=MAX_TURNS
@@ -195,7 +236,7 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
         # 每次调用 LLM 前压缩历史：超限就摘要中间部分，长对话不会把 token 撑爆
         messages = compact_messages(messages, verbose=verbose)
 
-        raw = chat(messages)
+        raw = chat(messages, source="react_agent")
 
         try:
             decision = _parse_json(raw)
