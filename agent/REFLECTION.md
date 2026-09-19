@@ -361,3 +361,19 @@ def search_jobs(keyword, city, limit, platform="mock"):
 1. **AI 说"已完成"不等于完成**——必须自己跑一遍验证
 2. **AI 的"顺手改进"可能引入新坑**——超出清单的改动要单独审查
 3. **AI 主动报告"不确定"时，认真读**——那往往是真问题
+
+### 12. 新增工具后 Agent 的工具选择正确
+
+- **测试**：给 Agent 新增 `update_tracking_status` 和 `delete_tracking` 后，在 Chainlit 里跑 3 个场景：
+  1. "把我投的腾讯那条改成已约面" → 调 `update_tracking_status`，状态更新为 interview ✅
+  2. "删掉阶跃星辰的投递记录" → 调 `delete_tracking`，记录删除 ✅
+  3. "把所有投递记录都删了" → **不调工具**，说明"只能删单条" + 建议逐条删除 ✅
+- **意外收获**：Agent 回答质量高——删除时主动提示"不可恢复"，批量删除时给了替代方案。
+- **教训**：**工具描述决定了 Agent 的边界感**。在 `delete_tracking` 的工具描述里写了"一次只能删一家公司，不支持批量"，Agent 就正确拒绝了批量请求。**Prompt 工程不只是在 System Prompt，工具描述同样重要**。
+
+### 13. 状态机放宽后用户体验改善
+
+- **背景**：之前状态机严格（applied → viewed → interview → offer），用户说"我拿到 offer 了"会被拒。
+- **修复**：改成"允许非终态跳到任意状态，终态不可变"。
+- **验证**：本轮测试 `applied → interview` 直接成功（跳过了 viewed）。
+- **教训**：**状态机的严格性是工程洁癖，用户体验优先**。真实用户不会按理想流程操作。
