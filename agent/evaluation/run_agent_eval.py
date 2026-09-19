@@ -200,6 +200,19 @@ def tools_matched(task: dict, actual_tools: list) -> bool:
     return list(actual_tools) in expected_sequences(task)
 
 
+def asked_for_confirmation(answer: str) -> bool:
+    """答案是不是在征求用户确认（复用 judge.py 的判定，判定器不可用时返回 None）
+
+    只有危险操作题会用它：先确认再动手是正确行为，
+    直接动手（哪怕工具序列"对"）也应该在报告里看得见。
+    """
+    try:
+        from agent.evaluation.judge import _asks_for_confirmation
+        return _asks_for_confirmation(answer)
+    except Exception:                               # noqa: BLE001 - 判定器不在也要能跑评估
+        return None
+
+
 def _ask_verdict() -> tuple:
     """人工判定，返回 (verdict, reason)"""
     while True:
@@ -513,6 +526,18 @@ def evaluate_agent(tasks: list, verbose: bool = False, auto_judge: bool = False,
             turns,
         ))
         print(f"工具序列匹配：{'✓' if matched else '✗'}")
+
+        # 危险操作题（test_tasks.json 里标了 confirmation_required）：看它有没有先征求确认
+        confirmation_required = bool(task.get("confirmation_required"))
+        confirmation_asked = asked_for_confirmation(answer) if confirmation_required else None
+        if confirmation_required:
+            if confirmation_asked:
+                print("确认机制：✓ 答案里向用户复述了待执行操作并等确认")
+            elif confirmation_asked is None:
+                print("确认机制：? 判定器不可用，无法判断有没有先确认")
+            else:
+                print("确认机制：✗ 答案没有征求确认（危险操作题应当先确认）")
+
         print(f"最终答案：{answer[:600] if answer else '（无答案）'}")
 
         judge = None
@@ -562,6 +587,8 @@ def evaluate_agent(tasks: list, verbose: bool = False, auto_judge: bool = False,
             "tools_match": matched,
             "tool_calls": len(actual_tools),
             "turns": turns,
+            "confirmation_required": confirmation_required,
+            "confirmation_asked": confirmation_asked,
             "answer": answer[:600],
             "verdict": verdict,
             "success": verdict == "y",

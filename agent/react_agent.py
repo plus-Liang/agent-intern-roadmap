@@ -8,10 +8,20 @@ import json
 import os
 import re
 from shared.llm_client import chat
-from agent.tools_registry import list_tools_description, call_tool, get_current_resume
+from agent.tools_registry import (
+    list_tools_description,
+    call_tool,
+    get_current_resume,
+    TOOLS,
+)
+from agent import user_profile
 
 
 MAX_TURNS = 6
+
+# 只影响**日志打印**的截断长度：steps 里存的是完整 observation（判定/归档要用原文），
+# 控制台只打个开头，免得刷屏。想看全文直接看 steps / 评估结果 JSON。
+OBSERVATION_LOG_CHARS = 500
 
 # 消息历史软上限：超过就把中间部分压成摘要，防止长对话把 token 撑爆。
 # 可用环境变量 MAX_HISTORY 覆盖。
@@ -51,6 +61,27 @@ SYSTEM_PROMPT_TEMPLATE = """你是一个求职助手 Agent。你可以调用工�
 4. 字符串里不能有真实换行，用 \\n 转义。
 5. final_answer 必须是单行字符串。
 
+【危险操作确认】
+下面这些操作不可逆，动手前必须先向用户复述、等用户确认：
+- 删除投递记录（尤其是「删除全部 / 清空 / 批量删」这类影响多条记录的操作）
+- 修改投递状态（尤其是改成终态，如 accepted / rejected / withdrawn）
+- 任何其他不可逆操作（覆盖简历、清空备注等）
+
+确认格式："我将要 <动作>，涉及 <记录列表>。确认吗？"
+
+怎么执行：
+- 先（可用 list_tracking 等只读工具）查出将受影响的记录，把记录逐条列进确认话术里；
+- 然后用 final_answer 把这句确认话术发给用户，**本轮到此结束，绝对不要先把操作做掉**；
+- 等用户下一条消息明确同意后，才调用对应工具执行；
+- 用户没同意 / 改口 / 说不确定时，一律不动手。
+
+适用范围（别把简单操作也卡住）：
+- 用户已经指名道姓、且只影响一条记录的操作（如「删掉腾讯的记录」「把腾讯改成 rejected」），
+  定位清楚后可以直接执行，不需要额外确认；
+- 但按名字定位出多条记录，或用户用的是「全部 / 所有 / 都 / 批量」这类说法时，
+  必须先列出记录并等确认；
+- 一次只能删一家公司的记录，所以「删除全部」要跟用户说明需要逐家指定公司名。
+
 【最小必要原则】
 只调用回答当前问题所必需的工具。用户没要求查看详情就不要调 get_job_detail，
 用户没要求匹配简历就不要调 match_resume。
@@ -59,7 +90,80 @@ SYSTEM_PROMPT_TEMPLATE = """你是一个求职助手 Agent。你可以调用工�
 【上下文】
 - 用户的简历已经在系统中，当用户提到"我的简历"或需要匹配时，
   请使用 match_resume 工具，resume_json 参数填 "current"（系统会自动替换）。
+
+【长期偏好】
+- 系统会在下面注入用户跨会话记住的偏好（目标城市/关键词/惯用简历等）。
+  用户没特别说明时，搜索和匹配默认沿用这些偏好，并且要在回答里体现你用了它们。
+- 用户说出新的稳定偏好时（如"我只找广州的""关键词以后用 Agent 开发""以后都用产品岗版简历"），
+  调用 save_preference 记住它（key 用 target_cities / target_keywords / resume_id
+  或自定义偏好名，value 是值或列表）；用户想确认你记住了什么就用 get_preferences。
 """
+
+
+# ========== 长期记忆工具（save_preference / get_preferences） ==========
+#
+# 实现写在 agent/user_profile.py（画像读写都在那边），这里只负责把两个函数
+# 注册进 tools_registry.TOOLS —— 工具注册中心是 Agent 唯一的工具入口，
+# list_tools_description / call_tool 都读这个字典，注册完就能正常调用。
+#
+# 为什么在这里注册、而不是改 tools_registry.py：
+# 本轮改动范围限定在 react_agent.py 等少数文件，新增能力放在 Agent 侧注册，
+# 好处是 tools_registry.py（被 job_search / rag / dashboard 等多处依赖）零改动、零回归风险。
+
+def _save_preference_tool(key, value):
+    """工具 save_preference：记住一条用户偏好"""
+    return user_profile.save_preference(key, value)
+
+
+def _get_preferences_tool():
+    """工具 get_preferences：读回用户已记住的全部偏好"""
+    return user_profile.get_preferences()
+
+
+def register_profile_tools() -> list:
+    """把 save_preference / get_preferences 注册进工具表，返回本次注册的工具名。
+
+    幂等：重复调用不会覆盖（也不会出错）。TOOLS 不存在时安静跳过，
+    这样 user_profile 单独被 import 时不会因为缺依赖而报错。
+    """
+    if TOOLS is None:                               # pragma: no cover - 仅作防御
+        return []
+
+    specs = {
+        "save_preference": {
+            "description": (
+                "记住用户的长期偏好（跨会话生效）。用户说出稳定偏好时调用，"
+                "如「我只找广州的」（key=target_cities、value=[\"广州\"]）、"
+                "「关键词用 Agent 开发」（key=target_keywords）、"
+                "「以后都用产品岗版简历」（key=resume_id、value=简历 id）、"
+                "以及自由偏好（key=preferences.salary_min、value=\"200/天\"）。"
+            ),
+            "parameters": {
+                "key": (
+                    "偏好名：target_cities / target_keywords / resume_id，"
+                    "或 preferences.<自定义名>"
+                ),
+                "value": "偏好值（字符串、数字或列表）",
+            },
+            "func": _save_preference_tool,
+        },
+        "get_preferences": {
+            "description": "读取用户已记住的全部长期偏好（用户问「你记得我什么偏好」时调用）。",
+            "parameters": {},
+            "func": _get_preferences_tool,
+        },
+    }
+
+    registered = []
+    for name, spec in specs.items():
+        if name not in TOOLS:
+            TOOLS[name] = spec
+            registered.append(name)
+    return registered
+
+
+# 模块导入即注册：react_agent.run() 靠的就是 TOOLS 里的工具有 describe/可调用
+register_profile_tools()
 
 
 def _parse_json(text: str) -> dict:
@@ -220,9 +324,28 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
         tools=tools_desc, max_turns=MAX_TURNS
     )
 
+    # 长期记忆：把用户画像（目标城市/关键词/惯用简历/自由偏好）注入 system prompt。
+    # 画像读失败不该让对话挂掉，所以整段兜住异常、退化成「没有画像」。
+    try:
+        profile = user_profile.load_profile()
+    except Exception as e:                          # noqa: BLE001 - 画像坏了也要能聊天
+        if verbose:
+            print(f"[画像] 读取失败（忽略）：{type(e).__name__}: {e}")
+        profile = None
+
+    profile_text = user_profile.profile_to_prompt(profile) if profile else ""
+    if profile_text:
+        system_prompt += f"\n\n{profile_text}"
+        if verbose:
+            print(f"[画像] 已注入长期偏好：{json.dumps(profile, ensure_ascii=False)}")
+    elif verbose:
+        print("[画像] 暂无长期偏好（用户还没说过稳定偏好）")
+
     if resume_data:
         system_prompt += f"\n\n【用户当前简历】\n{json.dumps(resume_data, ensure_ascii=False)}"
 
+    # compact_messages 只保留第 1 条 system 消息，所以危险操作规则和画像
+    # 必须在建 messages 之前就拼进去，否则长对话压缩后会被摘要吞掉。
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": question},
@@ -276,7 +399,9 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
             result = call_tool(action, action_input)
             result_str = json.dumps(result, ensure_ascii=False, default=str)
             if verbose:
-                print(f"Observation: {result_str[:200]}...")
+                print(f"Observation: {result_str[:OBSERVATION_LOG_CHARS]}"
+                      f"{'…' if len(result_str) > OBSERVATION_LOG_CHARS else ''}"
+                      f"（完整 {len(result_str)} 字，steps 里存的是全文）")
         except Exception as e:
             result_str = f"工具调用失败：{e}"
             if verbose:
@@ -294,7 +419,12 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
             "thought": thought,
             "action": action,
             "action_input": action_input,
-            "observation": result_str[:500],
+            # 存**完整** observation（不截断）。
+            # Round 6 的误判根因就在这：以前这里存 result_str[:500]，
+            # 一条 JD 的 requirements 直接腰斩，LLM-as-Judge 看不到答案引用的原文，
+            # 只能把真实数据判成「编造」。日志可读性由上面那行 print 的截断负责，
+            # 判定/归档需要的是原始证据，两者不该共用同一个截断。
+            "observation": result_str,
         })
 
     return {
