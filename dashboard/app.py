@@ -143,15 +143,33 @@ with tab2:
     if not apps:
         st.info("暂无投递记录。去「岗位列表」标记想投的岗位，加入追踪。")
     else:
-        # 统计
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("总投递", len(apps))
-        viewed = sum(1 for a in apps if a["status"] in ["viewed", "interview", "interviewing", "offer", "accepted"])
-        col2.metric("简历被看", viewed)
-        interview = sum(1 for a in apps if a["status"] in ["interview", "interviewing", "offer", "accepted"])
-        col3.metric("进面", interview)
+        # 投递漏斗：总投递 → 简历被看 → 进面 → Offer
+        total = len(apps)
+        viewed = sum(
+            1 for a in apps
+            if a["status"] in ["viewed", "interview", "interviewing", "offer", "accepted"]
+        )
+        interview = sum(
+            1 for a in apps
+            if a["status"] in ["interview", "interviewing", "offer", "accepted"]
+        )
         offer = sum(1 for a in apps if a["status"] in ["offer", "accepted"])
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("总投递", total)
+        col2.metric("简历被看", viewed)
+        col3.metric("进面", interview)
         col4.metric("Offer", offer)
+
+        # 转化率：三个比率的分母都是总投递数
+        def _pct(n: int) -> str:
+            return f"{n / total:.1%}" if total else "0.0%"
+
+        st.caption("转化率（分母均为「总投递」）")
+        rate1, rate2, rate3, _ = st.columns(4)
+        rate1.metric("简历被看率", _pct(viewed), help=f"{viewed} / {total}")
+        rate2.metric("约面率", _pct(interview), help=f"{interview} / {total}")
+        rate3.metric("Offer 率", _pct(offer), help=f"{offer} / {total}")
 
         st.divider()
 

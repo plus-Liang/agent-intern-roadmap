@@ -133,6 +133,13 @@ def _delete_tracking(company):
     }
 
 
+def _update_tracking_notes(company, notes):
+    """修改投递记录备注：find_application 定位 → storage.update_notes（不动状态）"""
+    record = _locate_application(company)
+    storage.update_notes(record["id"], notes or "")
+    return {"company": record["company"], "notes": notes or ""}
+
+
 TOOLS = {
     "search_jobs": {
         "description": "搜索实习岗位，返回岗位列表。",
@@ -198,6 +205,17 @@ TOOLS = {
         },
         "func": _delete_tracking,
     },
+    "update_tracking_notes": {
+        "description": (
+            "修改一家公司的投递记录备注（按公司名定位记录）。"
+            "只改备注，不动状态、不改投递时间。"
+        ),
+        "parameters": {
+            "company": "公司名（用于定位记录，支持模糊匹配）",
+            "notes": "新的备注内容（覆盖原备注，传空字符串表示清空）",
+        },
+        "func": _update_tracking_notes,
+    },
 }
 
 
@@ -219,10 +237,10 @@ def call_tool(name: str, args: dict):
     return TOOLS[name]["func"](**args)
 
 
-# ========== 自测：投递追踪的改/删（用临时库，不碰 agent/data/applications.db） ==========
+# ========== 自测：投递追踪的改/删/改备注（用临时库，不碰 agent/data/applications.db） ==========
 
 def _run_selftest() -> int:
-    """验证 find_application / update_tracking_status / delete_tracking。
+    """验证 find_application / update_tracking_status / update_tracking_notes / delete_tracking。
 
     隔离方式：APP_DB_PATH 指向临时文件，并显式改写 storage.DB_PATH。
     storage 在导入时就把环境变量固化成 DB_PATH（storage.py 第 16-19 行），
@@ -331,6 +349,25 @@ def _run_selftest() -> int:
             return (f"applied → viewed 成功；非法流转/未知状态/找不到公司均被拒"
                     f"（{bad_transition}｜{bad_status}｜{bad_company}）")
 
+        def check_notes():
+            before = storage.get_application(step_new)
+            out = call_tool("update_tracking_notes", {
+                "company": "阶跃星辰", "notes": "HR 说下周约面",
+            })
+            assert out == {"company": "阶跃星辰", "notes": "HR 说下周约面"}, out
+            saved = storage.get_application(step_new)
+            assert saved["notes"] == "HR 说下周约面", f"库里的备注是 {saved['notes']!r}"
+            assert saved["status"] == before["status"], "改备注不该动状态"
+
+            missing = expect_error(lambda: call_tool("update_tracking_notes", {
+                "company": "不存在公司", "notes": "x",
+            }))
+            call_tool("update_tracking_notes", {"company": "阶跃星辰", "notes": ""})
+            assert (storage.get_application(step_new)["notes"] or "") == "", "空备注应清空"
+            call_tool("update_tracking_notes", {"company": "阶跃星辰", "notes": "HR 说下周约面"})
+
+            return f"备注落库并读回成功；找不到公司报错：{missing}"
+
         def check_delete():
             out = call_tool("delete_tracking", {"company": "阶跃星辰"})
             assert out["deleted"] is True and out["id"] == step_new, out
@@ -350,7 +387,8 @@ def _run_selftest() -> int:
         check("1. find_application('阶跃星辰') 找到记录", check_find_hit)
         check("2. find_application('不存在公司') 返回 None", check_find_miss)
         check("3. call_tool('update_tracking_status') 状态更新成功", check_update)
-        check("4. call_tool('delete_tracking') 记录被删除", check_delete)
+        check("4. call_tool('update_tracking_notes') 备注能改并落库", check_notes)
+        check("5. call_tool('delete_tracking') 记录被删除", check_delete)
 
         if real_stat is not None:
             def check_real_db():
@@ -360,7 +398,7 @@ def _run_selftest() -> int:
                 ), "真实库的 mtime/size 变了，可能被写入"
                 return f"size={now_stat.st_size} 未变化"
 
-            check("5.（额外）真实库未被写入", check_real_db)
+            check("6.（额外）真实库未被写入", check_real_db)
     finally:
         if checks and all(checks):
             for suffix in ("", "-wal", "-shm", "-journal"):
