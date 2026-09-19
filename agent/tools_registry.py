@@ -2,9 +2,17 @@
 工具注册中心。
 """
 import json
+import os
+import re
+from datetime import datetime
+from pathlib import Path
+
 from agent.tools.job_search import search_jobs
 from agent.tools.job_detail import get_job_detail
+from agent.tools.pdf_export import available_backend, export_resume_pdf, normalize_resume
 from agent.tools.resume_match import match_resume_to_jd, Resume
+from agent.resume.tailor import tailor_resume
+from shared.llm_client import chat
 from agent import state_machine
 from agent import storage
 
@@ -214,6 +222,314 @@ def get_current_resume():
     return storage.get_default_resume()
 
 
+# ========== C4 / F1：简历导出 PDF + 一键投递包 ==========
+#
+# 产出目录可用环境变量覆盖（测试请指向临时目录，别往仓库里写）：
+#   EXPORT_DIR   默认 agent/data/exports/
+#   PACKAGE_DIR  默认 agent/data/packages/
+
+_REPO_DIR = Path(__file__).resolve().parent.parent          # 仓库根目录
+_DATA_DIR = _REPO_DIR / "agent" / "data"
+
+EXPORT_DIR = Path(os.getenv("EXPORT_DIR", str(_DATA_DIR / "exports")))
+PACKAGE_DIR = Path(os.getenv("PACKAGE_DIR", str(_DATA_DIR / "packages")))
+
+
+def export_resume_pdf_tool(resume_id):
+    """把一份简历导出成 PDF，返回文件路径。
+
+    路径：agent/data/exports/{resume_id}_{时间戳}.pdf
+    """
+    data = storage.get_resume(resume_id)
+    if not data:
+        raise ValueError(f"未找到简历：{resume_id}（可用 list_resumes 查看现有版本）")
+
+    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = EXPORT_DIR / f"{data['id']}_{stamp}.pdf"
+    export_resume_pdf(data, str(path))
+
+    return {
+        "resume_id": data["id"],
+        "name": data.get("name", ""),
+        "path": str(path),
+        "filename": path.name,
+        "size_bytes": path.stat().st_size,
+        "pdf_backend": available_backend(),
+    }
+
+
+COVER_LETTER_PROMPT = """你是求职者本人，正在写一封投递用的自荐信（cover letter）。
+
+【我的简历】
+{resume}
+
+【目标岗位】
+公司：{company}
+岗位：{title}
+城市：{city}
+任职要求：
+{requirements}
+
+【要求】
+1. 第一人称，正文 200-300 个中文字符。
+2. 结构：开头点明应聘的岗位 → 中间用简历里真实存在的技能/实习/项目说明为什么匹配
+   （尽量呼应上面的任职要求）→ 结尾表达期待面试。
+3. **绝对不能编造简历里没有的经历、技能、成绩或数字**。
+4. 直接输出自荐信正文（可以有称呼和结尾问候），不要标题、不要 markdown 围栏、不要解释。
+"""
+
+
+def _safe_name(text) -> str:
+    """把公司名清洗成能当目录名用的字符串（去掉 Windows 非法字符）"""
+    cleaned = re.sub(r'[\\/:*?"<>|\s]+', "_", str(text or "").strip())
+    return cleaned.strip("_")[:60] or "unknown"
+
+
+def _norm_text(text) -> str:
+    return re.sub(r"\s+", "", str(text or "")).lower()
+
+
+def _job_id_from_url(url) -> str:
+    """从岗位链接里抠 job_id：优先 /job/xxx、/intern/xxx 这类路径，其次最后一段"""
+    text = str(url or "").strip()
+    if not text:
+        return ""
+    text = text.split("?", 1)[0].split("#", 1)[0].rstrip("/")
+    match = re.search(
+        r"(?:job|jobs|intern|interns|position|positions|detail|details)/([A-Za-z0-9_-]{4,})",
+        text,
+    )
+    if match:
+        return match.group(1)
+    tail = text.rsplit("/", 1)[-1]
+    return tail if re.fullmatch(r"[A-Za-z0-9_-]{4,}", tail) else ""
+
+
+def _resolve_job(record, job_id=None):
+    """定位岗位详情：显式 job_id → 投递记录 URL 里的 id → 按公司/岗位名搜索兜底。
+
+    返回 (JobDetail 或 None, 警告列表)；拿不到详情也不抛异常，让投递包照常生成。
+    """
+    tried = []
+    candidates = [job_id, _job_id_from_url(record.get("url", ""))]
+    for candidate in candidates:
+        if not candidate or not str(candidate).strip():
+            continue
+        try:
+            return get_job_detail("mock", str(candidate).strip()), []
+        except Exception as e:                      # noqa: BLE001 - id 不对就换下一个办法
+            tried.append(f"{candidate}（{type(e).__name__}）")
+
+    keywords = []
+    for value in (record.get("title", ""), record.get("company", "")):
+        if value and value not in keywords:
+            keywords.append(value)
+
+    for keyword in keywords:
+        try:
+            jobs = search_jobs(keyword, None, 20, platform="mock")
+        except Exception:                           # noqa: BLE001 - 搜索失败就试下一个关键词
+            continue
+        for job in jobs:
+            if (_norm_text(job.company) == _norm_text(record.get("company"))
+                    or _norm_text(job.title) == _norm_text(record.get("title"))):
+                try:
+                    return get_job_detail("mock", job.job_id), []
+                except Exception:                   # noqa: BLE001 - 换下一个搜索结果
+                    continue
+
+    detail = "、".join(tried) if tried else "投递记录里没有可用 job_id"
+    return None, [f"没能拿到岗位详情（尝试过：{detail}），岗位信息将按投递记录生成"]
+
+
+def _resume_to_dataclass(data: dict) -> Resume:
+    """结构化简历 dict → Resume（tailor.py / resume_match.py 用的数据类）"""
+    return Resume(
+        name=str(data.get("name") or "匿名"),
+        skills=[str(s) for s in (data.get("skills") or []) if str(s).strip()],
+        experience=list(data.get("experience") or []),
+        projects=list(data.get("projects") or []),
+        education=str(data.get("education") or ""),
+        city=str(data.get("city") or ""),
+    )
+
+
+def _tailor_resume(data: dict, detail) -> tuple:
+    """按岗位定制简历，返回 (简历 dict, 警告列表)；失败就退回原简历"""
+    try:
+        result = tailor_resume(_resume_to_dataclass(data), detail)
+    except Exception as e:                          # noqa: BLE001 - LLM 失败不该让投递包生成失败
+        return data, [f"简历定制失败（{type(e).__name__}: {e}），已改用原简历"]
+
+    tailored = (result or {}).get("tailored")
+    if not isinstance(tailored, dict) or not tailored:
+        return data, ["简历定制返回空结果，已改用原简历"]
+
+    warnings = [f"简历定制提醒：{w}" for w in (result.get("warnings") or [])]
+    return tailored, warnings
+
+
+def _fallback_cover_letter(company: str, title: str) -> str:
+    return (
+        f"尊敬的{company}招聘负责人：\n\n"
+        f"您好！我希望应聘贵公司的「{title}」岗位。\n\n"
+        f"我具备该岗位需要的技术基础，也有相关的实习与项目经历，"
+        f"能够较快上手实际工作，并在过程中持续补充岗位所需的技能。\n"
+        f"很期待有机会与您进一步沟通，也希望能为团队做出贡献。\n\n"
+        f"（注：本段为模板兜底版本，LLM 生成失败，请手动补充项目细节后再投递。）\n\n"
+        f"此致\n敬礼"
+    )
+
+
+def _generate_cover_letter(resume_data, record, detail) -> tuple:
+    """用 LLM 生成自荐信，返回 (正文, 警告或空串)"""
+    company = record.get("company", "")
+    title = record.get("title", "")
+    prompt = COVER_LETTER_PROMPT.format(
+        resume=json.dumps(resume_data, ensure_ascii=False, default=str)[:2000],
+        company=company,
+        title=title,
+        city=getattr(detail, "city", "") if detail else "",
+        requirements=(getattr(detail, "requirements", "") or "（未获取到）")[:1500]
+        if detail else "（未获取到岗位详情）",
+    )
+
+    try:
+        text = (chat([{"role": "user", "content": prompt}],
+                     source="application_package") or "").strip()
+        if text.startswith("```"):                  # 模型偶尔会套一层围栏
+            match = re.search(r"```(?:markdown|md|text)?\s*(.*?)\s*```", text, re.DOTALL)
+            if match:
+                text = match.group(1).strip()
+        if text:
+            return text, ""
+        raise ValueError("模型返回空内容")
+    except Exception as e:                          # noqa: BLE001 - 生成失败也要让投递包落地
+        return (_fallback_cover_letter(company, title),
+                f"自荐信生成失败（{type(e).__name__}: {e}），已用模板兜底")
+
+
+def _job_info_text(record: dict, detail, job_id_used: str) -> str:
+    """岗位信息 + 链接 + 投递记录，写进 job_info.txt"""
+    lines = ["投递岗位信息", "=" * 40, f"公司：{record.get('company', '')}",
+             f"岗位：{record.get('title', '')}"]
+
+    url = record.get("url", "")
+    if detail is not None:
+        lines += [
+            f"平台：{detail.platform}",
+            f"job_id：{detail.job_id}",
+            f"城市：{detail.city}",
+            f"薪资：{detail.salary}",
+            f"学历要求：{detail.education}",
+            f"出勤/时长：{detail.days_per_week} {detail.duration}".strip(),
+            f"标签：{'、'.join(detail.tags or []) or '（无）'}",
+            "",
+            "【岗位职责】",
+            detail.description or "（无）",
+            "",
+            "【任职要求】",
+            detail.requirements or "（无）",
+        ]
+        if detail.bonus:
+            lines += ["", "【加分项】", detail.bonus]
+        if detail.url:
+            url = detail.url
+    else:
+        lines += [f"job_id：{job_id_used or '（未知）'}", "（未获取到岗位详情，以下链接来自投递记录）"]
+
+    lines += [
+        "",
+        "【岗位链接】",
+        url or "（投递记录里没有链接）",
+        "",
+        "【投递记录】",
+        f"记录 id：{record.get('id', '')}",
+        f"来源平台：{record.get('platform', '')}",
+        f"当前状态：{record.get('status', '')}",
+        f"投递时间：{record.get('applied_at', '')}",
+        f"打包时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+    ]
+    return "\n".join(lines)
+
+
+def generate_application_package(company, job_id=None):
+    """生成一键投递包：简历 PDF + 自荐信 + 岗位信息。
+
+    目录：agent/data/packages/{company}_{时间戳}/
+      - resume.pdf       按岗位定制后的简历（定制失败则用当前简历）
+      - cover_letter.md  LLM 生成的自荐信（200-300 字）
+      - job_info.txt     岗位信息 + 链接 + 投递记录
+
+    返回：{"company", "job_id", "package_dir", "files": {...}, "warnings": [...]}
+    """
+    record = storage.find_application(company)
+    if not record:
+        raise ValueError(
+            f"未找到公司「{company}」的投递记录（可用 list_tracking 看现有记录）"
+        )
+
+    warnings = []
+    detail, job_warnings = _resolve_job(record, job_id)
+    warnings += job_warnings
+    job_id_used = detail.job_id if detail is not None else (
+        str(job_id).strip() if job_id else ""
+    )
+
+    resume_record = get_current_resume()
+    if not resume_record:
+        raise ValueError("还没有简历，无法生成投递包（先 save_resume 保存一份）")
+    resume_data = normalize_resume(resume_record)
+
+    tailored = False
+    if detail is None:
+        final_resume = resume_data or resume_record
+        warnings.append("没有岗位详情，简历按原样导出（未做定制）")
+    elif "_plain" in resume_data:
+        final_resume = resume_data
+        warnings.append("当前简历是纯文本，跳过按岗位定制（PDF 仍会导出原文）")
+    else:
+        final_resume, tailor_warnings = _tailor_resume(resume_data, detail)
+        tailored = final_resume is not resume_data
+        warnings += tailor_warnings
+
+    cover_letter, cover_warning = _generate_cover_letter(resume_data, record, detail)
+    if cover_warning:
+        warnings.append(cover_warning)
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    package_dir = PACKAGE_DIR / f"{_safe_name(record.get('company'))}_{stamp}"
+    package_dir.mkdir(parents=True, exist_ok=True)
+
+    resume_pdf = package_dir / "resume.pdf"
+    export_resume_pdf(final_resume, str(resume_pdf))
+
+    cover_path = package_dir / "cover_letter.md"
+    cover_path.write_text(
+        f"# 自荐信 · {record.get('company', '')} {record.get('title', '')}\n\n{cover_letter}\n",
+        encoding="utf-8",
+    )
+
+    info_path = package_dir / "job_info.txt"
+    info_path.write_text(_job_info_text(record, detail, job_id_used), encoding="utf-8")
+
+    return {
+        "company": record.get("company", ""),
+        "title": record.get("title", ""),
+        "job_id": job_id_used,
+        "package_dir": str(package_dir),
+        "files": {
+            "resume.pdf": str(resume_pdf),
+            "cover_letter.md": str(cover_path),
+            "job_info.txt": str(info_path),
+        },
+        "resume_tailored": tailored,
+        "has_job_detail": detail is not None,
+        "warnings": warnings,
+    }
+
+
 TOOLS = {
     "search_jobs": {
         "description": "搜索实习岗位，返回岗位列表。",
@@ -325,6 +641,28 @@ TOOLS = {
             "resume_id": "简历 ID（list_resumes 返回的 id）",
         },
         "func": use_resume,
+    },
+    "export_resume_pdf": {
+        "description": (
+            "把某一份简历导出成 PDF 文件并返回文件路径。"
+            "用户说「导出简历 PDF」「把简历转成 PDF」时调用它。"
+        ),
+        "parameters": {
+            "resume_id": "简历 ID（list_resumes 返回的 id）",
+        },
+        "func": export_resume_pdf_tool,
+    },
+    "generate_application_package": {
+        "description": (
+            "给一家公司生成一键投递包：按岗位定制的简历 PDF + 自荐信 + 岗位信息（含链接），"
+            "打包到 agent/data/packages/ 下的一个目录里，返回目录路径。"
+            "用户说「生成投递包」「把简历和自荐信打包」时调用它。"
+        ),
+        "parameters": {
+            "company": "公司名（用于定位投递记录，支持模糊匹配）",
+            "job_id": "岗位 ID（可选，不传就自动从投递记录/搜索结果里找）",
+        },
+        "func": generate_application_package,
     },
 }
 

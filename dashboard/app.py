@@ -20,6 +20,7 @@ from agent import storage
 from agent.tools.job_search import search_jobs
 from agent.tools.job_detail import get_job_detail
 from agent.tools.resume_match import match_resume_to_jd, Resume
+from agent.tools_registry import export_resume_pdf_tool, generate_application_package
 from shared import token_tracker
 
 
@@ -33,6 +34,21 @@ st.set_page_config(
 )
 
 st.title("🎯 求职助手 Dashboard")
+
+# 投递包里几种文件的 MIME 类型（下载按钮用）
+_MIME_TYPES = {
+    ".pdf": "application/pdf",
+    ".md": "text/markdown",
+    ".txt": "text/plain",
+}
+
+
+@st.cache_data(show_spinner=False, ttl=1800, max_entries=32)
+def _resume_pdf_bytes(resume_id: str) -> bytes:
+    """导出某份简历的 PDF 字节（缓存：同一份简历不会每次 rerun 都重新生成）"""
+    info = export_resume_pdf_tool(resume_id)
+    return Path(info["path"]).read_bytes()
+
 
 # 五个 Tab
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -211,6 +227,49 @@ with tab2:
                 to_label = get_status_label(e["to_status"])
                 note = f" — {e['note']}" if e["note"] else ""
                 st.write(f"- `{e['created_at']}`  {from_label} → **{to_label}**{note}")
+
+        # 一键投递包：定制简历 PDF + 自荐信 + 岗位信息
+        st.divider()
+        st.subheader("📦 生成投递包")
+        st.caption(
+            "把「按岗位定制的简历 PDF + 自荐信 + 岗位信息」打包到一个目录。"
+            "生成过程要调 LLM（定制简历 + 写自荐信），大概十几秒。"
+        )
+
+        for a in apps:
+            pkg_col1, pkg_col2 = st.columns([4, 1])
+            with pkg_col1:
+                st.write(f"**{a['company']}** | {a['title']} | 状态：{a['status']}")
+            with pkg_col2:
+                if st.button("📦 生成投递包", key=f"pkg_{a['id']}"):
+                    with st.spinner(f"正在为「{a['company']}」生成投递包..."):
+                        try:
+                            result = generate_application_package(a["company"])
+                        except Exception as e:
+                            result = {"error": f"{type(e).__name__}: {e}"}
+                    st.session_state["last_package"] = {"app_id": a["id"], "result": result}
+
+        # 结果区：放在按钮循环之后，给足宽度放下载按钮
+        last_package = st.session_state.get("last_package")
+        if last_package:
+            payload = last_package["result"]
+            if payload.get("error"):
+                st.error(f"生成投递包失败：{payload['error']}")
+            else:
+                st.success(f"投递包已生成：`{payload['package_dir']}`")
+                for warning in payload.get("warnings", []):
+                    st.warning(warning)
+                dl_cols = st.columns(len(payload["files"]))
+                for col, (name, path) in zip(dl_cols, payload["files"].items()):
+                    with col:
+                        file_path = Path(path)
+                        st.download_button(
+                            f"⬇️ {name}",
+                            data=file_path.read_bytes() if file_path.is_file() else b"",
+                            file_name=name,
+                            mime=_MIME_TYPES.get(file_path.suffix, "application/octet-stream"),
+                            key=f"dl_{name}_{last_package['app_id']}",
+                        )
 
 
 # ============================================================
@@ -408,6 +467,28 @@ with tab5:
         )
     else:
         st.info("还没有简历，用下面的表单新建一份。")
+
+    if resumes:
+        st.subheader("📥 下载 PDF")
+        st.caption(
+            "每份简历都能导出成 PDF（下载后可直接作为投递附件）。"
+            "PDF 在点击下载时才生成，不会拖慢页面。"
+        )
+        for r in resumes:
+            pdf_col1, pdf_col2 = st.columns([4, 1])
+            with pdf_col1:
+                st.write(
+                    f"**{r['name']}**　`{r['id']}`　{r['created_at']}"
+                    + ("　· 当前默认" if r["id"] == default_id else "")
+                )
+            with pdf_col2:
+                st.download_button(
+                    "📥 下载 PDF",
+                    data=lambda rid=r["id"]: _resume_pdf_bytes(rid),
+                    file_name=f"{r['name']}_{r['id']}.pdf",
+                    mime="application/pdf",
+                    key=f"pdf_{r['id']}",
+                )
 
     st.subheader("新建 / 上传简历")
     with st.form("resume_form", clear_on_submit=True):
