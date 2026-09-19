@@ -79,25 +79,57 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
     raise APIError(f"API 调用失败，已重试 {retries} 次：{last_error}")
 
 
+def _is_unsupported_param_error(e: Exception) -> bool:
+    """判断异常是否属于「网关不认 stream_options」这类参数错误。
+
+    只有这一类才值得回退重发；网络超时、鉴权失败等照旧直接抛出，
+    免得白白多打一次 API。
+    """
+    if isinstance(e, TypeError):
+        # 旧版 SDK 不认识 stream_options 这个关键字参数
+        return True
+    status = getattr(e, "status_code", None)
+    if status in (400, 422):
+        return True
+    text = str(e).lower()
+    return "stream_options" in text or "include_usage" in text
+
+
 def chat_stream(messages: list, model: str = None, source: str = "unknown"):
     """流式调用，逐字返回。
 
     source: 调用方标记，用于 token 用量按来源聚合，默认 "unknown"。
 
-    关于用量：流式响应通常只在最后一个 chunk 带 usage（也可能完全不带）。
-    这里尽量捡 usage，捡不到就按 0 记录并标记 stream_no_usage。
+    关于用量：默认带上 stream_options={"include_usage": True}，让流式响应在
+    收尾 chunk 里带回真实 usage——Ark 这类 OpenAI 兼容网关必须显式开启，
+    否则全程 usage 都是 None，只能记 0 并标记 stream_no_usage。
+    若该接口不认这个参数，会回退成不带参数的原始调用并打印警告。
     注意记账发生在生成器结束之后，所以调用方必须把生成器跑完；
-    中途 break / 抛异常时会走 finally，同样落一条 0 用量的记录。
+    中途 break / 抛异常时会走 finally，同样落一条记录。
     """
     client = _get_client()
     model = model or ARK_CHAT_MODEL
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        timeout=90,
-        stream=True,
-    )
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            timeout=90,
+            stream=True,
+            # 没有它就拿不到 usage，token 只能记 0
+            stream_options={"include_usage": True},
+        )
+    except Exception as e:                      # noqa: BLE001 - 只回落参数类错误
+        if not _is_unsupported_param_error(e):
+            raise
+        print(f"[token] 该接口不认 stream_options（{type(e).__name__}: {e}），"
+              f"回退为普通流式调用，本次用量只能记 0")
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            timeout=90,
+            stream=True,
+        )
     usage = None
     request_id = None
     try:
