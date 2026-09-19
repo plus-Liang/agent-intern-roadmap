@@ -1,21 +1,5 @@
 [
   {
-    "id": 1,
-    "type": "single_step",
-    "task": "帮我找广州的 Agent 岗位",
-    "expected_tools": ["search_jobs"],
-    "expected_behavior": "调用 search_jobs 一次（city=广州），返回岗位列表",
-    "acceptance": "答案里包含至少 1 个广州的岗位名或公司名（信投智联科技 / 科大讯飞 / 妙客莱音）"
-  },
-  {
-    "id": 2,
-    "type": "single_step",
-    "task": "广州有哪些实习岗位？",
-    "expected_tools": ["search_jobs"],
-    "expected_behavior": "调用 search_jobs 一次（city=广州），返回岗位列表",
-    "acceptance": "答案里提到广州的真实公司（如科大讯飞 / 妙客莱音 / 小鹏汽车）或它们的岗位名"
-  },
-  {
     "id": 3,
     "type": "single_step",
     "task": "帮我看一下 job_id 为 inn_pztab1vmuoqq 这个岗位的完整 JD",
@@ -53,7 +37,7 @@
     "task": "我目前投了哪些岗位？",
     "expected_tools": ["list_tracking"],
     "expected_behavior": "调用 list_tracking 一次，汇总投递记录",
-    "acceptance": "答案列出追踪库里的公司/岗位（评估库预置了阶跃星辰、腾讯两条），不是回答“没有记录”"
+    "acceptance": "答案列出追踪库里的公司/岗位（本题的库是每个任务独立重建的，只预置了阶跃星辰、腾讯两条），不是回答“没有记录”"
   },
   {
     "id": 8,
@@ -72,11 +56,29 @@
     "acceptance": "工具调用序列为空，且答案明确表示无法回答天气问题（不编造天气数据）"
   },
   {
-    "id": 10,
+    "id": "10a",
+    "type": "single_step",
+    "task": "删掉腾讯的投递记录",
+    "expected_tools": ["delete_tracking"],
+    "expected_tools_alternatives": [["delete_tracking", "list_tracking"]],
+    "expected_behavior": "调用 delete_tracking 一次（company=腾讯），并按工具返回确认这一家公司的记录已删除；删完顺手 list_tracking 复核一下也算正确（不算多调工具）",
+    "acceptance": "调用了 delete_tracking 且 company 是腾讯；答案说明腾讯那条投递记录已删除（可引用工具返回的 deleted=true / 公司名 / 岗位名），没有编造删除条数、也没有宣称“已删除全部记录”"
+  },
+  {
+    "id": "10b",
     "type": "refusal",
-    "task": "帮我把所有的投递记录都删掉",
+    "task": "把所有投递记录都删掉",
     "expected_tools": [],
-    "expected_behavior": "不调用任何工具（系统没有删除工具），说明无法删除并给出替代建议",
-    "acceptance": "工具调用序列为空，且答案没有假装已经删除（不编造删除结果）"
+    "expected_tools_alternatives": [["list_tracking"]],
+    "expected_behavior": "不调用 delete_tracking（它一次只能删一家公司，没有批量删除）。允许先调 list_tracking 查看现有记录，但必须向用户说明批量删除做不到、需要逐家指定公司名",
+    "acceptance": "工具序列里没有 delete_tracking（空序列，或只调了 list_tracking）；答案明确说明「一次只能删一家公司 / 需要逐个指定公司名」，并且没有宣称记录已被全部删除"
+  },
+  {
+    "id": "10c",
+    "type": "multi_step",
+    "task": "删掉阶跃星辰的投递记录，然后确认投递记录里还有几条",
+    "expected_tools": ["delete_tracking", "list_tracking"],
+    "expected_behavior": "先 delete_tracking（company=阶跃星辰），删除完成后再用 list_tracking 查一次剩余记录，最后按查询结果回答还剩几条",
+    "acceptance": "两个工具按序调用（list_tracking 必须在 delete_tracking 之后，作为验证步骤）；答案里的剩余条数等于 list_tracking 实际返回的记录数（独立库预置阶跃星辰、腾讯两条，删掉阶跃星辰后应剩 1 条：腾讯），不能凭猜测给数字"
   }
 ]

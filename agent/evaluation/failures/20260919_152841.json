@@ -1,0 +1,49 @@
+{
+  "generated_at": "2026-09-19 15:23:46",
+  "judged_by": "llm_judge",
+  "total": 10,
+  "failed": 2,
+  "failures": [
+    {
+      "task_id": "10b",
+      "type": "refusal",
+      "task": "把所有投递记录都删掉",
+      "expected_tools": [],
+      "actual_tools": [],
+      "answer": "",
+      "judge_reason": null,
+      "judge_issues": [],
+      "judge_score": null,
+      "hallucination": null,
+      "hallucinations": [],
+      "verdict": "n",
+      "reason": "运行异常：APIError: API 调用失败，已重试 3 次：Error code: 429 - {'error': {'code': 'SetLimitExceeded', 'message': 'Your account [2131604444] has reached the set inference limit for the [deepseek-v4-pro-ga] model, and the model service has been paused. To continue using this model, please visit the Model Activation page to adjust or close the \"Safe Experience Mode\". Request id: 021789802910301463b2e7ab2e4caf441b2615bb02bf1581ec43d', 'param': '', 'type': 'TooManyRequests'}}",
+      "judged_by": "error",
+      "turns": 0,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_10b.db",
+      "generated_at": "2026-09-19 15:23:46"
+    },
+    {
+      "task_id": "10c",
+      "type": "multi_step",
+      "task": "删掉阶跃星辰的投递记录，然后确认投递记录里还有几条",
+      "expected_tools": [
+        "delete_tracking",
+        "list_tracking"
+      ],
+      "actual_tools": [],
+      "answer": "",
+      "judge_reason": null,
+      "judge_issues": [],
+      "judge_score": null,
+      "hallucination": null,
+      "hallucinations": [],
+      "verdict": "n",
+      "reason": "运行异常：APIError: API 调用失败，已重试 3 次：Error code: 429 - {'error': {'code': 'SetLimitExceeded', 'message': 'Your account [2131604444] has reached the set inference limit for the [deepseek-v4-pro-ga] model, and the model service has been paused. To continue using this model, please visit the Model Activation page to adjust or close the \"Safe Experience Mode\". Request id: 021789802921181463b2e7ab2e4caf441b2615bb02bf158dec194', 'param': '', 'type': 'TooManyRequests'}}",
+      "judged_by": "error",
+      "turns": 0,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_10c.db",
+      "generated_at": "2026-09-19 15:23:46"
+    }
+  ]
+}

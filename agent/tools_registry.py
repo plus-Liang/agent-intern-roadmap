@@ -343,6 +343,14 @@ def _resolve_job(record, job_id=None):
     return None, [f"没能拿到岗位详情（尝试过：{detail}），岗位信息将按投递记录生成"]
 
 
+def resolve_job(record, job_id=None):
+    """公开版 _resolve_job：按投递记录定位岗位详情，给 Dashboard 之类的外部调用复用。
+
+    返回 (JobDetail 或 None, 警告列表)；拿不到详情也不抛异常，调用方按 None 走兜底。
+    """
+    return _resolve_job(record, job_id)
+
+
 def _resume_to_dataclass(data: dict) -> Resume:
     """结构化简历 dict → Resume（tailor.py / resume_match.py 用的数据类）"""
     return Resume(
@@ -563,7 +571,10 @@ TOOLS = {
         "func": _add_tracking,
     },
     "list_tracking": {
-        "description": "查询投递追踪记录。",
+        "description": (
+            "查询投递追踪记录。排查/复核用：删除或改状态之后，用它确认库里实际还剩什么，"
+            "不要凭记忆回答条数。"
+        ),
         "parameters": {
             "status": "状态过滤（可选），如 applied/viewed/interview",
         },

@@ -4,12 +4,13 @@ Agent（ReAct）评估脚本。
 
 用法：
     python agent/evaluation/run_agent_eval.py                  # 跑全部 10 个任务（人工判定）
-    python agent/evaluation/run_agent_eval.py --ids 1,6,9      # 只跑指定任务（试跑/调试）
+    python agent/evaluation/run_agent_eval.py --ids 3,7,10a     # 只跑指定任务（试跑/调试）
     python agent/evaluation/run_agent_eval.py --verbose        # 打印 Agent 每轮的 thought/action
     python agent/evaluation/run_agent_eval.py --no-seed        # 不在临时库里预置投递记录
-    python agent/evaluation/run_agent_eval.py --keep-db        # 跑完保留 test.db（默认删除）
-    python agent/evaluation/run_agent_eval.py --auto --ids 1,4,9   # LLM 自动判定，全程无人值守
-    python agent/evaluation/run_agent_eval.py --compare --ids 1,4,9  # 人工 + LLM 同时判定，对比一致性
+    python agent/evaluation/run_agent_eval.py --keep-db        # 跑完保留每个任务的临时库（默认逐个删除）
+    python agent/evaluation/run_agent_eval.py --auto --ids 3,7,10a   # LLM 自动判定，全程无人值守
+    python agent/evaluation/run_agent_eval.py --compare --ids 3,7,10a  # 人工 + LLM 同时判定，对比一致性
+    python agent/evaluation/run_agent_eval.py --list-failures  # 汇总历史失败案例（按 task_id 归并）
 
 判定方式（三选一）：
     --auto       用 agent/evaluation/judge.py（LLM-as-Judge）自动判定，不再要人工输入
@@ -17,31 +18,46 @@ Agent（ReAct）评估脚本。
     --auto-judge 老的无 LLM 兜底：只看工具序列是否一致（留着兼容旧用法）
 
 流程：
-    1. 把 APP_DB_PATH 指向 agent/evaluation/test.db，隔离真实库
+    1. **每个任务一个独立的临时库** agent/evaluation/test_{task_id}.db（见下方「数据库隔离」）
     2. 逐个任务调用 agent.react_agent.run()，从 result["steps"] 提取工具调用序列与轮次
-    3. 每个任务结束后判定（人工 / LLM / 两者都做）
-    4. 打印分类汇总表，结果写入 agent/evaluation/agent_results.json
-    5. 删除 test.db
+    3. 每个任务结束后判定（人工 / LLM / 两者都做），随后删除该任务的临时库
+    4. 打印分类汇总表，结果写入 agent/evaluation/agent_results.json（可用 --out 改路径）
+    5. LLM 判定模式下，把失败的题追加进 agent/evaluation/failures/{timestamp}.json
+
+数据库隔离（为什么一个任务一个库文件）：
+    Round 5 全量评估里第 7、8 题被误判成「编造」——根因是 `delete_tracking` 之类
+    的写操作会改到共享的 test.db，前一个任务把后一个任务该看到的预置数据删掉了，
+    Agent 返回的是**真实数据**，判定员却以为它在编。修法是每个任务开始时
+    重建一份**独立文件**的库（预置数据 + 清空），任务结束就删掉：
+    - 文件级隔离比「同一个文件删了重建」更硬：即使有残留连接/边车文件，
+      也不可能写进下一个任务要用的库；
+    - 每个任务拿到的都是同样的预置数据（阶跃星辰 + 腾讯两条），与执行顺序无关；
+    - 出问题时残留的 test_10a.db 还能直接打开排查，跑完即删也不占地方。
 
 注意（顺序很重要）：
     APP_DB_PATH 必须在 import agent.storage 之前设置 —— agent/storage.py 在模块导入时
-    就把该环境变量固化成 DB_PATH（见 agent/storage.py 第 16-19 行），之后再改不生效。
+    就把该环境变量固化成 DB_PATH（见 agent/storage.py 第 16-19 行），之后再改环境变量不生效。
+    因此切换每个任务的库时直接改写 storage.DB_PATH（storage._get_conn 每次都读这个全局）。
 """
 import argparse
+import gc
 import json
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
 EVAL_DIR = Path(__file__).resolve().parent
 BASE_DIR = EVAL_DIR.parent.parent          # 仓库根目录
-TEST_DB = EVAL_DIR / "test.db"
+TEST_DB = EVAL_DIR / "test.db"             # 旧版共享临时库（仅用于清理历史残留）
 TASKS_PATH = EVAL_DIR / "test_tasks.json"
 OUT_PATH = EVAL_DIR / "agent_results.json"
+FAILURES_DIR = EVAL_DIR / "failures"       # 失败案例归档目录
 
 # --------------------------------------------------------------------------
 # 必须在 import agent.storage 之前设置。用绝对路径，避免受当前工作目录影响。
+# 这里先指向旧版共享库，import 之后每个任务会再切到自己的 test_{id}.db。
 # --------------------------------------------------------------------------
 os.environ["APP_DB_PATH"] = str(TEST_DB)
 
@@ -72,20 +88,68 @@ DEFAULT_RESUME = {
 
 
 # --------------------------------------------------------------------------
-# 临时库管理
+# 临时库管理（一个任务一个库文件）
 # --------------------------------------------------------------------------
 
-def cleanup_db():
-    """删除临时库文件（含 SQLite 可能产生的 -wal/-shm/-journal 边车文件）"""
-    for suffix in ("", "-wal", "-shm", "-journal"):
-        path = Path(str(TEST_DB) + suffix)
-        if path.exists():
-            path.unlink()
+def task_db_path(task_id) -> Path:
+    """某个任务专属的临时库路径：agent/evaluation/test_{task_id}.db"""
+    return EVAL_DIR / f"test_{task_id}.db"
 
 
-def prepare_db(seed: bool = True) -> list:
-    """建临时库并可选预置记录，返回实际预置的记录列表"""
-    cleanup_db()
+def _db_sidecars(path) -> list:
+    return [Path(str(path) + suffix) for suffix in ("", "-wal", "-shm", "-journal")]
+
+
+def cleanup_db(path=TEST_DB, quiet: bool = False):
+    """删除临时库文件（含 SQLite 可能产生的 -wal/-shm/-journal 边车文件）。
+
+    Windows 上如果还有没关掉的连接，unlink 会抛 PermissionError：
+    这里吞掉并给出警告，绝不因为删不掉临时文件而中断评估。
+    """
+    for candidate in _db_sidecars(path):
+        for attempt in (1, 2):
+            if not candidate.exists():
+                break
+            try:
+                candidate.unlink()
+                break
+            except OSError as e:
+                if attempt == 2:
+                    if not quiet:
+                        print(f"[警告] 临时库删除失败（可以手工删）：{candidate}（{e}）")
+                else:
+                    gc.collect()
+                    time.sleep(0.2)
+
+
+def cleanup_stale_dbs():
+    """清理上一轮跑崩时残留的临时库（test_*.db / test.db），避免跨轮污染"""
+    for candidate in list(EVAL_DIR.glob("test_*.db")) + [TEST_DB]:
+        cleanup_db(candidate, quiet=True)
+
+
+def activate_db(db_path) -> Path:
+    """把 storage 的 DB_PATH 切到指定临时库。
+
+    storage 在 import 时就从 APP_DB_PATH 固化了 DB_PATH，之后改环境变量不生效，
+    所以这里直接改写模块全局（storage._get_conn 每次调用都读它）。
+    agent.tools_registry / react_agent 都是通过 `from agent import storage` 用的同一个
+    模块对象，因此这次改写对工具调用同样生效。
+    """
+    db_path = Path(db_path)
+    os.environ["APP_DB_PATH"] = str(db_path)      # 给可能重新 import storage 的代码兜底
+    storage.DB_PATH = db_path
+    return db_path
+
+
+def prepare_db(db_path=None, seed: bool = True) -> list:
+    """为**一个任务**重建临时库并可选预置记录，返回实际预置的记录列表
+
+    顺序：删掉旧文件（含边车）→ 切 DB_PATH → 建表 → 预置。
+    """
+    db_path = Path(db_path) if db_path else TEST_DB
+    cleanup_db(db_path)
+    activate_db(db_path)
     storage.init_db()
 
     seeded = []
@@ -94,6 +158,13 @@ def prepare_db(seed: bool = True) -> list:
             app_id = storage.create_application(company, title, "mock", "")
             seeded.append({"id": app_id, "company": company, "title": title})
     return seeded
+
+
+def _assert_isolated(db_path):
+    """断言当前真的在写临时库，绝不允许打到 agent/data/applications.db"""
+    real_db = (BASE_DIR / "agent" / "data" / "applications.db").resolve()
+    if Path(storage.DB_PATH).resolve() == real_db:
+        raise RuntimeError(f"DB_PATH 指向了真实库，已中止：{real_db}")
 
 
 # --------------------------------------------------------------------------
@@ -111,9 +182,22 @@ def count_turns(steps: list) -> int:
     return max(turns) if turns else 0
 
 
+def expected_sequences(task: dict) -> list:
+    """任务可接受的工具序列：expect + 可选的 expected_tools_alternatives"""
+    sequences = [list(task.get("expected_tools", []) or [])]
+    for extra in task.get("expected_tools_alternatives") or []:
+        if extra is not None:
+            sequences.append(list(extra))
+    return sequences
+
+
 def tools_matched(task: dict, actual_tools: list) -> bool:
-    """工具序列是否与预期完全一致（顺序敏感）"""
-    return list(task.get("expected_tools", [])) == list(actual_tools)
+    """工具序列是否命中任意一条可接受序列（顺序敏感）
+
+    第 10b 题那种「不调工具或只调 list_tracking 都算对」的题用
+    task["expected_tools_alternatives"] 声明备选序列。
+    """
+    return list(actual_tools) in expected_sequences(task)
 
 
 def _ask_verdict() -> tuple:
@@ -143,8 +227,8 @@ def _auto_verdict(task: dict, actual_tools: list) -> tuple:
     if tools_matched(task, actual_tools):
         return "y", "工具序列一致（自动判定）"
     return "n", (
-        "工具序列不一致：预期 {}，实际 {}（自动判定）".format(
-            task.get("expected_tools"), actual_tools
+        "工具序列不一致：预期 {}（可接受 {}），实际 {}（自动判定）".format(
+            task.get("expected_tools"), expected_sequences(task)[1:] or "无", actual_tools
         )
     )
 
@@ -158,6 +242,7 @@ def judge_verdict(task: dict, answer: str, steps: list) -> dict:
         message = f"judge 不可用：{type(e).__name__}: {e}"
         return {
             "success": False, "score": 0, "reason": message, "issues": [message],
+            "hallucination": None, "hallucinations": [],
             "tool_score": 0, "answer_score": 0,
             "judged_by": "judge_error", "error": message,
         }
@@ -171,6 +256,8 @@ def _judge_fields(judge: dict) -> dict:
             "judge_score": None,
             "judge_reason": None,
             "judge_issues": [],
+            "judge_hallucination": None,
+            "judge_hallucinations": [],
             "judge_tool_score": None,
             "judge_answer_score": None,
         }
@@ -179,6 +266,8 @@ def _judge_fields(judge: dict) -> dict:
         "judge_score": judge.get("score"),
         "judge_reason": judge.get("reason"),
         "judge_issues": judge.get("issues", []),
+        "judge_hallucination": judge.get("hallucination"),
+        "judge_hallucinations": judge.get("hallucinations", []),
         "judge_tool_score": judge.get("tool_score"),
         "judge_answer_score": judge.get("answer_score"),
     }
@@ -197,18 +286,183 @@ def _print_judge(judge: dict):
 
 
 # --------------------------------------------------------------------------
+# 失败案例归档（agent/evaluation/failures/）
+# --------------------------------------------------------------------------
+
+def _failure_record(detail: dict, generated_at: str) -> dict:
+    """把一条失败的结果摊平成失败档案（字段名对齐任务书给的清单）"""
+    return {
+        "task_id": detail["id"],
+        "type": detail["type"],
+        "task": detail["task"],
+        "expected_tools": detail["expected_tools"],
+        "actual_tools": detail["actual_tools"],
+        "answer": detail["answer"],
+        "judge_reason": detail.get("judge_reason"),
+        "judge_issues": detail.get("judge_issues") or [],
+        "judge_score": detail.get("judge_score"),
+        "hallucination": detail.get("judge_hallucination"),
+        "hallucinations": detail.get("judge_hallucinations") or [],
+        "verdict": detail["verdict"],
+        "reason": detail["reason"],
+        "judged_by": detail["judged_by"],
+        "turns": detail["turns"],
+        "db_path": detail.get("db_path"),
+        "generated_at": generated_at,
+    }
+
+
+def save_failures(details: list, judged_by: str = "llm_judge",
+                  failures_dir=None, generated_at: str = None) -> Path | None:
+    """把本轮失败的题写进 failures/{timestamp}.json（没有失败也会写一个空列表文件）。
+
+    文件是一个 JSON 数组，每个元素含：
+    task_id / task / actual_tools / answer / judge_reason / judge_issues 等字段。
+    返回写入路径；失败列表为空时同样返回路径（留着可以直接看到「这一轮全过」）。
+    """
+    failures_dir = Path(failures_dir or FAILURES_DIR)
+    generated_at = generated_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    failures = [
+        _failure_record(d, generated_at) for d in details if not d.get("success")
+    ]
+
+    failures_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = failures_dir / f"{stamp}.json"
+    index = 1
+    while out_path.exists():                      # 同一秒跑两次也不覆盖
+        out_path = failures_dir / f"{stamp}_{index}.json"
+        index += 1
+
+    payload = {
+        "generated_at": generated_at,
+        "judged_by": judged_by,
+        "total": len(details),
+        "failed": len(failures),
+        "failures": failures,
+    }
+    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return out_path
+
+
+def _read_failure_file(path: Path) -> list:
+    """读一个失败档案文件，兼容两种写法：纯数组 / {"failures": [...]}"""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if isinstance(data, dict):
+        data = data.get("failures") or []
+    if not isinstance(data, list):
+        return []
+    return [item for item in data if isinstance(item, dict)]
+
+
+def list_failures(failures_dir=None) -> dict:
+    """汇总所有历史失败案例，**按 task_id 归并**。
+
+    返回 {task_id: {...}}，每个 task_id 下：
+      task / fail_count / first_seen / last_seen / reasons / issues /
+      hallucinations / runs（每次失败的原始记录，按时间正序）
+
+    用法：
+        from agent.evaluation.run_agent_eval import list_failures
+        for task_id, info in list_failures().items():
+            print(task_id, info["fail_count"], info["task"])
+    """
+    failures_dir = Path(failures_dir or FAILURES_DIR)
+    merged = {}
+
+    if not failures_dir.is_dir():
+        return merged
+
+    for path in sorted(failures_dir.glob("*.json")):
+        for record in _read_failure_file(path):
+            task_id = str(record.get("task_id", "?"))
+            bucket = merged.setdefault(task_id, {
+                "task_id": task_id,
+                "task": record.get("task", ""),
+                "type": record.get("type", ""),
+                "fail_count": 0,
+                "first_seen": record.get("generated_at", ""),
+                "last_seen": record.get("generated_at", ""),
+                "reasons": [],
+                "issues": [],
+                "hallucinations": [],
+                "runs": [],
+            })
+            seen_at = record.get("generated_at", "")
+            bucket["fail_count"] += 1
+            if seen_at and (not bucket["first_seen"] or seen_at < bucket["first_seen"]):
+                bucket["first_seen"] = seen_at
+            if seen_at and seen_at > (bucket["last_seen"] or ""):
+                bucket["last_seen"] = seen_at
+            if record.get("judge_reason") and record["judge_reason"] not in bucket["reasons"]:
+                bucket["reasons"].append(record["judge_reason"])
+            for issue in record.get("judge_issues") or []:
+                if issue not in bucket["issues"]:
+                    bucket["issues"].append(issue)
+            for hit in record.get("hallucinations") or []:
+                if hit not in bucket["hallucinations"]:
+                    bucket["hallucinations"].append(hit)
+            if not bucket["task"] and record.get("task"):
+                bucket["task"] = record["task"]
+            bucket["runs"].append({
+                "file": path.name,
+                "generated_at": seen_at,
+                "actual_tools": record.get("actual_tools"),
+                "answer": record.get("answer"),
+                "judge_score": record.get("judge_score"),
+                "judge_reason": record.get("judge_reason"),
+                "judge_issues": record.get("judge_issues") or [],
+                "hallucinations": record.get("hallucinations") or [],
+            })
+
+    return merged
+
+
+def print_failures(failures_dir=None):
+    """在命令行打印历史失败汇总（--list-failures）"""
+    merged = list_failures(failures_dir)
+    failures_dir = Path(failures_dir or FAILURES_DIR)
+    print(f"失败档案目录：{failures_dir}")
+    if not merged:
+        print("还没有任何失败记录（或者目录里没有 *.json）。")
+        return merged
+
+    total = sum(info["fail_count"] for info in merged.values())
+    print(f"历史失败 {total} 次，涉及 {len(merged)} 个任务：\n")
+    for task_id, info in sorted(merged.items(), key=lambda kv: str(kv[0])):
+        flag = "（含幻觉）" if info["hallucinations"] else ""
+        print("[{}] 失败 {} 次{} | {}".format(task_id, info["fail_count"], flag, info["task"]))
+        print(f"    最近一次：{info['last_seen']}")
+        if info["reasons"]:
+            print(f"    理由：{info['reasons'][0]}")
+        for hit in info["hallucinations"][:2]:
+            print(f"    幻觉：{hit}")
+    return merged
+
+
+# --------------------------------------------------------------------------
 # 主评估逻辑
 # --------------------------------------------------------------------------
 
 def evaluate_agent(tasks: list, verbose: bool = False, auto_judge: bool = False,
-                   use_judge: bool = False, compare: bool = False) -> dict:
+                   use_judge: bool = False, compare: bool = False,
+                   seed: bool = True, keep_db: bool = False) -> dict:
     """跑每个任务，记录实际工具序列 / 轮次 / 成功与否 / 失败原因，返回统计
 
     auto_judge: 老的「只看工具序列」自动判定（--auto-judge）
     use_judge:  用 LLM 判定（--auto）
     compare:    人工 + LLM 都判，对比一致性（--compare），此时以人工判定为准
+    seed:       每个任务的独立库里是否预置投递记录
+    keep_db:    跑完是否保留该任务的临时库（默认删除）
+
+    每个任务开始时都会重建自己的 test_{id}.db，任务结束就删掉，
+    因此任务之间不可能通过数据库互相污染。
     """
     details = []
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     for index, task in enumerate(tasks, 1):
         expected_tools = list(task.get("expected_tools", []))
@@ -216,9 +470,20 @@ def evaluate_agent(tasks: list, verbose: bool = False, auto_judge: bool = False,
         print(f"\n{'=' * 70}")
         print(f"[{task['id']}] ({index}/{len(tasks)}) {task['type']} | {task['task']}")
         print(f"预期工具：{expected_tools if expected_tools else '（不调用工具）'}")
+        if task.get("expected_tools_alternatives"):
+            print(f"可接受的其他工具序列：{task['expected_tools_alternatives']}")
         print(f"预期行为：{task['expected_behavior']}")
         print(f"验收标准：{task['acceptance']}")
+
+        # ---- 每个任务一份全新库：重建 + 预置，隔离前一个任务的写操作 ----
+        db_path = task_db_path(task["id"])
+        seeded = prepare_db(db_path, seed=seed)
+        _assert_isolated(db_path)
         print("-" * 70)
+        print("独立临时库：{}（预置 {} 条：{}）".format(
+            db_path.name, len(seeded),
+            "、".join(item["company"] for item in seeded) or "无",
+        ))
 
         error = ""
         answer = ""
@@ -234,6 +499,11 @@ def evaluate_agent(tasks: list, verbose: bool = False, auto_judge: bool = False,
             answer = result.get("answer", "")
         except Exception as e:                      # 网络/解析/工具异常都算任务失败
             error = f"运行异常：{type(e).__name__}: {e}"
+        finally:
+            if keep_db:
+                print(f"保留临时库：{db_path}")
+            else:
+                cleanup_db(db_path)
 
         matched = tools_matched(task, actual_tools)
 
@@ -301,10 +571,13 @@ def evaluate_agent(tasks: list, verbose: bool = False, auto_judge: bool = False,
             "human_reason": human_reason,
             "auto_verdict": auto_result,
             "consistent": consistent,
+            "db_path": str(db_path),
             **_judge_fields(judge),
         })
 
-    return summarize(details)
+    stats = summarize(details)
+    stats["generated_at"] = generated_at
+    return stats
 
 
 def summarize(details: list) -> dict:
@@ -354,15 +627,20 @@ def summarize(details: list) -> dict:
         judge_success = sum(1 for d in judged if d["judge_success"])
         scores = [d["judge_score"] for d in judged if isinstance(d.get("judge_score"), (int, float))]
         avg_score = round(sum(scores) / len(scores), 1) if scores else 0.0
+        hallucinated = [d["id"] for d in judged if d.get("judge_hallucination")]
         judge_summary = {
             "judged": len(judged),
             "success": judge_success,
             "success_rate": round(judge_success / len(judged), 3),
             "avg_score": avg_score,
+            "hallucinations": len(hallucinated),
+            "hallucinated_tasks": hallucinated,
         }
         print("LLM 判定：{}/{} = {:.0f}% | 平均 {:.1f}/100 分".format(
             judge_success, len(judged), judge_success / len(judged) * 100, avg_score,
         ))
+        if hallucinated:
+            print(f"幻觉否决：{len(hallucinated)} 个任务 {hallucinated}")
 
     # ---- 人工 vs LLM 一致性（--compare） ----
     compare_summary = None
@@ -413,10 +691,11 @@ def load_tasks(path=TASKS_PATH) -> list:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Agent（ReAct）评估脚本")
-    parser.add_argument("--ids", help="只跑指定任务 id，逗号分隔，如 1,6,9")
+    parser.add_argument("--ids", help="只跑指定任务 id，逗号分隔，如 3,7,10a")
     parser.add_argument("--verbose", action="store_true", help="打印 Agent 每轮 thought/action")
     parser.add_argument("--no-seed", action="store_true", help="不在临时库里预置投递记录")
-    parser.add_argument("--keep-db", action="store_true", help="跑完保留 test.db（默认删除）")
+    parser.add_argument("--keep-db", action="store_true",
+                        help="跑完保留每个任务的 test_{id}.db（默认逐个删除）")
 
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--auto", action="store_true",
@@ -427,19 +706,24 @@ def main() -> int:
                         help="按工具序列自动判定（无 LLM 的老兜底），仅用于无人值守试跑")
     parser.add_argument("--out", default=str(OUT_PATH), help="结果输出路径")
     parser.add_argument("--tasks", default=str(TASKS_PATH), help="任务文件路径")
+    parser.add_argument("--failures-dir", default=str(FAILURES_DIR),
+                        help="失败案例归档目录（默认 agent/evaluation/failures/）")
+    parser.add_argument("--list-failures", action="store_true",
+                        help="只汇总打印历史失败案例（按 task_id 归并），不跑任务")
     args = parser.parse_args()
+
+    if args.list_failures:
+        print_failures(args.failures_dir)
+        return 0
 
     all_tasks = load_tasks(args.tasks)
     tasks = all_tasks
     if args.ids:
-        try:
-            wanted = {int(x) for x in args.ids.split(",") if x.strip()}
-        except ValueError:
-            print(f"--ids 格式不对：{args.ids}")
-            return 1
-        tasks = [t for t in all_tasks if t["id"] in wanted]
+        wanted = {token.strip() for token in args.ids.split(",") if token.strip()}
+        tasks = [t for t in all_tasks if str(t["id"]) in wanted]
         if not tasks:
-            print(f"没有匹配的任务 id：{args.ids}")
+            print(f"没有匹配的任务 id：{args.ids}（现有："
+                  f"{', '.join(str(t['id']) for t in all_tasks)}）")
             return 1
 
     if args.auto:
@@ -453,13 +737,13 @@ def main() -> int:
 
     print(f"任务文件：{args.tasks}（本次跑 {len(tasks)}/{len(all_tasks)} 个）")
     print(f"判定方式：{judged_by}")
-    print(f"临时数据库：{TEST_DB}")
+    print(f"临时库：每个任务一个 agent/evaluation/test_{{task_id}}.db（跑完删除）")
     print(f"真实数据库：{BASE_DIR / 'agent' / 'data' / 'applications.db'}（不会被写入）")
 
-    seeded = prepare_db(seed=not args.no_seed)
-    if seeded:
-        companies = ", ".join(item["company"] for item in seeded)
-        print(f"已在临时库预置 {len(seeded)} 条投递记录：{companies}")
+    cleanup_stale_dbs()                            # 清掉上一轮残留，避免跨轮污染
+
+    seed = not args.no_seed
+    print(f"预置数据：{'每个任务都重建并预置 ' + str(len(SEED_APPLICATIONS)) + ' 条投递记录' if seed else '不预置（--no-seed）'}")
 
     try:
         stats = evaluate_agent(
@@ -468,25 +752,41 @@ def main() -> int:
             auto_judge=args.auto_judge,
             use_judge=args.auto,
             compare=args.compare,
+            seed=seed,
+            keep_db=args.keep_db,
         )
     finally:
-        if args.keep_db:
-            print(f"\n保留临时库：{TEST_DB}")
-        else:
-            cleanup_db()
-            print(f"\n已删除临时库：{TEST_DB}")
+        if not args.keep_db:
+            cleanup_stale_dbs()
+
+    # ---- 失败案例归档：LLM 判定模式下每轮都落一个文件 ----
+    failures_path = None
+    if args.auto or args.compare:
+        try:
+            failures_path = save_failures(
+                stats["details"], judged_by=judged_by,
+                failures_dir=args.failures_dir, generated_at=stats["generated_at"],
+            )
+            failed = sum(1 for d in stats["details"] if not d["success"])
+            print(f"\n失败案例已归档：{failures_path}（本轮失败 {failed} 题）")
+        except Exception as e:                      # noqa: BLE001 - 归档失败不该让评估失败
+            print(f"\n[警告] 失败案例归档失败（忽略）：{type(e).__name__}: {e}")
 
     output = {
         "meta": {
-            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "generated_at": stats["generated_at"],
             "task_ids": [d["id"] for d in stats["details"]],
             "partial_run": len(stats["details"]) != len(all_tasks),
             "judged_by": judged_by,
             "judge_mode": "llm" if (args.auto or args.compare) else (
                 "tool_sequence" if args.auto_judge else "none"
             ),
-            "seeded_applications": seeded,
-            "db_path_used": str(TEST_DB),
+            "seeded_applications": [
+                {"company": c, "title": t} for c, t in SEED_APPLICATIONS
+            ] if seed else [],
+            "db_isolation": "per_task_file（每个任务重建 agent/evaluation/test_{task_id}.db 并删除）",
+            "db_paths_used": [d.get("db_path") for d in stats["details"]],
+            "failures_file": str(failures_path) if failures_path else None,
         },
         **stats,
     }
