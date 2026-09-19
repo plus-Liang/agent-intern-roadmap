@@ -154,6 +154,29 @@ def get_application(app_id: str) -> dict:
     return dict(row)
 
 
+def find_application(company: str) -> dict | None:
+    """按公司名查找投递记录（模糊匹配，不区分大小写）。
+
+    - 子串匹配：传入 "阶跃" 也能命中 "阶跃星辰"
+    - 大小写：SQLite 的 LIKE 对 ASCII 不区分大小写，再叠一层 LOWER() 兜底
+    - 命中多条时返回最近创建的一条（applied_at 精度到秒，同一秒内按插入顺序取最后一条）
+    - 找不到（含 company 为空/空白）返回 None
+    """
+    if company is None or not str(company).strip():
+        return None
+
+    keyword = str(company).strip().lower()
+    conn = _get_conn()
+    rows = conn.execute(
+        """SELECT * FROM applications
+        WHERE LOWER(company) LIKE ?
+        ORDER BY applied_at DESC, rowid DESC""",
+        (f"%{keyword}%",),
+    ).fetchall()
+    conn.close()
+    return dict(rows[0]) if rows else None
+
+
 def list_applications(status: str = None) -> list[dict]:
     """列出所有记录，可按状态过滤"""
     conn = _get_conn()

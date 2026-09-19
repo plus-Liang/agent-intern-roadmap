@@ -41,6 +41,11 @@ SYSTEM_PROMPT_TEMPLATE = """你是一个求职助手 Agent。你可以调用工�
 4. 字符串里不能有真实换行，用 \\n 转义。
 5. final_answer 必须是单行字符串。
 
+【最小必要原则】
+只调用回答当前问题所必需的工具。用户没要求查看详情就不要调 get_job_detail，
+用户没要求匹配简历就不要调 match_resume。
+判断标准：如果问题的答案用当前已有信息就能回答，立即给 final_answer。
+
 【上下文】
 - 用户的简历已经在系统中，当用户提到"我的简历"或需要匹配时，
   请使用 match_resume 工具，resume_json 参数填 "current"（系统会自动替换）。
