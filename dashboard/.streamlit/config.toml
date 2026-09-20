@@ -1,0 +1,76 @@
+# 求职 Dashboard 主题配置
+#
+# 位置说明：放在 dashboard/ 下，与 app.py 同级。
+# `streamlit run dashboard/app.py` 时，脚本级配置的优先级高于项目根目录的
+# .streamlit/config.toml（详见 Streamlit 文档「Configuration precedence」）。
+#
+# 配色来自设计稿 job-dashboard-design（teal-ink 强调色 + 暖白底）：
+#   --a600 #0b626c（深青）/ --g25 #fbfbfa（暖白）/ --g900 #1a1815（近黑）
+#
+# 注意：Streamlit 的内置字体关键字是 "sans-serif"（带连字符）。
+# 如果这里写成 "sans serif"（带空格），Streamlit 无法识别，会报错并直接
+# 回退到默认字体栈。系统栈本身在 dashboard/styles.py 的 CSS 里强制覆盖。
+
+[theme]
+primaryColor = "#0b626c"
+backgroundColor = "#fbfbfa"
+secondaryBackgroundColor = "#f5f4f1"
+textColor = "#1a1a18"
+font = "sans-serif"
+
+# 中性色 / 边框 / 链接（对齐 :root 里的 --g 系列与 --a600）
+linkColor = "#0b626c"
+borderColor = "#e6e5e1"
+codeBackgroundColor = "#f0efec"
+codeTextColor = "#1a1a18"
+showWidgetBorder = true
+showSidebarBorder = true
+
+# 圆角：设计稿 --r-lg 9px / --r-md 6px，这里取 8px 作统一值
+baseRadius = "8px"
+buttonRadius = "8px"
+
+# 密度：设计稿正文 13px
+baseFontSize = 13
+baseFontWeight = 400
+headingFontSizes = ["17px", "15px", "13.5px", "13px", "13px", "12.5px"]
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+codeFontSize = "12.5px"
+linkUnderline = false
+
+# 语义色（对齐设计稿 --ok-* / --wr-* / --er-* / --in-*）
+redColor = "#93352c"
+orangeColor = "#8a5a0b"
+yellowColor = "#8a5a0b"
+greenColor = "#1f6b3f"
+blueColor = "#3f4c72"
+violetColor = "#6b4c8a"
+grayColor = "#78756e"
+
+# 图表配色：深青主导 + 中性灰，避免 Streamlit 默认亮色
+chartCategoricalColors = [
+    "#0b626c", "#7db9c3", "#3f4c72", "#1f6b3f",
+    "#8a5a0b", "#93352c", "#78756e",
+]
+chartSequentialColors = [
+    "#f2f9fa", "#e3f0f3", "#cbe5e9", "#aed7dd", "#8cc5cd",
+    "#63aeb9", "#3f95a2", "#217d8a", "#0b626c", "#04353c",
+]
+
+# DataFrame 表头/边框（对齐设计稿表格：11px 灰头 + 40px 行高）
+dataframeBorderColor = "#e6e5e1"
+dataframeHeaderBackgroundColor = "#f7f6f4"
+
+[theme.sidebar]
+backgroundColor = "#f7f6f4"
+secondaryBackgroundColor = "#f0efec"
+codeBackgroundColor = "#f0efec"
+textColor = "#1a1a18"
+borderColor = "#e6e5e1"
+primaryColor = "#0b626c"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

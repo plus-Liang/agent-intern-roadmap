@@ -2,7 +2,7 @@
 求职 Dashboard。
 五个 Tab：
 1. 岗位列表：搜索、标记想投/不合适
-2. 投递追踪：查看投递记录和状态、生成投递包、🎯 面试准备（预测问题 + 参考答案要点）
+2. 投递追踪：查看投递记录和状态、生成投递包、 面试准备（预测问题 + 参考答案要点）
 3. 匹配结果：简历-JD 匹配打分
 4. Token 成本：LLM 用量按天/模型/来源统计
 5. 简历管理：多版本简历的新建/上传/设默认/删除
@@ -32,17 +32,52 @@ from agent.tools_registry import (
 from shared import token_tracker
 from shared.llm_client import chat
 
+try:
+    # 以 `streamlit run dashboard/app.py` 方式启动时走这条（脚本所在目录会被
+    # 放进 sys.path[0]，项目根目录由上面的 sys.path.insert 补上）
+    from dashboard.styles import (
+        e,
+        icon,
+        inject_styles,
+        job_row,
+        stat_card,
+        stat_row,
+        status_badge,
+        timeline,
+        STATUS_LABELS,
+    )
+except ModuleNotFoundError:  # pragma: no cover - 兼容 `python dashboard/app.py`
+    from styles import (  # type: ignore[no-redef]
+        e,
+        icon,
+        inject_styles,
+        job_row,
+        stat_card,
+        stat_row,
+        status_badge,
+        timeline,
+        STATUS_LABELS,
+    )
+
 
 # 初始化数据库
 storage.init_db()
 
 st.set_page_config(
     page_title="求职助手 Dashboard",
-    page_icon="🎯",
+    page_icon="◎",
     layout="wide",
 )
 
-st.title("🎯 求职助手 Dashboard")
+# 必须先 set_page_config、再注入样式
+inject_styles()
+
+st.title("求职助手 Dashboard")
+st.markdown(
+    '<p class="page-meta">岗位搜索 / 投递追踪 / 匹配打分 / Token 成本 / 简历管理'
+    " —— 一个页面看完全流程。</p>",
+    unsafe_allow_html=True,
+)
 
 # 投递包里几种文件的 MIME 类型（下载按钮用）
 _MIME_TYPES = {
@@ -50,6 +85,42 @@ _MIME_TYPES = {
     ".md": "text/markdown",
     ".txt": "text/plain",
 }
+
+# 表格行高：设计稿是 40px（Streamlit 1.5x 才支持 row_height，旧版本忽略）
+_TABLE_ROW_HEIGHT = 40
+
+
+def _render_dataframe(df, **kwargs):
+    """统一封装的 st.dataframe：设计稿的 40px 行高 + 8px 圆角表格。
+
+    ``row_height`` 是较新版本才有的参数，旧版本直接跳过，不会报错。
+    """
+    try:
+        return st.dataframe(df, width="stretch", hide_index=True,
+                            row_height=_TABLE_ROW_HEIGHT, **kwargs)
+    except TypeError:
+        return st.dataframe(df, width="stretch", hide_index=True, **kwargs)
+
+
+def _pipeline_spark(apps: list) -> list:
+    """近 7 天每天的投递数（统计卡片的迷你柱状图用）。"""
+    today = datetime.now().date()
+    buckets = [0] * 7
+    for item in apps:
+        stamp = str(item.get("applied_at") or "")[:10]
+        try:
+            day = datetime.strptime(stamp, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        offset = (today - day).days
+        if 0 <= offset < 7:
+            buckets[6 - offset] += 1
+    return buckets
+
+
+def _delta_dir(count: int) -> str:
+    """转化率小标签的方向：>0 绿色上箭头，=0 灰色横杠。"""
+    return "up" if count > 0 else "flat"
 
 
 @st.cache_data(show_spinner=False, ttl=1800, max_entries=32)
@@ -60,7 +131,7 @@ def _resume_pdf_bytes(resume_id: str) -> bytes:
 
 
 # ============================================================
-# 🎯 面试准备（D1 预测问题 + D2 参考答案要点）
+#  面试准备（D1 预测问题 + D2 参考答案要点）
 # ============================================================
 #
 # 流程：投递记录 →（resolve_job）岗位 JD → LLM 出 5-8 个问题（技术/项目/行为）
@@ -197,7 +268,7 @@ def _ordered_categories(questions: list) -> list:
 def _prep_markdown(record: dict, detail, questions: list, resume_name: str, warnings: list) -> str:
     """拼可下载的 markdown（问题 + 参考答案要点 + 依据）"""
     lines = [
-        f"# 🎯 面试准备 · {record.get('company', '')} {record.get('title', '')}",
+        f"# 面试准备 · {record.get('company', '')} {record.get('title', '')}",
         "",
         f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"- 求职者简历：{resume_name or '（没有简历）'}",
@@ -208,7 +279,7 @@ def _prep_markdown(record: dict, detail, questions: list, resume_name: str, warn
         )
         lines.append(f"- job_id：{detail.job_id}")
     for warning in warnings:
-        lines.append(f"- ⚠️ {warning}")
+        lines.append(f"- 注意：{warning}")
     lines.append("")
 
     for category in _ordered_categories(questions):
@@ -223,7 +294,7 @@ def _prep_markdown(record: dict, detail, questions: list, resume_name: str, warn
             if question["evidence"]:
                 lines += [f"依据：{'、'.join(question['evidence'])}", ""]
 
-    lines += ["---", "由 Dashboard「投递追踪 → 🎯 面试准备」生成（LLM 预测，仅供参考）。"]
+    lines += ["---", "由 Dashboard「投递追踪 → 面试准备」生成（LLM 预测，仅供参考）。"]
     return "\n".join(lines)
 
 
@@ -287,7 +358,7 @@ def render_interview_prep(payload: dict, app_id: str):
     """在 expander 里展示面试准备，并给一个 markdown 下载按钮"""
     questions = payload.get("questions") or []
     with st.expander(
-        "🎯 面试准备 · {} | {}（{} 个问题）".format(
+        "面试准备 · {} | {}（{} 个问题）".format(
             payload.get("company", ""), payload.get("title", ""), len(questions)
         ),
         expanded=True,
@@ -313,7 +384,7 @@ def render_interview_prep(payload: dict, app_id: str):
             st.write("")
 
         st.download_button(
-            "⬇️ 下载 Markdown",
+            "下载 Markdown",
             data=payload["markdown"],
             file_name=payload["filename"],
             mime="text/markdown",
@@ -323,7 +394,7 @@ def render_interview_prep(payload: dict, app_id: str):
 
 # 五个 Tab
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📋 岗位列表", "📊 投递追踪", "🎯 匹配打分", "💰 Token 成本", "📄 简历管理",
+    "岗位列表", "投递追踪", "匹配打分", "Token 成本", "简历管理",
 ])
 
 
@@ -343,7 +414,7 @@ with tab1:
     with col3:
         st.write("")
         st.write("")
-        if st.button("🔍 搜索", key="search_btn"):
+        if st.button("搜索", key="search_btn"):
             with st.spinner("搜索中..."):
                 jobs = search_jobs(
                     keyword, city or None, limit=20, platform="mock"
@@ -373,7 +444,7 @@ with tab1:
         for j in jobs:
             mark = storage.get_mark(j["job_id"])
             rows.append({
-                "标记": {"want": "⭐ 想投", "skip": "❌ 不合适", "untagged": "—"}.get(mark, "—"),
+                "标记": {"want": "想投", "skip": "不合适", "untagged": "—"}.get(mark, "—"),
                 "岗位": j["title"],
                 "公司": j["company"],
                 "城市": j["city"],
@@ -383,7 +454,7 @@ with tab1:
             })
 
         df = pd.DataFrame(rows)
-        st.dataframe(df, width="stretch", hide_index=True)
+        _render_dataframe(df)
 
         # 标记区域
         st.subheader("标记操作")
@@ -394,11 +465,11 @@ with tab1:
             with c2:
                 st.write(f"{j['city']} | {j['salary']}")
             with c3:
-                if st.button("⭐ 想投", key=f"want_{j['job_id']}"):
+                if st.button("标记想投", key=f"want_{j['job_id']}"):
                     storage.mark_job(j, "want")
                     st.rerun()
             with c4:
-                if st.button("❌ 不合适", key=f"skip_{j['job_id']}"):
+                if st.button("标记不合适", key=f"skip_{j['job_id']}"):
                     storage.mark_job(j, "skip")
                     st.rerun()
             with c5:
@@ -408,7 +479,7 @@ with tab1:
 
     # 已标记的岗位
     st.divider()
-    st.subheader("⭐ 我的「想投」列表")
+    st.subheader("我的「想投」列表")
     want_jobs = storage.get_marked_jobs("want")
     if not want_jobs:
         st.caption("暂无标记。")
@@ -416,9 +487,17 @@ with tab1:
         for j in want_jobs:
             c1, c2 = st.columns([5, 1])
             with c1:
-                st.write(f"**{j['company']}** | {j['title']} | {j['city']} | {j['salary']}")
+                st.markdown(
+                    job_row(
+                        j["title"],
+                        " | ".join(str(x) for x in [j["city"], j["salary"]] if x),
+                        company=j["company"],
+                        badge_html=status_badge("applied", "想投"),
+                    ),
+                    unsafe_allow_html=True,
+                )
             with c2:
-                if st.button("📥 加入投递", key=f"track_{j['job_id']}"):
+                if st.button("加入投递", key=f"track_{j['job_id']}"):
                     storage.create_application(
                         j["company"], j["title"], "dashboard", j.get("url", "")
                     )
@@ -432,7 +511,7 @@ with tab2:
     st.header("投递追踪")
 
     # ============================================================
-    # ⏰ 跟进提醒区（投递超过 N 天、状态仍停在 applied）
+    #  跟进提醒区（投递超过 N 天、状态仍停在 applied）
     # ============================================================
     # 放在最顶部：用户打开这个 Tab 最该先看到的就是「哪几条该去催了」。
     # 判定逻辑全部走 agent.reminder，和 Agent 的 check_reminders 工具同一份口径。
@@ -449,13 +528,13 @@ with tab2:
                     days_elapsed=item["days_elapsed"],
                 )
             )
-        st.warning("\n\n".join(lines), icon="⏰")
+        st.warning("\n\n".join(lines))
         st.caption(
             f"提醒口径：状态仍是 `applied` 且投递超过 {follow_up_days} 天"
             "（在「查看时间线」里把状态改成 viewed / interview 后，这条提醒会自动消失）。"
         )
     else:
-        st.success(f"✅ 没有超过 {follow_up_days} 天仍未跟进的投递。", icon="✅")
+        st.success(f"没有超过 {follow_up_days} 天仍未跟进的投递。")
 
     apps = storage.list_applications()
     if not apps:
@@ -473,21 +552,51 @@ with tab2:
         )
         offer = sum(1 for a in apps if a["status"] in ["offer", "accepted"])
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("总投递", total)
-        col2.metric("简历被看", viewed)
-        col3.metric("进面", interview)
-        col4.metric("Offer", offer)
-
-        # 转化率：三个比率的分母都是总投递数
+        # 转化率：比率的分母都是总投递数
         def _pct(n: int) -> str:
             return f"{n / total:.1%}" if total else "0.0%"
 
-        st.caption("转化率（分母均为「总投递」）")
-        rate1, rate2, rate3, _ = st.columns(4)
-        rate1.metric("简历被看率", _pct(viewed), help=f"{viewed} / {total}")
-        rate2.metric("约面率", _pct(interview), help=f"{interview} / {total}")
-        rate3.metric("Offer 率", _pct(offer), help=f"{offer} / {total}")
+        # 设计稿首页的 4 张统计卡片（.stat-card）
+        stat_row([
+            {
+                "label": "总投递",
+                "value": total,
+                "unit": "份",
+                "icon_name": "send",
+                "variant": "accent",
+                "spark": _pipeline_spark(apps),
+                "hint": "全部投递记录",
+            },
+            {
+                "label": "简历被看",
+                "value": viewed,
+                "unit": f"转化 {_pct(viewed)}",
+                "icon_name": "search",
+                "delta": _pct(viewed),
+                "delta_dir": _delta_dir(viewed),
+                "hint": f"{viewed} / {total}",
+            },
+            {
+                "label": "进面",
+                "value": interview,
+                "unit": f"约面率 {_pct(interview)}",
+                "icon_name": "calendar",
+                "variant": "accent",
+                "delta": _pct(interview),
+                "delta_dir": _delta_dir(interview),
+                "hint": f"{interview} / {total}",
+            },
+            {
+                "label": "Offer",
+                "value": offer,
+                "unit": f"Offer 率 {_pct(offer)}",
+                "icon_name": "check",
+                "variant": "ok" if offer else "default",
+                "delta": _pct(offer),
+                "delta_dir": _delta_dir(offer),
+                "hint": f"{offer} / {total}",
+            },
+        ])
 
         st.divider()
 
@@ -497,12 +606,12 @@ with tab2:
                 "ID": a["id"],
                 "公司": a["company"],
                 "岗位": a["title"],
-                "状态": a["status"],
+                "状态": STATUS_LABELS.get(a["status"], a["status"]),
                 "投递时间": a["applied_at"],
             }
             for a in apps
         ])
-        st.dataframe(df, width="stretch", hide_index=True)
+        _render_dataframe(df)
 
         # 查看时间线
         st.subheader("查看时间线")
@@ -516,18 +625,43 @@ with tab2:
         )
         if selected:
             app = storage.get_application(selected)
-            st.write(f"**{app['company']} | {app['title']}**")
+            from agent.state_machine import get_status_label
+
+            st.markdown(
+                '<div class="job-panel"><header><h2>{company} | {title}</h2>'
+                '<span class="sub">{status}</span>'
+                '<div class="r">{badge}</div></header></div>'.format(
+                    company=e(app["company"]),
+                    title=e(app["title"]),
+                    status=e(STATUS_LABELS.get(app["status"], app["status"])),
+                    badge=status_badge(app["status"]),
+                ),
+                unsafe_allow_html=True,
+            )
+
             events = storage.get_events(selected)
-            for e in events:
-                from agent.state_machine import get_status_label
-                from_label = get_status_label(e["from_status"]) if e["from_status"] else "创建"
-                to_label = get_status_label(e["to_status"])
-                note = f" — {e['note']}" if e["note"] else ""
-                st.write(f"- `{e['created_at']}`  {from_label} → **{to_label}**{note}")
+            timeline_events = []
+            for event in reversed(events):          # 最新的排最上面
+                from_label = (
+                    get_status_label(event["from_status"]) if event["from_status"] else "创建"
+                )
+                to_label = get_status_label(event["to_status"])
+                state = {
+                    "offer": "done", "accepted": "done", "interview": "done",
+                    "interviewing": "done", "rejected": "error", "declined": "error",
+                }.get(event["to_status"], "done")
+                timeline_events.append({
+                    "title": f"{from_label} → {to_label}",
+                    "time": event["created_at"],
+                    "desc": event["note"] or "",
+                    "badge_html": status_badge(event["to_status"]),
+                    "state": state,
+                })
+            st.markdown(timeline(timeline_events), unsafe_allow_html=True)
 
         # 每条投递记录两个动作：一键投递包 + 面试准备（都要调 LLM，点按钮才跑）
         st.divider()
-        st.subheader("📦 投递包 / 🎯 面试准备")
+        st.subheader("投递包 / 面试准备")
         st.caption(
             "投递包 = 按岗位定制的简历 PDF + 自荐信 + 岗位信息；"
             "面试准备 = 按岗位 JD 预测 5-8 个面试问题（技术/项目/行为）+ 结合简历的参考答案要点。"
@@ -539,7 +673,7 @@ with tab2:
             with act_info:
                 st.write(f"**{a['company']}** | {a['title']} | 状态：{a['status']}")
             with act_pkg:
-                if st.button("📦 生成投递包", key=f"pkg_{a['id']}"):
+                if st.button("生成投递包", key=f"pkg_{a['id']}"):
                     with st.spinner(f"正在为「{a['company']}」生成投递包..."):
                         try:
                             result = generate_application_package(a["company"])
@@ -547,7 +681,7 @@ with tab2:
                             result = {"error": f"{type(e).__name__}: {e}"}
                     st.session_state["last_package"] = {"app_id": a["id"], "result": result}
             with act_prep:
-                if st.button("🎯 面试准备", key=f"prep_{a['id']}"):
+                if st.button("面试准备", key=f"prep_{a['id']}"):
                     with st.spinner(f"正在为「{a['company']}」预测面试问题..."):
                         try:
                             result = generate_interview_prep(a)
@@ -570,14 +704,14 @@ with tab2:
                     with col:
                         file_path = Path(path)
                         st.download_button(
-                            f"⬇️ {name}",
+                            name,
                             data=file_path.read_bytes() if file_path.is_file() else b"",
                             file_name=name,
                             mime=_MIME_TYPES.get(file_path.suffix, "application/octet-stream"),
                             key=f"dl_{name}_{last_package['app_id']}",
                         )
 
-        # 🎯 面试准备结果
+        #  面试准备结果
         prep_state = st.session_state.get("interview_prep")
         if prep_state:
             prep_payload = prep_state["result"]
@@ -627,7 +761,7 @@ with tab3:
             "inn_bvmuxglatdbv（科大讯飞 · 产品运营）、inn_78xqcaa6aktp（妙客莱音 · AI Agent 开发）"
         )
 
-        if st.button("🎯 计算匹配度"):
+        if st.button("计算匹配度"):
             try:
                 detail = get_job_detail("mock", job_id)
 
@@ -663,23 +797,58 @@ with tab3:
                 with st.spinner("匹配中..."):
                     result = match_resume_to_jd(resume, detail)
 
-                st.success(f"匹配度：**{result.score}/100**")
+                dims = result.dimensions
+                st.session_state["last_match"] = {
+                    "score": result.score,
+                    "company": detail.company,
+                    "title": detail.title,
+                    "gaps": len(result.gaps or []),
+                    "highlights": len(result.highlights or []),
+                }
+
+                # 匹配结果：总分 + 缺口/亮点数量（设计稿统计卡片）
+                stat_row([
+                    {
+                        "label": "匹配度",
+                        "value": result.score,
+                        "unit": "/ 100 分",
+                        "icon_name": "target",
+                        "variant": "accent" if result.score >= 80 else "warn",
+                        "hint": f"{detail.company} | {detail.title}",
+                    },
+                    {
+                        "label": "补齐后可达",
+                        "value": min(100, result.score + 6 * len(result.gaps or [])),
+                        "unit": "/ 100 分",
+                        "icon_name": "chart",
+                        "delta": f"{len(result.gaps or [])} 项缺口",
+                        "delta_dir": "dn" if result.gaps else "flat",
+                        "hint": f"共 {len(result.gaps or [])} 项待补",
+                    },
+                    {
+                        "label": "已命中亮点",
+                        "value": len(result.highlights or []),
+                        "unit": "项",
+                        "icon_name": "check",
+                        "variant": "ok" if result.highlights else "default",
+                        "hint": "简历里可直接讲的加分项",
+                    },
+                ])
 
                 # 维度得分
                 st.subheader("维度得分")
-                dims = result.dimensions
                 for k, v in dims.items():
                     st.write(f"- {k}: **{v}**")
 
                 # 差距
                 if result.gaps:
-                    st.subheader("⚠️ 差距")
+                    st.subheader("差距")
                     for g in result.gaps:
                         st.write(f"- {g}")
 
                 # 亮点
                 if result.highlights:
-                    st.subheader("✅ 亮点")
+                    st.subheader("亮点")
                     for h in result.highlights:
                         st.write(f"- {h}")
 
@@ -714,14 +883,54 @@ with tab4:
 
     usage = token_tracker.query_usage(days=range_days)
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("总 token", f"{usage['total_tokens']:,}")
-    col2.metric("调用次数", f"{usage['total_calls']:,}")
-    col3.metric(
-        "平均每次",
-        f"{usage['total_tokens'] / usage['total_calls']:,.0f}"
-        if usage["total_calls"] else "—",
-    )
+    # 区间环比：把窗口对半切成「后半段 vs 前半段」，算真实变化率
+    daily = usage.get("daily") or []
+    half = max(1, len(daily) // 2)
+    recent_tokens = sum(d.get("tokens", 0) for d in daily[half:])
+    earlier_tokens = sum(d.get("tokens", 0) for d in daily[:half])
+    if earlier_tokens:
+        change_pct = (recent_tokens - earlier_tokens) / earlier_tokens * 100
+        delta_dir = "up" if change_pct > 0 else ("dn" if change_pct < 0 else "flat")
+        delta_text = "{:+.1f}%".format(change_pct)
+    else:
+        delta_dir, delta_text = "flat", "无对比数据"
+
+    stat_row([
+        {
+            "label": "总 token",
+            "value": f"{usage['total_tokens']:,}",
+            "unit": f"近 {range_days} 天",
+            "icon_name": "coins",
+            "variant": "accent",
+            "delta": delta_text,
+            "delta_dir": delta_dir,
+            "hint": "后半段 vs 前半段",
+            "spark": [d.get("tokens", 0) for d in daily],
+        },
+        {
+            "label": "调用次数",
+            "value": f"{usage['total_calls']:,}",
+            "unit": "次",
+            "icon_name": "send",
+            "spark": [d.get("calls", 0) for d in daily],
+            "hint": "区间内的 LLM 调用",
+        },
+        {
+            "label": "平均每次",
+            "value": f"{usage['total_tokens'] / usage['total_calls']:,.0f}"
+                     if usage["total_calls"] else "—",
+            "unit": "token / 次",
+            "icon_name": "chart",
+            "hint": "单次调用平均消耗",
+        },
+        {
+            "label": "用量来源",
+            "value": len(usage["by_source"]),
+            "unit": "个",
+            "icon_name": "package",
+            "hint": "按调用来源区分",
+        },
+    ])
 
     if not usage["total_calls"]:
         st.info("这个区间还没有用量记录。跑一次对话或匹配后再来看。")
@@ -774,10 +983,36 @@ with tab5:
     default_id = default_resume["id"] if default_resume else None
 
     if resumes:
+        newest = resumes[0]
+        stat_row([
+            {
+                "label": "简历版本",
+                "value": len(resumes),
+                "unit": "份",
+                "icon_name": "file",
+                "variant": "accent",
+                "hint": "按岗位方向各存一份",
+            },
+            {
+                "label": "当前默认",
+                "value": (default_resume or {}).get("name") or "未设置",
+                "unit": "",
+                "icon_name": "check",
+                "variant": "ok" if default_resume else "warn",
+                "hint": "Agent 取简历时用这一份",
+            },
+            {
+                "label": "最近更新",
+                "value": (newest.get("created_at") or "")[:10] or "—",
+                "unit": "",
+                "icon_name": "clock",
+                "hint": str(newest.get("name") or ""),
+            },
+        ])
         st.dataframe(
             pd.DataFrame([
                 {
-                    "默认": "✅" if r["id"] == default_id else "",
+                    "默认": "是" if r["id"] == default_id else "",
                     "名称": r["name"],
                     "ID": r["id"],
                     "创建时间": r["created_at"],
@@ -791,7 +1026,7 @@ with tab5:
         st.info("还没有简历，用下面的表单新建一份。")
 
     if resumes:
-        st.subheader("📥 下载 PDF")
+        st.subheader("下载 PDF")
         st.caption(
             "每份简历都能导出成 PDF（下载后可直接作为投递附件）。"
             "PDF 在点击下载时才生成，不会拖慢页面。"
@@ -799,13 +1034,22 @@ with tab5:
         for r in resumes:
             pdf_col1, pdf_col2 = st.columns([4, 1])
             with pdf_col1:
-                st.write(
-                    f"**{r['name']}**　`{r['id']}`　{r['created_at']}"
-                    + ("　· 当前默认" if r["id"] == default_id else "")
+                st.markdown(
+                    job_row(
+                        r["name"],
+                        f"{r['id']} | {r['created_at']}",
+                        initials="简",
+                        badge_html=(
+                            status_badge("offer", "默认")
+                            if r["id"] == default_id else ""
+                        ),
+                        accent=r["id"] == default_id,
+                    ),
+                    unsafe_allow_html=True,
                 )
             with pdf_col2:
                 st.download_button(
-                    "📥 下载 PDF",
+                    "下载 PDF",
                     data=lambda rid=r["id"]: _resume_pdf_bytes(rid),
                     file_name=f"{r['name']}_{r['id']}.pdf",
                     mime="application/pdf",
@@ -865,7 +1109,7 @@ with tab5:
 
         col_set, col_confirm, col_del = st.columns([1, 1, 1])
         with col_set:
-            if st.button("✅ 设为默认", key="resume_set_default"):
+            if st.button("设为默认", key="resume_set_default"):
                 if storage.set_default_resume(selected):
                     st.session_state["resume_notice"] = f"已把 {selected} 设为默认简历。"
                 else:
@@ -874,7 +1118,7 @@ with tab5:
         with col_confirm:
             confirm_delete = st.checkbox("确认删除", key="resume_confirm_delete")
         with col_del:
-            if st.button("🗑️ 删除", key="resume_delete", disabled=not confirm_delete):
+            if st.button("删除", key="resume_delete", disabled=not confirm_delete):
                 ok = storage.delete_resume(selected)
                 st.session_state["resume_notice"] = (
                     f"已删除简历 {selected}。" if ok else f"删除失败：找不到简历 {selected}。"
