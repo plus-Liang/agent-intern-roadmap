@@ -15,9 +15,15 @@ from agent.tools_registry import (
     TOOLS,
 )
 from agent import user_profile
+from agent import reminder
 
 
 MAX_TURNS = 6
+
+# check_reminders 的 observation 里最多列几条超期记录。
+# 全列出来会把上下文撑满（用户可能投了几十家），反正最久的排最前，
+# 截断后另外给一句「共 N 条」的说明，需要完整列表时用户可以再问。
+MAX_REMINDER_ITEMS = 20
 
 # 只影响**日志打印**的截断长度：steps 里存的是完整 observation（判定/归档要用原文），
 # 控制台只打个开头，免得刷屏。想看全文直接看 steps / 评估结果 JSON。
@@ -87,6 +93,14 @@ SYSTEM_PROMPT_TEMPLATE = """你是一个求职助手 Agent。你可以调用工�
 用户没要求匹配简历就不要调 match_resume。
 判断标准：如果问题的答案用当前已有信息就能回答，立即给 final_answer。
 
+【跟进提醒（主动报告）】
+- 用户问「我该做什么 / 接下来干什么 / 有什么要跟进的 / 投递有消息吗」这类
+  开放式问题时，**先调用 check_reminders**（默认阈值 7 天），再结合结果给建议；
+- 用户提到具体天数（如「超过 10 天没动静的」）时，把 days 参数传成那个数字；
+- 报告时说清公司、岗位和已经过了多少天，并给出下一步动作
+  （发消息跟进 / 更新状态 / 放弃），不要只念一遍列表；
+- check_reminders 只读数据；真正改状态要用户确认后再调 update_tracking_status。
+
 【上下文】
 - 用户的简历已经在系统中，当用户提到"我的简历"或需要匹配时，
   请使用 match_resume 工具，resume_json 参数填 "current"（系统会自动替换）。
@@ -120,8 +134,34 @@ def _get_preferences_tool():
     return user_profile.get_preferences()
 
 
+def _check_reminders_tool(days: int = 7):
+    """工具 check_reminders：报告「投递超过 N 天还没动静」的记录。
+
+    实现在 agent/reminder.py（Dashboard 的提醒区用的是同一份判定逻辑）。
+    这里只做两件事：兜住异常（提醒查不出来不该让对话挂掉）、
+    把长列表截断到 MAX_REMINDER_ITEMS 条避免 observation 过长。
+    """
+    try:
+        data = reminder.summary(days)
+    except Exception as e:                              # noqa: BLE001
+        return {"error": f"读取投递记录失败：{type(e).__name__}: {e}", "count": 0, "items": []}
+
+    items = data.get("items") or []
+    payload = {
+        "days": data.get("days", days),
+        "count": data.get("count", len(items)),
+        "items": items[:MAX_REMINDER_ITEMS],
+        "text": data.get("text", ""),
+    }
+    if len(items) > MAX_REMINDER_ITEMS:
+        payload["truncated"] = (
+            f"超期记录共 {len(items)} 条，这里只列最久的 {MAX_REMINDER_ITEMS} 条"
+        )
+    return payload
+
+
 def register_profile_tools() -> list:
-    """把 save_preference / get_preferences 注册进工具表，返回本次注册的工具名。
+    """把长期记忆工具与跟进提醒工具注册进工具表，返回本次注册的工具名。
 
     幂等：重复调用不会覆盖（也不会出错）。TOOLS 不存在时安静跳过，
     这样 user_profile 单独被 import 时不会因为缺依赖而报错。
@@ -151,6 +191,17 @@ def register_profile_tools() -> list:
             "description": "读取用户已记住的全部长期偏好（用户问「你记得我什么偏好」时调用）。",
             "parameters": {},
             "func": _get_preferences_tool,
+        },
+        "check_reminders": {
+            "description": (
+                "检查投递跟进提醒：找出状态仍是 applied、且投递时间超过 N 天"
+                "（默认 7 天）没动静的记录。用户问「我该做什么」「有什么要跟进的」"
+                "「投递有消息吗」时优先调用它，报告哪几家公司该去催了。只读，不改任何数据。"
+            ),
+            "parameters": {
+                "days": "超期天数阈值，默认 7（用户说「超过 10 天的」就传 10）",
+            },
+            "func": _check_reminders_tool,
         },
     }
 

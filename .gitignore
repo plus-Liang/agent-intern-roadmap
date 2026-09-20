@@ -15,3 +15,10 @@ agent/scrapers/shixiseng_debug.html
 agent/scrapers/shixiseng_debug_cards.html
 agent/scrapers/shixiseng_result.json
 agent/scrapers/shixiseng_debug_jd/
+
+# 运行期产物：定时抓取日志 / 用户反馈库 / 长期偏好画像。
+# logs/ 整目录已在上面忽略，这里再显式列一遍——去掉 logs/ 那条时它们仍然受保护，
+# 也明确表达「这些文件是运行期数据，不该进版本库」。
+logs/scheduler.log
+logs/feedback.db
+agent/data/user_profile.json

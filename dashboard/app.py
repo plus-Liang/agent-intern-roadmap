@@ -20,6 +20,7 @@ import json5
 import streamlit as st
 import pandas as pd
 from agent import storage
+from agent import reminder
 from agent.tools.job_search import search_jobs
 from agent.tools.job_detail import get_job_detail
 from agent.tools.resume_match import match_resume_to_jd, Resume
@@ -429,6 +430,32 @@ with tab1:
 # ============================================================
 with tab2:
     st.header("投递追踪")
+
+    # ============================================================
+    # ⏰ 跟进提醒区（投递超过 N 天、状态仍停在 applied）
+    # ============================================================
+    # 放在最顶部：用户打开这个 Tab 最该先看到的就是「哪几条该去催了」。
+    # 判定逻辑全部走 agent.reminder，和 Agent 的 check_reminders 工具同一份口径。
+    follow_up_days = reminder.DEFAULT_FOLLOW_UP_DAYS
+    overdue = reminder.check_follow_ups(follow_up_days)
+    if overdue:
+        lines = [reminder.format_reminder(overdue, follow_up_days), "", "可直接跟进的记录："]
+        for item in overdue:
+            lines.append(
+                "- `{company}` | {title}｜投递 {applied_at}（已 {days_elapsed} 天）".format(
+                    company=item["company"] or "（未知公司）",
+                    title=item["title"] or "（未知岗位）",
+                    applied_at=item["applied_at"] or "（无投递时间）",
+                    days_elapsed=item["days_elapsed"],
+                )
+            )
+        st.warning("\n\n".join(lines), icon="⏰")
+        st.caption(
+            f"提醒口径：状态仍是 `applied` 且投递超过 {follow_up_days} 天"
+            "（在「查看时间线」里把状态改成 viewed / interview 后，这条提醒会自动消失）。"
+        )
+    else:
+        st.success(f"✅ 没有超过 {follow_up_days} 天仍未跟进的投递。", icon="✅")
 
     apps = storage.list_applications()
     if not apps:
