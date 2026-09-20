@@ -252,24 +252,19 @@ _CSS = """
    图标 span 只是 Streamlit 的子元素（没有自己的 font-family 声明，靠 emotion 类名给），
    于是被系统字体栈盖掉。
 
-   修法两件事，缺一不可：
-     ① 1.3 用 ``:not()`` 把图标元素排除掉（见下）；
-     ② 这里再显式补回图标字体，且**选择器特异性要压过 1.3**。
-
-   特异性说明（重要，改之前先数一遍）：1.3 的 ``.stApp *`` 是 (0,1,0)；
-   但 Streamlit emotion 给图标 span 的类选择器是 ``.css-xxx`` (0,1,0)，再叠加组件类就是
-   (0,2,0)。所以本规则的选择器都写成「标签 + 多个 :not()」的形式
-   （``span[data-testid="stIconMaterial"]:not(:not(span))`` → (0,3,0)），
-   才能在 1.3 和 emotion 的规则之后稳赢。
-
-   两个渲染路径都要兜住：
-     * 组件图标 —— ``<span data-testid="stIconMaterial">`` （DynamicIcon.js）
-     * Markdown 里的 ``:material_xxx:`` —— 字体写在 span 的内联 style 上，没有
-       !important，照样会被 1.3 的 !important 盖掉，所以一并补回。 */
-.stApp span[data-testid="stIconMaterial"]:not(:not(span)),
-.stApp span:not([data-testid]):not([class]):not([role])[style*="Material Symbols"],
-[class*="material-symbols"] {
-  font-family:'Material Symbols Rounded',var(--sans) !important;
+   ★ 只针对图标元素本身补回字体，**不要**用 :not() 去反选非图标元素：
+   反选法要维护一串「排除哪些 testid」的清单，图标换成别的 testid 就漏，
+   而且选择器一长就容易写错。这里的 ``[class][class][class]`` 是显式把特异性拉到
+   (0,3,0)，用来压过 Streamlit emotion 生成的 ``.css-xxx`` 组件类（(0,2,0)）。
+   本规则只声明 font-family，不碰任何布局属性。 */
+[data-testid="stIconMaterial"][class][class][class],
+[data-testid="stIcon"][class][class][class] {
+  font-family:'Material Symbols Rounded','Material Icons' !important;
+}
+/* Markdown 里的 :material_xxx: 走另一条路：字体写在内联 style 上，没有 !important，
+   会被 1.3 的 !important 盖掉，所以按内联样式值兜一下。 */
+[style*="Material Symbols Rounded"] {
+  font-family:'Material Symbols Rounded','Material Icons' !important;
 }
 
 /* 1.2 去掉默认装饰：顶部工具栏、彩色渐变头、页脚、悬浮标记
@@ -315,7 +310,8 @@ footer { visibility:hidden; height:0; }
    ★ 这里曾经写的是无条件 ``html, body, .stApp, .stApp * , …``，把 Material 图标 span
    一起换成了系统字体，图标名就漏成了字面量（见 1.2a 的说明）。
    现在用 ``:not([data-testid="stIconMaterial"])`` 把图标元素排除在外——
-   注意只排除图标 span 本身，``button`` 等元素保持原样，按钮文案照旧走系统栈。 */
+   注意只排除图标 span 本身，``button`` 等元素保持原样，按钮文案照旧走系统栈。
+   本规则只声明 font-family，不碰任何布局属性。 */
 html, body, .stApp, .stApp *:not([data-testid="stIconMaterial"]),
 [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
 input, textarea, select, button, .stMarkdown, .stDataFrame {
@@ -738,11 +734,18 @@ def inject_styles() -> None:
     必须在 ``st.set_page_config()`` 之后调用——``set_page_config`` 要求是
     第一个 Streamlit 命令。
 
-    用 ``st.html`` 而不是 ``st.markdown(unsafe_allow_html=True)``：
-    当内容只包含 ``<style>`` 时，Streamlit 会把它送进 event container
-    而不是主容器，既不占版面，也不会被 markdown 解析器二次处理。
+    ★ 这里原来写的是 ``st.html("<style>…</style>")``。Streamlit 1.63 的
+    ``st.html`` 会把「只含 <style>」的内容改送到 **event container**，而这条路径
+    在本版本上不落进页面的元素树（实测：同一段 CSS 用 st.markdown 注入时元素树里
+    有对应的 style 节点，用 st.html 注入时一个都没有）。于是整站自定义 CSS 全部失效，
+    表现出来就是「样式改造后布局崩了」：``.stats`` 的
+    ``display:grid / grid-template-columns:repeat(4,…)`` 根本没生效，统计卡片退化成
+    块级元素竖排；``.job-row`` 等自定义类同理。
+
+    改回 ``st.markdown(unsafe_allow_html=True)``：这是唯一被实测确认能把 CSS
+    送进 DOM 的路径，且不改动任何布局属性。
     """
-    st.html("<style>{}</style>".format(_CSS))
+    st.markdown("<style>{}</style>".format(_CSS), unsafe_allow_html=True)
 
 
 # ============================================================
