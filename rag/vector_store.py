@@ -324,6 +324,10 @@ def _cli(argv=None, verbose: bool = True) -> int:
     from rag.splitter import split_jds
 
     argv = list(sys.argv[1:] if argv is None else argv)
+    if "-h" in argv or "--help" in argv:
+        print(_cli.__doc__)
+        return 0
+
     incremental = "--incremental" in argv
     rebuild = "--rebuild" in argv
     run_search_test = "--no-search-test" not in argv
