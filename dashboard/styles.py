@@ -31,9 +31,32 @@
     inject_styles()          # 必须在 set_page_config() 之后、渲染内容之前调用
     stat_row([...])          # 首页/各 Tab 的统计卡片
 
-维护提示
---------
-Streamlit 的内部 class 名会随版本变化，直接用内部 class 名写 CSS 很容易
+维护提示（改 CSS 前先看这三条）
+--------------------------------
+1. **本文件注入的是全局自定义 CSS**。``inject_styles()`` 把 ``_CSS`` 整段塞进
+   页面，作用域是整站，所以任何一条选择器写宽了都会伤到 Streamlit 自己的组件。
+
+2. **禁止覆盖 Streamlit 内置控制按钮**，尤其是左侧导航栏的展开/收起按钮。
+   它们的 testid 是（Streamlit 1.63 实测，不是 ``stSidebarCollapsedControl``）：
+
+   * ``[data-testid="stExpandSidebarButton"]`` —— 侧栏**收起**时的展开箭头，
+     住在 ``[data-testid="stToolbar"]`` 里（就是原来写 ``visibility:hidden``
+     的那个容器）。
+   * ``[data-testid="stSidebarCollapseButton"]`` —— 侧栏**展开**时的收起按钮，
+     住在 ``[data-testid="stSidebarHeader"]`` 里；它内部那个按钮本身还会带上
+     ``[data-testid="stBaseButton-headerNoPadding"]``。
+
+   坑点：``visibility:hidden`` 会被子元素继承。给 ``stToolbar`` 整块写
+   ``visibility:hidden``（哪怕同时写了 ``display:flex``），里面的展开箭头也会
+   一起消失，页面上只剩一片空白——这正是之前「左上角没有箭头」的原因。
+   这两个 testid 只允许**加强**（``visibility:visible`` / ``display:flex``），
+   永远不允许隐藏；通用按钮规则也必须把它们排除在外。
+
+3. **改完必须重启服务**。Streamlit 不会热重载被 import 的模块，
+   ``dashboard/styles.py`` 改动后要重启 ``streamlit run`` 才生效（浏览器刷新
+   或 rerun 都不够）。
+
+另：Streamlit 的内部 class 名会随版本变化，直接用内部 class 名写 CSS 很容易
 被一次升级打断。本模块只对 ``data-testid`` 属性选择器做少量结构性覆盖
 （隐藏菜单/页脚、压缩留白），视觉部分尽量靠 ``.streamlit/config.toml``
 的主题配置 + 自己的 class 承载。
@@ -216,15 +239,42 @@ _CSS = """
 .stApp a:hover { color:var(--a600); }
 
 /* 1.2 去掉默认装饰：顶部工具栏、彩色渐变头、页脚、悬浮标记
-   注意：stToolbar 里放着「收起侧边栏」按钮，不能整块 display:none，
-   否则窗口变窄自动收起侧栏后用户没法再展开；只压掉它的高度即可。 */
+
+   ★★ 这里曾经写着 [data-testid="stToolbar"] { height:0; visibility:hidden }，
+   导致左上角的「展开侧栏」箭头（[data-testid="stExpandSidebarButton"] 就住在
+   stToolbar 内部）被一起隐藏——visibility 是会被子元素继承的，页面上只剩空白。
+   现在只做「不改背景 + 不设 hidden」，绝不再对 stToolbar 用 visibility/display。 */
 #MainMenu { visibility:hidden; }
 footer { visibility:hidden; height:0; }
-[data-testid="stToolbar"] { height:0; right:0; visibility:hidden; }
+[data-testid="stToolbar"] { right:0; background:transparent; }
 [data-testid="stDecoration"] { display:none; }
 [data-testid="stHeader"] { background:transparent; }
 [data-testid="stStatusWidget"] { display:none; }
 [data-testid="stAppDeployButton"] { display:none; }
+
+/* 1.2b ★ Streamlit 侧栏控制按钮白名单 —— 这两个按钮是导航的唯一入口，不能隐藏。
+
+   * stExpandSidebarButton  侧栏收起时的展开箭头（在 stToolbar 里）
+   * stSidebarCollapseButton 侧栏展开时的收起按钮（在 stSidebarHeader 里）
+   * stSidebarCollapsedControl 旧版本 testid，顺手一起兜住，防升级后回退
+   这里只做「加强」（恢复可见 + 撑成 flex），不设置任何颜色/边框，保持原生观感。 */
+[data-testid="stExpandSidebarButton"],
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stExpandSidebarButton"] button,
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stSidebarCollapsedControl"] button {
+  visibility:visible !important;
+  display:flex !important;
+  opacity:1 !important;
+  align-items:center;
+  justify-content:center;
+}
+[data-testid="stToolbar"] [data-testid="stExpandSidebarButton"] svg,
+[data-testid="stSidebarHeader"] [data-testid="stSidebarCollapseButton"] svg {
+  width:16px !important;
+  height:16px !important;
+}
 
 /* 1.3 统一字体为系统栈（覆盖 Streamlit 默认字体） */
 html, body, .stApp, .stApp * ,
@@ -257,11 +307,13 @@ hr, [data-testid="stDivider"] hr { border-color:var(--border); }
 
 /* 1.6 按钮：无阴影、hover 背景微变（设计稿 .btn / .btn.pri / .btn.ghost）
 
-   范围说明：只匹配 stBaseButton-*，并排除两类 Streamlit 自带按钮：
-   * stBaseButton-header      —— 顶部工具栏（含收起侧边栏），改小会难点
+   范围说明：只匹配 stBaseButton-*，并排除三类 Streamlit 自带按钮：
+   * stBaseButton-header        —— 顶部工具栏按钮，改小会难点
+   * stBaseButton-headerNoPadding —— 侧栏「收起」按钮（在 stSidebarHeader 里），
+                                    属于导航控件，必须保留原生观感（见 1.2b）
    * stBaseButton-elementToolbar —— 表格/图表的图标工具条（22px 宽），
                                    一套 32px 最小高度会把图标挤变形 */
-.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-header"]):not([data-testid="stBaseButton-elementToolbar"]),
+.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-header"]):not([data-testid="stBaseButton-headerNoPadding"]):not([data-testid="stBaseButton-elementToolbar"]),
 .stApp [data-testid="stDownloadButton"] button {
   border-radius:var(--r-md) !important;
   box-shadow:none !important;
@@ -273,7 +325,7 @@ hr, [data-testid="stDivider"] hr { border-color:var(--border); }
   min-height:32px !important;
   transition:background .12s ease, border-color .12s ease, color .12s ease;
 }
-.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-header"]):not([data-testid="stBaseButton-elementToolbar"]):hover {
+.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-header"]):not([data-testid="stBaseButton-headerNoPadding"]):not([data-testid="stBaseButton-elementToolbar"]):hover {
   background:var(--g50) !important;
   border-color:var(--g300) !important;
   color:var(--g900) !important;
@@ -294,18 +346,18 @@ hr, [data-testid="stDivider"] hr { border-color:var(--border); }
   border-color:var(--a700) !important;
   color:var(--g0) !important;
 }
-.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-header"]):not([data-testid="stBaseButton-elementToolbar"]):focus-visible {
+.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-header"]):not([data-testid="stBaseButton-headerNoPadding"]):not([data-testid="stBaseButton-elementToolbar"]):focus-visible {
   outline:none !important;
   box-shadow:0 0 0 3px var(--a50) !important;
   border-color:var(--a300) !important;
 }
-.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-header"]):not([data-testid="stBaseButton-elementToolbar"]):disabled,
-.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-header"]):not([data-testid="stBaseButton-elementToolbar"]):disabled:hover {
+.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-header"]):not([data-testid="stBaseButton-headerNoPadding"]):not([data-testid="stBaseButton-elementToolbar"]):disabled,
+.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-header"]):not([data-testid="stBaseButton-headerNoPadding"]):not([data-testid="stBaseButton-elementToolbar"]):disabled:hover {
   opacity:.5 !important; background:var(--g50) !important;
   border-color:var(--g150) !important; color:var(--g400) !important;
 }
-/* 按钮里的图标跟着字色走，尺寸收到 13px */
-.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-elementToolbar"]) svg {
+/* 按钮里的图标跟着字色走，尺寸收到 13px（侧栏收起/展开按钮除外，见 1.2b） */
+.stApp [data-testid^="stBaseButton-"]:not([data-testid="stBaseButton-headerNoPadding"]):not([data-testid="stBaseButton-elementToolbar"]) svg {
   width:13px; height:13px;
 }
 

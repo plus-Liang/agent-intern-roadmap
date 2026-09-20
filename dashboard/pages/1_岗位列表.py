@@ -3,7 +3,9 @@
 搜索岗位，标记「想投 / 不合适」，并把想投的岗位一键加入投递追踪。
 """
 
+import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # 项目根目录引导（多页面模式下每个页面都是独立脚本，必须自己补 sys.path）
@@ -22,6 +24,70 @@ from dashboard.shared import (
     render_dataframe,
     status_badge,
 )
+
+# ============================================================
+# 数据新鲜度
+# ============================================================
+# 搜索结果走的是 mock 平台，看不到「本地到底抓了多少数据」。用户搜一个没抓过的
+# 城市（例如上海）时会得到空列表却不知道为什么，所以在搜索框下面直接读
+# rag/data/cleaned_jd.json，把「这个城市本地有没有数据、数据多旧」讲清楚。
+
+#: 抓取产出的清洗后岗位数据
+CLEANED_JD = ROOT_DIR / "rag" / "data" / "cleaned_jd.json"
+
+#: 超过这么多天就提示数据可能过时
+STALE_DAYS = 7
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def local_jd_stats() -> dict:
+    """本地已抓取数据的城市覆盖情况。
+
+    :return: ``{"counts": {城市: 岗位数}, "mtime": float | None, "total": int}``
+             文件缺失或损坏时返回空统计——这只是辅助提示，不该拦住页面。
+    """
+    try:
+        mtime = CLEANED_JD.stat().st_mtime
+        raw = json.loads(CLEANED_JD.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"counts": {}, "mtime": None, "total": 0}
+
+    records = raw if isinstance(raw, list) else (raw.get("jobs") or [])
+    counts: dict[str, int] = {}
+    for item in records:
+        key = str((item or {}).get("city") or "").strip()
+        if key:
+            counts[key] = counts.get(key, 0) + 1
+    return {"counts": counts, "mtime": mtime, "total": len(records)}
+
+
+def render_freshness(city: str) -> None:
+    """提示输入城市在本地的数据覆盖与新鲜度。城市为空则什么都不显示。"""
+    city = (city or "").strip()
+    if not city:
+        return
+
+    stats = local_jd_stats()
+    count = stats["counts"].get(city, 0)
+
+    if count == 0:
+        st.warning(
+            f"该城市暂无数据（{city}）。"
+            "运行 `python -m agent.scrapers.scheduler --once` 可抓取"
+        )
+        return
+
+    updated = datetime.fromtimestamp(stats["mtime"]) if stats["mtime"] else None
+    stamp = updated.strftime("%Y-%m-%d %H:%M") if updated else "未知"
+    st.caption(f"本地数据：共 {count} 个岗位（数据更新于 {stamp}）")
+
+    if updated and (datetime.now() - updated).days >= STALE_DAYS:
+        st.warning(
+            f"本地数据已 {(datetime.now() - updated).days} 天未更新"
+            f"（超过 {STALE_DAYS} 天），结果可能过时。"
+            "运行 `python -m agent.scrapers.scheduler --once` 可重新抓取"
+        )
+
 
 st.set_page_config(
     page_title="岗位列表 · 求职助手 Dashboard",
@@ -61,6 +127,9 @@ with col3:
                 }
                 for j in jobs
             ]
+
+# 数据新鲜度：搜索前先说明该城市本地有没有数据、数据多旧
+render_freshness(city)
 
 # 展示结果
 jobs = st.session_state.get("jobs", [])
