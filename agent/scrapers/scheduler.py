@@ -47,6 +47,15 @@ from shared.config import DATA_DIR, LOG_DIR, ROOT_DIR        # noqa: E402
 from agent import storage                                    # noqa: E402
 from agent import user_profile                               # noqa: E402
 
+# 归档文件名与 cleaner 共用一份定义：两边各写一个字符串，改了一边忘了另一边，
+# 归档就会分裂成两个文件。cleaner 不是包（rag/quality 没有 __init__.py），
+# 这里用与 _load_cleaner() 相同的方式把它导进来。
+ARCHIVE_FILENAME = "cleaned_jd_archive.json"
+try:                                                         # pragma: no cover
+    from rag.quality.cleaner import ARCHIVE_FILENAME         # noqa: E402
+except ImportError:                                          # rag.quality 无包结构时的兜底
+    pass
+
 # ---------------------------------------------------------------------------
 # 常量与默认配置
 # ---------------------------------------------------------------------------
@@ -64,10 +73,34 @@ DEFAULT_LIMIT_TOTAL = int(os.getenv("SCHEDULER_LIMIT_TOTAL", "100"))
 DEFAULT_MAX_AGE_DAYS = int(os.getenv("SCHEDULER_MAX_AGE_DAYS", "60"))
 DEFAULT_MIN_DESC_LEN = int(os.getenv("SCHEDULER_MIN_DESC_LEN", "200"))
 
-# 一个关键词都没有时的兜底关键词（与项目里实际在用的那组保持一致）
-FALLBACK_KEYWORDS = ["Agent", "大模型", "LLM", "RAG", "智能体"]
+# 一个关键词都没有时的兜底关键词**组**。
+#
+# 为什么是"组"而不是平铺的列表：抓取用的英文词（LLM / RAG / Agent）和中文词
+# （大模型 / 检索增强生成 / 智能体）描述的是同一个概念，但实习僧的搜索是按字面
+# 匹配的——同一个岗位用中文写"检索增强生成"、用英文写"RAG"，必须两个词都搜一遍
+# 才不漏。组内是**同义词**（各自搜一次，结果合并去重），组间是**不同概念**。
+#
+# ⚠️ 诚实说明：这批真实数据里"检索增强生成"出现的 4 条全都同时写了 "RAG"，
+#    所以中文同义词对**当前语料**不产生额外命中。它的价值在于覆盖只写中文的岗位
+#    （下面的同义词增益自测就是拿这种人工样本验证的），而不是修一个现存的 bug。
+DEFAULT_KEYWORDS = [
+    ["Agent", "智能体"],
+    ["大模型", "LLM", "大语言模型"],
+    ["RAG", "检索增强生成"],
+]
+
+# 向后兼容：老代码/老文档引用的平铺列表，由 DEFAULT_KEYWORDS 推导（顺序、去重都固定）
+FALLBACK_KEYWORDS = [word for group in DEFAULT_KEYWORDS for word in group]
+
+# 合并落盘：超过这个天数的记录移进归档文件（口径与 cleaner.DEFAULT_STALE_DAYS 一致）
+DEFAULT_STALE_DAYS = int(os.getenv("SCHEDULER_STALE_DAYS", "90"))
 
 CITY_SPLIT_RE = re.compile(r"[,，、;；/\s]+")
+
+# 关键词组分隔：分号只用来切"组"，逗号用来切"同义词"。
+# 这样环境变量里写 `Agent,智能体;大模型,LLM` 能表达"两组"，
+# 而写 `智能体`（只有一个词）也不会被误当成多组。
+GROUP_SPLIT_RE = re.compile(r"[;；]+")
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
 LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
@@ -158,11 +191,16 @@ def _record_state(result: dict, state_file=None, logger: logging.Logger = None) 
         "last_run": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "ok": bool(result.get("ok")),
         "keywords": result.get("keywords", []),
+        "keyword_groups": result.get("keyword_groups", []),
         "city": result.get("city", ""),
+        "cities": result.get("cities", []),
+        "per_city": result.get("per_city", {}),
         "scraped": result.get("scraped", 0),
         "cleaned": result.get("cleaned", 0),
         "chunks": result.get("chunks", 0),
         "incremental": result.get("incremental", {}),
+        "merge": result.get("merge", {}),
+        "archived": result.get("archived", 0),
         "out_dir": result.get("out_dir", ""),
         "converted": result.get("converted", 0),
         "error": result.get("error", ""),
@@ -194,47 +232,126 @@ def _split_list(value) -> list[str]:
     return out
 
 
+def split_keyword_groups(value) -> list[list[str]]:
+    """把配置里的关键词解析成**组**（组内同义词，组间不同概念）。
+
+    容忍这几种写法（配置来源杂，写错格式不该让定时任务挂掉）：
+        ["Agent", "智能体"]                  -> [["Agent"], ["智能体"]]   每个词自成一组
+        [["Agent", "智能体"], ["RAG"]]       -> 原样保留
+        ["Agent,智能体", "RAG,检索增强生成"]  -> [["Agent","智能体"], ["RAG","检索增强生成"]]
+        "Agent,智能体;RAG,检索增强生成"        -> [["Agent","智能体"], ["RAG","检索增强生成"]]
+        "智能体"                             -> [["智能体"]]
+
+    规则：先用分号切"组"，组内再用 CITY_SPLIT_RE（逗号/顿号/空格）切"同义词"。
+    为什么要支持"列表元素内部再带逗号"：user_profile.json 是手写的，
+    有人会写成 ["Agent,智能体"]，按元素逐个当组的话这两个同义词会被拆成两组，
+    语义上没错（还是都搜），但日志里"同义词"的分组信息就丢了。
+    """
+    if value is None:
+        return []
+
+    # 1) 先把最外层拆成"组"。
+    #    ⚠️ 不能用 [str(v) for v in value]：元素本身可能是 list（嵌套写法
+    #    [["Agent","智能体"],["RAG"]]），str() 会把它变成 "['Agent', '智能体']"
+    #    这种带引号的字符串，再按逗号切就成了 "['Agent'" / "'智能体']"。
+    #    所以嵌套元素直接当"组"原样保留，只对标量元素做字符串切分。
+    raw_groups = []
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            if isinstance(item, (list, tuple, set)):
+                raw_groups.append([str(w) for w in item])
+            else:
+                raw_groups.append(str(item))
+    else:
+        raw_groups = GROUP_SPLIT_RE.split(str(value))
+
+    # 2) 每组再拆同义词，去掉空串并保持"组内去重、组间也去重"
+    groups: list[list[str]] = []
+    seen_words: set[str] = set()
+    for raw in raw_groups:
+        raw_words = raw if isinstance(raw, (list, tuple, set)) else CITY_SPLIT_RE.split(raw or "")
+        words = []
+        for word in raw_words:
+            text = str(word).strip()
+            if text and text not in seen_words:
+                seen_words.add(text)
+                words.append(text)
+        if words:
+            groups.append(words)
+    return groups
+
+
+def flatten_keyword_groups(groups) -> list[str]:
+    """组列表 → 平铺关键词列表（抓取接口要的就是平铺的）。"""
+    out, seen = [], set()
+    for group in groups or []:
+        words = group if isinstance(group, (list, tuple, set)) else [group]
+        for word in words:
+            text = str(word).strip()
+            if text and text not in seen:
+                seen.add(text)
+                out.append(text)
+    return out
+
+
+def _format_keyword_groups(groups) -> str:
+    """组列表 → 日志用的可读文本：`Agent/智能体、大模型/LLM`"""
+    parts = []
+    for group in groups or []:
+        words = [str(w) for w in (group if isinstance(group, (list, tuple, set)) else [group])]
+        if words:
+            parts.append("/".join(words))
+    return "、".join(parts)
+
+
 def resolve_config(profile: dict = None, logger: logging.Logger = None,
                    allow_fallback: bool = True) -> dict:
-    """决定这次抓什么：关键词列表 + 城市。
+    """决定这次抓什么：关键词组 + 城市列表。
 
     优先级：环境变量（SCHEDULER_KEYWORDS / SCHEDULER_CITY）> user_profile.json > 兜底。
 
-    关键词一个都没有时用 FALLBACK_KEYWORDS 兜底并告警——定时任务最怕"静默
+    返回值里同时给两种形状：
+        keyword_groups: [[同义词...], ...]  —— 搜索引擎按"组"记录贡献
+        keywords:       [平铺...]           —— 抓取接口与状态文件沿用，保持向后兼容
+
+    关键词一个都没有时用 DEFAULT_KEYWORDS 兜底并告警——定时任务最怕"静默
     什么都不做"，宁可打日志说清用了兜底关键词。allow_fallback=False（dry-run）
     时不打这条告警也不兜底：那次根本不抓网络，提示"用了兜底关键词"只会误导。
     """
     profile = profile if isinstance(profile, dict) else user_profile.load_profile()
 
-    keywords = _split_list(
+    groups = split_keyword_groups(
         os.getenv("SCHEDULER_KEYWORDS") or os.getenv("SCRAPE_KEYWORDS")
-    ) or _split_list(profile.get("target_keywords"))
-    if not keywords:
+    ) or split_keyword_groups(profile.get("target_keywords"))
+    if not groups:
         if allow_fallback:
-            keywords = list(FALLBACK_KEYWORDS)
+            groups = [list(group) for group in DEFAULT_KEYWORDS]
             if logger:
                 logger.warning(
                     "没配置关键词（SCHEDULER_KEYWORDS / user_profile.target_keywords 都是空），"
-                    "本次用兜底关键词：%s", "、".join(keywords),
+                    "本次用兜底关键词组：%s", _format_keyword_groups(groups),
                 )
+    keywords = flatten_keyword_groups(groups)
 
+    # 城市：**全部**都要抓，不再只取第一个（多城市在这里就展开）
     cities = _split_list(
         os.getenv("SCHEDULER_CITY") or os.getenv("SCRAPE_CITY")
     ) or _split_list(profile.get("target_cities"))
-    city = cities[0] if cities else "广州"
+    if not cities:
+        cities = ["广州"]
     if len(cities) > 1 and logger:
-        logger.info(
-            "配置了多个城市 %s，本次先用第一个「%s」抓取（多城市需要分别跑，后续可拆分）",
-            "、".join(cities), city,
-        )
+        logger.info("配置了 %d 个城市：%s（将逐个城市分别抓取后合并）",
+                    len(cities), "、".join(cities))
 
     return {
+        "keyword_groups": groups,
         "keywords": keywords,
         "cities": cities,
-        "city": city,
+        "city": cities[0],
         "max_pages": DEFAULT_MAX_PAGES,
         "limit_per_keyword": DEFAULT_LIMIT_PER_KEYWORD,
         "limit_total": DEFAULT_LIMIT_TOTAL,
+        "stale_days": DEFAULT_STALE_DAYS,
     }
 
 
@@ -251,6 +368,10 @@ def scrape_jobs(keywords: list[str], city=None, max_pages=DEFAULT_MAX_PAGES,
               search_multi_keywords（async 函数）。两种都能接：
               async 的直接 await，同步返回列表的包一层 coroutine。
     headless 默认 True：定时任务在后台跑，不该弹浏览器窗口。
+
+    逐关键词的命中/零命中明细由抓取器自己打印（[多关键词] 前缀的日志）——
+    它内部就是逐词循环，归属是准的；这里不重复统计，避免造一份口径不同的
+    第二个真相。
     """
     if scraper is None:
         from agent.scrapers.shixiseng import search_multi_keywords as scraper
@@ -270,6 +391,82 @@ def scrape_jobs(keywords: list[str], city=None, max_pages=DEFAULT_MAX_PAGES,
         return result
 
     return asyncio.run(_run())
+
+
+def scrape_all_cities(cities, keywords, max_pages=DEFAULT_MAX_PAGES,
+                      limit_per_keyword=DEFAULT_LIMIT_PER_KEYWORD,
+                      limit_total=DEFAULT_LIMIT_TOTAL,
+                      headless: bool = True, scraper=None,
+                      logger: logging.Logger = None) -> dict:
+    """逐个城市抓取并合并（Task 4：不再只抓第一个城市）。
+
+    为什么每个城市单独调一次抓取，而不是把所有城市塞进一次调用：
+    抓取器只接一个 city 参数，且"广州 20 条 + 深圳 20 条"合并后才 40 条，
+    若共用一个 limit_total，先跑的城市会把预算吃光、后面的城市一条都拿不到。
+    所以每个城市各给一份 limit_total 配额，最后再整体去重。
+
+    返回：
+        {
+          "jobs":       [去重合并后的岗位],
+          "per_city":   {城市: 条数},
+          "failed":     {城市: 错误摘要},   # 单城市失败不拖垮整轮
+          "raw_total":  去重前总条数,
+        }
+    """
+    cities = [c for c in (cities or []) if str(c).strip()]
+    if not cities:
+        # 没有城市 = 不限城市，交给抓取器自己处理（传 None）
+        cities = [None]
+
+    merged: dict[str, object] = {}
+    per_city: dict[str, int] = {}
+    failed: dict[str, str] = {}
+    raw_total = 0
+
+    for city in cities:
+        label = city or "不限"
+        try:
+            jobs = scrape_jobs(
+                keywords, city=city, max_pages=max_pages,
+                limit_per_keyword=limit_per_keyword, limit_total=limit_total,
+                headless=headless, scraper=scraper,
+            ) or []
+        except Exception as exc:                 # noqa: BLE001 - 单城市失败不拖垮整轮
+            failed[label] = f"{type(exc).__name__}: {exc}"
+            per_city[label] = 0
+            if logger:
+                logger.error("[城市 %s] 抓取失败：%s（继续跑其他城市）", label, failed[label])
+            continue
+
+        raw_total += len(jobs)
+        new_in_city = 0
+        for job in jobs:
+            job_dict = _job_to_dict(job)
+            key = (job_dict.get("job_id") or "").strip() or (
+                f"{job_dict.get('company')}|{job_dict.get('title')}|{job_dict.get('url')}"
+            )
+            if key not in merged:
+                merged[key] = job_dict
+                new_in_city += 1
+        per_city[label] = len(jobs)
+
+        if logger:
+            # 每个城市一行：这条日志是"多城市到底有没有都跑到"的唯一凭据
+            logger.info(
+                "[城市 %s] 抓取 %d 条，去重后新增 %d 条（累计 %d 条）",
+                label, len(jobs), new_in_city, len(merged),
+            )
+
+    jobs = list(merged.values())
+    if logger and len([c for c in cities if c]) > 1:
+        logger.info(
+            "多城市汇总：%s → 去重合并 %d 条（去重前 %d 条）%s",
+            "；".join(f"{k}={v}条" for k, v in per_city.items()),
+            len(jobs), raw_total,
+            f"；失败 {failed}" if failed else "",
+        )
+
+    return {"jobs": jobs, "per_city": per_city, "failed": failed, "raw_total": raw_total}
 
 
 def _job_to_dict(job) -> dict:
@@ -376,17 +573,85 @@ def build_chunks(jobs: list[dict], chunk_size: int = 600) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# 落盘（可选）：刷新 RAG 语料
+# 落盘：合并（不是覆盖）
 # ---------------------------------------------------------------------------
-def write_cleaned(jobs: list[dict], out_dir=None) -> Path:
-    """把清洗结果写成 JSON（默认 rag/data/cleaned_jd.json）"""
-    target_dir = Path(out_dir) if out_dir else DATA_DIR
-    target = target_dir / "cleaned_jd.json"
+def _cleaned_path(out_dir=None) -> Path:
+    return (Path(out_dir) if out_dir else DATA_DIR) / "cleaned_jd.json"
+
+
+def _archive_path(out_dir=None) -> Path:
+    return (Path(out_dir) if out_dir else DATA_DIR) / ARCHIVE_FILENAME
+
+
+def merge_jds(existing, new, stale_days=DEFAULT_STALE_DAYS, archive_path=None,
+              today=None) -> dict:
+    """合并新旧岗位（按 job_id 去重 + publish_date 降序 + 过期归档）。
+
+    真正的逻辑在 rag/quality/cleaner.py（那里已经有 _parse_date / save_cleaned，
+    日期口径只有一份）。这里保留一个同名入口是因为 scheduler 的落盘语义需要
+    一个稳定的、可单独测试的函数名，也方便自测直接 from scheduler import merge_jds。
+
+    返回 cleaner.merge_jds 的 dict：{"jobs": [...], "archived": [...], "stats": {...}}
+    """
+    cleaner = _load_cleaner()
+    return cleaner.merge_jds(
+        existing, new,
+        stale_days=stale_days,
+        archive_path=archive_path,
+        today=today,
+    )
+
+
+def merge_and_write_cleaned(jobs: list[dict], out_dir=None,
+                            stale_days=DEFAULT_STALE_DAYS,
+                            today=None) -> dict:
+    """把本次清洗结果**合并**进 cleaned_jd.json（而不是覆盖）。
+
+    这是 Round 8「抓 5 条把 15 条冲成 5 条」的修复点：
+        读现有文件 → 按 job_id 去重合并 → publish_date 降序 →
+        超期记录移入归档文件 → 写回合并后的全量。
+
+    返回：
+        {"path": Path, "archive_path": Path, "stats": {...}}
+        stats 形如 {"existing":15,"new":3,"merged":18,"duplicates":0,"archived":1,"output":17}
+    """
+    target = _cleaned_path(out_dir)
+    archive = _archive_path(out_dir)
+
+    existing = _load_cleaner().load_jobs_if_exists(target)
+    merged = merge_jds(
+        existing, jobs,
+        stale_days=stale_days,
+        archive_path=archive,
+        today=today,
+    )
+    _write_json_list(merged["jobs"], target)
+
+    return {
+        "path": target,
+        "archive_path": archive,
+        "archived_count": len(merged["archived"]),
+        "stats": merged["stats"],
+    }
+
+
+def _write_json_list(jobs: list[dict], target: Path) -> Path:
+    """把岗位列表写成顶层为 list 的 JSON（排版与 cleaner.save_cleaned 一致）"""
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         json.dumps(jobs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     return target
+
+
+def write_cleaned(jobs: list[dict], out_dir=None) -> Path:
+    """把清洗结果写成 JSON（默认 rag/data/cleaned_jd.json）。
+
+    ⚠️ 这是**覆盖**语义，只保留给"显式要求重写整个文件"的调用方。
+    daily_job 用的是 merge_and_write_cleaned（合并语义）——Round 8 的数据丢失
+    就发生在直接调这个函数上。
+    """
+    return _write_json_list(jobs, _cleaned_path(out_dir))
 
 
 def write_rag_text(jobs: list[dict], out_dir=None) -> tuple[Path, int]:
@@ -445,54 +710,99 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
     """
     log = logger or setup_logger()
     config = config or resolve_config(logger=log, allow_fallback=not dry_run)
-    keywords = config.get("keywords") or []
-    city = config.get("city")
+
+    # 关键词组（保留同义词关系用于日志），keywords 是平铺后的抓取参数
+    keyword_groups = config.get("keyword_groups") or []
+    if not keyword_groups:
+        keyword_groups = [[k] for k in (config.get("keywords") or [])]
+    keywords = flatten_keyword_groups(keyword_groups) or (config.get("keywords") or [])
+
+    cities = [c for c in (config.get("cities") or []) if str(c).strip()]
+    if not cities and config.get("city"):
+        cities = [config["city"]]
     started = time.time()
 
     log.info(
-        "===== 定时抓取开始：关键词=%s 城市=%s dry_run=%s =====",
-        "、".join(keywords), city or "不限", dry_run,
+        "===== 定时抓取开始：关键词组=[%s] 城市=%s dry_run=%s =====",
+        _format_keyword_groups(keyword_groups),
+        "、".join(cities) if cities else "不限",
+        dry_run,
     )
 
     result = {
         "ok": False,
         "keywords": keywords,
-        "city": city or "",
+        "keyword_groups": keyword_groups,
+        "city": "、".join(cities),
+        "cities": cities,
+        "per_city": {},
         "scraped": 0,
         "cleaned": 0,
         "chunks": 0,
         "incremental": {"added": 0, "updated": 0, "skipped": 0},
         "out_dir": str(out_dir) if out_dir else "",
         "converted": 0,
+        "merge": {},
+        "archived": 0,
         "error": "",
     }
 
     try:
-        # 1) 抓取
+        # 1) 抓取：遍历所有目标城市，每个城市独立抓取后去重合并
         if dry_run:
             jobs = []
             log.info("[1/4] dry-run：跳过真实抓取（不访问实习僧）")
         else:
-            jobs = scrape_jobs(
+            merged_scrape = scrape_all_cities(
+                cities,
                 keywords,
-                city=city,
                 max_pages=config.get("max_pages", DEFAULT_MAX_PAGES),
                 limit_per_keyword=config.get("limit_per_keyword", DEFAULT_LIMIT_PER_KEYWORD),
                 limit_total=config.get("limit_total", DEFAULT_LIMIT_TOTAL),
                 headless=headless,
                 scraper=scraper,
+                logger=log,
             )
-            log.info("[1/4] 抓取完成：%d 条", len(jobs))
+            jobs = merged_scrape["jobs"]
+            result["per_city"] = merged_scrape["per_city"]
+            log.info("[1/4] 抓取完成：%d 个城市 → 去重合并 %d 条",
+                     len(merged_scrape["per_city"]), len(jobs))
         result["scraped"] = len(jobs)
 
         # 2) 清洗
-        cleaned = clean_jobs(
-            jobs,
-            city=city or "广州",
-            max_age_days=config.get("max_age_days", DEFAULT_MAX_AGE_DAYS),
-            min_desc_len=config.get("min_desc_len", DEFAULT_MIN_DESC_LEN),
-        )
-        kept = cleaned.get("jobs", [])
+        #    多城市时 max_age_days 的基准仍是"今天"，与城市无关；
+        #    城市过滤仍按单城市口径（全国岗位在每个城市的抓取结果里都保留，
+        #    最后靠 merged 的 job_id 去重收敛成一条），所以这里传 city_hint：
+        #    cities 里有几个城市就逐个清洗再合并，避免"只按第一个城市过滤"
+        #    把第二个城市的岗位整批判成城市不符而丢掉。
+        if len(cities) > 1 and jobs:
+            kept, total_input, removed_sum = [], 0, {r: 0 for r in ("relevance", "city", "age", "length")}
+            for city in cities:
+                one = clean_jobs(
+                    jobs,
+                    city=city,
+                    max_age_days=config.get("max_age_days", DEFAULT_MAX_AGE_DAYS),
+                    min_desc_len=config.get("min_desc_len", DEFAULT_MIN_DESC_LEN),
+                )
+                total_input += one.get("total_input", 0)
+                for key, value in (one.get("removed") or {}).items():
+                    removed_sum[key] = removed_sum.get(key, 0) + value
+                kept.extend(one.get("jobs", []))
+                log.info("[2/4][城市 %s] 清洗：输入 %d → 保留 %d",
+                         city, one.get("total_input", 0), len(one.get("jobs", [])))
+            cleaned = {
+                "total_input": len(jobs),
+                "removed": removed_sum,
+                "jobs": kept,
+            }
+        else:
+            cleaned = clean_jobs(
+                jobs,
+                city=(cities[0] if cities else "广州"),
+                max_age_days=config.get("max_age_days", DEFAULT_MAX_AGE_DAYS),
+                min_desc_len=config.get("min_desc_len", DEFAULT_MIN_DESC_LEN),
+            )
+            kept = cleaned.get("jobs", [])
         result["cleaned"] = len(kept)
         removed = cleaned.get("removed", {})
         log.info(
@@ -521,14 +831,35 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
             stats.get("added", 0), stats.get("updated", 0), stats.get("skipped", 0),
         )
 
-        # 5) 落盘：刷新 cleaned_jd.json 与 RAG 语料文本
+        # 5) 落盘：**合并**进 cleaned_jd.json（不是覆盖），再按合并后的全量刷新语料文本
         if dry_run:
             log.info("[落盘] dry-run：跳过写文件（cleaned_jd.json / scraped_jd.txt 保持原样）")
         else:
-            json_path = write_cleaned(kept, out_dir)
-            txt_path, count = write_rag_text(kept, out_dir)
+            merged_result = merge_and_write_cleaned(
+                kept, out_dir,
+                stale_days=config.get("stale_days", DEFAULT_STALE_DAYS),
+            )
+            final_jobs = _load_cleaner().load_jobs_if_exists(merged_result["path"])
+
+            # 语料文本必须用**合并后的全量**：只用本次的 kept 写，
+            # 等于在 txt 上又做了一次覆盖，新岗位能搜到、老岗位反而搜不到了。
+            txt_path, count = write_rag_text(final_jobs, out_dir)
             result["converted"] = count
-            log.info("[落盘] 已写入 %s 与 %s（%d 条）", json_path, txt_path, count)
+            result["merge"] = merged_result["stats"]
+            result["archived"] = merged_result["archived_count"]
+            log.info(
+                "[落盘] 合并写入 %s：原有 %d + 本次 %d → %d 条"
+                "（重复 %d，超%d天归档 %d 条 → %s）",
+                merged_result["path"],
+                merged_result["stats"].get("existing", 0),
+                merged_result["stats"].get("new", 0),
+                merged_result["stats"].get("output", 0),
+                merged_result["stats"].get("duplicates", 0),
+                config.get("stale_days", DEFAULT_STALE_DAYS),
+                merged_result["archived_count"],
+                merged_result["archive_path"],
+            )
+            log.info("[落盘] 已刷新 RAG 语料 %s（合并后全量 %d 条）", txt_path, count)
 
         result["ok"] = True
     except Exception as exc:                     # noqa: BLE001 - 定时任务必须活下来
@@ -562,17 +893,28 @@ def format_status(state: dict = None, state_file=None) -> str:
                 "先跑一次：python -m agent.scrapers.scheduler --once")
 
     inc = state.get("incremental") or {}
+    merge = state.get("merge") or {}
+    per_city = state.get("per_city") or {}
+    city_text = "、".join(state.get("cities") or []) or state.get("city") or "（不限）"
     lines = [
         f"上次运行时间：{state.get('last_run') or '（未知）'}",
         f"结果：{'✅ 成功' if state.get('ok') else '❌ 失败'}"
         + (f"　错误：{state['error']}" if state.get("error") else ""),
         f"关键词：{'、'.join(state.get('keywords') or []) or '（未记录）'}",
-        f"城市：{state.get('city') or '（不限）'}",
+        f"城市：{city_text}",
         f"抓取：{state.get('scraped', 0)} 条　清洗后：{state.get('cleaned', 0)} 条　"
         f"chunk：{state.get('chunks', 0)} 个",
         f"增量入库：新增 {inc.get('added', 0)}，更新 {inc.get('updated', 0)}，"
         f"跳过 {inc.get('skipped', 0)}",
     ]
+    if per_city:
+        lines.append("分城市：" + "　".join(f"{k} {v} 条" for k, v in per_city.items()))
+    if merge:
+        lines.append(
+            f"落盘合并：原有 {merge.get('existing', 0)} + 本次 {merge.get('new', 0)} "
+            f"→ {merge.get('output', 0)} 条（重复 {merge.get('duplicates', 0)}，"
+            f"归档 {state.get('archived', 0)} 条）"
+        )
     if state.get("out_dir"):
         lines.append(f"输出目录：{state['out_dir']}")
     lines.append(f"状态文件：{_state_path(state_file)}")
@@ -678,7 +1020,10 @@ def _make_workdir(prefix: str) -> Path:
 def _selftest() -> int:
     """不需要网络、不碰真实库的自测：
 
-    - 关键词解析（环境变量 / 画像 / 兜底）
+    - 关键词**组**解析（环境变量 / 画像 / 兜底 / 多种写法）
+    - merge_jds 合并落盘（去重、降序、90 天归档）三个场景
+    - 真跑一次「15 条已有 + 3 条新抓」确认落盘是合并不是覆盖
+    - 多城市抓取（遍历所有城市并合并）
     - run_daily_job 全链路（用假 scraper；embedding 被替换成确定性假向量）
     - 状态文件写入 + format_status 渲染
     全程只用自己的临时目录，不写 logs/、不写 rag/data/、不动 chroma_db/。
@@ -856,6 +1201,120 @@ def _selftest() -> int:
 
             check("8. 真实 chroma_db/ 未被写入", _real_db_untouched)
 
+        # ---- 3. 关键词组解析（Round 9 任务 2）----
+        def _groups_ok():
+            cases = [
+                (DEFAULT_KEYWORDS, DEFAULT_KEYWORDS),
+                ("Agent,智能体;RAG,检索增强生成",
+                 [["Agent", "智能体"], ["RAG", "检索增强生成"]]),
+                (["Agent,智能体", "RAG"], [["Agent", "智能体"], ["RAG"]]),
+                ([["Agent", "智能体"], ["RAG"]], [["Agent", "智能体"], ["RAG"]]),
+                (["Agent", "智能体"], [["Agent"], ["智能体"]]),
+                ("智能体", [["智能体"]]),
+                (None, []),
+            ]
+            bad = [f"{v!r} → {split_keyword_groups(v)}" for v, want in cases
+                   if split_keyword_groups(v) != want]
+            if bad:
+                raise AssertionError("解析错误：" + "；".join(bad))
+            return f"{len(cases)} 种写法 OK，平铺 {len(flatten_keyword_groups(DEFAULT_KEYWORDS))} 个词"
+
+        check("9. 关键词组解析（含嵌套/分号/单值写法）", _groups_ok)
+
+        # ---- 4. merge_jds 合并落盘（Round 9 任务 1）----
+        # 用独立于 fake_jobs 的合成数据，避免和上面的城市/正文长度规则纠缠
+        def _mk_merge_job(job_id, days_ago):
+            return {
+                "platform": "merge_test", "job_id": job_id, "title": f"岗位{job_id}",
+                "company": "合并测试公司", "city": "广州", "salary": "200-300/天",
+                "url": f"https://example.com/{job_id}",
+                "publish_date": (date.today() - timedelta(days=days_ago)).strftime("%Y-%m-%d"),
+                "description": "【岗位职责】参与 Agent 与 RAG 开发。" * 12,
+            }
+
+        merge_existing = [_mk_merge_job(f"m_ex_{i}", i) for i in range(15)]
+
+        def _merge_18():
+            got = len(merge_jds(merge_existing, [
+                _mk_merge_job("m_new_1", 0), _mk_merge_job("m_new_2", 1),
+                _mk_merge_job("m_new_3", 2),
+            ])["jobs"])
+            if got != 18:
+                raise AssertionError(f"15+3 应为 18，实际 {got}")
+            return "15 + 3（不同 id）→ 18 条"
+
+        def _merge_dup_15():
+            got = merge_jds(merge_existing, list(merge_existing))
+            if len(got["jobs"]) != 15 or got["stats"]["duplicates"] != 15:
+                raise AssertionError(f"15+15 重复应为 15：{got['stats']}")
+            return f"15 + 15（完全重复）→ 15 条，识别重复 {got['stats']['duplicates']}"
+
+        def _merge_stale_17():
+            got = merge_jds(merge_existing, [
+                _mk_merge_job("m_new_1", 0), _mk_merge_job("m_new_2", 1),
+                _mk_merge_job("m_stale_91", 91),
+            ])
+            if len(got["jobs"]) != 17 or len(got["archived"]) != 1:
+                raise AssertionError(f"含 91 天前应为 17+归档1：{got['stats']}")
+            if got["archived"][0]["job_id"] != "m_stale_91":
+                raise AssertionError("归档的不是那条 91 天前的记录")
+            return "15 + 3（含 1 条 91 天前）→ 17 条，归档 1 条"
+
+        def _merge_sorted():
+            dates = [j["publish_date"] for j in merge_jds(
+                merge_existing, [_mk_merge_job("m_new_1", 0)])["jobs"]]
+            if dates != sorted(dates, reverse=True):
+                raise AssertionError(f"未按 publish_date 降序：{dates}")
+            return f"降序 OK（{dates[0]} → {dates[-1]}）"
+
+        check("10. merge_jds：15+3 → 18", _merge_18)
+        check("11. merge_jds：15+15 完全重复 → 15", _merge_dup_15)
+        check("12. merge_jds：15+3 含 91 天前 → 17 + 归档 1", _merge_stale_17)
+        check("13. merge_jds：publish_date 降序", _merge_sorted)
+
+        # ---- 5. 落盘是「合并」不是「覆盖」（Round 8 的真实事故）----
+        def _merge_write_not_overwrite():
+            merge_dir = work / "merge_out"
+            merge_dir.mkdir(parents=True, exist_ok=True)
+            # 先放 15 条（模拟库里已有数据）
+            merge_and_write_cleaned(merge_existing, out_dir=merge_dir)
+            before_n = len(json.loads((merge_dir / "cleaned_jd.json").read_text(encoding="utf-8")))
+            # 再合并 3 条新岗位
+            res = merge_and_write_cleaned(
+                [_mk_merge_job("m_brand_1", 0), _mk_merge_job("m_brand_2", 1),
+                 _mk_merge_job("m_brand_3", 2)],
+                out_dir=merge_dir,
+            )
+            after = json.loads((merge_dir / "cleaned_jd.json").read_text(encoding="utf-8"))
+            if before_n != 15 or len(after) != 18:
+                raise AssertionError(
+                    f"落盘应 15 → 18（不是覆盖成 3），实际 {before_n} → {len(after)}；stats={res['stats']}"
+                )
+            return f"已有 15 + 新抓 3 → 落盘 {len(after)} 条（旧数据未被冲掉）"
+
+        check("14. 落盘合并（不再覆盖）：15 + 3 → 18 条", _merge_write_not_overwrite)
+
+        # ---- 6. 多城市抓取（Round 9 任务 4）----
+        def _multi_city():
+            calls = []
+
+            def fake_by_city(keywords, city=None, **kwargs):
+                calls.append(city)
+                if city == "广州":
+                    return [_mk_merge_job("gz_1", 0)]
+                if city == "深圳":
+                    return [_mk_merge_job("sz_1", 0)]
+                return []
+
+            res = scrape_all_cities(["广州", "深圳"], ["Agent"], scraper=fake_by_city)
+            if calls != ["广州", "深圳"]:
+                raise AssertionError(f"应逐个城市调用，实际 {calls}")
+            if res["per_city"] != {"广州": 1, "深圳": 1} or len(res["jobs"]) != 2:
+                raise AssertionError(f"多城市结果不对：{res['per_city']} / {len(res['jobs'])}")
+            return f"两城市都抓到（{res['per_city']}），合并 {len(res['jobs'])} 条"
+
+        check("15. 多城市抓取：广州 + 深圳都跑", _multi_city)
+
         if all(checks) and checks:
             shutil.rmtree(work, ignore_errors=True)
             print(f"\n临时目录已清理：{work}")
@@ -886,8 +1345,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--time", default=DEFAULT_RUN_TIME,
                         help=f"--daily 的运行时刻 HH:MM（默认 {DEFAULT_RUN_TIME}）")
     parser.add_argument("--keywords", default="",
-                        help="逗号分隔的关键词，覆盖画像/环境变量（默认读画像）")
-    parser.add_argument("--city", default="", help="城市，覆盖画像/环境变量")
+                        help="关键词组，逗号分隔同义词、分号分隔组，如 "
+                             "\"Agent,智能体;RAG,检索增强生成\"（覆盖画像/环境变量，默认读画像）")
+    parser.add_argument("--city", default="",
+                        help="城市，逗号分隔可传多个（如 \"广州,深圳\"），逐个抓取后合并")
     parser.add_argument("--out-dir", default="",
                         help="落盘目录（默认 rag/data/，测试请指向临时目录）")
     parser.add_argument("--state-file", default="",
@@ -926,10 +1387,13 @@ def main(argv=None) -> int:
 
     config = resolve_config(logger=logger, allow_fallback=not args.dry_run)
     if args.keywords:
-        config["keywords"] = _split_list(args.keywords)
+        # 用组分隔符解析：`--keywords "Agent,智能体;RAG,检索增强生成"` 得到两组，
+        # `--keywords 智能体` 得到一组一个词。两种写法都保持"同义词归组"的信息。
+        config["keyword_groups"] = split_keyword_groups(args.keywords)
+        config["keywords"] = flatten_keyword_groups(config["keyword_groups"])
     if args.city:
         config["city"] = args.city
-        config["cities"] = [args.city]
+        config["cities"] = _split_list(args.city)
     config["max_pages"] = args.max_pages
     config["limit_per_keyword"] = args.limit_per_keyword
     config["limit_total"] = args.limit_total

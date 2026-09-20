@@ -7,7 +7,8 @@
     platform / job_id / title / company / city / salary / url / publish_date / description
 
 依次应用四道过滤（命中即计数并丢弃，一条只计一次，按下列顺序判定）：
-    a) relevance 相关性：标题或正文含 Agent / LLM / 大模型 / RAG / 智能体
+    a) relevance 相关性：标题或正文含 Agent / LLM / 大模型 / RAG / 智能体 /
+       大语言模型 / 检索增强生成
        —— 单独出现 "AI" 不作为命中（太宽泛）；
           只有"标题含 AI"且"正文含上述关键词"才算命中
     b) city      城市：city == 目标城市 或 city == "全国"
@@ -36,6 +37,16 @@ DEFAULT_OUTPUT = RAG_DIR / "data" / "cleaned_jd.json"
 # 时间过滤默认值：60 天
 DEFAULT_MAX_AGE_DAYS = 60
 
+# 合并落盘的"过期归档"阈值：超过这个天数的记录从主文件移进归档文件。
+# 为什么比 max_age_days(60) 宽：60 天是"这次抓到的岗位值不值得入库"的准入门槛，
+# 而 90 天是"已经在库里的老记录什么时候该退场"。两者口径不同，
+# 合并时若沿用 60 天，会把上一次刚通过清洗、这次没被抓到的岗位顺手删掉——
+# 这正是"覆盖式落盘"之外的另一条丢数据路径。所以特意留宽一档。
+DEFAULT_STALE_DAYS = 90
+
+# 过期记录的归档文件名（与 cleaned_jd.json 同目录）
+ARCHIVE_FILENAME = "cleaned_jd_archive.json"
+
 # 正文长度默认值
 DEFAULT_MIN_DESC_LEN = 200
 
@@ -46,7 +57,14 @@ DEFAULT_MIN_DESC_LEN = 200
 #   泛 AI 岗位命中率太高，会让 clean_jobs 失去筛选意义
 # - 也不再收录 "AI Agent" / "AI 大模型" 这类带 "AI" 的中文例外：它们本身就分别包含
 #   "agent" / "大模型"，已经被关键词覆盖，单列出来只会让规则看起来比实际更宽
-RELEVANCE_KEYWORDS_ZH = ("大模型", "智能体")
+#
+# ⚠️ 中文同义词必须与 agent/scrapers/scheduler.py 的 DEFAULT_KEYWORDS **组内容一致**。
+#    原因：scheduler 用中文词去搜（比如"检索增强生成"），搜回来的岗位还要过这里
+#    这道相关性过滤；如果这里不认这个词，岗位会在**入库前**被当"不相关"丢掉，
+#    搜索结果里自然永远是 0 条——抓取端加了同义词、过滤端不认，等于白加。
+#    英文靠子串匹配本来就覆盖得比较宽（"rag" 能命中 "RAG"），中文才是漏得多的那侧：
+#    只写"检索增强生成"而不写 "RAG" 的岗位，之前会被整条丢掉。
+RELEVANCE_KEYWORDS_ZH = ("大模型", "智能体", "大语言模型", "检索增强生成")
 RELEVANCE_KEYWORDS_EN = ("agent", "llm", "rag")
 
 # 标题侧标记："标题含 AI" 是识别 AI 类岗位的唯一线索，但必须配合正文关键词才放行
@@ -93,7 +111,8 @@ def _hits_keyword(text):
 def _is_relevant(title, description):
     """相关性判定（收窄后）。
 
-    1) 标题或正文命中关键词（Agent / LLM / 大模型 / RAG / 智能体）→ 保留；
+    1) 标题或正文命中关键词（Agent / LLM / 大模型 / RAG / 智能体 /
+       大语言模型 / 检索增强生成）→ 保留；
     2) 标题含 "AI" 且正文命中关键词 → 保留；
     3) 只是标题或正文出现 "AI"（如 "AI原画" / "AI产品经理"）→ 不算命中。
 
@@ -235,7 +254,7 @@ def _print_summary(result):
     print("-" * 60)
     print("按过滤原因移除：")
     labels = {
-        "relevance": "相关性（标题/正文无 Agent/LLM/大模型/RAG/智能体，且非「标题含 AI + 正文命中」）",
+        "relevance": "相关性（标题/正文无 Agent/LLM/大模型/RAG/智能体/大语言模型/检索增强生成，且非「标题含 AI + 正文命中」）",
         "city": "城市（非目标城市且非全国）",
         "age": "时间（publish_date 超出天数上限）",
         "length": "正文长度（description 太短）",
@@ -255,6 +274,157 @@ def _print_summary(result):
         ))
     if not result["jobs"]:
         print("  （无）")
+
+
+def load_jobs_if_exists(path) -> list[dict]:
+    """读 JSON 岗位文件；**文件不存在 / 坏了都返回 []**，不抛异常。
+
+    与 load_jobs 的区别：那个是 CLI 入口，输入路径是用户指定的，读不到就该报错；
+    这个是「合并落盘」的前置读——首次运行时文件还不存在是**正常情况**，
+    不该让定时任务因此失败。
+    """
+    target = Path(path)
+    if not target.is_file():
+        return []
+    try:
+        return load_jobs(target)
+    except (OSError, ValueError):
+        return []
+
+
+def _job_identity(job: dict) -> str:
+    """去重键：优先 job_id（平台内唯一），没有就用「平台|公司|岗位|链接」兜底。
+
+    job_id 应该是主键，但自测/手工数据里可能是空的；全用空串当键会把这些
+    互不相同的岗位错误地合并成一条，所以退到内容签名。
+    """
+    job_id = _job_field(job, "job_id").strip()
+    if job_id:
+        return f"id:{job_id}"
+    return "sig:" + "|".join((
+        _job_field(job, "platform").strip(),
+        _job_field(job, "company").strip(),
+        _job_field(job, "title").strip(),
+        _job_field(job, "url").strip(),
+    ))
+
+
+def _job_sort_key(job: dict):
+    """排序键：publish_date 降序，日期为空的排最后。
+
+    返回 (1, date) / (0, date.min)：配合 reverse=True 让有日期的排在前面，
+    且日期新的更靠前；日期为空的统一沉底（date.min 保证空日期之间不炸）。
+    """
+    parsed = _parse_date(job.get("publish_date"))
+    return (parsed is not None, parsed or date.min)
+
+
+def _is_stale(publish_date, today, stale_days) -> bool:
+    """是否已过期到该归档：距今**严格大于** stale_days 天。
+
+    publish_date 为空/解析失败 -> False（不参与归档，保守保留）。
+    未来日期按绝对天数差判断，与 _is_fresh 口径一致。
+    """
+    parsed = _parse_date(publish_date)
+    if parsed is None:
+        return False
+    return abs((today - parsed).days) > stale_days
+
+
+def merge_jds(existing, new, stale_days: int = DEFAULT_STALE_DAYS,
+              archive_path=None, today: date | None = None) -> dict:
+    """把「库里已有的」和「这次新抓的」按 job_id 去重合并，并归档过期记录。
+
+    修的是什么：daily_job 原来直接 write_text 覆盖 cleaned_jd.json，
+    抓 5 条就把原来 15 条冲成 5 条。落盘必须是**合并**而不是覆盖。
+
+    规则（按顺序）：
+        1. 去重：同 job_id 只留一条；**新数据覆盖旧数据**（新抓的更完整、更新；
+           岗位描述被修改时也应当以最新一次抓取为准）；
+        2. 排序：publish_date 降序，日期为空的排最后；
+        3. 归档：距今 > stale_days 天的记录从结果里移除并放进 archived；
+           归档**不是丢弃**——archive_path 给了就追加写进归档文件。
+
+    参数：
+        existing:     现有记录（list[dict]；None/空都行）
+        new:          本次新抓的记录（list[dict]）
+        stale_days:   过期阈值，默认 90 天
+        archive_path: 归档文件路径；None 表示只返回 archived 不落盘
+        today:        基准日期，默认系统当天（测试可显式传入）
+
+    返回：dict（**不是 list**）
+        {
+          "jobs":     [合并+排序+去过期后的记录],
+          "archived": [本次被移出主列表的过期记录],
+          "stats":    {"existing": X, "new": Y, "merged": Z,
+                       "duplicates": D, "archived": A, "output": Z-A},
+        }
+
+    为什么返回 dict 而不是 list：归档必须把过期记录**交出去**，调用方才写得了
+    归档文件。只返回 list 的话，"移除"和"静默丢弃"在调用方看来没有区别。
+    """
+    if today is None:
+        today = date.today()
+
+    existing = [j for j in (existing or []) if isinstance(j, dict)]
+    new = [j for j in (new or []) if isinstance(j, dict)]
+
+    # 1) 去重合并：先放旧的，新的同键覆盖（后写覆盖先写）
+    merged: dict[str, dict] = {}
+    duplicates = 0
+    for job in existing:
+        key = _job_identity(job)
+        if key in merged:
+            duplicates += 1
+        merged[key] = job
+    for job in new:
+        key = _job_identity(job)
+        if key in merged:
+            duplicates += 1
+        merged[key] = job
+
+    records = list(merged.values())
+
+    # 2) 排序：publish_date 降序，空日期垫底
+    records.sort(key=_job_sort_key, reverse=True)
+
+    # 3) 归档：过期的移出主列表
+    kept, archived = [], []
+    for job in records:
+        if _is_stale(job.get("publish_date"), today, stale_days):
+            archived.append(job)
+        else:
+            kept.append(job)
+
+    if archived and archive_path is not None:
+        # 追加归档：先读回已有归档再合并，避免第二次运行把第一次的归档冲掉
+        # （同一个"覆盖丢数据"的坑，不该在归档文件上再踩一次）。
+        previously = load_jobs_if_exists(archive_path)
+        save_cleaned(merge_archived_records(previously, archived), archive_path)
+
+    return {
+        "jobs": kept,
+        "archived": archived,
+        "stats": {
+            "existing": len(existing),
+            "new": len(new),
+            "merged": len(records),
+            "duplicates": duplicates,
+            "archived": len(archived),
+            "output": len(kept),
+        },
+    }
+
+
+def merge_archived_records(existing_archive, new_archive) -> list[dict]:
+    """归档文件内部的合并去重（同 job_id 以新归档为准），按日期降序。"""
+    merged: dict[str, dict] = {}
+    for job in list(existing_archive or []) + list(new_archive or []):
+        if isinstance(job, dict):
+            merged[_job_identity(job)] = job
+    records = list(merged.values())
+    records.sort(key=_job_sort_key, reverse=True)
+    return records
 
 
 def save_cleaned(jobs, path) -> Path:

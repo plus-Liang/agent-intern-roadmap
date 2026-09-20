@@ -284,6 +284,60 @@ def add_chunks_incremental(chunks: list[dict], collection=None) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# 孤儿清理（保险用：当前不自动调用）
+# ---------------------------------------------------------------------------
+# 一次 delete 的批量大小：Chroma 对超大 ids 列表会变慢，分批更稳，
+# 也避免某些后端对单次请求的 ids 数量有限制。
+ORPHAN_DELETE_BATCH = 500
+
+
+def cleanup_orphans(collection, valid_ids) -> int:
+    """删除 collection 里**不在** valid_ids 中的 id（孤儿），返回清理条数。
+
+    孤儿怎么来的：chunk id 由「公司|岗位|chunk_index」决定（见 make_chunk_id），
+    公司名/岗位名被修正、或 chunk 切分位置整体变化时，旧 id 就没人再引用，
+    留在库里会被检索召回，和新数据重复。
+
+    参数：
+        collection: Chroma 集合（测试可注入临时集合）
+        valid_ids:  当前仍然有效的 id 集合（list / set / tuple 都行）
+
+    返回：实际删除的条数。
+
+    两个刻意的保守取舍（写清楚免得被误用）：
+    1) valid_ids 传空（None / [] / set()）时**直接返回 0，不删任何东西**。
+       空集合在语义上等于「没有有效 id」，照字面执行就会清空整个库——
+       一次失误的调用代价太大，这里选择什么都不做，由调用方自己确认。
+    2) valid_ids 会被字符串化后比较：Chroma 读回来的 id 一定是 str，
+       调用方若传了 int/其他类型，不做归一化就会把有效 id 全判成孤儿。
+    """
+    valid = {str(v) for v in (valid_ids or [])}
+    if not valid:
+        print("cleanup_orphans：valid_ids 为空，按保守策略不删除任何数据")
+        return 0
+
+    if collection is None:
+        collection = get_collection()
+
+    existing = collection.get()
+    all_ids = [str(i) for i in existing.get("ids", [])]
+    orphans = [i for i in all_ids if i not in valid]
+    if not orphans:
+        print(f"cleanup_orphans：无孤儿（库内 {len(all_ids)} 条全部有效）")
+        return 0
+
+    deleted = 0
+    for start in range(0, len(orphans), ORPHAN_DELETE_BATCH):
+        batch = orphans[start:start + ORPHAN_DELETE_BATCH]
+        collection.delete(ids=batch)
+        deleted += len(batch)
+
+    print(f"cleanup_orphans：库内 {len(all_ids)} 条，有效 {len(valid)} 条，"
+          f"删除孤儿 {deleted} 条")
+    return deleted
+
+
+# ---------------------------------------------------------------------------
 # 检索
 # ---------------------------------------------------------------------------
 def search(query: str, top_k: int = 5) -> list[dict]:

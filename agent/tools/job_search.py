@@ -40,7 +40,7 @@ class Job:
 def search_jobs(
     keyword: str,
     city: Optional[str] = None,
-    limit: int = 10,
+    limit: int = 50,
     platform: str = "mock",
 ) -> list[Job]:
     """
@@ -50,7 +50,7 @@ def search_jobs(
         keyword: 搜索关键词，如 "Agent 开发"。大小写不敏感；
                  含空格时按多个词处理，要求全部命中 title 或 description。
         city: 城市过滤，如 "广州"，None/"" 表示不限
-        limit: 返回数量上限
+        limit: 返回数量上限（默认 50；传 0 表示不限，返回全部命中）
         platform: "mock"（本地真实数据，读不到时回退硬编码 mock）；
                   别名 "agent" 等价于 "mock"；"shixiseng" 为在线抓取（待实现）
 
@@ -135,6 +135,24 @@ def _match_city(job: Job, city: Optional[str]) -> bool:
     return target == actual or target in actual or actual in target
 
 
+def _apply_limit(results: list[Job], limit: int, keyword: str = "") -> list[Job]:
+    """按 limit 截断：limit > 0 取前 limit 条；limit <= 0 表示不限。
+
+    为什么单独抽出来：原来两处都是 results[:limit]，limit=0 时返回的**不是**
+    「全部」而是空列表（[:0] == []），调用方想「不限」反而一条都拿不到。
+    另外 limit<=0 且命中为空时打一行 stderr：这类"搜不到"用 print 排查最省事，
+    但绝不能污染 stdout 的正常返回（不是错误，所以走 stderr）。
+    """
+    total = len(results)
+    if limit is None or limit <= 0:
+        selected = results
+    else:
+        selected = results[:limit]
+    if total == 0 and (keyword or "").strip():
+        print(f"[job_search] 关键词 {keyword!r} 无命中（候选 {total} 条）", file=sys.stderr)
+    return selected
+
+
 def _mock_search(keyword: str, city: Optional[str], limit: int) -> list[Job]:
     """默认实现：优先用 rag/data/cleaned_jd.json 的真实数据，读不到才回退硬编码 mock。"""
     real_jobs = _load_real_jobs()
@@ -143,7 +161,7 @@ def _mock_search(keyword: str, city: Optional[str], limit: int) -> list[Job]:
             j for j in real_jobs
             if _match_keyword(j, keyword) and _match_city(j, city)
         ]
-        return results[:limit]
+        return _apply_limit(results, limit, keyword)
 
     # ---- fallback：真实数据不可用时使用硬编码示例（保留原数据，语义与真实数据一致）----
     sample_data = [
@@ -186,7 +204,7 @@ def _mock_search(keyword: str, city: Optional[str], limit: int) -> list[Job]:
         j for j in sample_data
         if _match_keyword(j, keyword) and _match_city(j, city)
     ]
-    return results[:limit]
+    return _apply_limit(results, limit, keyword)
 
 
 def _fetch_from_shixiseng(keyword: str, city: Optional[str], limit: int) -> list[Job]:
