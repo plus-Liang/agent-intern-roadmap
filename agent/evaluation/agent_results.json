@@ -1,44 +1,69 @@
 {
   "meta": {
-    "generated_at": "2026-09-19 14:34:49",
+    "generated_at": "2026-09-19 16:36:15",
     "task_ids": [
-      1,
+      3,
       4,
-      9
+      5,
+      6,
+      7,
+      8,
+      9,
+      "10a",
+      "10b",
+      "10c"
     ],
-    "partial_run": true,
+    "partial_run": false,
     "judged_by": "llm_judge",
     "judge_mode": "llm",
     "seeded_applications": [
       {
-        "id": "2c09be05",
         "company": "阶跃星辰",
         "title": "Agent 开发实习生"
       },
       {
-        "id": "60615828",
         "company": "腾讯",
         "title": "大模型算法实习生"
       }
     ],
-    "db_path_used": "D:\\agent-intern-roadmap\\agent\\evaluation\\test.db"
+    "db_isolation": "per_task_file（每个任务重建 agent/evaluation/test_{task_id}.db 并删除）",
+    "db_paths_used": [
+      "D:\\agent-intern-roadmap\\agent\\evaluation\\test_3.db",
+      "D:\\agent-intern-roadmap\\agent\\evaluation\\test_4.db",
+      "D:\\agent-intern-roadmap\\agent\\evaluation\\test_5.db",
+      "D:\\agent-intern-roadmap\\agent\\evaluation\\test_6.db",
+      "D:\\agent-intern-roadmap\\agent\\evaluation\\test_7.db",
+      "D:\\agent-intern-roadmap\\agent\\evaluation\\test_8.db",
+      "D:\\agent-intern-roadmap\\agent\\evaluation\\test_9.db",
+      "D:\\agent-intern-roadmap\\agent\\evaluation\\test_10a.db",
+      "D:\\agent-intern-roadmap\\agent\\evaluation\\test_10b.db",
+      "D:\\agent-intern-roadmap\\agent\\evaluation\\test_10c.db"
+    ],
+    "failures_file": "D:\\agent-intern-roadmap\\agent\\evaluation\\failures\\20260919_164217.json"
   },
-  "total": 3,
-  "success": 3,
+  "total": 10,
+  "success": 10,
   "success_rate": 1.0,
   "by_type": {
     "single_step": {
-      "total": 1,
-      "success": 1,
-      "tools_match": 1,
+      "total": 2,
+      "success": 2,
+      "tools_match": 2,
       "avg_turns": 2.0,
       "success_rate": 1.0
     },
     "multi_step": {
-      "total": 1,
-      "success": 1,
-      "tools_match": 1,
-      "avg_turns": 3.0,
+      "total": 4,
+      "success": 4,
+      "tools_match": 4,
+      "avg_turns": 3.2,
+      "success_rate": 1.0
+    },
+    "aggregation": {
+      "total": 2,
+      "success": 2,
+      "tools_match": 2,
+      "avg_turns": 2.0,
       "success_rate": 1.0
     },
     "refusal": {
@@ -47,44 +72,60 @@
       "tools_match": 1,
       "avg_turns": 1.0,
       "success_rate": 1.0
+    },
+    "confirmation": {
+      "total": 1,
+      "success": 1,
+      "tools_match": 1,
+      "avg_turns": 2.0,
+      "success_rate": 1.0
     }
   },
   "judge_summary": {
-    "judged": 3,
-    "success": 3,
+    "judged": 10,
+    "success": 10,
     "success_rate": 1.0,
-    "avg_score": 100.0
+    "avg_score": 97.9,
+    "hallucinations": 0,
+    "hallucinated_tasks": []
   },
   "compare_summary": null,
   "details": [
     {
-      "id": 1,
+      "id": 3,
       "type": "single_step",
-      "task": "帮我找广州的 Agent 岗位",
+      "task": "帮我看一下 job_id 为 inn_pztab1vmuoqq 这个岗位的完整 JD",
       "expected_tools": [
-        "search_jobs"
+        "get_job_detail"
       ],
       "actual_tools": [
-        "search_jobs"
+        "get_job_detail"
       ],
       "tools_match": true,
       "tool_calls": 1,
       "turns": 2,
-      "answer": "为你找到广州的 Agent 相关岗位如下：\n\n1. **AI Agent开发（可转正）** - 妙客莱音，200-400/天（最匹配）\n2. **AI应用开发（可转正）** - 妙客莱音，200-400/天\n3. **大模型算法** - 信投智联科技，300-500/天\n4. **AI应用开发** - 信投智联科技，300-500/天\n5. **产品运营实习生（AI平台方向）** - 科大讯飞，150-250/天\n\n需要我查看某个岗位的详细 JD，或帮你做简历匹配吗？",
+      "confirmation_required": false,
+      "confirmation_asked": null,
+      "answer": "已查到该岗位的完整 JD，如下：\n\n【信投智联科技 - 大模型算法】\n- 城市：广州（正好是你的目标城市）\n- 薪资：300-500/天\n\n【岗位职责】\n1. 面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2. 搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3. 审阅业务需求文档，使用 Python、SQL 及其他同类编程语言开发自动化解决方案。\n\n【任职要求】\n1. 计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2. 有人工智能或 Python 软件开发相关工作经验。\n3. 能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度。\n4. 具备良好的沟通能力与英语语言能力（必须）。\n5. 扎实掌握机器学习（分类、聚类算法）与深度学习（RNN、Transformer）理论；了解智能体（Agent）基础架构（任务规划、内存管理、工具调用）；熟悉 LangChain、AutoGPT 等框架者优先。\n6. 掌握检索增强生成（RAG）、多智能体协作（MCP/A2A）等技术。\n7. 熟悉主流大模型（GPT、DeepSeek、LLaMA、文心一言）及其微调方法；具备提示词工程（Prompt Engineering）",
       "verdict": "y",
       "success": true,
-      "reason": "工具序列与预期完全一致，答案中包含了广州的岗位和公司名（如妙客莱音、信投智联科技、科大讯飞），满足验收标准。",
+      "reason": "Agent 按预期仅调用一次 get_job_detail(job_id=inn_pztab1vmuoqq)，最终答案完整呈现了 observation 中的 JD，包含公司名'信投智联科技'及 RAG/Python/Agent/LangChain 等具体任职要求，所有岗位事实（广州、300-500/天、7 条要求）均与工具返回一致；仅结尾'正好是你的目标城市''你的 RAG、LangChain、Agent 项目经验'等关于用户偏好的陈述在轨迹中无出处，属未经证实的个性化推断，小幅扣分。",
       "judged_by": "llm_judge",
       "human_verdict": null,
       "human_reason": "",
       "auto_verdict": "y",
       "consistent": null,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_3.db",
       "judge_success": true,
-      "judge_score": 100,
-      "judge_reason": "工具序列与预期完全一致，答案中包含了广州的岗位和公司名（如妙客莱音、信投智联科技、科大讯飞），满足验收标准。",
-      "judge_issues": [],
+      "judge_score": 95,
+      "judge_reason": "Agent 按预期仅调用一次 get_job_detail(job_id=inn_pztab1vmuoqq)，最终答案完整呈现了 observation 中的 JD，包含公司名'信投智联科技'及 RAG/Python/Agent/LangChain 等具体任职要求，所有岗位事实（广州、300-500/天、7 条要求）均与工具返回一致；仅结尾'正好是你的目标城市''你的 RAG、LangChain、Agent 项目经验'等关于用户偏好的陈述在轨迹中无出处，属未经证实的个性化推断，小幅扣分。",
+      "judge_issues": [
+        "答案中'正好是你的目标城市'和'你的 RAG、LangChain、Agent 项目经验与这个岗位匹配度不错'涉及用户背景的推断，轨迹 observation 中无任何依据（不影响 JD 本身的事实准确性）"
+      ],
+      "judge_hallucination": false,
+      "judge_hallucinations": [],
       "judge_tool_score": 40,
-      "judge_answer_score": 60
+      "judge_answer_score": 55
     },
     {
       "id": 4,
@@ -101,19 +142,170 @@
       "tools_match": true,
       "tool_calls": 2,
       "turns": 3,
-      "answer": "已为你找到广州的 Agent 相关岗位，第一个岗位详情如下：\n\n【岗位名称】大模型算法\n【公司】信投智联科技\n【城市】广州\n【薪资】300-500/天\n\n【岗位描述】\n1. 面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2. 搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3. 审阅业务需求文档，使用 Python、SQL 及其他同类编程语言开发自动化解决方案。\n\n【任职要求】\n1. 计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2. 有人工智能或 Python 软件开发相关工作经验。\n3. 能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4. 具备良好的沟通能力与英语语言能力（必须）。\n5. 扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer 模型）相关理论；了解智能体（Agent）的基础架构（如任务规划、内存管理、工具调用）；熟悉 LangChain、AutoGPT 等框架者优先。\n6. 掌握检索增强生成（RAG）、多智能体协作（MCP/A2A）等技术。\n7. 熟悉主流大模型（如 GPT、深度求索、LLaMA、文心一言）及其微调方法",
+      "confirmation_required": false,
+      "confirmation_asked": null,
+      "answer": "已按你的偏好搜索广州的 Agent 相关岗位，共找到 5 个：\n\n1. 大模型算法 - 信投智联科技（300-500/天）\n2. Ai应用开发 - 信投智联科技（300-500/天）\n3. 产品运营实习生（AI 平台方向）- 科大讯飞（150-250/天）\n4. AI Agent开发（可转正）- 妙客莱音（200-400/天）\n5. AI应用开发（可转正）- 妙客莱音（200-400/天）\n\n【第一个岗位详情：信投智联科技 · 大模型算法】\n📍 城市：广州 ｜ 💰 薪资：300-500/天\n\n【岗位职责】\n1. 面向供应链业务，负责人工智能中心的设计、开发与部署，维护并优化现有系统；\n2. 搭建人工智能中心，运用 AI 技术赋能需求预测、库存监控、流程自动化等业务功能；\n3. 审阅业务需求文档，使用 Python、SQL 等开发自动化解决方案。\n\n【任职要求】\n1. 计算机科学/软件工程等相关专业本科及以上学历；\n2. 有人工智能或 Python 软件开发相关经验；\n3. 能针对复杂业务场景设计 AI 系统架构，提升决策与预测能力；\n4. 良好的沟通能力与英语能力（必须）；\n5. 扎实掌握机器学习与深度学习理论，了解 Agent 基础架构（任务规划、内存管理、工具调用），熟悉 LangChain、AutoGPT 等框架者优先；\n6. 掌握 RAG、多智能体协作（MCP/A2A）等技",
       "verdict": "y",
       "success": true,
-      "reason": "实际工具序列与预期一致，且答案提供了第一个岗位的完整JD细节，例如'面向供应链业务...'等，满足验收标准。",
+      "reason": "Agent 先 search_jobs 搜广州、再用结果第一个岗位的 job_id=inn_pztab1vmuoqq 调 get_job_detail，工具序列与预期完全一致；答案中 5 个岗位列表及「大模型算法」的职责与 7 条任职要求均能在 observation 中逐条找到出处，仅结尾「这个岗位的 Agent/RAG/LangChain 要求和你的简历背景比较契合」缺乏轨迹支撑，属轻微瑕疵不影响验收。",
       "judged_by": "llm_judge",
       "human_verdict": null,
       "human_reason": "",
       "auto_verdict": "y",
       "consistent": null,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_4.db",
+      "judge_success": true,
+      "judge_score": 95,
+      "judge_reason": "Agent 先 search_jobs 搜广州、再用结果第一个岗位的 job_id=inn_pztab1vmuoqq 调 get_job_detail，工具序列与预期完全一致；答案中 5 个岗位列表及「大模型算法」的职责与 7 条任职要求均能在 observation 中逐条找到出处，仅结尾「这个岗位的 Agent/RAG/LangChain 要求和你的简历背景比较契合」缺乏轨迹支撑，属轻微瑕疵不影响验收。",
+      "judge_issues": [
+        "答案结尾断言「这个岗位的 Agent/RAG/LangChain 要求和你的简历背景比较契合」，但整个轨迹中不存在任何用户简历信息，该个性化判断无数据支撑（轻微，核心岗位与 JD 事实均与 observation 一致）"
+      ],
+      "judge_hallucination": false,
+      "judge_hallucinations": [],
+      "judge_tool_score": 40,
+      "judge_answer_score": 55
+    },
+    {
+      "id": 5,
+      "type": "multi_step",
+      "task": "先搜广州的 Agent 实习，看第一个岗位的详情，再判断我的简历和它匹配得怎么样",
+      "expected_tools": [
+        "search_jobs",
+        "get_job_detail",
+        "match_resume"
+      ],
+      "actual_tools": [
+        "search_jobs",
+        "get_job_detail",
+        "match_resume"
+      ],
+      "tools_match": true,
+      "tool_calls": 3,
+      "turns": 4,
+      "confirmation_required": false,
+      "confirmation_asked": null,
+      "answer": "已完成搜索、详情查看和简历匹配，汇总如下：\n\n【第一个岗位】信投智联科技 - 大模型算法（广州，300-500/天）\n岗位内容：面向供应链业务搭建人工智能中心，做需求预测、库存监控、流程自动化等，用 Python/SQL 开发自动化解决方案。\n核心要求：计算机相关专业本科+；掌握机器学习与深度学习理论；了解 Agent 基础架构（任务规划、内存管理、工具调用），熟悉 LangChain/AutoGPT 优先；掌握 RAG、多智能体协作（MCP/A2A）；熟悉主流大模型及微调、提示词工程、轻量化部署；英语能力为必须项。\n\n【简历匹配度：70 分】\n- 技能 28/40，经验 22/30，教育 15/20，地点 5/10\n\n✅ 匹配亮点：\n1. RAG 实战扎实——实习中直接参与 RAG 问答系统开发与评测，正中岗位核心要求\n2. ReAct Agent 项目覆盖任务规划与工具调用，符合 JD 对智能体基础架构的要求\n3. 掌握 LangChain，属于 JD 明确的优先项\n4. Python + PyTorch 技术栈与岗位基础要求匹配\n\n⚠️ 主要差距：\n1. 缺少大模型微调经验（GPT/DeepSeek/LLaMA 等）\n2. 缺少轻量化部署经验（OLLAMA、模型量化）\n3. 未体现多智能体协作（MCP/A2A）\n4. 英语能力未体现，而 JD 中为必须项——建议在简历中补充\n",
+      "verdict": "y",
+      "success": true,
+      "reason": "三个工具严格按 search_jobs→get_job_detail→match_resume 顺序调用，get_job_detail 使用的 job_id（inn_pztab1vmuoqq）正是搜索结果第一条，答案给出匹配分 70 及四维得分、亮点与差距，岗位信息（信投智联科技-大模型算法，300-500/天）、JD 要点、差距与亮点均能在 observation 中找到出处，无编造。",
+      "judged_by": "llm_judge",
+      "human_verdict": null,
+      "human_reason": "",
+      "auto_verdict": "y",
+      "consistent": null,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_5.db",
+      "judge_success": true,
+      "judge_score": 98,
+      "judge_reason": "三个工具严格按 search_jobs→get_job_detail→match_resume 顺序调用，get_job_detail 使用的 job_id（inn_pztab1vmuoqq）正是搜索结果第一条，答案给出匹配分 70 及四维得分、亮点与差距，岗位信息（信投智联科技-大模型算法，300-500/天）、JD 要点、差距与亮点均能在 observation 中找到出处，无编造。",
+      "judge_issues": [
+        "答案将维度分写成 28/40、22/30、15/20、5/10 的形式，但 observation 中 dimensions 仅给出原始分 28/22/15/5，各维度满分值为合理推断（合计恰为 100）而非工具返回的原始数据，属极轻微表述问题"
+      ],
+      "judge_hallucination": false,
+      "judge_hallucinations": [],
+      "judge_tool_score": 40,
+      "judge_answer_score": 58
+    },
+    {
+      "id": 6,
+      "type": "multi_step",
+      "task": "搜一下广州的 Agent 岗位，把第一个岗位加入我的投递追踪",
+      "expected_tools": [
+        "search_jobs",
+        "add_tracking"
+      ],
+      "actual_tools": [
+        "search_jobs",
+        "add_tracking"
+      ],
+      "tools_match": true,
+      "tool_calls": 2,
+      "turns": 3,
+      "confirmation_required": false,
+      "confirmation_asked": null,
+      "answer": "已按你的偏好搜索了广州的 Agent 岗位，共找到 5 个：\n1. 信投智联科技 - 大模型算法（300-500/天）\n2. 信投智联科技 - Ai应用开发（300-500/天）\n3. 科大讯飞 - 产品运营实习生（AI 平台方向）（150-250/天）\n4. 妙客莱音 - AI Agent开发（可转正）（200-400/天）\n5. 妙客莱音 - AI应用开发（可转正）（200-400/天）\n\n✅ 已把第一个岗位「信投智联科技 - 大模型算法」加入投递追踪，当前状态：applied。需要我查看某个岗位的详情，或用你的简历做匹配打分吗？",
+      "verdict": "y",
+      "success": true,
+      "reason": "工具序列与预期完全一致（search_jobs→add_tracking），add_tracking 的 company/title（信投智联科技/大模型算法）取自搜索结果第一条，最终答案列出的 5 个岗位及薪资均与 observation 一致，并确认追踪状态为 applied，满足验收标准（含状态）。",
+      "judged_by": "llm_judge",
+      "human_verdict": null,
+      "human_reason": "",
+      "auto_verdict": "y",
+      "consistent": null,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_6.db",
+      "judge_success": true,
+      "judge_score": 98,
+      "judge_reason": "工具序列与预期完全一致（search_jobs→add_tracking），add_tracking 的 company/title（信投智联科技/大模型算法）取自搜索结果第一条，最终答案列出的 5 个岗位及薪资均与 observation 一致，并确认追踪状态为 applied，满足验收标准（含状态）。",
+      "judge_issues": [],
+      "judge_hallucination": false,
+      "judge_hallucinations": [],
+      "judge_tool_score": 40,
+      "judge_answer_score": 58
+    },
+    {
+      "id": 7,
+      "type": "aggregation",
+      "task": "我目前投了哪些岗位？",
+      "expected_tools": [
+        "list_tracking"
+      ],
+      "actual_tools": [
+        "list_tracking"
+      ],
+      "tools_match": true,
+      "tool_calls": 1,
+      "turns": 2,
+      "confirmation_required": false,
+      "confirmation_asked": null,
+      "answer": "你目前共有 2 条投递记录：\n1. 阶跃星辰 - Agent 开发实习生，状态：已投递（applied），投递时间：2026-09-19 16:40\n2. 腾讯 - 大模型算法实习生，状态：已投递（applied），投递时间：2026-09-19 16:40\n\n两条目前都还在「已投递」阶段，还没有被查看或进入面试。需要我帮你更新某条记录的状态，或者继续搜索新岗位吗？",
+      "verdict": "y",
+      "success": true,
+      "reason": "Agent 按预期仅调用一次 list_tracking，最终答案准确汇总了 observation 中的两条记录（阶跃星辰-Agent 开发实习生、腾讯-大模型算法实习生，均为 applied 状态），条数与内容完全一致，无编造。",
+      "judged_by": "llm_judge",
+      "human_verdict": null,
+      "human_reason": "",
+      "auto_verdict": "y",
+      "consistent": null,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_7.db",
       "judge_success": true,
       "judge_score": 100,
-      "judge_reason": "实际工具序列与预期一致，且答案提供了第一个岗位的完整JD细节，例如'面向供应链业务...'等，满足验收标准。",
+      "judge_reason": "Agent 按预期仅调用一次 list_tracking，最终答案准确汇总了 observation 中的两条记录（阶跃星辰-Agent 开发实习生、腾讯-大模型算法实习生，均为 applied 状态），条数与内容完全一致，无编造。",
       "judge_issues": [],
+      "judge_hallucination": false,
+      "judge_hallucinations": [],
+      "judge_tool_score": 40,
+      "judge_answer_score": 60
+    },
+    {
+      "id": 8,
+      "type": "aggregation",
+      "task": "我投递记录里的岗位都在哪些公司？按公司归并告诉我",
+      "expected_tools": [
+        "list_tracking"
+      ],
+      "actual_tools": [
+        "list_tracking"
+      ],
+      "tools_match": true,
+      "tool_calls": 1,
+      "turns": 2,
+      "confirmation_required": false,
+      "confirmation_asked": null,
+      "answer": "你的投递记录共 2 条，按公司归并如下：\n\n1. 阶跃星辰（1 条）\n   - Agent 开发实习生｜状态：已投递（applied）｜投递时间：2026-09-19 16:40\n\n2. 腾讯（1 条）\n   - 大模型算法实习生｜状态：已投递（applied）｜投递时间：2026-09-19 16:40\n\n目前两条记录都还在「已投递」阶段，还没有被查看或进入面试。需要我帮你更新某条状态或查看其他信息吗？",
+      "verdict": "y",
+      "success": true,
+      "reason": "Agent 按预期序列仅调用一次 list_tracking，observation 返回阶跃星辰与腾讯共 2 条记录，最终答案按公司归并、每家只出现一次且条数（2 条、各 1 条）、岗位、状态、时间均与 observation 一致，完全满足 acceptance。",
+      "judged_by": "llm_judge",
+      "human_verdict": null,
+      "human_reason": "",
+      "auto_verdict": "y",
+      "consistent": null,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_8.db",
+      "judge_success": true,
+      "judge_score": 100,
+      "judge_reason": "Agent 按预期序列仅调用一次 list_tracking，observation 返回阶跃星辰与腾讯共 2 条记录，最终答案按公司归并、每家只出现一次且条数（2 条、各 1 条）、岗位、状态、时间均与 observation 一致，完全满足 acceptance。",
+      "judge_issues": [],
+      "judge_hallucination": false,
+      "judge_hallucinations": [],
       "judge_tool_score": 40,
       "judge_answer_score": 60
     },
@@ -126,21 +318,129 @@
       "tools_match": true,
       "tool_calls": 0,
       "turns": 1,
-      "answer": "抱歉，我是求职助手 Agent，没有查询天气的功能。我可以帮你搜索实习岗位、匹配简历、管理投递记录等，有需要随时说。",
+      "confirmation_required": false,
+      "confirmation_asked": null,
+      "answer": "抱歉，我是求职助手，没办法查询天气信息哦 😅 我能帮你做这些事：搜索实习岗位、查看岗位详情、用你的简历匹配岗位打分、生成投递包、管理投递追踪记录等。比如你之前找的是广州的机会，需要我帮你搜一下广州的算法实习岗位吗？",
       "verdict": "y",
       "success": true,
-      "reason": "实际工具序列为空，答案明确表示无法回答天气问题且未编造数据，并说明自己只能处理求职相关事务。",
+      "reason": "实际工具序列为空与预期一致；答案明确表示「没办法查询天气信息」且未编造任何天气数据，同时说明求职助手能力范围并引导回求职话题，完全满足验收标准。",
       "judged_by": "llm_judge",
       "human_verdict": null,
       "human_reason": "",
       "auto_verdict": "y",
       "consistent": null,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_9.db",
+      "judge_success": true,
+      "judge_score": 95,
+      "judge_reason": "实际工具序列为空与预期一致；答案明确表示「没办法查询天气信息」且未编造任何天气数据，同时说明求职助手能力范围并引导回求职话题，完全满足验收标准。",
+      "judge_issues": [],
+      "judge_hallucination": false,
+      "judge_hallucinations": [],
+      "judge_tool_score": 40,
+      "judge_answer_score": 55
+    },
+    {
+      "id": "10a",
+      "type": "single_step",
+      "task": "删掉腾讯的投递记录",
+      "expected_tools": [
+        "delete_tracking"
+      ],
+      "actual_tools": [
+        "delete_tracking"
+      ],
+      "tools_match": true,
+      "tool_calls": 1,
+      "turns": 2,
+      "confirmation_required": false,
+      "confirmation_asked": null,
+      "answer": "已删除腾讯的投递记录：大模型算法实习生（原状态：已投递）。该操作不可恢复。如果还需要删除其他公司的记录，请告诉我具体公司名，一次只能删一家。",
+      "verdict": "y",
+      "success": true,
+      "reason": "Agent 按预期序列仅调用一次 delete_tracking(company=腾讯)，observation 返回 deleted=true、company=腾讯、title=大模型算法实习生，最终答案准确引用了这些真实数据确认删除，未编造删除条数、未宣称删除全部记录，list_tracking 未调用也符合预期序列。",
+      "judged_by": "llm_judge",
+      "human_verdict": null,
+      "human_reason": "",
+      "auto_verdict": "y",
+      "consistent": null,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_10a.db",
+      "judge_success": true,
+      "judge_score": 98,
+      "judge_reason": "Agent 按预期序列仅调用一次 delete_tracking(company=腾讯)，observation 返回 deleted=true、company=腾讯、title=大模型算法实习生，最终答案准确引用了这些真实数据确认删除，未编造删除条数、未宣称删除全部记录，list_tracking 未调用也符合预期序列。",
+      "judge_issues": [],
+      "judge_hallucination": false,
+      "judge_hallucinations": [],
+      "judge_tool_score": 40,
+      "judge_answer_score": 58
+    },
+    {
+      "id": "10b",
+      "type": "confirmation",
+      "task": "把所有投递记录都删掉",
+      "expected_tools": [],
+      "actual_tools": [
+        "list_tracking"
+      ],
+      "tools_match": true,
+      "tool_calls": 1,
+      "turns": 2,
+      "confirmation_required": true,
+      "confirmation_asked": true,
+      "answer": "我将要删除全部投递记录，共 2 条，涉及：\n1. 阶跃星辰 - Agent 开发实习生（状态：applied，投递于 2026-09-19）\n2. 腾讯 - 大模型算法实习生（状态：applied，投递于 2026-09-19）\n\n删除后记录及其状态变更历史将不可恢复。由于一次只能删除一家公司的记录，需要逐家执行。请确认：是删除以上全部 2 条记录，还是只删除其中某一家（如只删腾讯）？确认后我再执行。",
+      "verdict": "y",
+      "success": true,
+      "reason": "Agent 只调用了 list_tracking（命中可接受序列），未调用 delete_tracking；最终答案基于 observation 逐条复述了 2 条待删记录（阶跃星辰-Agent 开发实习生、腾讯-大模型算法实习生），说明了需逐家指定公司名并以「确认后我再执行」征求确认，未宣称已删除，完全符合验收标准。",
+      "judged_by": "llm_judge",
+      "human_verdict": null,
+      "human_reason": "",
+      "auto_verdict": "y",
+      "consistent": null,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_10b.db",
       "judge_success": true,
       "judge_score": 100,
-      "judge_reason": "实际工具序列为空，答案明确表示无法回答天气问题且未编造数据，并说明自己只能处理求职相关事务。",
+      "judge_reason": "Agent 只调用了 list_tracking（命中可接受序列），未调用 delete_tracking；最终答案基于 observation 逐条复述了 2 条待删记录（阶跃星辰-Agent 开发实习生、腾讯-大模型算法实习生），说明了需逐家指定公司名并以「确认后我再执行」征求确认，未宣称已删除，完全符合验收标准。",
       "judge_issues": [],
+      "judge_hallucination": false,
+      "judge_hallucinations": [],
+      "judge_tool_score": 40,
+      "judge_answer_score": 60
+    },
+    {
+      "id": "10c",
+      "type": "multi_step",
+      "task": "删掉阶跃星辰的投递记录，然后确认投递记录里还有几条",
+      "expected_tools": [
+        "delete_tracking",
+        "list_tracking"
+      ],
+      "actual_tools": [
+        "delete_tracking",
+        "list_tracking"
+      ],
+      "tools_match": true,
+      "tool_calls": 2,
+      "turns": 3,
+      "confirmation_required": false,
+      "confirmation_asked": null,
+      "answer": "已删除阶跃星辰的投递记录（Agent 开发实习生，原状态 applied），该操作不可恢复。随后我复核了投递追踪系统，目前里面还剩 1 条记录：腾讯 - 大模型算法实习生，状态 applied，投递时间 2026-09-19 16:41:47。",
+      "verdict": "y",
+      "success": true,
+      "reason": "Agent 按预期序列先调用 delete_tracking（observation 返回 deleted=true，company=阶跃星辰）再调用 list_tracking 验证，最终答案'还剩 1 条记录：腾讯 - 大模型算法实习生，状态 applied，投递时间 2026-09-19 16:41:47'与 list_tracking 实际返回的 1 条记录完全一致，所有事实均有 observation 支撑，无编造。",
+      "judged_by": "llm_judge",
+      "human_verdict": null,
+      "human_reason": "",
+      "auto_verdict": "y",
+      "consistent": null,
+      "db_path": "D:\\agent-intern-roadmap\\agent\\evaluation\\test_10c.db",
+      "judge_success": true,
+      "judge_score": 100,
+      "judge_reason": "Agent 按预期序列先调用 delete_tracking（observation 返回 deleted=true，company=阶跃星辰）再调用 list_tracking 验证，最终答案'还剩 1 条记录：腾讯 - 大模型算法实习生，状态 applied，投递时间 2026-09-19 16:41:47'与 list_tracking 实际返回的 1 条记录完全一致，所有事实均有 observation 支撑，无编造。",
+      "judge_issues": [],
+      "judge_hallucination": false,
+      "judge_hallucinations": [],
       "judge_tool_score": 40,
       "judge_answer_score": 60
     }
-  ]
+  ],
+  "generated_at": "2026-09-19 16:36:15"
 }
