@@ -96,7 +96,12 @@ if resumes:
         "PDF 在点击下载时才生成，不会拖慢页面。"
     )
     for r in resumes:
-        pdf_col1, pdf_col2 = st.columns([4, 1])
+        # 内容列 6 / 状态占位列 2 / 按钮列 2。
+        # 之前是 [4, 1]：内容列太窄、按钮列反而被拉宽，行里的「默认」标记和
+        # 右边的「下载 PDF」按钮被中间那一大片空白顶得很远。按 6-2-2 分配后，
+        # 按钮左边缘落在约 75% 处，紧跟在简历行内容后面。
+        # vertical_alignment="center" 让 32px 高的按钮和 40px 高的行垂直居中对齐。
+        pdf_col1, pdf_col2, pdf_col3 = st.columns([6, 2, 2], vertical_alignment="center")
         with pdf_col1:
             st.markdown(
                 job_row(
@@ -111,7 +116,7 @@ if resumes:
                 ),
                 unsafe_allow_html=True,
             )
-        with pdf_col2:
+        with pdf_col3:
             st.download_button(
                 "下载 PDF",
                 data=lambda rid=r["id"]: resume_pdf_bytes(rid),

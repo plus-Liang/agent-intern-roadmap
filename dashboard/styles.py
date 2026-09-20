@@ -238,6 +238,40 @@ _CSS = """
 .stApp a, .stApp a:visited { color:var(--a700); }
 .stApp a:hover { color:var(--a600); }
 
+/* 1.2a ★★ Material Symbols 图标字体保护（勿删）
+
+   1.63 的图标全部是 ligature 字体：把图标名（``upload`` / ``keyboard_double_arrow_left``
+   这种）当**文字**写进 span，由 ``Material Symbols Rounded`` 字体把这个单词画成图形。
+   所以只要图标元素的 font-family 被换成普通字体，页面上就会直接漏出图标名的字面量：
+
+   * 文件上传组件里 ``:material/upload:`` → 图标名 + 按钮文案叠成 “uploadupload”
+   * 简历行的展开箭头 ``:material/keyboard_arrow_right:`` → 显示成 “.arr” 之类的字面量
+   * 侧栏收起按钮 ``:material/keyboard_double_arrow_left:`` → 显示 “keyboard_double_”
+
+   根子在下面 1.3 的 ``html, body, .stApp, .stApp *, …``——那条规则是 ``!important`` 的，
+   图标 span 只是 Streamlit 的子元素（没有自己的 font-family 声明，靠 emotion 类名给），
+   于是被系统字体栈盖掉。
+
+   修法两件事，缺一不可：
+     ① 1.3 用 ``:not()`` 把图标元素排除掉（见下）；
+     ② 这里再显式补回图标字体，且**选择器特异性要压过 1.3**。
+
+   特异性说明（重要，改之前先数一遍）：1.3 的 ``.stApp *`` 是 (0,1,0)；
+   但 Streamlit emotion 给图标 span 的类选择器是 ``.css-xxx`` (0,1,0)，再叠加组件类就是
+   (0,2,0)。所以本规则的选择器都写成「标签 + 多个 :not()」的形式
+   （``span[data-testid="stIconMaterial"]:not(:not(span))`` → (0,3,0)），
+   才能在 1.3 和 emotion 的规则之后稳赢。
+
+   两个渲染路径都要兜住：
+     * 组件图标 —— ``<span data-testid="stIconMaterial">`` （DynamicIcon.js）
+     * Markdown 里的 ``:material_xxx:`` —— 字体写在 span 的内联 style 上，没有
+       !important，照样会被 1.3 的 !important 盖掉，所以一并补回。 */
+.stApp span[data-testid="stIconMaterial"]:not(:not(span)),
+.stApp span:not([data-testid]):not([class]):not([role])[style*="Material Symbols"],
+[class*="material-symbols"] {
+  font-family:'Material Symbols Rounded',var(--sans) !important;
+}
+
 /* 1.2 去掉默认装饰：顶部工具栏、彩色渐变头、页脚、悬浮标记
 
    ★★ 这里曾经写着 [data-testid="stToolbar"] { height:0; visibility:hidden }，
@@ -276,8 +310,13 @@ footer { visibility:hidden; height:0; }
   height:16px !important;
 }
 
-/* 1.3 统一字体为系统栈（覆盖 Streamlit 默认字体） */
-html, body, .stApp, .stApp * ,
+/* 1.3 统一字体为系统栈（覆盖 Streamlit 默认字体）
+
+   ★ 这里曾经写的是无条件 ``html, body, .stApp, .stApp * , …``，把 Material 图标 span
+   一起换成了系统字体，图标名就漏成了字面量（见 1.2a 的说明）。
+   现在用 ``:not([data-testid="stIconMaterial"])`` 把图标元素排除在外——
+   注意只排除图标 span 本身，``button`` 等元素保持原样，按钮文案照旧走系统栈。 */
+html, body, .stApp, .stApp *:not([data-testid="stIconMaterial"]),
 [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
 input, textarea, select, button, .stMarkdown, .stDataFrame {
   font-family:var(--sans) !important;
