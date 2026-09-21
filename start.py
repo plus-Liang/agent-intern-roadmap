@@ -14,6 +14,31 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 
+#: Streamlit 的启动前缀。
+#:
+#: 不能用裸 ``python -m streamlit``：``-m`` 会把 cwd（也就是项目根）预先塞进
+#: 子进程的 ``sys.path``，而 Streamlit 启动时又把自己脚本所在目录
+#: （``dashboard/``）插到 ``sys.path[0]``。于是 ``dashboard/shared.py`` 会抢在
+#: ``shared/`` 包前面被当成顶层模块 ``shared`` 导入，接着
+#: ``from shared.llm_client import ...`` 就报
+#: ``ModuleNotFoundError: No module named 'shared.llm_client'; 'shared' is not a package``。
+#: 手动 ``streamlit run dashboard/app.py`` 之所以正常，是因为控制台脚本不会把
+#: cwd 放进 ``sys.path``，``dashboard/app.py`` 开头的
+#: 「根目录不在 sys.path 里才 insert(0)」引导才能把项目根顶到最前面。
+#:
+#: ``-P``（Python 3.11+ 等价于 PYTHONSAFEPATH）正好只做一件事：不给子进程塞
+#: cwd，于是引导逻辑重新生效。同理这里**不要**设 ``PYTHONPATH=项目根`` ——
+#: 一旦项目根「已存在于 sys.path」，引导条件为假，就又会退回到上面那个
+#: 被 dashboard/ 抢先的坏顺序。
+#:
+#: 注意 uvicorn 那行**不能**加 ``-P``：它需要 cwd（项目根）在 sys.path 里才能
+#: 找到 ``main:app``；而 dashboard/ 不参与它的导入，不存在遮蔽问题。
+_STREAMLIT = (
+    [sys.executable, "-P", "-m", "streamlit"]
+    if sys.version_info >= (3, 11)
+    else [sys.executable, "-m", "streamlit"]
+)
+
 SERVICES = [
     {
         "name": "FastAPI + Chainlit",
@@ -26,7 +51,7 @@ SERVICES = [
     {
         "name": "Streamlit Dashboard",
         "cmd": [
-            sys.executable, "-m", "streamlit", "run", str(BASE_DIR / "dashboard" / "app.py"),
+            *_STREAMLIT, "run", str(BASE_DIR / "dashboard" / "app.py"),
             "--server.port", "8501",
             "--server.headless", "true",
             "--browser.gatherUsageStats", "false",
