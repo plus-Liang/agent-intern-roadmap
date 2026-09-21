@@ -729,23 +729,43 @@ hr, [data-testid="stDivider"] hr { border-color:var(--border); }
 
 
 def inject_styles() -> None:
-    """注入全局 CSS（每次 rerun 都调用；CSS 很便宜，不必缓存）。
+    """注入全局 CSS。
 
     必须在 ``st.set_page_config()`` 之后调用——``set_page_config`` 要求是
     第一个 Streamlit 命令。
 
-    ★ 这里原来写的是 ``st.html("<style>…</style>")``。Streamlit 1.63 的
-    ``st.html`` 会把「只含 <style>」的内容改送到 **event container**，而这条路径
-    在本版本上不落进页面的元素树（实测：同一段 CSS 用 st.markdown 注入时元素树里
-    有对应的 style 节点，用 st.html 注入时一个都没有）。于是整站自定义 CSS 全部失效，
-    表现出来就是「样式改造后布局崩了」：``.stats`` 的
-    ``display:grid / grid-template-columns:repeat(4,…)`` 根本没生效，统计卡片退化成
-    块级元素竖排；``.job-row`` 等自定义类同理。
+    ★ 用 ``st.html``，**不要**改回 ``st.markdown(unsafe_allow_html=True)``。
 
-    改回 ``st.markdown(unsafe_allow_html=True)``：这是唯一被实测确认能把 CSS
-    送进 DOM 的路径，且不改动任何布局属性。
+    为什么不是 ``st.markdown``：那条路径会把 ``<style>`` 当作 Markdown 内容塞进
+    React 托管的 markdown 容器里（``<div data-testid="stMarkdownContainer"><style>…``）。
+    注入的 style 节点不在 React 的虚拟 DOM 里，页面切换 / 重新渲染时协调器会在自己
+    不知道的节点上做 DOM 操作，这正是部署到 Streamlit Cloud 后首页立刻报
+    ``NotFoundError: Failed to execute 'removeChild' on 'Node'``、前端白屏的来源。
+
+    为什么 ``st.html`` 是安全的：Streamlit 1.63 对「只含 <style>」的内容会改送到
+    event container（``elements/html.py`` 的 ``_html_only_style_tags``，issue #9388），
+    前端 ``Html`` 组件用 ``dangerouslySetInnerHTML`` 渲染（默认
+    ``unsafe_allow_javascript=False`` 走的是 React 托管的那条分支），既不占版面，也不会
+    出现「React 去移除一个它不知道的节点」。``st.html`` 自 1.33 起就有，
+    requirements-deploy.txt 钉的是 1.63.0，不存在版本风险。
+
+    ★ 关于「AppTest 元素树里 0 个节点」：这是**假阴性**，不能当失效证据。
+    event container 的元素本来就不进 AppTest 的 main 元素树；95d4da3 据此判定
+    ``st.html`` 失效并改回 ``st.markdown``，用真浏览器复核后是误判——同一条
+    ``st.html`` 在页面上有 1 个 style 节点、20 条自定义规则，``.stats`` 实测
+    ``display:grid``，与 ``st.markdown`` 完全一致。判断 CSS 有没有生效请用浏览器
+    DOM，不要用 AppTest 元素树。
+
+    ★ 不要加 ``@st.cache_data`` / ``@st.cache_resource``：缓存只作用于**返回值**，
+    而本函数的副作用是这次 Streamlit 元素调用本身，装饰后照样每次 rerun 执行一遍
+    （``inject_styles() is None`` 也没有可缓存的对象），纯属无效。
+    也不要用 ``st.session_state["_styles_injected"]`` 标记「只注入一次」：实测那会在
+    第一次 rerun 后丢掉全部自定义样式——前端重渲染会清掉注入的节点，
+    标记留着就再也不会补回来，``.stats`` 从 ``grid`` 退化成 ``block``。
+    正确做法就是每次 rerun 都调用，由上面那条 event-container 路径保证幂等：
+    实测冷启动 -> 切遍 5 个子页面 -> 切回首页，自定义 style 节点恒为 1 个、无累积。
     """
-    st.markdown("<style>{}</style>".format(_CSS), unsafe_allow_html=True)
+    st.html("<style>{}</style>".format(_CSS))
 
 
 # ============================================================
