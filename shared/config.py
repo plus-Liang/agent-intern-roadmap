@@ -23,7 +23,7 @@ except Exception:
 # API 配置
 ARK_API_KEY = os.getenv("ARK_API_KEY")
 ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
-ARK_CHAT_MODEL = os.getenv("ARK_CHAT_MODEL", "deepseek-v4-flash-ga-260731")
+ARK_CHAT_MODEL = os.getenv("ARK_CHAT_MODEL", "glm-5-3-flash-260828")
 ARK_EMBEDDING_MODEL = os.getenv(
     "ARK_EMBEDDING_MODEL", "doubao-embedding-vision-251215"
 )

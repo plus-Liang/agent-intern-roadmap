@@ -584,3 +584,10 @@ def search_jobs(keyword, city, limit, platform="mock"):
 - **现象**：Round 8 引入新的 id 格式后，现有 chroma_db 里的旧 id 会被增量逻辑当成"全部新增"，导致 34 次多余 embedding 调用。
 - **DSH 的提示**：主动说"第一次直接跑 --incremental 会浪费 API"，建议先 `--rebuild`。
 - **教训**：**引入"id 格式变更"这类 breaking change 时，必须提供迁移路径**。`--rebuild` 是简单粗暴但可靠的迁移方式。
+
+### 46. Streamlit 1.63 的 st.html 不能单独注入 <style>
+
+- **现象**：`st.html("<style>...</style>")` 调用后，样式看似生效（部分生效），但自定义 CSS 其实从未进入 DOM。元素树里该路径 0 节点。
+- **原因**：Streamlit 1.63 把只含 `<style>` 的 `st.html()` 内容当作"事件"送到 event container，不渲染为真实 DOM。
+- **修复**：改用 `st.markdown("<style>...</style>", unsafe_allow_html=True)`。
+- **教训**：**"看起来生效"不等于"真的生效"**。样式类问题的验证必须看 DOM（F12 检查元素），不能只看页面外观。这是这次布局崩溃潜伏了好几轮才暴露的原因。

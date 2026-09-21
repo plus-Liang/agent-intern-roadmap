@@ -22,3 +22,9 @@ agent/scrapers/shixiseng_debug_jd/
 logs/scheduler.log
 logs/feedback.db
 agent/data/user_profile.json
+
+# 运行时数据（部署时重建）
+agent/data/applications.db
+agent/data/exports/
+agent/data/resumes/*.json
+agent/evaluation/failures/
