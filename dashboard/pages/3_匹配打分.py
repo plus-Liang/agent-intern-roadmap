@@ -3,6 +3,7 @@
 输入简历信息和岗位 ID，计算匹配分数、维度得分和缺口分析。
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -28,7 +29,7 @@ inject_styles()
 
 st.header("简历-JD 匹配打分")
 
-st.caption("输入简历信息和岗位 ID，计算匹配分数和缺口分析。")
+st.caption("填写简历信息并选择目标岗位，计算匹配分数和缺口分析。")
 
 col1, col2 = st.columns(2)
 
@@ -49,13 +50,37 @@ with col1:
 
 with col2:
     st.subheader("目标岗位")
-    job_id = st.text_input("岗位 ID", value="inn_pztab1vmuoqq")
-    st.caption(
-        "可用 ID 示例：inn_pztab1vmuoqq（信投智联科技 · 大模型算法）、"
-        "inn_bvmuxglatdbv（科大讯飞 · 产品运营）、inn_78xqcaa6aktp（妙客莱音 · AI Agent 开发）"
-    )
 
-    if st.button("计算匹配度"):
+    # 岗位下拉：读 rag/data/cleaned_jd.json，展示"公司 | 岗位 | 城市"，实际取值是 job_id
+    _jd_path = ROOT_DIR / "rag" / "data" / "cleaned_jd.json"
+    _job_options: list[tuple[str, str]] = []
+    try:
+        with _jd_path.open(encoding="utf-8") as f:
+            _jd_list = json.load(f)
+        if isinstance(_jd_list, list):
+            for _item in _jd_list:
+                if isinstance(_item, dict) and _item.get("job_id"):
+                    _job_options.append((
+                        f"{_item.get('company') or '未知公司'} | "
+                        f"{_item.get('title') or '未知岗位'} | "
+                        f"{_item.get('city') or '未知城市'}",
+                        str(_item["job_id"]),
+                    ))
+    except (OSError, json.JSONDecodeError) as exc:
+        st.warning(f"岗位数据读取失败：{exc}")
+
+    if _job_options:
+        # 同一岗位可能被重复收录（公司/岗位/城市完全一致），下拉里只保留第一次出现的 job_id
+        _label_to_id: dict[str, str] = {}
+        for _label, _jid in _job_options:
+            _label_to_id.setdefault(_label, _jid)
+        _selected = st.selectbox("岗位", list(_label_to_id), index=0)
+        job_id = _label_to_id[_selected]
+    else:
+        job_id = None
+        st.warning("未找到岗位数据，请检查 rag/data/cleaned_jd.json")
+
+    if st.button("计算匹配度", disabled=job_id is None):
         try:
             detail = get_job_detail("mock", job_id)
 
