@@ -1,0 +1,105 @@
+/* ==========================================================================
+   Chainlit 主题：teal-ink 浅色（与 dashboard/styles.py 对齐）
+
+   说明：Chainlit 2.12 的 config.toml 里没有 [theme] 段（只有 [UI] default_theme），
+   所以配色只能在这里覆盖 Chainlit 自己的 CSS 变量。
+   这些变量是 HSL 分量（形如 `--primary: 186 82% 23%`），不是十六进制。
+   本文件不声明任何图标字体的 font-family，Chainlit 自带图标不受影响。
+   ========================================================================== */
+
+/* :root 与 .dark 用同一套值：即使浏览器里残留深色偏好，也回到浅色 teal-ink */
+:root,
+.dark {
+  /* 字体栈：与 Dashboard 一致 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+               "Hiragino Sans GB", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+
+  --background: 60 11% 98%;            /* #fbfbfa */
+  --foreground: 60 4% 10%;             /* #1a1a18 */
+  --card: 0 0% 100%;                   /* #ffffff */
+  --card-foreground: 60 4% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 60 4% 10%;
+
+  --primary: 186 82% 23%;              /* #0b626c */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 17% 95%;             /* #f5f4f1 */
+  --secondary-foreground: 60 4% 10%;
+  --muted: 45 17% 95%;
+  --muted-foreground: 45 4% 42%;
+  --accent: 45 17% 95%;                /* 默认气泡 / 输入框底色 */
+  --accent-foreground: 60 4% 10%;
+
+  --destructive: 0 72% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 48 9% 89%;                 /* #e6e5e1 */
+  --input: 48 9% 89%;
+  --ring: 186 82% 23%;
+
+  --sidebar-background: 45 17% 96%;
+  --sidebar-foreground: 60 4% 10%;
+  --sidebar-primary: 186 82% 23%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 45 17% 93%;
+  --sidebar-accent-foreground: 60 4% 10%;
+  --sidebar-border: 48 9% 89%;
+  --sidebar-ring: 186 82% 23%;
+}
+
+/* 主容器背景 */
+html,
+body,
+#root {
+  background-color: #fbfbfa;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: #1a1a18;
+}
+
+/* --------------------------------------------------------------------------
+   用户气泡：深青底 #0b626c + 白字 + 8px 圆角
+   Chainlit 把每条消息渲染在 [data-step-type="user_message"] 容器里，
+   气泡本身是里面的 .bg-accent 元素。
+   -------------------------------------------------------------------------- */
+[data-step-type="user_message"] .bg-accent {
+  background-color: #0b626c !important;
+  border-radius: 8px !important;
+}
+
+[data-step-type="user_message"] .bg-accent p,
+[data-step-type="user_message"] .bg-accent span,
+[data-step-type="user_message"] .bg-accent li,
+[data-step-type="user_message"] .bg-accent a,
+[data-step-type="user_message"] .bg-accent strong,
+[data-step-type="user_message"] .bg-accent em,
+[data-step-type="user_message"] .bg-accent h1,
+[data-step-type="user_message"] .bg-accent h2,
+[data-step-type="user_message"] .bg-accent h3 {
+  color: #ffffff !important;
+}
+
+/* 气泡里的行内代码保持深色字，避免白字白底看不见 */
+[data-step-type="user_message"] .bg-accent code,
+[data-step-type="user_message"] .bg-accent pre {
+  color: #10383e !important;
+}
+
+/* --------------------------------------------------------------------------
+   AI 气泡：白底 #ffffff + 1px #e6e5e1 边框 + 8px 圆角
+   Chainlit 的 assistant 消息默认没有气泡，直接用 .ai-message 当卡片。
+   -------------------------------------------------------------------------- */
+[data-step-type="assistant_message"] .ai-message {
+  background-color: #ffffff;
+  border: 1px solid #e6e5e1;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+/* 输入框：白底 + 同样的边框与圆角 */
+#message-composer {
+  background-color: #ffffff !important;
+  border: 1px solid #e6e5e1;
+  border-radius: 8px !important;
+}

@@ -114,9 +114,13 @@ reaction_on_message_received = false
 
 [UI]
 # Name of the assistant.
-name = "Assistant"
+name = "Agent 求职助手"
 
-# default_theme = "dark"
+# 默认浅色（teal-ink，与 Dashboard 统一）
+default_theme = "light"
+
+# 说明：Chainlit 2.12 的 config.toml 不支持 [theme] 段（只有这个 default_theme），
+# 具体配色（强调色 #0b626c、背景 #fbfbfa、文字 #1a1a18）全部写在 public/custom.css 里。
 
 # Force a specific language for all users (e.g., "en-US", "he-IL", "fr-FR")
 # If not set, the browser's language will be used
@@ -143,7 +147,9 @@ cot = "full"
 
 # Specify a CSS file that can be used to customize the user interface.
 # The CSS file can be served from the public directory or via an external link.
-# custom_css = "/public/test.css"
+# 说明：Chainlit 自己会把 root path(/chat) 前缀加到 href 上，
+# 所以这里写 public 目录下的相对路径即可，实际请求为 /chat/public/custom.css。
+custom_css = "/public/custom.css"
 
 # Specify additional attributes for a custom CSS file
 # custom_css_attributes = "media=\"print\""
