@@ -5,12 +5,17 @@
 - 数据库路径与 agent/data、logs/token_usage.db 保持一致；
 - 具体业务逻辑（分页、鉴权、投递包生成等）下一步再补。
 """
+import asyncio
 import json
+import logging
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -163,3 +168,157 @@ def token_usage(days: int = Query(7, ge=1, le=90)) -> dict:
     total = sum(int(r["total_tokens"] or 0) for r in by_day)
     return {"days": days, "since": since, "total_tokens": total,
             "by_day": by_day, "by_source": by_source}
+
+
+# --------------------------------------------------------------------------
+# 定时抓取（APScheduler → agent/scrapers/scheduler.run_daily_job，每天 03:00）
+#
+# 为什么服务放在 router.py：这个实例要同时被 main.py 的 startup/shutdown 事件
+# 和下面两个 /scheduler/* 端点用到。放在 router 里，两边都只是 import 同一个
+# 对象，不会让 main 与 router 互相 import 形成循环依赖。
+# main.py 只负责在 startup 时 start()、shutdown 时 shutdown()。
+# --------------------------------------------------------------------------
+
+logger = logging.getLogger("api.scheduler")
+
+JOB_ID = "daily_scrape"
+DAILY_HOUR = int(os.getenv("SCHEDULER_HOUR", "3") or 3)
+DAILY_MINUTE = int(os.getenv("SCHEDULER_MINUTE", "0") or 0)
+# 启动时立刻跑一次（默认关：真实抓取会拉起 Playwright，不该拖慢每次启动）
+RUN_ON_STARTUP = (os.getenv("SCHEDULER_RUN_ON_STARTUP", "0") or "0").strip().lower() in {
+    "1", "true", "yes", "on",
+}
+
+
+class SchedulerService:
+    """AsyncIOScheduler 的薄封装：懒加载任务函数 + 运行态查询 + 手动触发。
+
+    任务函数与状态文件读取都做懒加载——启动时只建 scheduler，不 import
+    playwright / scraper，避免 Web 服务启动被拖住。
+    """
+
+    def __init__(self) -> None:
+        self._scheduler: Optional[AsyncIOScheduler] = None
+        self._task: Optional[asyncio.Task] = None
+
+    # -- 运行态 ------------------------------------------------------------
+    @property
+    def running(self) -> bool:
+        """当前是否有一次抓取在跑（含手动触发的那次）"""
+        return self._task is not None and not self._task.done()
+
+    async def _run(self) -> dict:
+        """执行一次完整任务：同步阻塞的 run_daily_job 丢线程池，别卡事件循环"""
+        from agent.scrapers.scheduler import run_daily_job   # 懒加载，避免启动阻塞
+
+        started = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        logger.info("[定时抓取] 开始（%s）", started)
+        try:
+            result = await asyncio.to_thread(run_daily_job)
+        except Exception as exc:                       # run_daily_job 自己兜异常，这里保底
+            logger.exception("[定时抓取] 失败：%s", exc)
+            return {"ok": False, "error": str(exc)}
+
+        ok = bool(result.get("ok"))
+        message = "[定时抓取] 结束：%s，抓取 %s 条 / 清洗 %s 条 / 新增 %s 条"
+        args = (("成功" if ok else "失败"), result.get("scraped", 0),
+                result.get("cleaned", 0), (result.get("incremental") or {}).get("added", 0))
+        if ok:
+            logger.info(message, *args)
+        else:
+            logger.error(message + "，错误：%s", *args, result.get("error") or "未知")
+        return result
+
+    def _spawn(self) -> bool:
+        """把一次执行挂成后台 asyncio 任务，立即返回、不阻塞调用方"""
+        if self.running:
+            logger.warning("[定时抓取] 上一次还在跑，跳过本次触发")
+            return False
+        self._task = asyncio.create_task(self._run(), name="daily_scrape")
+        return True
+
+    # -- 生命周期 ----------------------------------------------------------
+    def start(self) -> AsyncIOScheduler:
+        """在 FastAPI 事件循环里启动调度器（重复调用无副作用）"""
+        if self._scheduler is not None:
+            return self._scheduler
+
+        scheduler = AsyncIOScheduler(event_loop=asyncio.get_running_loop())
+        scheduler.add_job(
+            self._run,
+            trigger=CronTrigger(hour=DAILY_HOUR, minute=DAILY_MINUTE),
+            id=JOB_ID,
+            name="每日岗位抓取",
+            replace_existing=True,
+            max_instances=1,          # 抓取很慢，绝不允许叠着跑
+            coalesce=True,            # 错过多次只补跑一次
+            misfire_grace_time=3600,  # 迟到 1 小时内仍执行
+        )
+        scheduler.start()
+        self._scheduler = scheduler
+        logger.info("[定时抓取] 已启动：每天 %02d:%02d 自动执行", DAILY_HOUR, DAILY_MINUTE)
+
+        if RUN_ON_STARTUP:
+            logger.info("[定时抓取] SCHEDULER_RUN_ON_STARTUP 已开启，立刻跑一次")
+            self._spawn()
+        return scheduler
+
+    def shutdown(self) -> None:
+        """优雅关闭：停调度器，不再派发新任务"""
+        if self._scheduler is not None:
+            self._scheduler.shutdown(wait=False)
+            self._scheduler = None
+            logger.info("[定时抓取] 调度器已关闭")
+        if self.running:
+            logger.warning("[定时抓取] 关闭时仍有任务在跑，交由进程退出收尾")
+
+    # -- 对外 ---------------------------------------------------------------
+    def trigger(self) -> bool:
+        """手动触发一次（异步执行，立即返回是否真的派发成功）"""
+        return self._spawn()
+
+    def status(self) -> dict:
+        """last_run 取自 scheduler.py 自己的状态文件；next_run 取自 APScheduler"""
+        state: dict = {}
+        try:
+            from agent.scrapers.scheduler import load_state   # 懒加载
+            data = load_state()
+            if isinstance(data, dict):
+                state = data
+        except Exception as exc:                              # 状态读不到不算接口失败
+            logger.warning("[定时抓取] 读取状态文件失败：%s", exc)
+
+        next_run = None
+        if self._scheduler is not None:
+            job = self._scheduler.get_job(JOB_ID)
+            next_time = getattr(job, "next_run_time", None) if job else None
+            if next_time is not None:
+                next_run = next_time.strftime("%Y-%m-%d %H:%M:%S")
+
+        return {
+            "last_run": state.get("last_run") or None,
+            "next_run": next_run,
+            "running": self.running,
+            "ok": state.get("ok"),
+            "error": state.get("error") or "",
+            "scraped": state.get("scraped", 0),
+            "cleaned": state.get("cleaned", 0),
+            "schedule": f"{DAILY_HOUR:02d}:{DAILY_MINUTE:02d}",
+        }
+
+
+scheduler_service = SchedulerService()
+
+
+@router.get("/scheduler/status", summary="定时抓取状态")
+def scheduler_status() -> dict:
+    """返回 {last_run, next_run, running, ...}，数据来自 scheduler 状态文件"""
+    return scheduler_service.status()
+
+
+@router.post("/scheduler/trigger", summary="手动触发一次抓取（异步，不阻塞）")
+async def scheduler_trigger() -> dict:
+    """立即返回 accepted，真实抓取在后台任务里跑"""
+    dispatched = scheduler_service.trigger()
+    return {"status": "accepted", "dispatched": dispatched,
+            "already_running": not dispatched}

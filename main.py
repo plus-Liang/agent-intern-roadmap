@@ -24,12 +24,52 @@ from chainlit.utils import mount_chainlit
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
-from api.router import router
+from api.router import router, scheduler_service
 
 app = FastAPI(title="Agent 求职助手")
 
 # REST 接口
 app.include_router(router, prefix="/api")
+
+
+# ---------------------------------------------------------------------------
+# 后台定时抓取（APScheduler，每天 03:00 → agent/scrapers/scheduler.run_daily_job）
+#
+# 调度器实例住在 api/router.py，这里只负责挂生命周期：
+# startup 时 start()，shutdown 时优雅关闭。任务函数与状态文件都是懒加载，
+# 启动只建 scheduler，不会被 Playwright 拖慢。
+# 日志：任务开始 / 结束 / 失败都走 "api.scheduler" logger。
+# ---------------------------------------------------------------------------
+def _attach_scheduler_logging() -> None:
+    """把 api.scheduler 的日志接到 uvicorn 的控制台 handler 上。
+
+    uvicorn 的 dictConfig 只配了 uvicorn.* 三个 logger；"api.scheduler" 的消息
+    冒泡到 root，而 root 没有任何 handler，INFO 会被 logging.lastResort 直接丢掉
+    —— 表现就是任务开始/结束/失败一条都看不见。所以这里显式挂 handler。
+    """
+    scheduler_logger = logging.getLogger("api.scheduler")
+    scheduler_logger.setLevel(logging.INFO)
+    if scheduler_logger.handlers:
+        return
+
+    for name in ("uvicorn.error", "uvicorn"):
+        handlers = logging.getLogger(name).handlers
+        if handlers:
+            for handler in handlers:
+                scheduler_logger.addHandler(handler)
+            return
+    scheduler_logger.addHandler(logging.StreamHandler())
+
+
+@app.on_event("startup")
+async def _start_scheduler() -> None:
+    _attach_scheduler_logging()
+    scheduler_service.start()
+
+
+@app.on_event("shutdown")
+async def _shutdown_scheduler() -> None:
+    scheduler_service.shutdown()
 
 
 # ---------------------------------------------------------------------------
