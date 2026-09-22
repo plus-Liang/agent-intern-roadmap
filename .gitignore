@@ -28,3 +28,8 @@ agent/data/applications.db
 agent/data/exports/
 agent/data/resumes/*.json
 agent/evaluation/failures/
+
+## 待办（面试前完成）
+- [ ] 接外部数据库（Supabase/Neon/Firebase）
+     原因：Streamlit Cloud 的 /tmp 每次重启清空
+     优先：Supabase（免费 500MB，PostgreSQL）
