@@ -3,7 +3,6 @@
 搜索岗位，标记「想投 / 不合适」，并把想投的岗位一键加入投递追踪。
 """
 
-import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +20,7 @@ from agent.tools.job_search import search_jobs
 from dashboard.shared import (
     inject_styles,
     job_row,
+    read_json_fresh,
     render_dataframe,
     status_badge,
 )
@@ -39,16 +39,20 @@ CLEANED_JD = ROOT_DIR / "rag" / "data" / "cleaned_jd.json"
 STALE_DAYS = 7
 
 
-@st.cache_data(ttl=300, show_spinner=False)
 def local_jd_stats() -> dict:
     """本地已抓取数据的城市覆盖情况。
 
     :return: ``{"counts": {城市: 岗位数}, "mtime": float | None, "total": int}``
              文件缺失或损坏时返回空统计——这只是辅助提示，不该拦住页面。
+
+    这里**不再**自己套 ``@st.cache_data(ttl=300)``：那种缓存只按「函数 + 参数」
+    命中，数据文件重写后要等 TTL 到期才会重读，页面就会显示旧条数、旧更新时间。
+    读取改走 :func:`dashboard.shared.read_json_fresh`，它以文件指纹
+    （mtime + size）为缓存键，cleaned_jd.json 一落盘、下一次 rerun 就是新数据。
     """
     try:
         mtime = CLEANED_JD.stat().st_mtime
-        raw = json.loads(CLEANED_JD.read_text(encoding="utf-8"))
+        raw = read_json_fresh(CLEANED_JD)
     except (OSError, ValueError):
         return {"counts": {}, "mtime": None, "total": 0}
 
@@ -102,11 +106,22 @@ st.header("岗位列表")
 st.caption("搜索岗位，标记「想投 / 不合适」。")
 
 # 搜索栏
+# 默认值只在 session 里初始化一次；widget 用 persist_state="session"，
+# 切到「对话 Agent」页再切回来时输入框不会被重置成默认值，只有用户主动改才变。
+if "job_search_keyword" not in st.session_state:
+    st.session_state.job_search_keyword = "Agent 开发"
+if "job_search_city" not in st.session_state:
+    st.session_state.job_search_city = "广州"
+
 col1, col2, col3 = st.columns([3, 2, 1])
 with col1:
-    keyword = st.text_input("关键词", value="Agent 开发", key="search_kw")
+    keyword = st.text_input(
+        "关键词", key="job_search_keyword", persist_state="session"
+    )
 with col2:
-    city = st.text_input("城市（留空不限）", value="广州", key="search_city")
+    city = st.text_input(
+        "城市（留空不限）", key="job_search_city", persist_state="session"
+    )
 with col3:
     st.write("")
     st.write("")

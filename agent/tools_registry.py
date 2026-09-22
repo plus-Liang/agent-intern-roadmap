@@ -20,7 +20,7 @@ from agent import state_machine
 from agent import storage
 
 
-def _search(keyword, city=None, limit=5):
+def _search(keyword, city=None, limit=20):
     return [
         {
             "job_id": j.job_id,
@@ -635,7 +635,7 @@ TOOLS = {
         "parameters": {
             "keyword": "搜索关键词",
             "city": "城市（可选）",
-            "limit": "数量，默认 5",
+            "limit": "数量，默认 20",
         },
         "func": _search,
         "risk_level": "read",

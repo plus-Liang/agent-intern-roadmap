@@ -30,6 +30,7 @@ import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # ---------------------------------------------------------------
 # 项目根目录引导（dashboard/ 的上一级）
@@ -70,6 +71,8 @@ __all__ = [
     "status_badge",
     "timeline",
     "render_dataframe",
+    "cached_json",
+    "read_json_fresh",
     "pipeline_spark",
     "delta_dir",
     "count_marked_jobs",
@@ -193,6 +196,33 @@ def resume_pdf_bytes(resume_id: str) -> bytes:
     """导出某份简历的 PDF 字节（缓存：同一份简历不会每次 rerun 都重新生成）"""
     info = export_resume_pdf_tool(resume_id)
     return Path(info["path"]).read_bytes()
+
+
+# ============================================================
+# 文件读取（带「文件指纹」缓存）
+# ============================================================
+
+
+@st.cache_data(show_spinner=False, max_entries=32)
+def cached_json(path: str, mtime: float, size: int) -> Any:
+    """读 JSON 并解析；缓存键里带上文件指纹（mtime + size）。
+
+    为什么把指纹塞进参数：``st.cache_data`` 默认只按「函数 + 参数」缓存。只写
+    ``@st.cache_data(ttl=...)`` 时，数据文件被重写后页面在 TTL 到期前会一直拿到
+    旧内容（旧条数、旧更新时间）。把 mtime/size 当参数传进来，文件一落盘指纹就
+    变、缓存立刻失效，下一次 rerun 读到的就是新数据。
+    """
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def read_json_fresh(path: Path) -> Any:
+    """读 JSON，保证「文件一变，下次 rerun 就是新数据」。
+
+    文件缺失 / 内容不是合法 JSON 时抛 ``OSError`` / ``ValueError``，由调用方兜底。
+    """
+    info = path.stat()
+    return cached_json(str(path), info.st_mtime, info.st_size)
 
 
 # ============================================================
