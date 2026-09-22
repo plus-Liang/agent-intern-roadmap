@@ -46,6 +46,18 @@ jobs:
           pip install -r requirements-hf.txt
           # requirements-hf.txt 是 HF 精简依赖，不含 playwright，单独装
           pip install playwright
+          # Embedding 已改为本地 fastembed（BAAI/bge-small-zh-v1.5，512 维），不再走云端 API
+          pip install fastembed
+
+      - name: 缓存 fastembed 模型
+        uses: actions/cache@v4
+        with:
+          # 与 rag/embedder.py 的 FASTEMBED_CACHE_PATH 默认值保持一致；
+          # 缓存后每天不必重复下载模型（约 90MB）
+          path: ~/.cache/fastembed
+          key: fastembed-${{ runner.os }}-bge-small-zh-v1.5
+          restore-keys: |
+            fastembed-${{ runner.os }}-
 
       - name: 安装 Chromium（Playwright）
         run: playwright install --with-deps chromium
@@ -53,11 +65,11 @@ jobs:
       - name: 写入临时 .env（从 secrets 读）
         run: |
           cat > .env <<'EOF'
-          ARK_API_KEY=${{ secrets.ARK_API_KEY }}
-          ARK_EMBEDDING_MODEL=${{ secrets.ARK_EMBEDDING_MODEL }}
-          ARK_CHAT_MODEL=${{ secrets.ARK_CHAT_MODEL }}
+          ZHIPU_API_KEY=${{ secrets.ZHIPU_API_KEY }}
           EOF
           chmod 600 .env
+          # ZHIPU_BASE_URL / ZHIPU_CHAT_MODEL / LOCAL_EMBEDDING_MODEL 用 shared/config.py 的默认值；
+          # 若想在此覆盖，追加对应行即可（注意 secrets 未配置时会写入空串，反而覆盖掉默认值）。
 
       - name: 准备抓取画像（5 城市）
         run: |

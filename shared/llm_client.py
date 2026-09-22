@@ -1,6 +1,6 @@
 import time
 from openai import OpenAI
-from shared.config import ARK_API_KEY, ARK_BASE_URL, ARK_CHAT_MODEL
+from shared.config import ZHIPU_API_KEY, ZHIPU_BASE_URL, ZHIPU_CHAT_MODEL
 from shared.errors import ConfigError, APIError
 from shared import token_tracker
 
@@ -10,9 +10,9 @@ _client = None
 def _get_client() -> OpenAI:
     global _client
     if _client is None:
-        if not ARK_API_KEY:
-            raise ConfigError("未找到 ARK_API_KEY，请检查 .env 文件")
-        _client = OpenAI(api_key=ARK_API_KEY, base_url=ARK_BASE_URL)
+        if not ZHIPU_API_KEY:
+            raise ConfigError("未找到 ZHIPU_API_KEY，请检查 .env 文件")
+        _client = OpenAI(api_key=ZHIPU_API_KEY, base_url=ZHIPU_BASE_URL)
     return _client
 
 
@@ -54,7 +54,7 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
     source: 调用方标记（如 "react_agent"），用于 token 用量按来源聚合，默认 "unknown"。
     """
     client = _get_client()
-    model = model or ARK_CHAT_MODEL
+    model = model or ZHIPU_CHAT_MODEL
     last_error = None
 
     for attempt in range(1, retries + 1):
@@ -101,14 +101,14 @@ def chat_stream(messages: list, model: str = None, source: str = "unknown"):
     source: 调用方标记，用于 token 用量按来源聚合，默认 "unknown"。
 
     关于用量：默认带上 stream_options={"include_usage": True}，让流式响应在
-    收尾 chunk 里带回真实 usage——Ark 这类 OpenAI 兼容网关必须显式开启，
+    收尾 chunk 里带回真实 usage——智谱这类 OpenAI 兼容网关必须显式开启，
     否则全程 usage 都是 None，只能记 0 并标记 stream_no_usage。
     若该接口不认这个参数，会回退成不带参数的原始调用并打印警告。
     注意记账发生在生成器结束之后，所以调用方必须把生成器跑完；
     中途 break / 抛异常时会走 finally，同样落一条记录。
     """
     client = _get_client()
-    model = model or ARK_CHAT_MODEL
+    model = model or ZHIPU_CHAT_MODEL
 
     try:
         response = client.chat.completions.create(
