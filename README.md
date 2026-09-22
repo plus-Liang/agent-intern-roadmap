@@ -8,13 +8,13 @@ app_port: 7860
 pinned: false
 ---
 
-# Agent 求职助手
+# agent-intern-roadmap
 
 对话式求职 Agent + REST API。
 
-> **部署提示**：Hugging Face Spaces 只读取仓库根目录的 `README.md` 作为 Space 配置。
-> 上传时请把本文件改名为 `README.md`（或复制一份），否则 `sdk: docker` 与
-> `app_port: 7860` 不会生效，Space 会因识别不到 SDK 而构建失败。
+> **部署提示**：Hugging Face Spaces 只读取仓库根目录的 `README.md` 作为 Space 配置，
+> 因此本文件顶部的 YAML frontmatter（`sdk: docker` / `app_port: 7860`）必须保留，
+> 不要删除或下移。
 
 ## 功能
 - Chainlit 对话 Agent（ReAct 循环 + 工具调用）
