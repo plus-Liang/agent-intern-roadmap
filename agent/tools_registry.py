@@ -4,6 +4,9 @@
 import json
 import os
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import datetime
 from pathlib import Path
 
@@ -538,6 +541,94 @@ def generate_application_package(company, job_id=None):
     }
 
 
+# ========== 运行时校验：风险分级 / 参数边界 / 超时 / 权限确认 ==========
+#
+# 《深入理解 AI Agent》第 6 章：工具必须有运行时校验（权限、风险、边界）。
+# 每个工具在 TOOLS 里声明 risk_level / timeout / requires_confirmation，
+# 由 call_tool 统一执行「存在性 → 参数 → 风险确认 → 超时执行 → 日志」五道关卡。
+#
+# risk_level 语义（按伤害半径）：
+#   read          只读，不改任何状态
+#   reversible    可撤销（改动能再改回来 / 产物可重建）
+#   irreversible  不可撤销（删了就没，必须用户确认）
+
+VALID_RISK_LEVELS = ("read", "reversible", "irreversible")
+DEFAULT_TIMEOUT = 30                       # 秒，未显式声明 timeout 时的兜底
+
+
+class ToolNeedsConfirmation(Exception):
+    """工具风险过高，需要用户确认后才能执行。
+
+    上层 UI 捕获它，用 name / args / risk_level 决定是否弹确认框；
+    用户确认后以 call_tool(name, args, confirmed=True) 重放这次调用。
+    """
+
+    def __init__(self, name: str, args: dict, risk_level: str = "irreversible"):
+        self.name = name
+        self.args = dict(args or {})
+        self.risk_level = risk_level
+        super().__init__(
+            f"工具「{name}」风险等级为 {risk_level}，需要用户确认后才能执行"
+        )
+
+
+class ToolTimeoutError(TimeoutError):
+    """工具执行超时：结果已被放弃（后台线程可能仍在跑）。"""
+
+
+_ARG_TYPES = (str, int, float, bool, list, dict, type(None))
+
+
+def _validate_args(name: str, args, spec: dict) -> dict:
+    """参数校验：必须是 dict、不能带未声明参数、值必须是 JSON 能表达的类型。"""
+    if args is None:
+        args = {}
+    if not isinstance(args, dict):
+        raise TypeError(f"工具「{name}」的参数必须是 dict，收到 {type(args).__name__}")
+
+    declared = set(spec.get("parameters") or {})
+    unknown = sorted(str(k) for k in args if k not in declared)
+    if unknown:
+        raise TypeError(
+            "工具「{}」不支持参数：{}；可用参数：{}".format(
+                name, "、".join(unknown), "、".join(sorted(declared)) or "（无）"
+            )
+        )
+
+    for key, value in args.items():
+        if isinstance(value, bytes) or not isinstance(value, _ARG_TYPES):
+            raise TypeError(
+                f"工具「{name}」参数 {key} 类型不支持：{type(value).__name__}"
+            )
+    return args
+
+
+def _log_tool(name: str, risk: str, status: str, **fields) -> None:
+    """统一日志：[tool] name=delete_tracking risk=irreversible latency=123ms status=ok"""
+    line = f"[tool] name={name} risk={risk}"
+    line += "".join(f" {key}={value}" for key, value in fields.items())
+    print(f"{line} status={status}")
+
+
+def validate_registry() -> None:
+    """注册表自检：每个工具的元数据必须齐全且合法（导入时执行一次）。"""
+    for name, spec in TOOLS.items():
+        risk = spec.get("risk_level")
+        if risk not in VALID_RISK_LEVELS:
+            raise ValueError(
+                "工具「{}」risk_level={!r} 非法，可选：{}".format(
+                    name, risk, "/".join(VALID_RISK_LEVELS)
+                )
+            )
+        timeout = spec.get("timeout", DEFAULT_TIMEOUT)
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
+            raise ValueError(f"工具「{name}」timeout={timeout!r} 必须是正数")
+        if not isinstance(spec.get("requires_confirmation"), bool):
+            raise ValueError(f"工具「{name}」缺少 requires_confirmation(bool)")
+        if not callable(spec.get("func")):
+            raise ValueError(f"工具「{name}」缺少可调用的 func")
+
+
 TOOLS = {
     "search_jobs": {
         "description": "搜索实习岗位，返回岗位列表。",
@@ -547,11 +638,17 @@ TOOLS = {
             "limit": "数量，默认 5",
         },
         "func": _search,
+        "risk_level": "read",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "get_job_detail": {
         "description": "获取岗位完整 JD 详情。",
         "parameters": {"job_id": "岗位 ID"},
         "func": _detail,
+        "risk_level": "read",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "match_resume": {
         "description": "简历与岗位匹配打分。",
@@ -560,6 +657,9 @@ TOOLS = {
             "resume_json": "简历 JSON 字符串或对象",
         },
         "func": _match,
+        "risk_level": "read",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "add_tracking": {
         "description": "把岗位添加到投递追踪系统。",
@@ -569,6 +669,9 @@ TOOLS = {
             "url": "岗位链接（可选）",
         },
         "func": _add_tracking,
+        "risk_level": "reversible",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "list_tracking": {
         "description": (
@@ -579,6 +682,9 @@ TOOLS = {
             "status": "状态过滤（可选），如 applied/viewed/interview",
         },
         "func": _list_tracking,
+        "risk_level": "read",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "update_tracking_status": {
         "description": (
@@ -595,6 +701,9 @@ TOOLS = {
             "note": "备注（可选）",
         },
         "func": _update_tracking_status,
+        "risk_level": "reversible",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "delete_tracking": {
         "description": (
@@ -605,6 +714,9 @@ TOOLS = {
             "company": "公司名（用于定位记录，支持模糊匹配）",
         },
         "func": _delete_tracking,
+        "risk_level": "irreversible",
+        "timeout": 30,
+        "requires_confirmation": True,
     },
     "update_tracking_notes": {
         "description": (
@@ -616,6 +728,9 @@ TOOLS = {
             "notes": "新的备注内容（覆盖原备注，传空字符串表示清空）",
         },
         "func": _update_tracking_notes,
+        "risk_level": "reversible",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "save_resume": {
         "description": (
@@ -630,11 +745,17 @@ TOOLS = {
             ),
         },
         "func": save_resume_tool,
+        "risk_level": "reversible",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "list_resumes": {
         "description": "列出已有的所有简历版本（只给 id/名称/创建时间，不含内容）。",
         "parameters": {},
         "func": list_resumes_tool,
+        "risk_level": "read",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "get_resume": {
         "description": "取某一份简历的完整内容。",
@@ -642,6 +763,9 @@ TOOLS = {
             "resume_id": "简历 ID（list_resumes 返回的 id）",
         },
         "func": get_resume_tool,
+        "risk_level": "read",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "use_resume": {
         "description": (
@@ -652,6 +776,9 @@ TOOLS = {
             "resume_id": "简历 ID（list_resumes 返回的 id）",
         },
         "func": use_resume,
+        "risk_level": "reversible",
+        "timeout": 30,
+        "requires_confirmation": False,
     },
     "export_resume_pdf": {
         "description": (
@@ -662,6 +789,9 @@ TOOLS = {
             "resume_id": "简历 ID（list_resumes 返回的 id）",
         },
         "func": export_resume_pdf_tool,
+        "risk_level": "read",
+        "timeout": 60,
+        "requires_confirmation": False,
     },
     "generate_application_package": {
         "description": (
@@ -674,8 +804,14 @@ TOOLS = {
             "job_id": "岗位 ID（可选，不传就自动从投递记录/搜索结果里找）",
         },
         "func": generate_application_package,
+        "risk_level": "reversible",
+        "timeout": 120,
+        "requires_confirmation": False,
     },
 }
+
+
+validate_registry()      # 导入即校验：元数据缺失/非法就早失败
 
 
 def list_tools_description() -> str:
@@ -690,10 +826,64 @@ def list_tools_description() -> str:
     return "\n".join(lines)
 
 
-def call_tool(name: str, args: dict):
+def call_tool(name: str, args: dict = None, confirmed: bool = False):
+    """执行工具，并施加运行时校验：存在性 → 参数 → 风险确认 → 超时 → 日志。
+
+    Args:
+        name: 工具名，必须在 TOOLS 中注册。
+        args: 参数字典；None 按 {} 处理。
+        confirmed: 上层 UI 已让用户确认过风险时传 True。
+
+    Raises:
+        ValueError: 工具未注册。
+        TypeError: 参数不是 dict / 带未声明参数 / 参数类型不支持。
+        ToolNeedsConfirmation: requires_confirmation=True 且未确认。
+        ToolTimeoutError: 执行超过该工具的 timeout（秒）。
+    """
+    # 1. 工具必须存在
     if name not in TOOLS:
         raise ValueError(f"未知工具：{name}")
-    return TOOLS[name]["func"](**args)
+
+    spec = TOOLS[name]
+    risk = spec.get("risk_level", "read")
+    timeout = float(spec.get("timeout", DEFAULT_TIMEOUT) or DEFAULT_TIMEOUT)
+
+    # 2. 参数校验：必须是 dict、不带未声明参数、值类型可 JSON 表达
+    safe_args = _validate_args(name, args, spec)
+
+    # 3. 风险确认：需要确认的工具未经确认一律不执行，也不留任何副作用
+    if spec.get("requires_confirmation") and not confirmed:
+        _log_tool(name, risk, "needs_confirmation", timeout=f"{timeout:g}s")
+        raise ToolNeedsConfirmation(name, safe_args, risk)
+
+    _log_tool(name, risk, "start", timeout=f"{timeout:g}s")
+    started = time.perf_counter()
+
+    # 4. 超时执行：工具跑在子线程里，主线程最多等 timeout 秒
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"tool-{name}")
+    try:
+        future = executor.submit(spec["func"], **safe_args)
+        try:
+            result = future.result(timeout=timeout)
+        except Exception as exc:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            if isinstance(exc, FutureTimeoutError) and not future.done():
+                future.cancel()
+                _log_tool(name, risk, "timeout", latency=f"{elapsed_ms:.0f}ms")
+                raise ToolTimeoutError(
+                    f"工具「{name}」执行超过 {timeout:g}s，本轮调用已放弃"
+                ) from exc
+            _log_tool(name, risk, "error",
+                      latency=f"{elapsed_ms:.0f}ms", error=type(exc).__name__)
+            raise
+
+        # 5. 成功日志：耗时 + 状态
+        _log_tool(name, risk, "ok",
+                  latency=f"{(time.perf_counter() - started) * 1000:.0f}ms")
+        # 6. 返回结果
+        return result
+    finally:
+        executor.shutdown(wait=False)      # 超时后不阻塞主线程等子线程收尾
 
 
 # ========== 自测：投递追踪的改/删/改备注（用临时库，不碰 agent/data/applications.db） ==========
@@ -827,22 +1017,65 @@ def _run_selftest() -> int:
 
             return f"备注落库并读回成功；找不到公司报错：{missing}"
 
+        def check_runtime_guard():
+            """运行时校验：元数据齐全、参数边界、超时中止、未知工具"""
+            for tool_name, tool_spec in TOOLS.items():
+                assert tool_spec.get("risk_level") in VALID_RISK_LEVELS, tool_name
+                assert isinstance(tool_spec.get("timeout"), (int, float)), tool_name
+                assert isinstance(tool_spec.get("requires_confirmation"), bool), tool_name
+
+            bad_arg = expect_error(
+                lambda: call_tool("list_tracking", {"nope": 1}), kind=TypeError
+            )
+            bad_type = expect_error(lambda: call_tool("search_jobs", "广州"), kind=TypeError)
+            unknown = expect_error(lambda: call_tool("no_such_tool", {}), kind=ValueError)
+
+            TOOLS["_selftest_sleep"] = {
+                "description": "自测用：睡眠工具",
+                "parameters": {"seconds": "睡眠秒数"},
+                "func": lambda seconds: time.sleep(seconds) or "done",
+                "risk_level": "read",
+                "timeout": 1,
+                "requires_confirmation": False,
+            }
+            try:
+                timeout_err = expect_error(
+                    lambda: call_tool("_selftest_sleep", {"seconds": 3}),
+                    kind=ToolTimeoutError,
+                )
+            finally:
+                TOOLS.pop("_selftest_sleep", None)
+
+            return (f"元数据 {len(TOOLS)} 个工具齐全；未声明参数/类型错误/未知工具均被拒；"
+                    f"超时被中止：{timeout_err}")
+
         def check_delete():
-            out = call_tool("delete_tracking", {"company": "阶跃星辰"})
+            # 不可逆工具必须先过确认：未确认要报 ToolNeedsConfirmation，且不许碰库
+            unconfirmed = expect_error(
+                lambda: call_tool("delete_tracking", {"company": "阶跃星辰"}),
+                kind=ToolNeedsConfirmation,
+            )
+            assert storage.find_application("阶跃星辰") is not None, "未确认不该删掉任何记录"
+
+            out = call_tool("delete_tracking", {"company": "阶跃星辰"}, confirmed=True)
             assert out["deleted"] is True and out["id"] == step_new, out
             assert storage.get_application(step_new) is None, "记录应该已被删除"
             assert storage.get_events(step_new) == [], "关联事件应一并删除"
 
             left = storage.find_application("阶跃星辰")
             assert left is not None and left["id"] == step_old, "应还有一条更早的同公司记录"
-            call_tool("delete_tracking", {"company": "阶跃星辰"})
+            call_tool("delete_tracking", {"company": "阶跃星辰"}, confirmed=True)
             assert storage.find_application("阶跃星辰") is None, "同公司记录应已删净"
 
-            gone = expect_error(lambda: call_tool("delete_tracking", {"company": "阶跃星辰"}))
+            gone = expect_error(lambda: call_tool(
+                "delete_tracking", {"company": "阶跃星辰"}, confirmed=True,
+            ))
             assert storage.get_application(tencent_id) is not None, "不该误删其他公司的记录"
 
-            return f"删除 id={out['id']}（含事件）；重复删除报错：{gone}"
+            return (f"删除 id={out['id']}（含事件）；未确认被拦：{unconfirmed}；"
+                    f"重复删除报错：{gone}")
 
+        check("0. call_tool 运行时校验（元数据/参数/超时）", check_runtime_guard)
         check("1. find_application('阶跃星辰') 找到记录", check_find_hit)
         check("2. find_application('不存在公司') 返回 None", check_find_miss)
         check("3. call_tool('update_tracking_status') 状态更新成功", check_update)
