@@ -1,7 +1,7 @@
 """对话 Agent 页。
 
 把原本跑在 Chainlit 里的「对话式 Agent」搬进 Streamlit Dashboard，用 Streamlit
-原生聊天组件（``st.chat_message`` / ``st.chat_input`` / ``st.status``）复现核心体验：
+原生聊天组件（``st.chat_message`` / ``st.chat_input`` / ``st.expander``）复现核心体验：
 
 * **基础对话** —— 消息与对话历史都放在 ``st.session_state["chat_messages"]`` 里，
   每条消息是 ``{"role", "content", "steps"}``；重跑脚本时原样重播，所以刷新页面
@@ -9,7 +9,7 @@
 * **调 Agent** —— 直接调 :func:`agent.react_agent.run`，拿 ``result["answer"]`` 和
   ``result["steps"]``。``run()`` 每次只处理一轮问答、自身无状态，所以历史要靠
   下面的「上下文前缀」拼给它（见 :func:`_agent_question`）。
-* **工具调用可视化** —— 每个 ``action`` 步骤渲染成 ``st.status``：思考 / 调用工具 /
+* **工具调用可视化** —— 每个 ``action`` 步骤渲染成 ``st.expander``：思考 / 调用工具 /
   观察（长截断、可展开看全文）。
 * **命令** —— ``/resume``（设置会话简历）、``/mock-interview``（模拟面试模式）、
   ``/clear``（清空对话），逻辑与 Chainlit 版一致（``agent/app.py`` 里那份）。
@@ -30,6 +30,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 import json
+import time
 
 import json5
 import streamlit as st
@@ -60,7 +61,6 @@ inject_styles()
 MESSAGES_KEY = "chat_messages"
 RESUME_KEY = "chat_resume"          # 会话简历文本（有值就注入给 Agent）
 INTERVIEW_KEY = "chat_interview"    # 模拟面试会话（active 为 False 就是已结束）
-PENDING_KEY = "chat_pending"        # 本轮待处理的输入
 FEEDBACK_ACK_KEY = "chat_feedback_ack"  # 已经评价过的消息序号（点完显示「感谢反馈」）
 
 MAX_HISTORY_TURNS = 6               # 拼给 Agent 的历史轮数（一问一答算一轮）
@@ -86,7 +86,7 @@ if INTERVIEW_KEY not in st.session_state:
 if RESUME_KEY not in st.session_state:
     st.session_state[RESUME_KEY] = None
 
-CLEAR_KEYS = (MESSAGES_KEY, RESUME_KEY, INTERVIEW_KEY, PENDING_KEY, FEEDBACK_ACK_KEY)
+CLEAR_KEYS = (MESSAGES_KEY, RESUME_KEY, INTERVIEW_KEY, FEEDBACK_ACK_KEY)
 
 
 def _messages() -> list:
@@ -445,11 +445,13 @@ def _run_agent(question: str) -> dict:
 
 
 def _render_steps(steps: list) -> None:
-    """把 steps 渲染成 st.status 时间线：思考 / 调用工具 / 观察 / 结论"""
+    """把 steps 渲染成可折叠时间线（expander）：思考 / 调用工具 / 观察 / 结论"""
     if not steps:
         return
 
-    with st.status("Agent 思考过程（{} 步）".format(len(steps)), expanded=False):
+    # 纯文字标签：st.status 的折叠图标在某些环境下渲染失败，会把图标名当文本
+    # 漏在标签开头（"neckAgent 思考过程…"），换成 expander + 纯文字标签
+    with st.expander("Agent 思考过程（{} 步）".format(len(steps)), expanded=False):
         for step in steps:
             turn = step.get("turn", "?")
             thought = str(step.get("thought") or "").strip()
@@ -478,6 +480,26 @@ def _render_steps(steps: list) -> None:
                 st.markdown(f"**第 {turn} 轮 · 收尾**")
                 if thought:
                     st.markdown(f"> {thought}")
+
+
+def _stream_answer(answer: str) -> None:
+    """伪流式输出 answer。
+
+    ``react_agent.run()`` 是同步阻塞的，拿到的已经是完整文本，这里按字符逐段刷进
+    ``st.empty()``：短答案就是逐字效果，长答案按比例分片，保证大约 2-3 秒刷完，
+    不会让用户干等（业务逻辑不动）。
+    """
+    text = str(answer or "")
+    if not text:
+        st.markdown("（Agent 没有返回内容）")
+        return
+
+    placeholder = st.empty()
+    chunk = max(1, len(text) // 240)
+    for end in range(chunk, len(text), chunk):
+        placeholder.markdown(text[:end])
+        time.sleep(0.01)
+    placeholder.markdown(text)
 
 
 def _render_feedback(index: int, question: str, message: dict) -> None:
@@ -597,30 +619,54 @@ with st.sidebar:
 # ============================================================
 
 st.header("对话 Agent")
-st.caption(
-    "Streamlit 版的对话式 Agent（原 Chainlit 版已停用）："
-    "查岗位、做匹配、管投递、读简历、模拟面试都在这里。"
-)
 
-# ---------- 1. 处理上一轮输入（先跑 Agent，再渲染，用户才能看到结果） ----------
+# ---------- 1. 渲染对话历史 ----------
 
-pending = st.session_state.pop(PENDING_KEY, None)
+for index, message in enumerate(_messages()):
+    with st.chat_message(message["role"]):
+        # 思考过程与 answer 都留在同一个 assistant 气泡里（左侧），不会跑到用户区
+        if message["role"] == "assistant":
+            _render_steps(message.get("steps") or [])
+        st.markdown(message.get("content") or "")
+        if message["role"] == "assistant" and message.get("steps"):
+            # 欢迎语与命令回执不需要评价，只给真正调过 Agent 的回答加反馈按钮
+            question = ""
+            for previous in reversed(_messages()[:index]):
+                if previous["role"] == "user":
+                    question = previous.get("content", "")
+                    break
+            _render_feedback(index, question, message)
 
-if isinstance(pending, dict):
-    user_input = str(pending.get("text") or "").strip()
+# ---------- 2. 输入框：用户消息先上屏，再跑 Agent ----------
+
+typed = st.chat_input("输入消息，或命令：/resume、/mock-interview、/clear")
+
+if typed:
+    user_input = str(typed).strip()
     if user_input:
         _push("user", user_input)
+        # 立即渲染用户气泡，不等 Agent 跑完（原来要等本轮结束 rerun 才一起出现）
+        with st.chat_message("user"):
+            st.markdown(user_input)
 
         if user_input.startswith("/clear"):
             _reset_chat()
+            st.rerun()
 
         elif user_input.startswith("/resume"):
             _set_resume(user_input.replace("/resume", "", 1).strip())
+            st.rerun()
 
         elif user_input.startswith("/mock-interview"):
             args = user_input.replace("/mock-interview", "", 1).strip()
             parts = args.split()
-            if not parts:
+            if parts:
+                company = parts[0]
+                title = " ".join(parts[1:]) if len(parts) > 1 else "实习生"
+                if len(parts) == 1:
+                    _push("assistant", f"没写岗位名，我先按「{company} · 实习生」准备。")
+                _start_interview(company, title)
+            else:
                 _push(
                     "assistant",
                     "用法：`/mock-interview <公司> <岗位>`\n\n"
@@ -629,43 +675,19 @@ if isinstance(pending, dict):
                     f"{INTERVIEW_MIN_QUESTIONS}-{INTERVIEW_MAX_QUESTIONS} 个问题，"
                     "每答完一题给一句点评再问下一题，最后给综合评价。",
                 )
-            else:
-                company = parts[0]
-                title = " ".join(parts[1:]) if len(parts) > 1 else "实习生"
-                if len(parts) == 1:
-                    _push("assistant", f"没写岗位名，我先按「{company} · 实习生」准备。")
-                _start_interview(company, title)
+            st.rerun()
 
         else:
             interview_state = st.session_state.get(INTERVIEW_KEY)
             if interview_state and interview_state.get("active"):
                 _interview_turn(user_input)
+                st.rerun()
             else:
                 result = _run_agent(_agent_question(user_input))
-                _push("assistant", result.get("answer") or "（Agent 没有返回内容）",
-                      steps=result.get("steps") or [])
-
-    _rerun()
-
-# ---------- 2. 渲染对话历史 ----------
-
-for index, message in enumerate(_messages()):
-    with st.chat_message(message["role"]):
-        st.markdown(message.get("content") or "")
-        if message["role"] == "assistant":
-            _render_steps(message.get("steps") or [])
-            # 欢迎语与命令回执不需要评价，只给真正调过 Agent 的回答加反馈按钮
-            if message.get("steps"):
-                question = ""
-                for previous in reversed(_messages()[:index]):
-                    if previous["role"] == "user":
-                        question = previous.get("content", "")
-                        break
-                _render_feedback(index, question, message)
-
-# ---------- 3. 输入框 ----------
-
-typed = st.chat_input("输入消息，或命令：/resume、/mock-interview、/clear")
-if typed:
-    st.session_state[PENDING_KEY] = {"text": typed}
-    _rerun()
+                steps = result.get("steps") or []
+                answer = result.get("answer") or "（Agent 没有返回内容）"
+                # 先出思考过程，再把 answer 在同一气泡里逐字刷出来
+                with st.chat_message("assistant"):
+                    _render_steps(steps)
+                    _stream_answer(answer)
+                _push("assistant", answer, steps=steps)
