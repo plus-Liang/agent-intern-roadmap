@@ -31,6 +31,7 @@ if str(ROOT_DIR) not in sys.path:
 
 import json
 import time
+import traceback
 
 import json5
 import streamlit as st
@@ -436,7 +437,12 @@ def _run_agent(question: str) -> dict:
     try:
         return run_agent(question, resume_data=resume_data, verbose=False) or {}
     except Exception as exc:                        # noqa: BLE001 - Agent 挂了不该让页面崩
-        return {"answer": f"Agent 运行出错：{type(exc).__name__}: {exc}", "steps": []}
+        # 只显示类型名：异常字符串本身可能再触发编码错误（云端 latin-1），
+        # 完整堆栈用 st.code 展示，一次定位到底崩在哪一行。
+        st.error(f"运行出错：{type(exc).__name__}")
+        with st.expander("查看完整错误", expanded=True):
+            st.code(traceback.format_exc())
+        return {"answer": f"Agent 运行出错：{type(exc).__name__}", "steps": []}
 
 
 # ============================================================
