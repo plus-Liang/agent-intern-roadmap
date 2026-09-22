@@ -4,9 +4,11 @@ import json5
 ReAct Agent。
 LLM 在循环里自主决策：思考 → 调工具 → 观察 → 再思考。
 """
+import hashlib
 import json
 import os
 import re
+import time
 from shared.llm_client import chat
 from agent.tools_registry import (
     list_tools_description,
@@ -39,7 +41,17 @@ SUMMARY_PROMPT_TEMPLATE = (
 )
 
 
-SYSTEM_PROMPT_TEMPLATE = """你是一个求职助手 Agent。你可以调用工具帮用户完成任务。
+# ========== 稳定前缀（KV Cache 友好） ==========
+#
+# 上下文决定能力上限，前缀越稳定缓存命中越高。所以 system prompt 拆成两半：
+#   - STATIC_PREFIX：角色 + 工具定义 + 规则。只要代码和工具表不变，它逐字节不变，
+#     每次 LLM 调用的开头都是同一段，前缀缓存（KV Cache）可以直接命中；
+#   - DYNAMIC_CONTEXT：用户偏好 / 当前简历 / 当前时间，每次调用都在变，
+#     以 **user** 消息（不是第二条 system）的形式追加在静态前缀之后。
+#
+# 动态部分为什么用 user 而不是 system：部分 OpenAI 兼容端点对多条 system
+# 消息处理不一致（有的只认第一条、有的直接报错），用 user 消息最稳。
+STATIC_PREFIX = """你是一个求职助手 Agent。你可以调用工具帮用户完成任务。
 
 【可用工具】
 {tools}
@@ -106,12 +118,48 @@ SYSTEM_PROMPT_TEMPLATE = """你是一个求职助手 Agent。你可以调用工�
   请使用 match_resume 工具，resume_json 参数填 "current"（系统会自动替换）。
 
 【长期偏好】
-- 系统会在下面注入用户跨会话记住的偏好（目标城市/关键词/惯用简历等）。
-  用户没特别说明时，搜索和匹配默认沿用这些偏好，并且要在回答里体现你用了它们。
+- 系统会把用户跨会话记住的偏好（目标城市/关键词/惯用简历等）注入在本轮
+  上下文的【当前状态】里。用户没特别说明时，搜索和匹配默认沿用这些偏好，
+  并且要在回答里体现你用了它们。
 - 用户说出新的稳定偏好时（如"我只找广州的""关键词以后用 Agent 开发""以后都用产品岗版简历"），
   调用 save_preference 记住它（key 用 target_cities / target_keywords / resume_id
   或自定义偏好名，value 是值或列表）；用户想确认你记住了什么就用 get_preferences。
 """
+
+# DYNAMIC_CONTEXT（本轮会变的信息）的固定抬头：既是给模型的状态标记，
+# 也是 compact_messages 识别「这条是钉住的动态上下文、别压进摘要」的凭据。
+DYNAMIC_CONTEXT_HEADER = "【当前状态】"
+
+# 兼容旧名字：老代码/测试若 `from agent.react_agent import SYSTEM_PROMPT_TEMPLATE`
+# 仍能工作，内容等于静态前缀模板（只是不再包含动态部分）。
+SYSTEM_PROMPT_TEMPLATE = STATIC_PREFIX
+
+
+def build_static_prefix() -> str:
+    """把 STATIC_PREFIX 模板填成最终字符串（工具定义 + 轮次上限）。"""
+    return STATIC_PREFIX.format(tools=list_tools_description(), max_turns=MAX_TURNS)
+
+
+def static_prefix_hash(prefix: str) -> str:
+    """静态前缀的 sha1（取前 8 位）：同一份代码应当每次都得同一个值。"""
+    return hashlib.sha1(prefix.encode("utf-8")).hexdigest()[:8]
+
+
+def build_dynamic_context(profile_text: str = "", resume_data: dict = None,
+                          now: str = None) -> str:
+    """拼本轮会变的状态信息：当前时间 + 用户偏好 + 当前简历。
+
+    这部分每次调用都可能不同，所以绝不能混进 STATIC_PREFIX，
+    否则前缀缓存全废。
+    """
+    parts = [f"当前时间：{now or time.strftime('%Y-%m-%d %H:%M:%S')}"]
+    if profile_text:
+        parts.append(profile_text)
+    if resume_data:
+        parts.append(
+            "【用户当前简历】\n" + json.dumps(resume_data, ensure_ascii=False)
+        )
+    return "\n\n".join(parts)
 
 
 # ========== 长期记忆工具（save_preference / get_preferences） ==========
@@ -304,14 +352,29 @@ def _is_tool_result(msg: dict) -> bool:
     )
 
 
+def _is_dynamic_context(msg: dict) -> bool:
+    """判断一条消息是不是 run() 注入的「【当前状态】」动态上下文。
+
+    这条消息带的是用户偏好 / 当前简历 / 当前时间，属于「每轮都要在眼前」的信息，
+    不能像普通历史那样被摘要吞掉，所以 compact_messages 要把它钉在 system 之后。
+    只认抬头，不认位置以外的任何东西——旧格式的 messages 里没有这条，逻辑不变。
+    """
+    return (
+        isinstance(msg, dict)
+        and msg.get("role") == "user"
+        and str(msg.get("content", "")).startswith(DYNAMIC_CONTEXT_HEADER)
+    )
+
+
 def compact_messages(messages: list, max_history: int = None, verbose: bool = True) -> list:
     """把 messages 压到 max_history 条以内（默认取 MAX_HISTORY / 环境变量）。
 
     规则：
     - 第 1 条 system prompt 永远保留；
-    - 保留最近 max_history - 2 条原始消息；
-    - 中间部分（system 之后、最近 N 条之前）交给 LLM 摘要，
-      以「之前对话摘要：…」插在 system prompt 之后，这 1 条摘要本身也计入上限；
+    - 紧跟其后的「【当前状态】」动态上下文（如果有）也保留，不参与摘要；
+    - 保留最近 max_history - 2 条原始消息（有动态上下文时名额相应少 1 条）；
+    - 中间部分（钉住的消息之后、最近 N 条之前）交给 LLM 摘要，
+      以「之前对话摘要：…」插在这些消息之后，这 1 条摘要本身也计入上限；
     - 没超限时原样返回（返回新列表，不改动入参）；
     - 切点如果正好落在「工具返回结果」上，会往前多留一条（见下方注释）。
 
@@ -324,7 +387,10 @@ def compact_messages(messages: list, max_history: int = None, verbose: bool = Tr
         return list(messages)
 
     system_msg = messages[0]
-    keep_tail = max(0, limit - 2)                  # 留 1 条名额给摘要
+    # 钉住的消息（当前只有「【当前状态】」那一条），始终排在 system 之后
+    pinned = [messages[1]] if len(messages) > 1 and _is_dynamic_context(messages[1]) else []
+    head_len = 1 + len(pinned)                     # system + 钉住的消息
+    keep_tail = max(0, limit - head_len - 1)       # 再留 1 条名额给摘要
     if keep_tail:
         # 切尾部之前先看切点：如果尾部第一条是「工具返回结果」，说明它对应的
         # assistant 消息（含 action）被切进了摘要区。只保留结果、丢掉产生它的
@@ -333,18 +399,19 @@ def compact_messages(messages: list, max_history: int = None, verbose: bool = Tr
         # assistant 消息一起留在尾部，保证 (assistant, 工具返回结果) 成对。
         while True:
             cut = len(messages) - keep_tail
-            if cut <= 1 or cut >= len(messages) or not _is_tool_result(messages[cut]):
+            if cut <= head_len or cut >= len(messages) or not _is_tool_result(messages[cut]):
                 break
             keep_tail += 1
     tail = messages[len(messages) - keep_tail:] if keep_tail else []
-    middle = messages[1:len(messages) - keep_tail] if keep_tail else messages[1:]
+    middle = messages[head_len:len(messages) - keep_tail] if keep_tail else messages[head_len:]
 
     if not middle:                                 # 兜底：没有可压缩内容时不调 LLM
-        return [system_msg] + tail
+        return [system_msg] + pinned + tail
 
     summary = _summarize_messages(middle, verbose=verbose)
     compacted = [
         system_msg,
+    ] + pinned + [
         {"role": "user", "content": f"之前对话摘要：{summary}"},
     ] + tail
 
@@ -370,12 +437,10 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
                 print(f"[简历] 读取当前简历失败（忽略）：{e}")
             resume_data = None
 
-    tools_desc = list_tools_description()
-    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-        tools=tools_desc, max_turns=MAX_TURNS
-    )
+    # 静态前缀：只有代码/工具表变了才会变，跨调用逐字节一致 → 前缀缓存可命中
+    static_prefix = build_static_prefix()
 
-    # 长期记忆：把用户画像（目标城市/关键词/惯用简历/自由偏好）注入 system prompt。
+    # 长期记忆：读用户画像（目标城市/关键词/惯用简历/自由偏好）→ 放进动态上下文。
     # 画像读失败不该让对话挂掉，所以整段兜住异常、退化成「没有画像」。
     try:
         profile = user_profile.load_profile()
@@ -386,19 +451,23 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
 
     profile_text = user_profile.profile_to_prompt(profile) if profile else ""
     if profile_text:
-        system_prompt += f"\n\n{profile_text}"
         if verbose:
             print(f"[画像] 已注入长期偏好：{json.dumps(profile, ensure_ascii=False)}")
     elif verbose:
         print("[画像] 暂无长期偏好（用户还没说过稳定偏好）")
 
-    if resume_data:
-        system_prompt += f"\n\n【用户当前简历】\n{json.dumps(resume_data, ensure_ascii=False)}"
+    # 动态上下文：当前时间 + 用户偏好 + 当前简历。每次都变，所以单独放在
+    # 一条 user 消息里（不用第二条 system，兼容性更稳），跟在静态前缀后面。
+    dynamic_context = build_dynamic_context(
+        profile_text=profile_text, resume_data=resume_data
+    )
 
-    # compact_messages 只保留第 1 条 system 消息，所以危险操作规则和画像
-    # 必须在建 messages 之前就拼进去，否则长对话压缩后会被摘要吞掉。
+    # messages 结构：[system=STATIC_PREFIX] + [user=【当前状态】] + 对话历史
+    # compact_messages 保留第 1 条 system 和「当前状态」这条（见该函数内的钉住逻辑），
+    # 所以危险操作规则、画像、简历在长对话压缩后都还在。
     messages = [
-        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": static_prefix},
+        {"role": "user", "content": f"{DYNAMIC_CONTEXT_HEADER}\n{dynamic_context}"},
         {"role": "user", "content": question},
     ]
 
@@ -409,6 +478,13 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
 
         # 每次调用 LLM 前压缩历史：超限就摘要中间部分，长对话不会把 token 撑爆
         messages = compact_messages(messages, verbose=verbose)
+
+        # 每次调用 LLM 前报一次静态前缀指纹：多次调用 hash 一致 = 前缀稳定、缓存能命中
+        if verbose:
+            print(
+                f"[context] static_prefix_hash={static_prefix_hash(static_prefix)} "
+                f"len={len(static_prefix)}"
+            )
 
         raw = chat(messages, source="react_agent")
 
