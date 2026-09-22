@@ -244,16 +244,17 @@ section("任务 1b：落盘是「合并」不是「覆盖」（Round 8 事故回
 def t_landing_merge():
     out = WORK / "landing"
     out.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(REAL_JSON, out / "cleaned_jd.json")           # 真实 15 条副本
+    existing = len(REAL_JOBS)                                     # 真实语料条数（随数据扩充而变）
+    shutil.copyfile(REAL_JSON, out / "cleaned_jd.json")           # 真实语料副本
     res = S.merge_and_write_cleaned(
         [mk("brand_1", 0), mk("brand_2", 1), mk("brand_3", 2)], out_dir=out, today=TODAY
     )
     written = json.loads((out / "cleaned_jd.json").read_text(encoding="utf-8"))
-    if len(written) != 18:
-        _fail(f"应 18 条（15+3），实际 {len(written)}：{res['stats']}")
-    if res["stats"]["existing"] != 15:
-        _fail(f"应读到 15 条原有数据：{res['stats']}")
-    return f"原有 15 + 本次 3 → 落盘 {len(written)} 条（旧数据未被冲掉）"
+    if res["stats"]["existing"] != existing:
+        _fail(f"应读到 {existing} 条原有数据：{res['stats']}")
+    if len(written) != existing + 3:
+        _fail(f"应 {existing + 3} 条（{existing}+3），实际 {len(written)}：{res['stats']}")
+    return f"原有 {existing} + 本次 3 → 落盘 {len(written)} 条（旧数据未被冲掉）"
 
 
 def t_txt_full_merged():
@@ -265,14 +266,15 @@ def t_txt_full_merged():
     S.write_rag_text(merged, out)
     txt = (out / "scraped_jd.txt").read_text(encoding="utf-8")
     blocks = txt.count(S.SEPARATOR) // 2
-    if blocks != 16:
-        _fail(f"txt 应有 16 个岗位块，实际 {blocks}")
+    expected = len(REAL_JOBS) + 1                                 # 真实语料 + 本次新增 1 条
+    if blocks != expected:
+        _fail(f"txt 应有 {expected} 个岗位块，实际 {blocks}")
     if "txt_new" not in txt and REAL_JOBS[0]["company"] not in txt:
         _fail("txt 内容不对")
     return f"txt 为合并后全量：{blocks} 个岗位块"
 
 
-check("落盘合并：15 条真实数据 + 3 条新抓 → 18 条", t_landing_merge)
+check("落盘合并：真实全量数据 + 3 条新抓", t_landing_merge)
 check("语料 txt 写合并后全量（不是只写本次）", t_txt_full_merged)
 
 

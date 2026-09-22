@@ -196,7 +196,7 @@ def _resolve_job(company: str, title: str) -> tuple:
         if not keyword:
             continue
         try:
-            jobs = search_jobs(keyword, None, 5, platform="mock")
+            jobs = search_jobs(keyword, None, 20, platform="mock")
         except Exception as e:                      # noqa: BLE001 - 搜不到就往下退
             print(f"[面试] 搜索失败（忽略）：{type(e).__name__}: {e}")
             continue
