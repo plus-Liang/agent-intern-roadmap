@@ -1,4 +1,6 @@
 import time
+
+import httpx
 from openai import OpenAI
 from shared.config import ZHIPU_API_KEY, ZHIPU_BASE_URL, ZHIPU_CHAT_MODEL
 from shared.errors import ConfigError, APIError
@@ -12,7 +14,16 @@ def _get_client() -> OpenAI:
     if _client is None:
         if not ZHIPU_API_KEY:
             raise ConfigError("未找到 ZHIPU_API_KEY，请检查 .env 文件")
-        _client = OpenAI(api_key=ZHIPU_API_KEY, base_url=ZHIPU_BASE_URL)
+        # 显式 UTF-8，避免云端默认编码退化（Streamlit Cloud 上中文消息
+        # 会报 'ascii' codec can't encode characters）
+        _client = OpenAI(
+            api_key=ZHIPU_API_KEY,
+            base_url=ZHIPU_BASE_URL,
+            http_client=httpx.Client(
+                headers={"Content-Type": "application/json; charset=utf-8"},
+                timeout=90,
+            ),
+        )
     return _client
 
 
