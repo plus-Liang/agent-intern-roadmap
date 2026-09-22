@@ -3,10 +3,16 @@
 云端（Streamlit Cloud / Python 3.14）走 openai SDK 时，中文消息会报
 'ascii' codec can't encode characters。这里把请求体显式编码成 UTF-8
 （json.dumps(..., ensure_ascii=False).encode("utf-8")）后以 bytes 交给
-requests，全程不经过任何隐式编码，从根上避免该问题。
+requests，全程不经过任何隐式编码。
+
+注意：云端另一处真正的报错源是 **日志打印**——进程 stdout 编码退化
+（ascii / latin-1）时，`print` 一句带中文的日志就会抛 UnicodeEncodeError，
+把原始异常整个盖掉。本模块所有日志都走 _safe_print，编码再差也不会中断主流程。
 """
 import json
+import sys
 import time
+import traceback
 
 import requests
 from shared.config import ZHIPU_API_KEY, ZHIPU_BASE_URL, ZHIPU_CHAT_MODEL
@@ -14,6 +20,23 @@ from shared.errors import ConfigError, APIError
 from shared import token_tracker
 
 API_URL = f"{ZHIPU_BASE_URL}/chat/completions"
+
+
+def _safe_print(*args) -> None:
+    """打印日志：stdout 编码退化时也不抛异常。
+
+    云端 stdout 可能是 ascii / latin-1，直接 print 中文会抛
+    UnicodeEncodeError: 'ascii' codec can't encode characters in position ...
+    这会盖掉真正的 API 错误，所以失败时退化为全 ASCII 的转义输出。
+    """
+    text = " ".join(str(a) for a in args)
+    try:
+        print(text)
+    except Exception:                        # noqa: BLE001 - 只可能是编码问题
+        try:
+            sys.stderr.write(text.encode("ascii", "backslashreplace").decode("ascii") + "\n")
+        except Exception:                    # noqa: BLE001 - 日志失败绝不影响主流程
+            pass
 
 
 def _headers():
@@ -58,7 +81,7 @@ def _record_usage(model: str = "unknown", source: str = "unknown",
             request_id,
         )
     except Exception as e:                      # noqa: BLE001 - 记账失败不影响主流程
-        print(f"[token] 用量记录失败（忽略）：{type(e).__name__}: {e}")
+        _safe_print(f"[token] 用量记录失败（忽略）：{type(e).__name__}: {e}")
 
 
 def _encode(payload: dict) -> bytes:
@@ -93,10 +116,14 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
             raise
         except Exception as e:
             last_error = e
-            print(f"[第{attempt}次尝试失败] {e}")
+            # 诊断用：暴露原始异常与完整堆栈，避免只看到一句 APIError
+            # （同样走 _safe_print，否则打印中文会把原错误盖掉）
+            _safe_print(f"[DEBUG] 原始: {type(e).__name__}: {e}")
+            _safe_print(f"[DEBUG] {traceback.format_exc()}")
+            _safe_print(f"[第{attempt}次尝试失败] {e}")
             if attempt < retries:
                 wait = attempt * 2
-                print(f"等待 {wait} 秒后重试...")
+                _safe_print(f"等待 {wait} 秒后重试...")
                 time.sleep(wait)
 
     raise APIError(f"API 调用失败，已重试 {retries} 次：{last_error}")

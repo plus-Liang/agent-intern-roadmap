@@ -15,6 +15,16 @@
 import sys
 from pathlib import Path
 
+# 云端（Streamlit Cloud / Python 3.14）进程的 stdout/stderr 可能是 ascii 或
+# latin-1，任何带中文的 print 都会抛 UnicodeEncodeError（'ascii'/'latin-1'
+# codec can't encode characters in position ...），并把真正的错误盖掉。
+# 入口处统一改成 UTF-8，覆盖全进程所有 print / 日志。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:      # 流被重定向/替换过（如某些 stderr 包装）时忽略
+        pass
+
 # 项目根目录引导：dashboard/ 的上一级（agent/、shared/ 都在它下面）
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
