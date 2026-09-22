@@ -1,0 +1,94 @@
+name: Daily Scrape (实习僧)
+
+# 每天 UTC 19:00（北京 03:00）自动抓取 5 城市岗位；也可在 Actions 页面手动触发。
+# 注意：GitHub Actions 的 cron 一律按 UTC 解释，不要写北京时间。
+on:
+  schedule:
+    - cron: "0 19 * * *"
+  workflow_dispatch:
+
+# 要把抓取结果 push 回仓库，必须有 contents: write
+permissions:
+  contents: write
+
+# 同一时间只允许一个抓取任务：后到的排队等前一个跑完，避免两次运行互相叠加
+concurrency:
+  group: daily-scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # 让 scheduler 的「今天」按北京时间算（cron 是 UTC，数据日期按北京走更直观）
+      TZ: Asia/Shanghai
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          # persist-credentials 默认为 true：保留凭据，后面的 git push 才能直接用
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: 安装 Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-hf.txt
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-hf.txt
+          # requirements-hf.txt 是 HF 精简依赖，不含 playwright，单独装
+          pip install playwright
+
+      - name: 安装 Chromium（Playwright）
+        run: playwright install --with-deps chromium
+
+      - name: 写入临时 .env（从 secrets 读）
+        run: |
+          cat > .env <<'EOF'
+          ARK_API_KEY=${{ secrets.ARK_API_KEY }}
+          ARK_EMBEDDING_MODEL=${{ secrets.ARK_EMBEDDING_MODEL }}
+          ARK_CHAT_MODEL=${{ secrets.ARK_CHAT_MODEL }}
+          EOF
+          chmod 600 .env
+
+      - name: 准备抓取画像（5 城市）
+        run: |
+          mkdir -p agent/data
+          # agent/data/user_profile.json 不在 git 里，抓取器靠它的 target_cities 决定城市；
+          # 没有就临时生成一份（关键词留空 → scheduler 用 DEFAULT_KEYWORDS 兜底）。
+          if [ ! -f agent/data/user_profile.json ]; then
+            cat > agent/data/user_profile.json <<'EOF'
+          {"target_cities": ["广州", "深圳", "北京", "上海", "杭州"]}
+          EOF
+            echo "已生成临时 user_profile.json（5 城市）"
+          else
+            echo "仓库已有 user_profile.json，沿用"
+          fi
+
+      - name: 抓取岗位（单次）
+        run: python -m agent.scrapers.scheduler --once
+
+      - name: 提交抓取结果
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 只提交这两个产物，避免把 .env / 临时画像 / 日志带进仓库
+          git add rag/data/cleaned_jd.json rag/data/scraped_jd.txt
+          if git diff --cached --quiet; then
+            echo "本次抓取没有产生变化，跳过提交"
+            exit 0
+          fi
+          git commit -m "chore(data): 自动抓取实习僧岗位 $(date +%F)"
+          git push
+
+      - name: 清理临时 .env
+        if: always()
+        run: rm -f .env
