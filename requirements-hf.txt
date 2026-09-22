@@ -16,4 +16,3 @@ json5==0.15.0
 pypdf==6.18.1
 pandas==3.0.5
 numpy==2.5.3
-requests>=2.31,<3.0

@@ -10,7 +10,6 @@
 import json
 import sys
 import time
-import traceback
 import urllib.error
 import urllib.request
 
@@ -120,10 +119,9 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
         except Exception as e:
             last_err = e
             detail = _error_detail(e)
-            _safe_print(f"[DEBUG] 第{attempt}次失败: {type(e).__name__}: {e}")
-            if detail:
-                _safe_print(f"[DEBUG] 响应体: {detail}")
-            _safe_print(f"[DEBUG] {traceback.format_exc()}")
+            # 失败原因（含网关响应体）保留一行，方便云端排障；[DEBUG]/逐次 traceback 噪音已清理
+            _safe_print(f"[第{attempt}次尝试失败] {type(e).__name__}: {e}"
+                        + (f" | 响应体: {detail}" if detail else ""))
             if attempt < retries:
                 wait = attempt * 2
                 _safe_print(f"等待 {wait} 秒后重试...")
