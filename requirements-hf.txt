@@ -1,6 +1,8 @@
 # Hugging Face Spaces 精简依赖（FastAPI + Chainlit 服务）
 # 版本与 requirements-full.txt 保持一致；不含 streamlit / playwright / torch /
 # sentence-transformers / scikit-learn 等本地专用重依赖。
+# 注意：numpy==2.5.3 要求 Python >=3.12，所以本地和 CI 都必须用 3.12+，
+# 用 3.11 装会报 "Could not find a version that satisfies the requirement numpy==2.5.3"。
 fastapi==0.141.1
 uvicorn==0.52.4
 chainlit==2.12.0
