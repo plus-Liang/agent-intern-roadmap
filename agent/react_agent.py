@@ -9,7 +9,9 @@ import json
 import os
 import re
 import time
+import uuid
 from shared.llm_client import chat
+from shared.logger import log_event
 from agent.tools_registry import (
     list_tools_description,
     call_tool,
@@ -427,6 +429,11 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
     """运行 ReAct 循环
     resume_data: 当前用户的简历（dict），会注入到 system prompt
     """
+    # 每次运行的 Trace ID：把这轮的 run_start / thought / tool_call /
+    # observation / run_end 串成一条链，线上排查时按 trace_id 就能捞出全过程。
+    trace_id = str(uuid.uuid4())[:8]
+    log_event(trace_id, "run_start", question=question[:50])
+
     # 多版本简历：调用方没显式给简历时，用「当前使用」的那份
     # （use_resume 设过的 → 否则取默认/最新一份），支持技术岗版 / 产品岗版切换。
     if resume_data is None:
@@ -503,8 +510,11 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
         thought = decision.get("thought", "")
         if verbose:
             print(f"Thought: {thought}")
+        log_event(trace_id, "thought", turn=turn, content=thought[:100])
 
         if "final_answer" in decision:
+            log_event(trace_id, "run_end", total_turns=turn,
+                      final_answer_len=len(decision["final_answer"]))
             return {
                 "answer": decision["final_answer"],
                 "steps": steps + [{"turn": turn, "type": "final", "thought": thought}],
@@ -522,6 +532,9 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
             print(f"Action: {action}")
             print(f"Input: {str(action_input)[:200]}")
 
+        log_event(trace_id, "tool_call", turn=turn, tool=action,
+                  args=str(action_input)[:100])
+
         try:
             result = call_tool(action, action_input)
             result_str = json.dumps(result, ensure_ascii=False, default=str)
@@ -533,6 +546,9 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
             result_str = f"工具调用失败：{e}"
             if verbose:
                 print(f"Observation: {result_str}")
+
+        log_event(trace_id, "observation", turn=turn,
+                  result_preview=result_str[:100])
 
         messages.append({"role": "assistant", "content": raw})
         messages.append({
@@ -554,8 +570,11 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
             "observation": result_str,
         })
 
+    # 轮次耗尽也是 run 的正常收尾路径，run_end 同样要打，否则这条 trace 会断尾
+    answer = "抱歉，我没能在限定轮次内完成。请简化问题。"
+    log_event(trace_id, "run_end", total_turns=turn, final_answer_len=len(answer))
     return {
-        "answer": "抱歉，我没能在限定轮次内完成。请简化问题。",
+        "answer": answer,
         "steps": steps,
     }
 
