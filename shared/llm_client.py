@@ -1,32 +1,31 @@
-"""智谱对话客户端：绕过 openai SDK，直接用 requests 调用 HTTP 接口。
+"""智谱对话客户端：只用标准库 urllib.request 直连 HTTP 接口。
 
-云端（Streamlit Cloud / Python 3.14）走 openai SDK 时，中文消息会报
-'ascii' codec can't encode characters。这里把请求体显式编码成 UTF-8
-（json.dumps(..., ensure_ascii=False).encode("utf-8")）后以 bytes 交给
-requests，全程不经过任何隐式编码。
-
-注意：云端另一处真正的报错源是 **日志打印**——进程 stdout 编码退化
-（ascii / latin-1）时，`print` 一句带中文的日志就会抛 UnicodeEncodeError，
-把原始异常整个盖掉。本模块所有日志都走 _safe_print，编码再差也不会中断主流程。
+- 不再依赖任何第三方 HTTP 库（openai SDK / requests 都去掉了）：请求体显式
+  `json.dumps(..., ensure_ascii=False).encode("utf-8")`，响应显式
+  `decode("utf-8")`，全程不经过任何隐式编码。
+- 云端真正的报错源是 **日志打印**：进程 stdout 编码退化（ascii / latin-1）时，
+  `print` 一句带中文的日志就会抛 UnicodeEncodeError，把原始异常整个盖掉。
+  所以本模块所有日志都走 _safe_print，编码再差也不会中断主流程。
 """
 import json
 import sys
 import time
 import traceback
+import urllib.error
+import urllib.request
 
-import requests
 from shared.config import ZHIPU_API_KEY, ZHIPU_BASE_URL, ZHIPU_CHAT_MODEL
 from shared.errors import ConfigError, APIError
 from shared import token_tracker
 
-API_URL = f"{ZHIPU_BASE_URL}/chat/completions"
+CHAT_URL = f"{ZHIPU_BASE_URL}/chat/completions"
 
 
 def _safe_print(*args) -> None:
     """打印日志：stdout 编码退化时也不抛异常。
 
     云端 stdout 可能是 ascii / latin-1，直接 print 中文会抛
-    UnicodeEncodeError: 'ascii' codec can't encode characters in position ...
+    UnicodeEncodeError: 'latin-1' codec can't encode characters in position ...
     这会盖掉真正的 API 错误，所以失败时退化为全 ASCII 的转义输出。
     """
     text = " ".join(str(a) for a in args)
@@ -49,7 +48,6 @@ def _headers():
 
 
 def _usage_field(usage, name: str) -> int:
-    """usage 可能是 dict（requests 拿到的 JSON）也可能是 SDK 对象。"""
     if usage is None:
         return 0
     if isinstance(usage, dict):
@@ -89,90 +87,87 @@ def _encode(payload: dict) -> bytes:
     return json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
 
+def _error_detail(e: Exception) -> str:
+    """HTTPError 的响应体里通常写着网关的真实原因（如 model 不存在）。"""
+    if not isinstance(e, urllib.error.HTTPError):
+        return ""
+    try:
+        return e.read().decode("utf-8", "replace")[:500]
+    except Exception:                            # noqa: BLE001
+        return ""
+
+
 def chat(messages: list, model: str = None, retries: int = 3, source: str = "unknown") -> str:
     """非流式调用，失败重试。
 
     source: 调用方标记（如 "react_agent"），用于 token 用量按来源聚合，默认 "unknown"。
     """
     model = model or ZHIPU_CHAT_MODEL
-    payload = {"model": model, "messages": messages, "stream": False}
-    last_error = None
+    headers = _headers()                    # 顺便校验 Key，缺了直接抛 ConfigError
+    body = _encode({"model": model, "messages": messages, "stream": False})
+    last_err = None
 
     for attempt in range(1, retries + 1):
         try:
-            resp = requests.post(
-                API_URL,
-                headers=_headers(),
-                data=_encode(payload),      # 传 bytes，不经 requests 再编码
-                timeout=90,
-            )
-            resp.raise_for_status()
-            resp.encoding = "utf-8"
-            data = resp.json()
+            req = urllib.request.Request(CHAT_URL, data=body, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
             _record_usage(model=model, source=source,
                           usage=data.get("usage"), request_id=data.get("id"))
             return data["choices"][0]["message"]["content"]
         except ConfigError:
             raise
         except Exception as e:
-            last_error = e
-            # 诊断用：暴露原始异常与完整堆栈，避免只看到一句 APIError
-            # （同样走 _safe_print，否则打印中文会把原错误盖掉）
-            _safe_print(f"[DEBUG] 原始: {type(e).__name__}: {e}")
+            last_err = e
+            detail = _error_detail(e)
+            _safe_print(f"[DEBUG] 第{attempt}次失败: {type(e).__name__}: {e}")
+            if detail:
+                _safe_print(f"[DEBUG] 响应体: {detail}")
             _safe_print(f"[DEBUG] {traceback.format_exc()}")
-            _safe_print(f"[第{attempt}次尝试失败] {e}")
             if attempt < retries:
                 wait = attempt * 2
                 _safe_print(f"等待 {wait} 秒后重试...")
                 time.sleep(wait)
 
-    raise APIError(f"API 调用失败，已重试 {retries} 次：{last_error}")
+    raise APIError(f"API 调用失败，已重试 {retries} 次：{last_err}")
 
 
 def chat_stream(messages: list, model: str = None, source: str = "unknown"):
-    """流式调用，逐字返回（用 requests 的 iter_lines 解析 SSE）。
+    """流式调用，逐字返回（直接按行读 SSE，标准库无第三方编码逻辑）。
 
     source: 调用方标记，用于 token 用量按来源聚合，默认 "unknown"。
-    这里不主动要 usage（不带 stream_options），网关若在收尾 chunk 里给了就记，
-    没给则记 0 并标记 stream_no_usage，与旧实现保持一致。
+    网关若在收尾 chunk 里带 usage 就记，没带则记 0 并标记 stream_no_usage。
+    记账发生在生成器结束之后，调用方 break / 抛异常同样会落一条。
     """
     model = model or ZHIPU_CHAT_MODEL
-    payload = {"model": model, "messages": messages, "stream": True}
-
-    resp = requests.post(
-        API_URL,
-        headers=_headers(),
-        data=_encode(payload),
-        timeout=90,
-        stream=True,
-    )
-    resp.raise_for_status()
+    headers = _headers()
+    body = _encode({"model": model, "messages": messages, "stream": True})
 
     usage = None
     request_id = None
     try:
-        for raw in resp.iter_lines():
-            if not raw:
-                continue
-            line = raw.strip()
-            if line.startswith(b"data:"):
-                line = line[5:].strip()
-            if line == b"[DONE]":
-                break
-            try:
-                chunk = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if request_id is None:
-                request_id = chunk.get("id")
-            if chunk.get("usage") is not None:
-                usage = chunk["usage"]
-            choices = chunk.get("choices") or []
-            if not choices:                 # 带 usage 的收尾 chunk 可能没有 choices
-                continue
-            content = (choices[0].get("delta") or {}).get("content")
-            if content:
-                yield content
+        req = urllib.request.Request(CHAT_URL, data=body, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            for raw in resp:
+                line = raw.strip()
+                if not line or not line.startswith(b"data:"):
+                    continue
+                data = line[5:].strip()
+                if data == b"[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data.decode("utf-8"))
+                except json.JSONDecodeError:
+                    continue
+                if request_id is None:
+                    request_id = chunk.get("id")
+                if chunk.get("usage") is not None:
+                    usage = chunk["usage"]
+                choices = chunk.get("choices") or []
+                if not choices:             # 带 usage 的收尾 chunk 可能没有 choices
+                    continue
+                content = (choices[0].get("delta") or {}).get("content")
+                if content:
+                    yield content
     finally:
-        # 记账发生在生成器结束之后，调用方 break / 抛异常同样会落一条
         _record_usage(model=model, source=source, usage=usage, request_id=request_id)
