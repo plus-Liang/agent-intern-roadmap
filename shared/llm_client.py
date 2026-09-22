@@ -2,11 +2,14 @@
 
 - 请求体交给 `httpx.Client(json=payload)` 序列化，Content-Type 由 httpx 自动
   设置，不自己拼 header，也不碰任何隐式编码。
+- `trust_env=False`：完全忽略环境变量（HTTP_PROXY / HTTPS_PROXY / NO_PROXY ...），
+  避免代理相关的环境变量被当成 header 参与编码。
 - 云端真正的报错源是 **日志打印**：进程 stdout 编码退化（ascii / latin-1）时，
   `print` 一句带中文的日志就会抛 UnicodeEncodeError，把原始异常整个盖掉。
-  所以本模块所有日志都走 _safe_print，编码再差也不会中断主流程。
+  所以本模块所有日志都走 _safe_print，异常对象一律先过 _safe_str。
 """
 import json
+import os
 import sys
 import time
 
@@ -37,11 +40,36 @@ def _safe_print(*args) -> None:
             pass
 
 
+def _safe_str(obj) -> str:
+    """把任意对象转成字符串，永不让 str() 自己抛异常。
+
+    异常对象走 repr（带引号、转义），并截断到 200 字符，
+    避免异常信息本身在被格式化/打印时再崩一次。
+    """
+    try:
+        if isinstance(obj, BaseException):
+            return f"{type(obj).__name__}: " + repr(obj)[:200]
+        return str(obj)[:200]
+    except Exception:                        # noqa: BLE001
+        try:
+            return f"<{type(obj).__name__}>"
+        except Exception:                    # noqa: BLE001
+            return "<unknown>"
+
+
 def _headers():
     if not ZHIPU_API_KEY:
         raise ConfigError("未找到 ZHIPU_API_KEY，请检查 .env 文件")
     # 只传 Authorization：Content-Type 由 httpx 按 json= 自动带上
     return {"Authorization": f"Bearer {ZHIPU_API_KEY}"}
+
+
+def _log_proxy_diag() -> None:
+    """诊断：只打印代理环境变量的「有没有」，不打印值（值里可能含中文/凭据）。"""
+    _safe_print("[diag] proxy_env: "
+                f"HTTP_PROXY={bool(os.environ.get('HTTP_PROXY'))}, "
+                f"HTTPS_PROXY={bool(os.environ.get('HTTPS_PROXY'))}, "
+                f"NO_PROXY={bool(os.environ.get('NO_PROXY'))}")
 
 
 def _usage_field(usage, name: str) -> int:
@@ -76,7 +104,7 @@ def _record_usage(model: str = "unknown", source: str = "unknown",
             request_id,
         )
     except Exception as e:                      # noqa: BLE001 - 记账失败不影响主流程
-        _safe_print(f"[token] 用量记录失败（忽略）：{type(e).__name__}: {e}")
+        _safe_print(f"[token] 用量记录失败（忽略）：{_safe_str(e)}")
 
 
 def _error_detail(e: Exception) -> str:
@@ -92,7 +120,7 @@ def _error_detail(e: Exception) -> str:
 
 def _log_failure(attempt: int, e: Exception) -> None:
     detail = _error_detail(e)
-    _safe_print(f"[第{attempt}次尝试失败] {type(e).__name__}: {e}"
+    _safe_print(f"[第{attempt}次尝试失败] {type(e).__name__}: {_safe_str(e)}"
                 + (f" | 响应体: {detail}" if detail else ""))
 
 
@@ -106,10 +134,13 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
     payload = {"model": model, "messages": messages, "stream": False}
     last_err = None
 
+    _log_proxy_diag()
+
     for attempt in range(1, retries + 1):
         try:
             # httpx 用 json= 自己序列化 UTF-8 body，也自己设 Content-Type
-            with httpx.Client(timeout=TIMEOUT) as client:
+            # trust_env=False：不读代理等环境变量，避免它们参与请求编码
+            with httpx.Client(timeout=TIMEOUT, trust_env=False) as client:
                 resp = client.post(CHAT_URL, json=payload, headers=headers)
             resp.raise_for_status()
             data = resp.json()
@@ -126,7 +157,7 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
                 _safe_print(f"等待 {wait} 秒后重试...")
                 time.sleep(wait)
 
-    raise APIError(f"API 调用失败，已重试 {retries} 次：{last_err}")
+    raise APIError(f"API 调用失败，已重试 {retries} 次：{_safe_str(last_err)}")
 
 
 def chat_stream(messages: list, model: str = None, source: str = "unknown"):
@@ -143,7 +174,8 @@ def chat_stream(messages: list, model: str = None, source: str = "unknown"):
     usage = None
     request_id = None
     try:
-        with httpx.Client(timeout=TIMEOUT) as client:
+        # trust_env=False：同 chat()，不看代理环境变量
+        with httpx.Client(timeout=TIMEOUT, trust_env=False) as client:
             with client.stream("POST", CHAT_URL, json=payload, headers=headers) as resp:
                 resp.raise_for_status()
                 try:
