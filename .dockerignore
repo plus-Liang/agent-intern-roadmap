@@ -1,0 +1,39 @@
+# ---- 版本控制 ----
+.git/
+.gitignore
+.dockerignore
+
+# ---- 机密与本地配置（HF 上用 Space Secrets 注入）----
+.env
+.env.*
+!.env.example
+
+# ---- 运行期产物 ----
+logs/
+chroma_db/
+agent/data/applications.db
+agent/data/exports/
+agent/data/resumes/*.json
+agent/evaluation/failures/
+evaluation/failures/
+
+# ---- Python 缓存 ----
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ---- 另一个服务：Streamlit Dashboard ----
+dashboard/
+.streamlit/
+
+# ---- 本地虚拟环境 / 编辑器 / 工具缓存 ----
+.venv/
+venv/
+.idea/
+.vscode/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
