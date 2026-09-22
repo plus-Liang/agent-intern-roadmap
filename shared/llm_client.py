@@ -1,8 +1,7 @@
-"""智谱对话客户端：只用标准库 urllib.request 直连 HTTP 接口。
+"""智谱对话客户端：用 httpx 直连 HTTP 接口（不再用 urllib / requests）。
 
-- 不再依赖任何第三方 HTTP 库（openai SDK / requests 都去掉了）：请求体显式
-  `json.dumps(..., ensure_ascii=False).encode("utf-8")`，响应显式
-  `decode("utf-8")`，全程不经过任何隐式编码。
+- 请求体交给 `httpx.Client(json=payload)` 序列化，Content-Type 由 httpx 自动
+  设置，不自己拼 header，也不碰任何隐式编码。
 - 云端真正的报错源是 **日志打印**：进程 stdout 编码退化（ascii / latin-1）时，
   `print` 一句带中文的日志就会抛 UnicodeEncodeError，把原始异常整个盖掉。
   所以本模块所有日志都走 _safe_print，编码再差也不会中断主流程。
@@ -10,14 +9,15 @@
 import json
 import sys
 import time
-import urllib.error
-import urllib.request
 
+import httpx
 from shared.config import ZHIPU_API_KEY, ZHIPU_BASE_URL, ZHIPU_CHAT_MODEL
 from shared.errors import ConfigError, APIError
 from shared import token_tracker
 
 CHAT_URL = f"{ZHIPU_BASE_URL}/chat/completions"
+
+TIMEOUT = 90
 
 
 def _safe_print(*args) -> None:
@@ -40,10 +40,8 @@ def _safe_print(*args) -> None:
 def _headers():
     if not ZHIPU_API_KEY:
         raise ConfigError("未找到 ZHIPU_API_KEY，请检查 .env 文件")
-    return {
-        "Authorization": f"Bearer {ZHIPU_API_KEY}",
-        "Content-Type": "application/json; charset=utf-8",
-    }
+    # 只传 Authorization：Content-Type 由 httpx 按 json= 自动带上
+    return {"Authorization": f"Bearer {ZHIPU_API_KEY}"}
 
 
 def _usage_field(usage, name: str) -> int:
@@ -81,19 +79,21 @@ def _record_usage(model: str = "unknown", source: str = "unknown",
         _safe_print(f"[token] 用量记录失败（忽略）：{type(e).__name__}: {e}")
 
 
-def _encode(payload: dict) -> bytes:
-    """关键：显式 UTF-8，中文原样进 body，不依赖任何默认编码。"""
-    return json.dumps(payload, ensure_ascii=False).encode("utf-8")
-
-
 def _error_detail(e: Exception) -> str:
-    """HTTPError 的响应体里通常写着网关的真实原因（如 model 不存在）。"""
-    if not isinstance(e, urllib.error.HTTPError):
+    """HTTPStatusError 的响应体里通常写着网关的真实原因（如模型不存在）。"""
+    resp = getattr(e, "response", None)
+    if resp is None:
         return ""
     try:
-        return e.read().decode("utf-8", "replace")[:500]
+        return (resp.text or "")[:500]
     except Exception:                            # noqa: BLE001
         return ""
+
+
+def _log_failure(attempt: int, e: Exception) -> None:
+    detail = _error_detail(e)
+    _safe_print(f"[第{attempt}次尝试失败] {type(e).__name__}: {e}"
+                + (f" | 响应体: {detail}" if detail else ""))
 
 
 def chat(messages: list, model: str = None, retries: int = 3, source: str = "unknown") -> str:
@@ -103,14 +103,16 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
     """
     model = model or ZHIPU_CHAT_MODEL
     headers = _headers()                    # 顺便校验 Key，缺了直接抛 ConfigError
-    body = _encode({"model": model, "messages": messages, "stream": False})
+    payload = {"model": model, "messages": messages, "stream": False}
     last_err = None
 
     for attempt in range(1, retries + 1):
         try:
-            req = urllib.request.Request(CHAT_URL, data=body, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=90) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+            # httpx 用 json= 自己序列化 UTF-8 body，也自己设 Content-Type
+            with httpx.Client(timeout=TIMEOUT) as client:
+                resp = client.post(CHAT_URL, json=payload, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
             _record_usage(model=model, source=source,
                           usage=data.get("usage"), request_id=data.get("id"))
             return data["choices"][0]["message"]["content"]
@@ -118,10 +120,7 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
             raise
         except Exception as e:
             last_err = e
-            detail = _error_detail(e)
-            # 失败原因（含网关响应体）保留一行，方便云端排障；[DEBUG]/逐次 traceback 噪音已清理
-            _safe_print(f"[第{attempt}次尝试失败] {type(e).__name__}: {e}"
-                        + (f" | 响应体: {detail}" if detail else ""))
+            _log_failure(attempt, e)
             if attempt < retries:
                 wait = attempt * 2
                 _safe_print(f"等待 {wait} 秒后重试...")
@@ -131,7 +130,7 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
 
 
 def chat_stream(messages: list, model: str = None, source: str = "unknown"):
-    """流式调用，逐字返回（直接按行读 SSE，标准库无第三方编码逻辑）。
+    """流式调用，逐字返回（httpx 按行读 SSE）。
 
     source: 调用方标记，用于 token 用量按来源聚合，默认 "unknown"。
     网关若在收尾 chunk 里带 usage 就记，没带则记 0 并标记 stream_no_usage。
@@ -139,33 +138,39 @@ def chat_stream(messages: list, model: str = None, source: str = "unknown"):
     """
     model = model or ZHIPU_CHAT_MODEL
     headers = _headers()
-    body = _encode({"model": model, "messages": messages, "stream": True})
+    payload = {"model": model, "messages": messages, "stream": True}
 
     usage = None
     request_id = None
     try:
-        req = urllib.request.Request(CHAT_URL, data=body, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=90) as resp:
-            for raw in resp:
-                line = raw.strip()
-                if not line or not line.startswith(b"data:"):
-                    continue
-                data = line[5:].strip()
-                if data == b"[DONE]":
-                    break
+        with httpx.Client(timeout=TIMEOUT) as client:
+            with client.stream("POST", CHAT_URL, json=payload, headers=headers) as resp:
+                resp.raise_for_status()
                 try:
-                    chunk = json.loads(data.decode("utf-8"))
-                except json.JSONDecodeError:
-                    continue
-                if request_id is None:
-                    request_id = chunk.get("id")
-                if chunk.get("usage") is not None:
-                    usage = chunk["usage"]
-                choices = chunk.get("choices") or []
-                if not choices:             # 带 usage 的收尾 chunk 可能没有 choices
-                    continue
-                content = (choices[0].get("delta") or {}).get("content")
-                if content:
-                    yield content
+                    # SSE 响应头常不带 charset，显式按 UTF-8 解码，避免中文乱码
+                    resp.encoding = "utf-8"
+                except Exception:                # noqa: BLE001 - 赋值失败也无妨
+                    pass
+                for raw in resp.iter_lines():
+                    line = raw.strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    if request_id is None:
+                        request_id = chunk.get("id")
+                    if chunk.get("usage") is not None:
+                        usage = chunk["usage"]
+                    choices = chunk.get("choices") or []
+                    if not choices:             # 带 usage 的收尾 chunk 可能没有 choices
+                        continue
+                    content = (choices[0].get("delta") or {}).get("content")
+                    if content:
+                        yield content
     finally:
         _record_usage(model=model, source=source, usage=usage, request_id=request_id)
