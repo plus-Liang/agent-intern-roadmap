@@ -664,6 +664,7 @@ def scrape_multi_platform(
     result = {
         "jobs": [], "per_platform": {}, "per_city": {}, "per_keyword": {},
         "per_platform_city": {}, "failed": {}, "raw_total": 0,
+        "timings": [],
     }
     if not keywords:
         if logger:
@@ -700,6 +701,8 @@ def scrape_multi_platform(
             try:
                 for city in cities:
                     label = city or "不限"
+                    # 城市级计时：该城市所有关键词跑完（含失败的关键词）的总耗时
+                    t_city = time.monotonic()
                     for keyword in keywords:
                         searches_done += 1
                         try:
@@ -737,6 +740,9 @@ def scrape_multi_platform(
                                 f"{job.get('company')}|{job.get('title')}|{job.get('url')}",
                             )
                             merged.setdefault(key, job)
+                    if logger:
+                        logger.info("[计时][城市 %s] %d 个关键词共耗时: %.1f 秒",
+                                    label, len(keywords), time.monotonic() - t_city)
             finally:
                 try:
                     await instance.close()
@@ -751,6 +757,11 @@ def scrape_multi_platform(
                         "抓取器实例 1 个、close 1 次（浏览器按平台复用，不随关键词重启）",
                         platform, searches_done, len(cities), len(keywords),
                     )
+                # 抓取器自己维护的分段耗时账本（只加计时日志，不改抓取）。
+                # 用 getattr 兜底：没有计时能力的平台（例如注入的假抓取器）直接跳过。
+                platform_timings = getattr(instance, "timings", None)
+                if isinstance(platform_timings, dict) and platform_timings:
+                    result["timings"].append({"platform": platform, **platform_timings})
 
     asyncio.run(_run())
 
@@ -762,6 +773,52 @@ def scrape_multi_platform(
         jobs = jobs[:limit_total]
     result["jobs"] = jobs
     return result
+
+
+# ---------------------------------------------------------------------------
+# 分段耗时汇总（只读账本，纯日志，不影响抓取）
+# ---------------------------------------------------------------------------
+def _merge_timings(entries) -> dict:
+    """把多个平台的耗时账本合并成一份（秒数与次数都相加）。"""
+    merged: dict = {}
+    for entry in entries or []:
+        if not isinstance(entry, dict):
+            continue
+        for key, value in entry.items():
+            if key == "platform" or not isinstance(value, (int, float)):
+                continue
+            merged[key] = merged.get(key, 0) + value
+    return merged
+
+
+def _format_timing_overview(entries) -> list[str]:
+    """渲染 [计时][总览]：各分段秒数 + 次数 + 合计 + 其他开销。
+
+    账本覆盖一次搜索的完整墙钟（search_total = 浏览器 + 列表 + 详情 + page + 其他），
+    所以"其他开销"用减法得出，保证各项加起来正好等于合计 —— 这样"29 分钟去哪了"
+    就能一眼看出是落在哪个分段里。
+    """
+    t = _merge_timings(entries)
+    boot = t.get("browser_start", 0.0)
+    stop = t.get("browser_stop", 0.0)
+    list_sec = sum(t.get(k, 0.0) for k in ("list_goto", "list_selector", "list_wait"))
+    detail = t.get("detail", 0.0)
+    page = t.get("page", 0.0)
+    total = t.get("search_total", 0.0)
+    other = max(0.0, total - boot - stop - list_sec - detail - page)
+    return [
+        "[计时][总览]",
+        f"  浏览器启动: {boot:.1f} 秒（{int(t.get('browser_start_count', 0))} 次）",
+        f"  列表页加载: {list_sec:.1f} 秒（{int(t.get('list_goto_count', 0))} 次："
+        f"goto {t.get('list_goto', 0.0):.1f}"
+        f" + 选择器 {t.get('list_selector', 0.0):.1f}"
+        f" + 渲染等待 {t.get('list_wait', 0.0):.1f}）",
+        f"  详情页并发: {detail:.1f} 秒（{int(t.get('detail_count', 0))} 次 / "
+        f"{int(t.get('detail_jobs', 0))} 条）",
+        f"  page 创建/关闭: {page:.1f} 秒（{int(t.get('page_count', 0))} 次）",
+        f"  其他开销: {other:.1f} 秒（含卡片解析、逐条日志、浏览器关闭 {stop:.1f} 秒等）",
+        f"  合计: {total:.1f} 秒（{int(t.get('search_total_count', 0))} 次搜索）",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1354,6 +1411,16 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
             result["sync"] = _sync_json_to_sqlite(merged_result["path"], logger=log)
         else:
             log.info("[同步] 已关闭（persist_db=False 或存在注入式假抓取器）")
+
+        # 分段耗时总览：把本次各平台的分段计时汇总，定位"时间到底花在哪"。
+        # 只统计真实抓取；dry-run 与注入式假抓取器都没有账本。
+        if not dry_run:
+            timing_entries = merged_scrape.get("timings") or []
+            if _merge_timings(timing_entries).get("search_total_count", 0):
+                for line in _format_timing_overview(timing_entries):
+                    log.info("%s", line)
+            else:
+                log.info("[计时][总览] 本次没有可用的分段计时（抓取器未上报）")
 
         result["ok"] = True
     except Exception as exc:                     # noqa: BLE001 - 定时任务必须活下来

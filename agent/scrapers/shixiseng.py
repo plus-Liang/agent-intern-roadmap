@@ -978,6 +978,55 @@ async def _fetch_details_concurrent(
 
 
 # ---------------------------------------------------------------------------
+# 分段计时（只记耗时，不改任何抓取行为）
+#
+# 为什么需要：一次完整抓取（5 城市 × 7 关键词 = 35 次搜索）要 42 分钟，
+# 已知的只有"浏览器启动 ~6 秒""详情页并发 ~13 秒/关键词""列表页 ~5 分钟"，
+# 剩下 29 分钟不知去向。这里把每次搜索拆成几段分别计时并累加，
+# 由 scheduler 在收尾时汇总打印，用数据定位真正的瓶颈。
+#
+# 精度：time.monotonic()（不受系统时间调整影响），日志保留 0.1 秒。
+# ---------------------------------------------------------------------------
+_TIMING_KEYS = (
+    "browser_start",   # 真正启动 playwright + browser + context（复用后只发生 1 次）
+    "browser_stop",    # 关闭 browser + context（独立路径每次搜索都有；复用路径只有 1 次）
+    "list_goto",       # 列表页 page.goto
+    "list_selector",   # 列表页等卡片选择器（_find_card_selector）
+    "list_wait",       # 列表页固定渲染等待 page.wait_for_timeout(1500)
+    "detail",          # 详情页抓取（并发/顺序整段）
+    "page",            # page 创建 + 关闭（每次搜索 1 个）
+    "search_total",    # 一次 search() 的墙钟总耗时
+)
+
+
+def _new_timing() -> dict:
+    """一份耗时账本：每个分段的秒数与次数都预置为 0，上层可直接取用。"""
+    ledger: dict[str, Any] = {}
+    for key in _TIMING_KEYS:
+        ledger[key] = 0.0
+        ledger[f"{key}_count"] = 0
+    ledger["detail_jobs"] = 0      # 详情页实际抓了多少条岗位
+    return ledger
+
+
+def _timing_bump(ledger: Optional[dict], key: str, seconds: float,
+                 count: int = 1) -> None:
+    """累加一个分段的耗时与次数（ledger 为 None 时什么都不做）。
+
+    计时绝不能影响抓取：所有计时调用都走这个函数，账本不存在就静默跳过。
+    """
+    if ledger is None:
+        return
+    ledger[key] = ledger.get(key, 0.0) + seconds
+    ledger[f"{key}_count"] = ledger.get(f"{key}_count", 0) + count
+
+
+def _fmt(seconds: float) -> str:
+    """耗时格式化：保留 0.1 秒（日志里够用，又不至于刷屏）。"""
+    return f"{seconds:.1f}"
+
+
+# ---------------------------------------------------------------------------
 # 浏览器 / 页面生命周期
 # ---------------------------------------------------------------------------
 async def _new_context(browser: Any) -> Any:
@@ -991,7 +1040,8 @@ async def _new_context(browser: Any) -> Any:
 
 
 @contextlib.asynccontextmanager
-async def _search_context(headless: bool, context: Any = None):
+async def _search_context(headless: bool, context: Any = None,
+                          timings: Optional[dict] = None):
     """给一次搜索准备 (context, page)，并负责**只关自己开的东西**。
 
     * 不传 context（默认）：自己 `async_playwright()` + launch + 建 context，
@@ -999,26 +1049,40 @@ async def _search_context(headless: bool, context: Any = None):
     * 传 context（ShixisengScraper 复用模式）：**只借不关**，本次只新开一个 page
       并在退出时关掉它；浏览器留给调用方跨关键词/城市复用。
 
+    timings: 分段耗时账本（可选）。这里记 page 创建/关闭、以及独立路径下的
+             浏览器启动/关闭耗时。计时失败绝不影响抓取。
+
     yield (context, page)
     """
     if context is not None:
+        t_page = time.monotonic()
         page = await context.new_page()
+        _timing_bump(timings, "page", time.monotonic() - t_page)
         try:
             yield context, page
         finally:
+            t_page = time.monotonic()
             try:
                 await page.close()
             except Exception:  # noqa: BLE001 - 页面已关/浏览器已死都不该抛出
                 pass
+            # 只累加关闭耗时，不再加次数：page 次数按"创建"计一次即可
+            _timing_bump(timings, "page", time.monotonic() - t_page, count=0)
         return
 
+    t_boot = time.monotonic()
     async with async_playwright() as p:
         browser = await _launch_browser(p, headless)
         fresh_context = await _new_context(browser)
+        _timing_bump(timings, "browser_start", time.monotonic() - t_boot)
+
+        t_page = time.monotonic()
         page = await fresh_context.new_page()
+        _timing_bump(timings, "page", time.monotonic() - t_page)
         try:
             yield fresh_context, page
         finally:
+            t_stop = time.monotonic()
             try:
                 await fresh_context.close()
             except Exception:  # noqa: BLE001
@@ -1027,6 +1091,7 @@ async def _search_context(headless: bool, context: Any = None):
                 await browser.close()
             except Exception:  # noqa: BLE001
                 pass
+            _timing_bump(timings, "browser_stop", time.monotonic() - t_stop)
 
 
 # ---------------------------------------------------------------------------
@@ -1041,6 +1106,7 @@ async def search_shixiseng(
     max_pages: int = 3,
     detail_concurrency: Optional[int] = None,
     context: Any = None,
+    timings: Optional[dict] = None,
 ) -> list[Job]:
     """
     抓取实习僧搜索页岗位（支持翻页 + 跨页去重）。
@@ -1085,7 +1151,7 @@ async def search_shixiseng(
 
     # 浏览器生命周期统一交给 _search_context：
     # 不传 context 就自己开一套（原行为）；传了就只借不关，复用长驻浏览器。
-    async with _search_context(headless, context) as (context, page):
+    async with _search_context(headless, context, timings) as (context, page):
         try:
             # ------------------------------------------------------------------
             # 翻页抓列表：每页解析卡片 -> 按 job_id 去重累加
@@ -1100,12 +1166,16 @@ async def search_shixiseng(
                 print("-" * 70)
                 print(f"[诊断] 第 {page_no} 页 URL：{url}")
 
+                t_goto = time.monotonic()
                 try:
                     resp = await page.goto(url, wait_until="domcontentloaded", timeout=60_000)
                 except Exception as exc:  # noqa: BLE001 - 单页导航失败不放弃整轮
                     print(f"[诊断][警告] 第 {page_no} 页导航失败："
                           f"{type(exc).__name__}: {str(exc).splitlines()[0][:140]}")
                     break
+                goto_dt = time.monotonic() - t_goto
+                _timing_bump(timings, "list_goto", goto_dt)
+                print(f"[计时][search] 列表第 {page_no} 页 goto: {_fmt(goto_dt)} 秒")
 
                 print(f"[诊断] 第 {page_no} 页 HTTP 状态："
                       f"{resp.status if resp else 'N/A'}  最终 URL：{page.url}")
@@ -1114,12 +1184,20 @@ async def search_shixiseng(
                     print(f"[诊断][警告] 站点未接受 page={page_no}，最终 URL 为 {page.url}"
                           "（可能被重置回第 1 页）。")
 
+                t_sel = time.monotonic()
                 card_selector, card_count = await _find_card_selector(page)
+                sel_dt = time.monotonic() - t_sel
+                _timing_bump(timings, "list_selector", sel_dt)
+                print(f"[计时][search] 列表第 {page_no} 页 wait_for_selector: "
+                      f"{_fmt(sel_dt)} 秒")
                 print(f"[诊断] 第 {page_no} 页命中卡片选择器：{card_selector!r}  "
                       f"卡片数：{card_count}")
 
-                # 等页面渲染稳定一点再截图
+                # 等页面渲染稳定一点再截图（**固定 1.5 秒**，单独记入 list_wait：
+                # 70 页就是 105 秒，是"其他开销"里最容易被忽略的一笔固定成本）
+                t_wait = time.monotonic()
                 await page.wait_for_timeout(1_500)
+                _timing_bump(timings, "list_wait", time.monotonic() - t_wait)
 
                 # 要求 d) 截图（只截第 1 页，避免每页都刷盘）
                 if page_no == 1:
@@ -1223,6 +1301,7 @@ async def search_shixiseng(
                 conc = _resolve_detail_concurrency(detail_concurrency)
                 used_concurrency = conc > 1 and len(need_detail) > 1
                 details: list[dict[str, Any]] = []
+                t_detail_block = time.monotonic()
                 if used_concurrency:
                     print(f"[诊断][详情] 并发 {conc} 路抓取 {len(need_detail)} 条…"
                           f"（每条之间随机延迟 {DELAY_BETWEEN_DETAILS[0]}~"
@@ -1236,11 +1315,19 @@ async def search_shixiseng(
                           f"{sum(1 for d in details if d.get('description'))}"
                           f"/{len(need_detail)} 条（耗时 "
                           f"{time.monotonic() - t_detail:.1f} 秒）")
+                    detail_label = f"{len(need_detail)} 条并发抓取"
                 else:
                     print(f"[诊断][详情] 顺序抓取 {len(need_detail)} 条…")
                     for n, item in enumerate(need_detail, 1):
                         print(f"[诊断] ({n}/{len(need_detail)}) 详情页：{item['url']}")
                         details.append(await _fetch_detail(page, item["url"]))
+                    detail_label = f"{len(need_detail)} 条顺序抓取"
+
+                detail_dt = time.monotonic() - t_detail_block
+                _timing_bump(timings, "detail", detail_dt)
+                if timings is not None:
+                    timings["detail_jobs"] = timings.get("detail_jobs", 0) + len(need_detail)
+                print(f"[计时][search] 详情页 {detail_label}: {_fmt(detail_dt)} 秒")
 
                 for n, (item, detail) in enumerate(zip(need_detail, details), 1):
                     if not isinstance(detail, dict):
@@ -1557,6 +1644,8 @@ class ShixisengScraper(PlatformScraper):
         self._browser_lock: Any = None   # 惰性创建，避免在无事件循环时构造 asyncio.Lock
         self._launches = 0               # 浏览器实际启动次数（用于验证"只启动一次"）
         self._searches = 0               # 本实例完成的 search 次数
+        # 分段耗时账本：scheduler 收尾时读它汇总打印（见 scrape_multi_platform）
+        self.timings = _new_timing()
 
     # -- 转换 ---------------------------------------------------------------
     @staticmethod
@@ -1598,6 +1687,7 @@ class ShixisengScraper(PlatformScraper):
             if self._context is not None:          # 等锁期间别人已经建好了
                 return self._context
             print(f"[诊断] 启动浏览器（headless={self.headless}），之后跨关键词/城市复用…")
+            t_boot = time.monotonic()
             self._playwright = await async_playwright().start()
             try:
                 self._browser = await _launch_browser(self._playwright, self.headless)
@@ -1605,13 +1695,16 @@ class ShixisengScraper(PlatformScraper):
             except Exception:
                 await self._teardown()             # 半成品不留，下次调用重新启动
                 raise
+            boot_dt = time.monotonic() - t_boot
             self._launches += 1
-            print(f"[诊断] 浏览器就绪（第 {self._launches} 次启动）；"
-                  "后续每次搜索只新开一个 page。")
+            _timing_bump(self.timings, "browser_start", boot_dt)
+            print(f"[诊断] 浏览器就绪（第 {self._launches} 次启动，"
+                  f"[计时] 耗时 {_fmt(boot_dt)} 秒）；后续每次搜索只新开一个 page。")
             return self._context
 
     async def _teardown(self) -> None:
         """关掉长驻的 context / browser / playwright（幂等，可重复调用）。"""
+        t_stop = time.monotonic()
         if self._context is not None:
             try:
                 await self._context.close()
@@ -1630,6 +1723,7 @@ class ShixisengScraper(PlatformScraper):
             except Exception:  # noqa: BLE001
                 pass
             self._playwright = None
+        _timing_bump(self.timings, "browser_stop", time.monotonic() - t_stop)
 
     # -- PlatformScraper 接口 ----------------------------------------------
     async def search(
@@ -1638,9 +1732,22 @@ class ShixisengScraper(PlatformScraper):
         """抓单个「关键词 + 城市」组合，返回 RawJob 列表（含详情页正文）。
 
         复用长驻 context：这里只新开一个 page，不再重开浏览器。
+        每次搜索前后打印分段耗时，用于定位 42 分钟到底花在哪。
         """
+        t_search = time.monotonic()
+
+        launches_before = self._launches
+        t_ensure = time.monotonic()
         context = await self._ensure_context()
+        ensure_dt = time.monotonic() - t_ensure
+        # 只有"本次调用真的启动了浏览器"才说首次；复用时应接近 0
+        booted_now = self._launches > launches_before
+        print(f"[计时][search] 确保浏览器就绪: {_fmt(ensure_dt)} 秒"
+              f"（{'本次真的启动/重启了浏览器' if booted_now else '复用长驻实例，应接近 0'}）")
+
         self._searches += 1
+        # 本次搜索前的累计快照：用来算"本次"列表/详情各花了多少（账本是累加的）
+        before = {key: self.timings.get(key, 0.0) for key in _TIMING_KEYS}
         try:
             jobs = await search_shixiseng(
                 keyword,
@@ -1651,6 +1758,7 @@ class ShixisengScraper(PlatformScraper):
                 max_pages=self.max_pages,
                 detail_concurrency=self.detail_concurrency,
                 context=context,
+                timings=self.timings,
             )
         except Exception:
             # 浏览器/context 可能已经死了：丢掉长驻实例，让**下一个**关键词重新启动，
@@ -1658,6 +1766,18 @@ class ShixisengScraper(PlatformScraper):
             print("[诊断][警告] 本次搜索异常，关闭长驻浏览器；下次调用会重新启动。")
             await self._teardown()
             raise
+
+        total_dt = time.monotonic() - t_search
+        _timing_bump(self.timings, "search_total", total_dt)
+        # 列表 = goto + 等选择器 + 固定渲染等待（这三段才是列表阶段的真实成本）
+        list_dt = sum(
+            self.timings.get(key, 0.0) - before[key]
+            for key in ("list_goto", "list_selector", "list_wait")
+        )
+        detail_dt = self.timings.get("detail", 0.0) - before["detail"]
+        other_dt = max(0.0, total_dt - ensure_dt - list_dt - detail_dt)
+        print(f"[计时][search] 本次搜索总耗时: {_fmt(total_dt)} 秒"
+              f"（列表 {_fmt(list_dt)} + 详情 {_fmt(detail_dt)} + 其他 {_fmt(other_dt)}）")
         return [self.to_raw_job(job) for job in jobs]
 
     async def search_multi(
