@@ -85,6 +85,33 @@ if _env_detail_concurrency:
     except ValueError:
         DEFAULT_DETAIL_CONCURRENCY = None
 
+# ---------------------------------------------------------------------------
+# 参数外置 + 快速模式 + mock + 诊断模式（全部只用环境变量，不改代码就能调参）
+#
+# 为什么要有它们：调一次并发参数就要跑一次约 40 分钟的真实抓取，验证成本太高。
+#   SCHEDULER_FAST_MODE=1  只抓 1 城市 × 1 关键词 × 1 页 × 5 条 → 1~2 分钟出结果
+#   SCHEDULER_USE_MOCK=1   切到 MockScraper 假数据跑通整条链路（不联网，几秒）
+#   SCHEDULER_DIAGNOSE=1   跑完打印各环节**平均**耗时（列表页/详情页/page）：
+#                          一次运行同时拿到总量与单价，不用为了看数字重跑
+#
+# 并发数本身也在抓取器那边外置（两个数各自独立，默认 3 × 3 = 9 个标签页）：
+#   SHIXISENG_LIST_CONCURRENCY=3    列表页并发（1~8）
+#   SHIXISENG_DETAIL_CONCURRENCY=3  详情页并发（1~8）
+# ---------------------------------------------------------------------------
+def _env_flag(name: str) -> bool:
+    """布尔型环境变量：1/true/yes/on（大小写不敏感）为真，未设置或其余值为假。"""
+    return (os.getenv(name) or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+FAST_MODE = _env_flag("SCHEDULER_FAST_MODE")
+USE_MOCK = _env_flag("SCHEDULER_USE_MOCK")
+DIAGNOSE = _env_flag("SCHEDULER_DIAGNOSE")
+
+# 快速模式的规模：整条链路压到 1~2 分钟，只用来验证"改完还能不能跑通"。
+FAST_MAX_PAGES = 1
+FAST_LIMIT_PER_KEYWORD = 5
+FAST_LIMIT_TOTAL = 5
+
 # 清洗参数（与 rag/quality/cleaner.py 的默认口径一致）
 DEFAULT_MAX_AGE_DAYS = int(os.getenv("SCHEDULER_MAX_AGE_DAYS", "60"))
 DEFAULT_MIN_DESC_LEN = int(os.getenv("SCHEDULER_MIN_DESC_LEN", "200"))
@@ -145,7 +172,8 @@ def setup_logger(log_path=None, verbose: bool = True) -> logging.Logger:
         except Exception:  # noqa: BLE001
             pass
 
-    formatter = logging.Formatter(LOG_FORMAT, datefmt=LOG_DATEFMT)
+    formatter = logging.Formatter(("[FAST] " if FAST_MODE else "") + LOG_FORMAT,
+                                  datefmt=LOG_DATEFMT)
 
     target = Path(log_path) if log_path else LOG_PATH
     try:
@@ -329,6 +357,58 @@ def _format_keyword_groups(groups) -> str:
     return "、".join(parts)
 
 
+def _apply_fast_mode(config: dict, logger: logging.Logger = None) -> dict:
+    """快速模式（SCHEDULER_FAST_MODE=1）：把本次抓取缩到最小规模。
+
+    只留第一个城市 + 第一个关键词，翻页 1 页、每词 5 条、总量 5 条 —— 目的不是抓全，
+    而是把「抓取 → 清洗 → 落库 → 切块 → 入库 → 落盘」整条链路压到 1~2 分钟，让
+    "改完代码 / 改完并发参数到底还能不能跑通"这件事不用再等 40 分钟的完整抓取。
+
+    幂等：被调用两次（resolve_config 一次，命令行参数覆盖后再一次）不会来回折腾 ——
+    第二次发现规模已经是快速模式的值就不再改、也不再打日志。**不能**用"打过标记就
+    跳过"的写法：命令行参数是在两次调用之间生效的，那样会让 --max-pages 2 反过来
+    盖掉快速模式（实测踩过这个坑）。
+    只改本次要抓的**规模**，清洗 / 入库逻辑一行都不动。
+    """
+    if not FAST_MODE:
+        return config
+
+    # 收敛前的规模：只用来判断"这次调用到底改没改"，决定要不要打日志
+    before = (list(config.get("keywords") or []),
+              [c for c in (config.get("cities") or []) if str(c).strip()],
+              config.get("max_pages"), config.get("limit_per_keyword"),
+              config.get("limit_total"))
+
+    # 关键词：**整组收敛到一个词**。只截断 groups[0] 是不够的 ——
+    # `SCHEDULER_KEYWORDS=Agent,RAG,LLM` 在语义上是"一个同义词组的三个词"，
+    # run_daily_job 会把组重新平铺回 3 个关键词，快速模式就名存实亡了。
+    words = list(config.get("keywords")
+                 or flatten_keyword_groups(config.get("keyword_groups") or []))[:1]
+    config["keywords"] = words
+    config["keyword_groups"] = [words] if words else []
+
+    cities = [c for c in (config.get("cities") or []) if str(c).strip()][:1]
+    if cities:
+        config["cities"] = cities
+        config["city"] = cities[0]
+
+    config["max_pages"] = FAST_MAX_PAGES
+    config["limit_per_keyword"] = FAST_LIMIT_PER_KEYWORD
+    config["limit_total"] = FAST_LIMIT_TOTAL
+
+    after = (words, cities, config["max_pages"], config["limit_per_keyword"],
+             config["limit_total"])
+    if logger and before != after:
+        logger.info(
+            "[FAST] 快速模式：城市=%s 关键词=%s 页数=%d 每词上限=%d 总上限=%d"
+            "（只验证链路能不能跑通，不是生产抓取口径）",
+            "、".join(cities) or "不限",
+            "、".join(words) or "（无）",
+            config["max_pages"], config["limit_per_keyword"], config["limit_total"],
+        )
+    return config
+
+
 def resolve_config(profile: dict = None, logger: logging.Logger = None,
                    allow_fallback: bool = True) -> dict:
     """决定这次抓什么：关键词组 + 城市列表。
@@ -374,11 +454,18 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
     platforms = _split_list(
         os.getenv("SCHEDULER_PLATFORMS")
     ) or _split_list(profile.get("target_platforms")) or list(DEFAULT_PLATFORMS)
+    if USE_MOCK:
+        # mock 走的是**正规平台注册表路径**（不是注入式假抓取器），所以切换只动这一行：
+        # 后面的遍历 / 去重 / 清洗 / 落库…全部与真实平台完全一致。
+        platforms = ["mock"]
+        if logger:
+            logger.info("[MOCK] SCHEDULER_USE_MOCK=1：本次平台切到 MockScraper"
+                        "（假数据、不联网；落盘 / 落库 / 向量库一律跳过）")
     if len(platforms) > 1 and logger:
         logger.info("配置了 %d 个平台：%s（将逐个平台分别抓取后合并）",
                     len(platforms), "、".join(platforms))
 
-    return {
+    config = {
         "keyword_groups": groups,
         "keywords": keywords,
         "cities": cities,
@@ -390,6 +477,8 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
         "detail_concurrency": DEFAULT_DETAIL_CONCURRENCY,
         "stale_days": DEFAULT_STALE_DAYS,
     }
+    # 快速模式在这里就收敛规模；main() 用命令行参数覆盖之后再收敛一次（幂等）。
+    return _apply_fast_mode(config, logger)
 
 
 # ---------------------------------------------------------------------------
@@ -415,6 +504,11 @@ def scraper_registry() -> dict[str, type]:
         from agent.scrapers.shixiseng import ShixisengScraper
 
         SCRAPERS.setdefault("shixiseng", ShixisengScraper)
+        # mock_scraper 只依赖 base（不含 playwright），离线端到端自测用：
+        # SCHEDULER_USE_MOCK=1 时平台被切成 "mock"，几秒钟跑完整条链路。
+        from agent.scrapers.mock_scraper import MockScraper
+
+        SCRAPERS.setdefault("mock", MockScraper)
     return SCRAPERS
 
 
@@ -891,6 +985,54 @@ def _format_timing_overview(entries) -> list[str]:
     ]
 
 
+def _format_diagnose_overview(entries, config: dict = None) -> list[str]:
+    """诊断模式（SCHEDULER_DIAGNOSE=1）：把耗时账本换算成**每个环节的平均耗时**。
+
+    与 [计时][总览] 的区别：总览给的是"这一段一共花了多少"，诊断给的是"每一次
+    花多少"——调并发参数时真正要看的是后者（列表页 33 秒/页、详情页 6 秒/条），
+    因为总量会随抓取规模变化，单价才是配置的性能指标。
+
+    纯读账本、不发任何新请求：跑一次就同时拿到总量与单价，不用为了看数字重跑。
+    """
+    t = _merge_timings(entries)
+    list_sec = sum(t.get(k, 0.0) for k in ("list_goto", "list_selector", "list_wait"))
+    list_n = int(t.get("list_goto_count", 0) or 0)
+    detail_sec = t.get("detail", 0.0)
+    detail_n = int(t.get("detail_count", 0) or 0)
+    detail_jobs = int(t.get("detail_jobs", 0) or 0)
+    page_sec = t.get("page", 0.0)
+    page_n = int(t.get("page_count", 0) or 0)
+    total_sec = t.get("search_total", 0.0)
+    total_n = int(t.get("search_total_count", 0) or 0)
+
+    def _avg(sec: float, n: int) -> float:
+        return sec / n if n else 0.0
+
+    config = config or {}
+    cities = [c for c in (config.get("cities") or []) if str(c).strip()]
+    keywords = [k for k in (config.get("keywords") or []) if str(k).strip()]
+    detail_conc = (config.get("detail_concurrency")
+                   or os.getenv("SHIXISENG_DETAIL_CONCURRENCY") or "3")
+    list_conc = os.getenv("SHIXISENG_LIST_CONCURRENCY") or "3"
+    return [
+        "[诊断][平均耗时]（每次搜索 = 一个「城市 × 关键词」组合；列表页并发跑）",
+        f"  生效配置: 列表并发={list_conc} × 详情并发={detail_conc}"
+        f" | 页数/词={config.get('max_pages')} 条数/词={config.get('limit_per_keyword')}"
+        f" | 组合数={len(cities) * len(keywords)}"
+        f"（城市 {len(cities)} × 关键词 {len(keywords)}）",
+        f"  列表页: 平均 {_avg(list_sec, list_n):.1f} 秒/页（{list_n} 页，合计 "
+        f"{list_sec:.1f} 秒；其中 goto {t.get('list_goto', 0.0):.1f}"
+        f" + 选择器 {t.get('list_selector', 0.0):.1f}"
+        f" + 渲染等待 {t.get('list_wait', 0.0):.1f}）",
+        f"  详情页: 平均 {_avg(detail_sec, detail_n):.1f} 秒/条"
+        f"（{detail_n} 次请求 / {detail_jobs} 条正文）",
+        f"  page:   平均 {_avg(page_sec, page_n) * 1000:.0f} 毫秒/次"
+        f"（{page_n} 次创建+关闭）",
+        f"  单组合: 平均 {_avg(total_sec, total_n):.1f} 秒/次"
+        f"（{total_n} 次搜索，合计 {total_sec:.1f} 秒）",
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 抓取
 # ---------------------------------------------------------------------------
@@ -1261,6 +1403,9 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
     """
     log = logger or setup_logger()
     config = config or resolve_config(logger=log, allow_fallback=not dry_run)
+    # 老调用方可能直接传一份裸 config（不经过 resolve_config / main），这里兜一次底：
+    # 幂等且静默，不会因为重复调用把规模改回来。
+    config = _apply_fast_mode(config, None)
 
     # 关键词组（保留同义词关系用于日志），keywords 是平铺后的抓取参数
     keyword_groups = config.get("keyword_groups") or []
@@ -1276,6 +1421,15 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
     platforms = [p for p in (config.get("platforms") or []) if str(p).strip()]
     if not platforms:
         platforms = _split_list(os.getenv("SCHEDULER_PLATFORMS")) or list(DEFAULT_PLATFORMS)
+    if USE_MOCK:
+        # 环境变量优先于一切：mock 模式下绝不去碰真实平台。
+        platforms = ["mock"]
+    # mock 产出的是**假数据**：抓取 → 清洗 → 切块照常跑（用来验证链路），
+    # 但所有**写操作**都要关掉，否则 [MOCK] 岗位会污染真实库 / 真实语料 / 向量库。
+    # 这与自测里"注入式假抓取器不落库"是同一个口径。
+    mock_active = USE_MOCK or "mock" in platforms
+    if mock_active:
+        log.info("[MOCK] 假数据模式：跳过落库 / 落盘 / 向量入库（清洗与切块照常跑）")
     started = time.time()
 
     log.info(
@@ -1286,7 +1440,7 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
         "、".join(cities) if cities else "不限",
         dry_run,
         config.get("detail_concurrency", DEFAULT_DETAIL_CONCURRENCY)
-        or f"默认({os.getenv('SHIXISENG_DETAIL_CONCURRENCY') or '5'})",
+        or f"默认({os.getenv('SHIXISENG_DETAIL_CONCURRENCY') or '3'})",
     )
 
     result = {
@@ -1391,6 +1545,10 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
             log.info("[落库] dry-run：跳过写 SQLite")
         else:
             should_persist = (scraper is None) if persist_db is None else bool(persist_db)
+            if mock_active:
+                # 假数据绝不落真实库：即使显式 persist_db=True 也强制关掉
+                should_persist = False
+                log.info("[落库] mock 模式：跳过写 SQLite（假数据不落真实库）")
             if should_persist:
                 # 字段映射统一走 _job_to_dict()：job_id / platform / title / company /
                 # city / salary / url / description / publish_date
@@ -1428,7 +1586,11 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
         log.info("[3/4] 切块完成：%d 个 chunk", len(chunks))
 
         # 4) 增量入库（已存在且没变的不重算向量）
-        if chunks:
+        if mock_active:
+            # 假 chunk 不入向量库：embedding 是真花钱/真耗时的，且会污染检索结果
+            stats = {"added": 0, "updated": 0, "skipped": 0}
+            log.info("[4/4] mock 模式：跳过向量入库（假数据不入向量库）")
+        elif chunks:
             from rag.vector_store import add_chunks_incremental, get_collection
 
             stats = add_chunks_incremental(chunks, get_collection())
@@ -1442,8 +1604,9 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
         )
 
         # 5) 落盘：**合并**进 cleaned_jd.json（不是覆盖），再按合并后的全量刷新语料文本
-        if dry_run:
-            log.info("[落盘] dry-run：跳过写文件（cleaned_jd.json / scraped_jd.txt 保持原样）")
+        if dry_run or mock_active:
+            log.info("[落盘] %s：跳过写文件（cleaned_jd.json / scraped_jd.txt 保持原样）",
+                     "dry-run" if dry_run else "mock 模式")
         else:
             merged_result = merge_and_write_cleaned(
                 kept, out_dir,
@@ -1491,6 +1654,11 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                     log.info("%s", line)
             else:
                 log.info("[计时][总览] 本次没有可用的分段计时（抓取器未上报）")
+            if DIAGNOSE:
+                # 诊断模式：不重跑、不额外发请求，直接用上面这份账本算"每次花多少"，
+                # 并回显当前生效的并发/规模配置，方便"改参数 → 跑一次 → 看单价"。
+                for line in _format_diagnose_overview(timing_entries, config):
+                    log.info("%s", line)
 
         result["ok"] = True
     except Exception as exc:                     # noqa: BLE001 - 定时任务必须活下来
@@ -2049,6 +2217,12 @@ def main(argv=None) -> int:
     config["max_pages"] = args.max_pages
     config["limit_per_keyword"] = args.limit_per_keyword
     config["limit_total"] = args.limit_total
+    if USE_MOCK:
+        # 命令行 --platforms 也不能盖掉 mock 开关（开关的语义是"绝不联网"）
+        config["platforms"] = ["mock"]
+    # 命令行参数是"最后一次覆盖"，所以快速模式要在覆盖之后再收敛一次。
+    # 这里静默（logger=None）：[FAST] 那行日志由 resolve_config 打，只打一遍就够。
+    config = _apply_fast_mode(config, None)
 
     out_dir = Path(args.out_dir) if args.out_dir else None
 

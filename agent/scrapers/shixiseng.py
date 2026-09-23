@@ -102,8 +102,11 @@ DETAIL_SLEEP_RANGE = (0.5, 1.5)
 #
 # MAX_DETAIL_CONCURRENCY 是并发路数（同时打开的标签页数），可用环境变量覆盖：
 #   SHIXISENG_DETAIL_CONCURRENCY=3
-# 建议 3~5：太低提速有限，太高容易触发反爬。上限 DETAIL_CONCURRENCY_MAX_LIMIT 兜底。
-MAX_DETAIL_CONCURRENCY = int(os.getenv("SHIXISENG_DETAIL_CONCURRENCY", "5"))
+# 默认 3，与列表页并发**相互独立**：同一时刻最多打开的标签页数 =
+#   列表并发 × 详情并发（默认 3 × 3 = 9），总量由调用方自己控制。
+# 本模块**不再**做任何"按列表并发等比缩小"的换算（旧的 5 // 列表并发 公式已删除）。
+# 可调范围 1~8，越界值由 DETAIL_CONCURRENCY_MAX_LIMIT 兜底。
+MAX_DETAIL_CONCURRENCY = int(os.getenv("SHIXISENG_DETAIL_CONCURRENCY", "3"))
 DETAIL_CONCURRENCY_MAX_LIMIT = 8
 
 # 每条详情页之间保持的随机延迟（伪装人类节奏），单位秒。
@@ -125,12 +128,14 @@ DELAY_BETWEEN_DETAILS = (0.3, 0.5)
 #     context 里新开），组合之间不共享页面、不共享去重集合，因此没有数据竞争；
 #   * 平台之间仍然**顺序**（scheduler 逐个平台跑）；单个组合内部的翻页也仍然顺序
 #     （?page=N 翻页带 cookie / 风控节奏，不动）；
-#   * 同时打开的列表页数默认 3、硬上限 5：同一 IP 同时打 3 个搜索入口已经是
-#     "并发但不像压测"，再加路数风控风险涨得比收益快。
+#   * 同时打开的列表页数默认 3、**可调范围 1~8**（上限 LIST_CONCURRENCY_MAX_LIMIT）：
+#     同一 IP 同时打 3 个搜索入口已经是"并发但不像压测"，再加路数风控风险涨得比收益快。
 #
 # 可用环境变量覆盖：SHIXISENG_LIST_CONCURRENCY=3
+# 默认组合：列表 3 × 详情 3 = 最多 9 个标签页（安全）；两个数**各自独立可调**，
+# 不再有"详情并发 = 5 // 列表并发"这种固定公式（那会让详情页变成新瓶颈）。
 MAX_LIST_CONCURRENCY = int(os.getenv("SHIXISENG_LIST_CONCURRENCY", "3"))
-LIST_CONCURRENCY_MAX_LIMIT = 5
+LIST_CONCURRENCY_MAX_LIMIT = 8
 
 # 每个并发 page 启动前的随机延迟（伪装人类节奏，避免几个请求齐射），单位秒。
 # 与 DELAY_BETWEEN_DETAILS 是同一类东西，只是作用在列表页组合之间。
@@ -901,17 +906,18 @@ def _resolve_list_concurrency(value: Optional[int] = None) -> int:
 
 def _detail_concurrency_for_list(list_concurrency: int,
                                  detail_concurrency: Optional[int] = None) -> int:
-    """列表页并发时，**每个组合**的详情页并发路数。
+    """【已废弃的兼容壳】详情页并发**不再**按列表并发换算。
 
-    为什么需要它：详情页并发是"每个组合各开一个页面池"。如果 3 路列表 × 5 路详情
-    都按原样跑，同一时刻就有 15 个标签页在打同一个站点，风控风险明显上升。
-    这里按列表并发等比缩小：max(1, 详情并发 // 列表并发)，让同时打开的标签页数
-    维持在原有量级。显式传了 detail_concurrency 也按同一口径收敛（不做齐射是硬约束）。
+    历史行为是 max(1, 详情并发 // 列表并发)（也就是写死的"5 // 列表并发"），
+    那个固定公式会把详情页压成新瓶颈：列表 3 路时详情只剩 1 路，详情页等于串行。
+    现在两个并发数**各自独立**（SHIXISENG_LIST_CONCURRENCY / SHIXISENG_DETAIL_CONCURRENCY），
+    同时打开的标签页数 = 列表并发 × 详情并发，由调用方按自己的风控承受力决定。
+
+    函数名保留只是为了兼容旧调用方与旧验证脚本：list_concurrency 已被忽略，
+    返回值就是 detail_concurrency 自身收敛后的合法值（1~8）。
     """
-    base = _resolve_detail_concurrency(detail_concurrency)
-    if list_concurrency <= 1:
-        return base
-    return max(1, base // list_concurrency)
+    del list_concurrency          # 故意忽略：两个并发数不再联动
+    return _resolve_detail_concurrency(detail_concurrency)
 
 
 async def _fetch_details_concurrent(
@@ -1192,8 +1198,9 @@ async def search_shixiseng(
         max_pages: 最多翻多少页（每页实测 20 条，默认 3 页 ≈ 60 条）。
                    <=0 表示不设上限，翻到没有新岗位为止（有硬上限安全阀）。
         detail_concurrency: 详情页并发路数（同时打开的标签页数）。
-                   None 用模块常量 MAX_DETAIL_CONCURRENCY（默认 5，可用环境变量
-                   SHIXISENG_DETAIL_CONCURRENCY 覆盖）；<=1 退化为原来的顺序抓取。
+                   None 用模块常量 MAX_DETAIL_CONCURRENCY（默认 3，可用环境变量
+                   SHIXISENG_DETAIL_CONCURRENCY 覆盖，上限 8）；<=1 退化为原来的顺序抓取。
+                   与列表页并发**无关**（各自独立可调，两者相乘才是标签页总数）。
                    **本函数只并发详情页**；列表页的并发在 search_multi() 那一层做
                    （本函数自身仍是"一个 page 顺序翻完这个组合的页"）。
         context: 传入一个**既有** browser context 时复用它。ShixisengScraper 走这条路：
@@ -1887,8 +1894,9 @@ class ShixisengScraper(PlatformScraper):
             * `asyncio.Semaphore(concurrency)` 限制同时在跑的列表页数；
             * 每个组合**独立一个 page**（同一个长驻 context 里新开）；
             * 每个组合启动前随机等待 DELAY_BETWEEN_LISTS（0.5~1.0 秒），不做齐射；
-            * 每个组合的详情页并发按列表并发等比缩小
-              （见 _detail_concurrency_for_list），避免标签页数叠乘；
+            * 每个组合的详情页并发**独立**取 SHIXISENG_DETAIL_CONCURRENCY（默认 3，
+              上限 8），**不再**按列表并发等比缩小 —— 两个数各自可调，
+              同一时刻总标签页数 = 列表并发 × 详情并发；
             * `asyncio.gather(..., return_exceptions=True)`：单个组合失败只记错误，
               不影响其他组合 —— 与调度器原来"逐组合 try/except"的行为一致。
 
@@ -1910,7 +1918,9 @@ class ShixisengScraper(PlatformScraper):
             return []
 
         conc = _resolve_list_concurrency(concurrency)
-        detail_conc = _detail_concurrency_for_list(conc, self.detail_concurrency)
+        # 详情并发**独立**解析（走 SHIXISENG_DETAIL_CONCURRENCY，默认 3、上限 8）：
+        # 旧的"详情并发 // 列表并发"固定公式已删除，详情页不再是新的瓶颈。
+        detail_conc = _resolve_detail_concurrency(self.detail_concurrency)
         print("=" * 70)
         print(f"[列表并发] {len(combos)} 个「关键词 + 城市」组合：{conc} 路并发"
               f"（每个 page 启动前随机延迟 {DELAY_BETWEEN_LISTS[0]}~"
