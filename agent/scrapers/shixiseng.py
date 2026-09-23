@@ -71,6 +71,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from agent.tools.job_search import Job  # noqa: E402
 
+# 多平台抽象层（RawJob / PlatformScraper）。base.py 只依赖标准库，
+# 放在这里不会引入额外的浏览器 / 网络依赖。
+from agent.scrapers.base import PlatformScraper, RawJob  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # 常量
 # ---------------------------------------------------------------------------
@@ -1458,6 +1462,107 @@ async def search_multi_keywords(
               "也可能是站点风控或选择器失效，请看上方逐关键词诊断。")
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# 多平台适配器：ShixisengScraper
+# ---------------------------------------------------------------------------
+class ShixisengScraper(PlatformScraper):
+    """实习僧抓取器 —— 既有的多平台适配器。
+
+    本类**不重写任何抓取逻辑**，只是把上面两个函数式入口
+    （`search_shixiseng` / `search_multi_keywords`）返回的
+    `agent.tools.job_search.Job` 包装成平台无关的 `RawJob`，
+    让调度器能用同一套接口遍历所有平台。
+
+    平台相关的参数（headless / 翻页数 / 详情页并发）放在**构造参数**里，
+    这样调度器只需要跟 `search(keyword, city, limit)` 这一个接口打交道。
+    """
+
+    platform_name = PLATFORM          # "shixiseng"
+
+    def __init__(
+        self,
+        headless: bool = False,
+        fetch_detail: bool = True,
+        max_pages: int = 3,
+        detail_concurrency: Optional[int] = None,
+    ) -> None:
+        self.headless = headless
+        self.fetch_detail = fetch_detail
+        self.max_pages = max_pages
+        self.detail_concurrency = detail_concurrency
+
+    # -- 转换 ---------------------------------------------------------------
+    @staticmethod
+    def to_raw_job(job: Any) -> RawJob:
+        """Job（dataclass）或同名字段的 dict -> RawJob。"""
+        if isinstance(job, dict):
+            def get(name: str) -> Any:
+                return job.get(name)
+        else:
+            def get(name: str) -> Any:
+                return getattr(job, name, None)
+
+        return RawJob(
+            # 抓取器自己写的 platform 优先，兜底用本平台的标识
+            platform=get("platform") or PLATFORM,
+            job_id=get("job_id") or "",
+            title=get("title") or "",
+            company=get("company") or "",
+            city=get("city") or "",
+            salary=get("salary") or "",
+            url=get("url") or "",
+            description=get("description") or "",
+            publish_date=get("publish_date") or "",
+        )
+
+    # -- PlatformScraper 接口 ----------------------------------------------
+    async def search(
+        self, keyword: str, city: str = None, limit: int = 20
+    ) -> list[RawJob]:
+        """抓单个「关键词 + 城市」组合，返回 RawJob 列表（含详情页正文）。"""
+        jobs = await search_shixiseng(
+            keyword,
+            city=city,
+            limit=limit,
+            headless=self.headless,
+            fetch_detail=self.fetch_detail,
+            max_pages=self.max_pages,
+            detail_concurrency=self.detail_concurrency,
+        )
+        return [self.to_raw_job(job) for job in jobs]
+
+    async def search_multi(
+        self,
+        keywords: list[str],
+        city: str = None,
+        limit_per_keyword: int = 40,
+        limit_total: int = 100,
+        max_pages_per_keyword: Optional[int] = None,
+    ) -> list[RawJob]:
+        """多关键词搜索（保留原有「合并 + 按 job_id 去重」语义）-> RawJob。
+
+        调度器默认逐关键词调 `search()`（日志要按关键词分别统计），
+        这个方法留给"想一次性搜一组同义词"的调用方。
+        """
+        jobs = await search_multi_keywords(
+            list(keywords or []),
+            city=city,
+            max_pages_per_keyword=(
+                self.max_pages if max_pages_per_keyword is None else max_pages_per_keyword
+            ),
+            limit_total=limit_total,
+            limit_per_keyword=limit_per_keyword,
+            headless=self.headless,
+            fetch_detail=self.fetch_detail,
+            detail_concurrency=self.detail_concurrency,
+        )
+        return [self.to_raw_job(job) for job in jobs]
+
+    async def close(self) -> None:
+        """无长驻资源：每次 search 内部自行开关浏览器，这里无需清理。"""
+        return None
 
 
 # ---------------------------------------------------------------------------

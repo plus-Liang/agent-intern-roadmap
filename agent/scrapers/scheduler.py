@@ -47,6 +47,10 @@ from shared.config import DATA_DIR, LOG_DIR, ROOT_DIR        # noqa: E402
 from agent import storage                                    # noqa: E402
 from agent import user_profile                               # noqa: E402
 
+# 多平台抽象层。base.py 只依赖标准库，模块级导入不会拖入 playwright
+# （真正的平台实现仍在 scraper_registry() 里惰性导入，见下方说明）。
+from agent.scrapers.base import PlatformScraper, RawJob       # noqa: E402
+
 # 归档文件名与 cleaner 共用一份定义：两边各写一个字符串，改了一边忘了另一边，
 # 归档就会分裂成两个文件。cleaner 不是包（rag/quality 没有 __init__.py），
 # 这里用与 _load_cleaner() 相同的方式把它导进来。
@@ -103,6 +107,11 @@ DEFAULT_KEYWORDS = [
 
 # 向后兼容：老代码/老文档引用的平铺列表，由 DEFAULT_KEYWORDS 推导（顺序、去重都固定）
 FALLBACK_KEYWORDS = [word for group in DEFAULT_KEYWORDS for word in group]
+
+# 默认抓取平台：多平台架构下调度器按这个列表**逐个平台**抓取。
+# 可用环境变量 SCHEDULER_PLATFORMS="shixiseng,nowcoder" 覆盖（见 resolve_config）。
+# 平台名 -> PlatformScraper 子类的注册表见 scraper_registry()。
+DEFAULT_PLATFORMS = ["shixiseng"]
 
 # 合并落盘：超过这个天数的记录移进归档文件（口径与 cleaner.DEFAULT_STALE_DAYS 一致）
 DEFAULT_STALE_DAYS = int(os.getenv("SCHEDULER_STALE_DAYS", "90"))
@@ -204,9 +213,12 @@ def _record_state(result: dict, state_file=None, logger: logging.Logger = None) 
         "ok": bool(result.get("ok")),
         "keywords": result.get("keywords", []),
         "keyword_groups": result.get("keyword_groups", []),
+        "platforms": result.get("platforms", []),
         "city": result.get("city", ""),
         "cities": result.get("cities", []),
         "per_city": result.get("per_city", {}),
+        "per_platform": result.get("per_platform", {}),
+        "db": result.get("db", {}),
         "scraped": result.get("scraped", 0),
         "cleaned": result.get("cleaned", 0),
         "chunks": result.get("chunks", 0),
@@ -355,17 +367,298 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
         logger.info("配置了 %d 个城市：%s（将逐个城市分别抓取后合并）",
                     len(cities), "、".join(cities))
 
+    # 平台：环境变量 SCHEDULER_PLATFORMS > user_profile.target_platforms > 兜底 shixiseng。
+    # 与城市/关键词同口径，写错平台名不会在这里报错——真正的平台名校验发生在
+    # 抓取时（scraper_registry() 查不到就记一条失败日志并跳过该平台）。
+    platforms = _split_list(
+        os.getenv("SCHEDULER_PLATFORMS")
+    ) or _split_list(profile.get("target_platforms")) or list(DEFAULT_PLATFORMS)
+    if len(platforms) > 1 and logger:
+        logger.info("配置了 %d 个平台：%s（将逐个平台分别抓取后合并）",
+                    len(platforms), "、".join(platforms))
+
     return {
         "keyword_groups": groups,
         "keywords": keywords,
         "cities": cities,
         "city": cities[0],
+        "platforms": platforms,
         "max_pages": DEFAULT_MAX_PAGES,
         "limit_per_keyword": DEFAULT_LIMIT_PER_KEYWORD,
         "limit_total": DEFAULT_LIMIT_TOTAL,
         "detail_concurrency": DEFAULT_DETAIL_CONCURRENCY,
         "stale_days": DEFAULT_STALE_DAYS,
     }
+
+
+# ---------------------------------------------------------------------------
+# 多平台抓取：平台注册表 + 遍历
+# ---------------------------------------------------------------------------
+# 平台名 -> PlatformScraper 子类。
+#
+# ⚠️ 这里用「惰性填充」而不是模块级 `from agent.scrapers.shixiseng import ...`：
+#    抓取器会连带 import playwright，而 `--status` / `--selftest` 是纯离线命令，
+#    不该因为浏览器依赖出问题就被拖垮。这与本文件既有做法一致（scrape_jobs
+#    里也是函数内 import）。语义上 SCRAPERS 就是 {"shixiseng": ShixisengScraper}，
+#    只是把"填表"的时机推迟到第一次真正抓取之前。
+SCRAPERS: dict[str, type] = {}
+
+
+def scraper_registry() -> dict[str, type]:
+    """返回平台注册表；首次调用时把内置平台登记进去。
+
+    新增平台：写一个 `PlatformScraper` 子类，在这里 setdefault 一行即可，
+    调度逻辑（遍历 / 去重 / 落库 / 日志）完全不用动。
+    """
+    if not SCRAPERS:
+        from agent.scrapers.shixiseng import ShixisengScraper
+
+        SCRAPERS.setdefault("shixiseng", ShixisengScraper)
+    return SCRAPERS
+
+
+class _FunctionScraper(PlatformScraper):
+    """把「函数式抓取器」适配成 PlatformScraper。
+
+    只服务**注入式假实现**（离线自测 / 测试替身）与老调用方：它们传进来的是
+    `func(keywords, city=..., ...) -> list`，不是 PlatformScraper 实例。
+    真实平台一律走 scraper_registry()。调用形状与 scrape_jobs 保持一致，
+    这样老的假 scraper 不用改就能继续用。
+    """
+
+    def __init__(self, func, platform_name: str = "fake", options: dict = None) -> None:
+        self._func = func
+        self.platform_name = platform_name
+        self.options = options or {}
+
+    async def search(self, keyword: str, city: str = None, limit: int = 20):
+        opts = self.options
+        result = self._func(
+            [keyword],
+            city=city,
+            max_pages_per_keyword=opts.get("max_pages", 1),
+            limit_total=limit,
+            limit_per_keyword=limit,
+            headless=opts.get("headless", True),
+            fetch_detail=True,
+        )
+        if inspect.isawaitable(result):
+            result = await result
+        return [self._as_raw(job) for job in (result or [])]
+
+    def _as_raw(self, job) -> RawJob:
+        """dict / Job / RawJob 一律转成 RawJob（假数据常常直接就是 dict）。"""
+        if isinstance(job, RawJob):
+            return job
+        data = job if isinstance(job, dict) else _job_to_dict(job)
+        return RawJob(
+            platform=data.get("platform") or self.platform_name,
+            job_id=data.get("job_id") or "",
+            title=data.get("title") or "",
+            company=data.get("company") or "",
+            city=data.get("city") or "",
+            salary=data.get("salary") or "",
+            url=data.get("url") or "",
+            description=data.get("description") or "",
+            publish_date=data.get("publish_date") or "",
+        )
+
+
+def _make_scraper(platform_name: str, options: dict, factory=None) -> PlatformScraper:
+    """实例化某平台的抓取器。
+
+    options 是各平台**公共**的连接参数（headless / max_pages / ...）。
+    平台子类不认识的参数按构造函数签名过滤掉——否则以后加一个通用参数，
+    就会把只实现了部分参数的平台直接打挂。
+    """
+    if factory is not None:
+        return factory(platform_name)
+
+    cls = scraper_registry().get(platform_name)
+    if cls is None:
+        raise KeyError(
+            f"未知平台 {platform_name!r}（已注册：{sorted(scraper_registry())}）"
+        )
+    try:
+        accepted = inspect.signature(cls.__init__).parameters
+        kwargs = {k: v for k, v in options.items() if k in accepted}
+    except (TypeError, ValueError):
+        kwargs = {}
+    return cls(**kwargs)
+
+
+def _load_job_db():
+    """导入 rag/data/db.py。
+
+    `rag/data` 没有 __init__.py（不是包），所以按 `_load_cleaner()` 的老办法
+    把该目录加进 sys.path 后按模块名导入，避免为了导入一个文件去动 rag/ 结构。
+    """
+    import importlib
+    import sys
+
+    data_dir = str(ROOT_DIR / "rag" / "data")
+    if data_dir not in sys.path:
+        sys.path.insert(0, data_dir)
+    return importlib.import_module("db")
+
+
+def _persist_raw_jobs(rows: list[dict], platform: str,
+                      logger: logging.Logger = None) -> dict:
+    """把某平台的 RawJob 写进 SQLite（rag/data/jobs.db）。
+
+    * 走既有 `db.upsert_jobs()`，**不改 db.py**；按 job_id 幂等 upsert，
+      每条记录自带 platform 字段，多平台数据就靠它区分。
+    * 写库失败不回滚也不抛异常：抓取结果还要继续走清洗/入库链路，
+      不能因为本地库写不进去就让整轮任务失败。
+    """
+    try:
+        stats = _load_job_db().upsert_jobs(rows)
+    except Exception as exc:                      # noqa: BLE001
+        if logger:
+            logger.warning("[平台 %s] RawJob 写入 SQLite 失败（继续后续链路）：%s: %s",
+                           platform, type(exc).__name__, exc)
+        return {}
+    if logger:
+        logger.info(
+            "[平台 %s] RawJob 已写入 SQLite（jobs.platform=%s）：新增 %d，更新 %d，跳过 %d",
+            platform, platform, stats.get("added", 0), stats.get("updated", 0),
+            stats.get("skipped", 0),
+        )
+    return stats
+
+
+def scrape_multi_platform(
+    platforms, cities, keywords,
+    max_pages=DEFAULT_MAX_PAGES,
+    limit_per_keyword=DEFAULT_LIMIT_PER_KEYWORD,
+    limit_total=DEFAULT_LIMIT_TOTAL,
+    headless: bool = True,
+    detail_concurrency=None,
+    scraper=None,
+    persist_db: bool = True,
+    logger: logging.Logger = None,
+) -> dict:
+    """遍历 [平台 × 城市 × 关键词] 抓取 → 合并去重 → RawJob 落 SQLite。
+
+    遍历顺序是 **平台 -> 城市 -> 关键词**，三层都是**顺序**的：
+    并发会让同一 IP 短时间内打到多个搜索入口，反爬风险最高；
+    提速交给各平台自己的详情页并发（detail_concurrency）。
+
+    去重键是 **(platform, job_id)**：不同平台的 job_id 可能撞车，
+    只用 job_id 去重会把别的平台的岗位误当重复丢掉。
+
+    每个平台抓完**立刻** upsert 进 SQLite，后一个平台崩了也不影响
+    前面平台已经落库的数据。
+
+    返回：
+        {
+          "jobs":         [去重合并后的岗位 dict]（清洗/落盘链路直接用）,
+          "per_platform": {平台: 抓到条数},
+          "per_city":     {城市: 抓到条数},
+          "per_keyword":  {关键词: 抓到条数},
+          "failed":       {"平台/城市/关键词": 错误摘要},
+          "raw_total":    去重前总条数,
+          "db":           {"added","updated","skipped"}（未落库时为 {}）,
+        }
+    """
+    platforms = [p for p in (platforms or []) if str(p).strip()] or list(DEFAULT_PLATFORMS)
+    cities = [c for c in (cities or []) if c is None or str(c).strip()] or [None]
+    keywords = [k for k in (keywords or []) if str(k).strip()]
+
+    result = {
+        "jobs": [], "per_platform": {}, "per_city": {}, "per_keyword": {},
+        "failed": {}, "raw_total": 0, "db": {},
+    }
+    if not keywords:
+        if logger:
+            logger.warning("没有任何关键词，跳过抓取。")
+        return result
+
+    options = {
+        "headless": headless,
+        "fetch_detail": True,
+        "max_pages": max_pages,
+        "detail_concurrency": detail_concurrency,
+    }
+    # 注入式假抓取器（离线自测）包成函数式适配器；真实平台走注册表
+    factory = (lambda name: _FunctionScraper(scraper, name, options)) if scraper else None
+
+    merged: dict[tuple, dict] = {}
+
+    async def _run() -> None:
+        for platform in platforms:
+            try:
+                instance = _make_scraper(platform, options, factory=factory)
+            except Exception as exc:              # noqa: BLE001 - 单平台失败不拖垮整轮
+                result["failed"][platform] = f"{type(exc).__name__}: {exc}"
+                if logger:
+                    logger.error("[平台 %s] 抓取器初始化失败：%s（继续跑其他平台）",
+                                 platform, result["failed"][platform])
+                continue
+
+            platform_rows: dict[str, dict] = {}
+            try:
+                for city in cities:
+                    label = city or "不限"
+                    for keyword in keywords:
+                        try:
+                            raw_jobs = await instance.search(
+                                keyword, city=city, limit=limit_per_keyword
+                            )
+                        except Exception as exc:   # noqa: BLE001 - 单组合失败不拖垮整轮
+                            key = f"{platform}/{label}/{keyword}"
+                            result["failed"][key] = f"{type(exc).__name__}: {exc}"
+                            if logger:
+                                logger.error("[平台 %s][城市 %s][关键词 %s] 抓取失败：%s",
+                                             platform, label, keyword, result["failed"][key])
+                            continue
+
+                        raw_jobs = list(raw_jobs or [])
+                        result["raw_total"] += len(raw_jobs)
+                        for bucket, name in (
+                            (result["per_city"], label),
+                            (result["per_keyword"], keyword),
+                            (result["per_platform"], platform),
+                        ):
+                            bucket[name] = bucket.get(name, 0) + len(raw_jobs)
+                        # 统一的抓取日志格式：谁（平台）在哪儿（城市）搜什么（关键词）抓到几条
+                        if logger:
+                            logger.info("[平台 %s][城市 %s][关键词 %s] 抓到 %d 条",
+                                        platform, label, keyword, len(raw_jobs))
+
+                        for raw_job in raw_jobs:
+                            job = _job_to_dict(raw_job)
+                            job["platform"] = job.get("platform") or platform
+                            job_id = (job.get("job_id") or "").strip()
+                            key = (platform, job_id) if job_id else (
+                                platform,
+                                f"{job.get('company')}|{job.get('title')}|{job.get('url')}",
+                            )
+                            merged.setdefault(key, job)
+                            platform_rows.setdefault(job_id or key[1], job)
+            finally:
+                try:
+                    await instance.close()
+                except Exception as exc:          # noqa: BLE001
+                    if logger:
+                        logger.warning("[平台 %s] 关闭抓取器失败：%s", platform, exc)
+
+            # 该平台抓完立刻落库（platform 字段区分平台，upsert 幂等）
+            if persist_db and platform_rows:
+                stats = _persist_raw_jobs(list(platform_rows.values()), platform, logger)
+                for name, value in stats.items():
+                    result["db"][name] = result["db"].get(name, 0) + value
+
+    asyncio.run(_run())
+
+    jobs = list(merged.values())
+    if limit_total and len(jobs) > limit_total:
+        if logger:
+            logger.info("[多平台] 已按 limit_total=%d 截断，丢弃 %d 条",
+                        limit_total, len(jobs) - limit_total)
+        jobs = jobs[:limit_total]
+    result["jobs"] = jobs
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -719,8 +1012,8 @@ def _write_rag_text_local(jobs: list[dict], target: Path) -> int:
 # ---------------------------------------------------------------------------
 def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                   logger: logging.Logger = None, headless: bool = True,
-                  scraper=None, dry_run: bool = False) -> dict:
-    """跑一次完整任务：抓取 → 清洗 → 生成 chunk → 增量入库 →（可选）落盘。
+                  scraper=None, dry_run: bool = False, persist_db=None) -> dict:
+    """跑一次完整任务：抓取（多平台）→ 清洗 → 生成 chunk → 增量入库 →（可选）落盘。
 
     返回摘要 dict（同时写进日志和状态文件）。异常一律在这里兜住并记进日志：
     定时任务里抛异常=任务静默死掉，比失败更糟。
@@ -730,6 +1023,9 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
         out_dir:     落盘目录；默认写 rag/data/（保持 Agent 能搜到新岗位）
         state_file:  状态文件路径（--status 读的就是它）
         dry_run:     True 时跳过真实抓取（只验证链路），并且不落盘
+        persist_db:  是否把抓到的 RawJob 写进 SQLite（rag/data/jobs.db，platform 字段区分平台）。
+                     None（默认）= 自动：注入了假抓取器（离线自测 / 测试替身）时不落库，
+                     避免自测写真实库；True/False 可强制打开/关闭。
     """
     log = logger or setup_logger()
     config = config or resolve_config(logger=log, allow_fallback=not dry_run)
@@ -743,11 +1039,17 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
     cities = [c for c in (config.get("cities") or []) if str(c).strip()]
     if not cities and config.get("city"):
         cities = [config["city"]]
+
+    # 平台：config 里没有就现取（环境变量 > 默认），保证老调用方传裸 config 也能跑
+    platforms = [p for p in (config.get("platforms") or []) if str(p).strip()]
+    if not platforms:
+        platforms = _split_list(os.getenv("SCHEDULER_PLATFORMS")) or list(DEFAULT_PLATFORMS)
     started = time.time()
 
     log.info(
-        "===== 定时抓取开始：关键词组=[%s] 城市=%s dry_run=%s "
-        "详情页并发=%s（城市/关键词顺序）=====",
+        "===== 定时抓取开始：平台=%s 关键词组=[%s] 城市=%s dry_run=%s "
+        "详情页并发=%s（平台/城市/关键词顺序）=====",
+        "、".join(platforms),
         _format_keyword_groups(keyword_groups),
         "、".join(cities) if cities else "不限",
         dry_run,
@@ -759,9 +1061,12 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
         "ok": False,
         "keywords": keywords,
         "keyword_groups": keyword_groups,
+        "platforms": platforms,
         "city": "、".join(cities),
         "cities": cities,
         "per_city": {},
+        "per_platform": {},
+        "db": {},
         "scraped": 0,
         "cleaned": 0,
         "chunks": 0,
@@ -774,12 +1079,13 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
     }
 
     try:
-        # 1) 抓取：遍历所有目标城市，每个城市独立抓取后去重合并
+        # 1) 抓取：遍历 [平台 × 城市 × 关键词]，合并去重后统一进后续链路
         if dry_run:
             jobs = []
-            log.info("[1/4] dry-run：跳过真实抓取（不访问实习僧）")
+            log.info("[1/4] dry-run：跳过真实抓取（不访问任何平台）")
         else:
-            merged_scrape = scrape_all_cities(
+            merged_scrape = scrape_multi_platform(
+                platforms,
                 cities,
                 keywords,
                 max_pages=config.get("max_pages", DEFAULT_MAX_PAGES),
@@ -789,12 +1095,19 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                 detail_concurrency=config.get("detail_concurrency",
                                               DEFAULT_DETAIL_CONCURRENCY),
                 scraper=scraper,
+                # 注入式假抓取器（离线自测 / 测试替身）默认不落 SQLite：
+                # 自测必须只碰临时目录，绝不能写真实的 rag/data/jobs.db。
+                persist_db=(scraper is None) if persist_db is None else bool(persist_db),
                 logger=log,
             )
             jobs = merged_scrape["jobs"]
             result["per_city"] = merged_scrape["per_city"]
-            log.info("[1/4] 抓取完成：%d 个城市 → 去重合并 %d 条",
-                     len(merged_scrape["per_city"]), len(jobs))
+            result["per_platform"] = merged_scrape["per_platform"]
+            result["db"] = merged_scrape["db"]
+            log.info("[1/4] 抓取完成：%d 个平台 × %d 个城市 → 去重合并 %d 条%s",
+                     len(platforms), len(merged_scrape["per_city"]), len(jobs),
+                     f"（{len(merged_scrape['failed'])} 个组合失败）"
+                     if merged_scrape["failed"] else "")
         result["scraped"] = len(jobs)
 
         # 2) 清洗
@@ -928,6 +1241,7 @@ def format_status(state: dict = None, state_file=None) -> str:
         f"上次运行时间：{state.get('last_run') or '（未知）'}",
         f"结果：{'✅ 成功' if state.get('ok') else '❌ 失败'}"
         + (f"　错误：{state['error']}" if state.get("error") else ""),
+        f"平台：{'、'.join(state.get('platforms') or []) or '（未记录）'}",
         f"关键词：{'、'.join(state.get('keywords') or []) or '（未记录）'}",
         f"城市：{city_text}",
         f"抓取：{state.get('scraped', 0)} 条　清洗后：{state.get('cleaned', 0)} 条　"
@@ -937,6 +1251,15 @@ def format_status(state: dict = None, state_file=None) -> str:
     ]
     if per_city:
         lines.append("分城市：" + "　".join(f"{k} {v} 条" for k, v in per_city.items()))
+    per_platform = state.get("per_platform") or {}
+    if per_platform:
+        lines.append("分平台：" + "　".join(f"{k} {v} 条" for k, v in per_platform.items()))
+    db_stats = state.get("db") or {}
+    if db_stats:
+        lines.append(
+            f"RawJob 落 SQLite：新增 {db_stats.get('added', 0)}，"
+            f"更新 {db_stats.get('updated', 0)}，跳过 {db_stats.get('skipped', 0)}"
+        )
     if merge:
         lines.append(
             f"落盘合并：原有 {merge.get('existing', 0)} + 本次 {merge.get('new', 0)} "
@@ -1377,6 +1700,9 @@ def _build_parser() -> argparse.ArgumentParser:
                              "\"Agent,智能体;RAG,检索增强生成\"（覆盖画像/环境变量，默认读画像）")
     parser.add_argument("--city", default="",
                         help="城市，逗号分隔可传多个（如 \"广州,深圳\"），逐个抓取后合并")
+    parser.add_argument("--platforms", default="",
+                        help="抓取平台，逗号分隔可传多个（如 \"shixiseng\"），逐个平台抓取后合并"
+                             "（默认读环境变量 SCHEDULER_PLATFORMS，兜底 shixiseng）")
     parser.add_argument("--out-dir", default="",
                         help="落盘目录（默认 rag/data/，测试请指向临时目录）")
     parser.add_argument("--state-file", default="",
@@ -1422,6 +1748,8 @@ def main(argv=None) -> int:
     if args.city:
         config["city"] = args.city
         config["cities"] = _split_list(args.city)
+    if args.platforms:
+        config["platforms"] = _split_list(args.platforms)
     config["max_pages"] = args.max_pages
     config["limit_per_keyword"] = args.limit_per_keyword
     config["limit_total"] = args.limit_total
