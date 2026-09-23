@@ -3,7 +3,8 @@
 根据 job_id 获取完整 JD。
 
 接口：get_job_detail(platform, job_id) -> JobDetail
-实现：优先读本地真实数据 rag/data/cleaned_jd.json，读不到时回退硬编码 mock
+实现：优先查 SQLite（rag/data/jobs.db，主键查询），
+      jobs.db 建不起来时回退 rag/data/cleaned_jd.json，再不行回退硬编码 mock
 """
 import json
 import sys
@@ -12,9 +13,28 @@ from pathlib import Path
 from typing import Optional
 
 
-# 真实数据路径：<repo_root>/rag/data/cleaned_jd.json
 # 本文件位于 <repo_root>/agent/tools/job_detail.py，parents[2] 即仓库根目录
-REAL_JD_PATH = Path(__file__).resolve().parents[2] / "rag" / "data" / "cleaned_jd.json"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# 兜底 JSON 数据路径：<repo_root>/rag/data/cleaned_jd.json
+REAL_JD_PATH = _REPO_ROOT / "rag" / "data" / "cleaned_jd.json"
+
+# 模块初始值：REAL_JD_PATH 被外部改写（单测 / 临时数据源）时就知道该走 JSON 而不是 DB
+_DEFAULT_JD_PATH = REAL_JD_PATH
+
+
+def _db_module():
+    """懒导入 rag.data.db（顺带保证仓库根在 sys.path 上）。
+
+    放函数里而不是模块顶层：`python agent/tools/job_detail.py` 直接运行时 sys.path
+    里没有仓库根，顶层导入会炸；懒导入也让模块导入保持无副作用。
+    """
+    root = str(_REPO_ROOT)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from rag.data import db as _db
+    return _db
+
 
 # JD 正文里的分节标记：真实数据把职责和要求写在一段 description 里，用这些标记切分
 _REQUIREMENT_MARKERS = (
@@ -117,7 +137,75 @@ def _split_description(text: str) -> tuple[str, str, str]:
     return description or text.strip(), rest, bonus
 
 
+def _detail_from_row(row: dict) -> JobDetail:
+    """把 SQLite 一行（dict）映射成 JobDetail（description 仍按分节标记切分）。"""
+    description, requirements, bonus = _split_description(row.get("description") or "")
+    return JobDetail(
+        platform=row.get("platform") or "shixiseng",
+        job_id=str(row.get("job_id") or ""),
+        title=row.get("title") or "",
+        company=row.get("company") or "",
+        city=row.get("city") or "",
+        salary=row.get("salary") or "",
+        url=row.get("url") or "",
+        description=description,
+        requirements=requirements,
+        bonus=bonus,
+        tags=list(row["tags"]) if row.get("tags") else [],
+    )
+
+
+def _query_db(job_id: str) -> tuple[bool, Optional[JobDetail]]:
+    """按 job_id 单条查 SQLite。返回 (库是否可用, 命中的详情)。
+
+    库不可用（jobs.db 建不起来 / REAL_JD_PATH 被显式改写）时 available=False，
+    调用方据此回退 JSON；available=True 但 detail 为 None 表示库里确实没这条。
+    """
+    if REAL_JD_PATH != _DEFAULT_JD_PATH:
+        return False, None
+    try:
+        db = _db_module()
+        if not db.ensure_db():
+            return False, None
+        row = db.get_job(job_id)
+    except Exception as exc:  # noqa: BLE001 —— 数据源坏了不该让详情查询整体挂掉
+        print(f"[job_detail] SQLite 不可用，回退 JSON：{exc}", file=sys.stderr)
+        return False, None
+    return True, (_detail_from_row(row) if row else None)
+
+
 def _load_real_details() -> dict[str, JobDetail]:
+    """返回 {job_id: JobDetail}：优先 SQLite，不可用时回退 cleaned_jd.json。
+
+    空 dict 表示「真实数据不可用」，调用方据此回退硬编码 mock。
+    这个函数会把全量详情读进内存，只适合自检/演示；按 id 查详情走 _query_db
+    （主键查询，O(log n)）。
+    """
+    details = _load_details_from_db()
+    if details is not None:
+        return details
+    return _load_details_from_json()
+
+
+def _load_details_from_db() -> Optional[dict[str, JobDetail]]:
+    """全量读 SQLite；None 表示「库不可用」。"""
+    if REAL_JD_PATH != _DEFAULT_JD_PATH:
+        return None
+    try:
+        db = _db_module()
+        if not db.ensure_db():
+            return None
+        rows = db.get_all_jobs()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[job_detail] SQLite 不可用，回退 JSON：{exc}", file=sys.stderr)
+        return None
+    return {
+        str(row["job_id"]): _detail_from_row(row)
+        for row in rows if row.get("job_id")
+    }
+
+
+def _load_details_from_json() -> dict[str, JobDetail]:
     """从 rag/data/cleaned_jd.json 读取所有岗位，返回 {job_id: JobDetail}。
 
     返回空 dict 表示"真实数据不可用"（文件不存在 / JSON 损坏 / 结构不是 list），
@@ -157,10 +245,15 @@ def _load_real_details() -> dict[str, JobDetail]:
 
 
 def _mock_detail(job_id: str) -> JobDetail:
-    """默认实现：优先从 rag/data/cleaned_jd.json 查真实岗位，查不到再回退硬编码 mock。"""
-    real_db = _load_real_details()
-    if job_id in real_db:
-        return real_db[job_id]
+    """默认实现：优先查 SQLite，其次 cleaned_jd.json，查不到再回退硬编码 mock。"""
+    available, detail = _query_db(job_id)
+    if detail is not None:
+        return detail
+
+    if not available:
+        real_db = _load_real_details()
+        if job_id in real_db:
+            return real_db[job_id]
 
     # ---- fallback：真实数据不可用（或该 id 属于旧 mock 数据）时使用硬编码详情 ----
     mock_db = {
@@ -249,8 +342,11 @@ def _fetch_from_shixiseng(job_id: str) -> JobDetail:
 
 
 if __name__ == "__main__":
+    db_path = _db_module().DB_PATH
     real_db = _load_real_details()
-    print(f"数据源：{REAL_JD_PATH}（exists={REAL_JD_PATH.exists()}，{len(real_db)} 条真实岗位）")
+    print(f"数据源：SQLite {db_path}（exists={db_path.exists()}）")
+    print(f"兜底 JSON：{REAL_JD_PATH}（exists={REAL_JD_PATH.exists()}）")
+    print(f"可读岗位：{len(real_db)} 条")
 
     # 优先取真实数据里的岗位，真实数据不可用时回退到 mock_001
     target_id = next(iter(real_db), "mock_001")

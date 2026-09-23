@@ -3,7 +3,8 @@
 设计原则：接口稳定，实现可换。
 
 - 接口：search_jobs(keyword, city, limit)
-- 实现：优先读本地真实数据 rag/data/cleaned_jd.json，读不到时回退硬编码 mock
+- 实现：优先查 SQLite（rag/data/jobs.db，1w+ 量级下毫秒级），
+        jobs.db 建不起来时回退 rag/data/cleaned_jd.json，再不行回退硬编码 mock
 - 未来可扩展：多平台适配器
 """
 import json
@@ -13,9 +14,27 @@ from pathlib import Path
 from typing import Optional
 
 
-# 真实数据路径：<repo_root>/rag/data/cleaned_jd.json
 # 本文件位于 <repo_root>/agent/tools/job_search.py，parents[2] 即仓库根目录
-REAL_JD_PATH = Path(__file__).resolve().parents[2] / "rag" / "data" / "cleaned_jd.json"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# 兜底 JSON 数据路径：<repo_root>/rag/data/cleaned_jd.json
+REAL_JD_PATH = _REPO_ROOT / "rag" / "data" / "cleaned_jd.json"
+
+# 模块初始值：REAL_JD_PATH 被外部改写（单测 / 临时数据源）时就知道该走 JSON 而不是 DB
+_DEFAULT_JD_PATH = REAL_JD_PATH
+
+
+def _db_module():
+    """懒导入 rag.data.db（顺带保证仓库根在 sys.path 上）。
+
+    放在函数里而不是模块顶层：`python agent/tools/job_search.py` 这种直接运行的
+    场景 sys.path 里没有仓库根，顶层导入会炸；懒导入还能让模块导入保持无副作用。
+    """
+    root = str(_REPO_ROOT)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from rag.data import db as _db
+    return _db
 
 
 @dataclass
@@ -153,8 +172,53 @@ def _apply_limit(results: list[Job], limit: int, keyword: str = "") -> list[Job]
     return selected
 
 
+def _job_from_row(row: dict) -> Job:
+    """把 SQLite 一行（dict）映射成 Job。"""
+    return Job(
+        platform=row.get("platform") or "shixiseng",
+        job_id=str(row.get("job_id") or ""),
+        title=row.get("title") or "",
+        company=row.get("company") or "",
+        city=row.get("city") or "",
+        salary=row.get("salary") or "",
+        url=row.get("url") or "",
+        tags=list(row["tags"]) if row.get("tags") else None,
+        description=row.get("description") or "",
+        publish_date=row.get("publish_date") or "",
+    )
+
+
+def _search_via_sqlite(keyword: str, city: Optional[str], limit: int) -> Optional[list[Job]]:
+    """用 SQLite（rag/data/jobs.db）查询；返回 None 表示「库不可用」，调用方回退 JSON。
+
+    过滤下推到 SQL：关键词多词 AND 命中 title/description，城市按归一化匹配，
+    排序/截断也在库里做，不再把全量数据读进内存。
+    REAL_JD_PATH 被显式改写时（单测 / 临时数据源）直接跳过 DB——谁改了路径就以谁的
+    JSON 为准，旧的数据源覆盖行为保持不变。
+    """
+    if REAL_JD_PATH != _DEFAULT_JD_PATH:
+        return None
+    try:
+        db = _db_module()
+        if not db.ensure_db():
+            return None
+        rows = db.search_jobs(keyword=keyword, city=city, limit=limit)
+    except Exception as exc:  # noqa: BLE001 —— 数据源坏了不该让搜索整体挂掉
+        print(f"[job_search] SQLite 不可用，回退 JSON：{exc}", file=sys.stderr)
+        return None
+    return [_job_from_row(row) for row in rows]
+
+
 def _mock_search(keyword: str, city: Optional[str], limit: int) -> list[Job]:
-    """默认实现：优先用 rag/data/cleaned_jd.json 的真实数据，读不到才回退硬编码 mock。"""
+    """默认实现：优先 SQLite，其次 cleaned_jd.json，都读不到才回退硬编码 mock。
+
+    迁移到 SQLite 之前这里会把整份 JSON 解析后全表过滤；1w+ 条时那是瓶颈，
+    所以 DB 是主路径，JSON 只是兜底（旧部署 / 单测改写 REAL_JD_PATH / 建库失败）。
+    """
+    db_jobs = _search_via_sqlite(keyword, city, limit)
+    if db_jobs is not None:
+        return _apply_limit(db_jobs, limit, keyword)
+
     real_jobs = _load_real_jobs()
     if real_jobs:
         results = [
@@ -223,7 +287,9 @@ if __name__ == "__main__":
         for j in jobs:
             print(f"  [{j.company}] {j.title} | {j.city} | {j.salary} | id={j.job_id}")
 
-    print(f"数据源：{REAL_JD_PATH}（exists={REAL_JD_PATH.exists()}）")
+    db_path = _db_module().DB_PATH
+    print(f"数据源：SQLite {db_path}（exists={db_path.exists()}）")
+    print(f"兜底 JSON：{REAL_JD_PATH}（exists={REAL_JD_PATH.exists()}）")
 
     print("\n== 1) search_jobs('Agent', city='广州') ==")
     jobs_agent = search_jobs("Agent", city="广州", limit=5)
