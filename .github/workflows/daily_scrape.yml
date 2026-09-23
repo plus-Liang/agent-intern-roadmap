@@ -19,7 +19,7 @@ concurrency:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
 
     env:
       # 让 scheduler 的「今天」按北京时间算（cron 是 UTC，数据日期按北京走更直观）
