@@ -51,10 +51,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import pathlib
 import random
 import re
 import sys
+import time
 from datetime import date, timedelta
 from typing import Any, Optional
 
@@ -85,6 +87,27 @@ CARD_TIMEOUT_MS = 15_000          # wait_for_selector 等卡片，15 秒
 DETAIL_TIMEOUT_MS = 20_000
 # 详情页限流：每次请求前随机等待 0.5~1.5 秒，降低被站点限流/风控的概率
 DETAIL_SLEEP_RANGE = (0.5, 1.5)
+
+# ---------------------------------------------------------------------------
+# 详情页并发（顺序 -> 并发 的唯一开关）
+#
+# 为什么只并发详情页，不并发城市/关键词：
+#   * 详情页之间**没有任何数据依赖**，一个页面抓一条，纯 I/O 等待，最安全的并发点；
+#   * 列表页翻页是站点交互（page 参数、cookie、风控节奏），并发翻页收益低风险高；
+#   * 城市/关键词并发会让同一 IP 在短时间内对多个搜索入口发起请求，风控风险最高，
+#     因此城市与关键词**保持顺序**（scheduler 里仍是逐个城市、逐个关键词）。
+#
+# MAX_DETAIL_CONCURRENCY 是并发路数（同时打开的标签页数），可用环境变量覆盖：
+#   SHIXISENG_DETAIL_CONCURRENCY=3
+# 建议 3~5：太低提速有限，太高容易触发反爬。上限 DETAIL_CONCURRENCY_MAX_LIMIT 兜底。
+MAX_DETAIL_CONCURRENCY = int(os.getenv("SHIXISENG_DETAIL_CONCURRENCY", "5"))
+DETAIL_CONCURRENCY_MAX_LIMIT = 8
+
+# 每条详情页之间保持的随机延迟（伪装人类节奏），单位秒。
+# 注意它与 DETAIL_SLEEP_RANGE 是两件事：
+#   DETAIL_SLEEP_RANGE     = 单条请求内部的抖动（原有行为，动它等于改抓取节奏）
+#   DELAY_BETWEEN_DETAILS  = 并发 worker 两次请求之间的间隔（新增，控制"看起来的点击速度"）
+DELAY_BETWEEN_DETAILS = (0.3, 0.5)
 
 # max_pages<=0（不限页数）时的硬上限安全阀。
 # 实测 keyword=实习 无城市时有 46 页，这里给到 50 足以覆盖，同时防止无限循环。
@@ -583,14 +606,22 @@ async def _extract_jd(page: Any) -> tuple[str, str, bool]:
     return description, source, _has_obfuscated(raw)
 
 
+def _write_detail_html(html: str, job_id: str, index: int) -> None:
+    """把详情页 HTML 落盘（同步版）。
+
+    并发 worker 里 HTML 必须在把 page 还回页面池**之前**取到，
+    所以拆出一个不 await 的写入函数，供并发路径直接调用。
+    """
+    DEBUG_JD_DIR.mkdir(parents=True, exist_ok=True)
+    path = DEBUG_JD_DIR / f"detail_{index:02d}_{job_id or 'unknown'}.html"
+    path.write_text(html, encoding="utf-8")
+    print(f"[诊断]   已保存详情页 HTML 供排查：{path}（{len(html)} 字符）")
+
+
 async def _dump_detail_html(page: Any, job_id: str, index: int) -> None:
     """正文抓不到时 dump 详情页 HTML，便于人工核对选择器（最多 MAX_EMPTY_JD_DUMPS 个）。"""
     try:
-        DEBUG_JD_DIR.mkdir(parents=True, exist_ok=True)
-        path = DEBUG_JD_DIR / f"detail_{index:02d}_{job_id or 'unknown'}.html"
-        html = await page.content()
-        path.write_text(html, encoding="utf-8")
-        print(f"[诊断]   已保存详情页 HTML 供排查：{path}（{len(html)} 字符）")
+        _write_detail_html(await page.content(), job_id, index)
     except Exception as exc:  # noqa: BLE001
         print(f"[诊断]   保存详情页 HTML 失败：{type(exc).__name__}: {exc}")
 
@@ -806,6 +837,142 @@ async def _fetch_detail(page: Any, url: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# 详情页并发抓取（顺序 -> 并发）
+# ---------------------------------------------------------------------------
+def _resolve_detail_concurrency(value: Optional[int] = None) -> int:
+    """把并发配置收敛到 [1, DETAIL_CONCURRENCY_MAX_LIMIT]。
+
+    None -> 用模块常量 MAX_DETAIL_CONCURRENCY（环境变量 SHIXISENG_DETAIL_CONCURRENCY）；
+    非法值（字符串 / 负数）一律退回常量——配置写错不该让整轮抓取挂掉。
+    """
+    raw = MAX_DETAIL_CONCURRENCY if value is None else value
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        n = MAX_DETAIL_CONCURRENCY
+    return max(1, min(n, DETAIL_CONCURRENCY_MAX_LIMIT))
+
+
+def _detail_page_pool_size(total: int, max_concurrency: int) -> int:
+    """页面池大小：不超过待抓条数，也不超过并发上限。"""
+    return max(1, min(int(max_concurrency or 1), max(1, int(total))))
+
+
+async def _fetch_details_concurrent(
+    context: Any,
+    items: list[dict[str, Any]],
+    max_concurrency: int = MAX_DETAIL_CONCURRENCY,
+    delay_range: tuple[float, float] = DELAY_BETWEEN_DETAILS,
+    fallback_page: Any = None,
+) -> list[dict[str, Any]]:
+    """并发抓取多条详情页（本模块「顺序 -> 并发」的核心）。
+
+    做法：
+      1) 在同一个 browser context 里开 N 个 page 组成**页面池**——一个 page 同一时刻
+         只能抓一条详情，N 个 page 天然就是 N 并发；
+      2) `asyncio.Semaphore(N)` 限制同时在跑的请求数，与页面池双保险，
+         即使调用方传了更大的并发数也不会超发请求（反爬保护）；
+      3) 每条之间 `asyncio.sleep(random.uniform(*delay_range))`，伪装人类点击节奏，
+         并发但不做"齐射"；
+      4) `asyncio.gather(..., return_exceptions=True)`：**单条失败不影响其他条**，
+         失败/异常的条目回填空 dict，调用方按"字段缺失"处理，与顺序版行为一致。
+
+    返回：与 items **等长且下标一一对应**的 dict 列表（回填位置与顺序版完全相同）。
+    本函数不碰清洗/入库，也不改 _fetch_detail 的任何解析逻辑。
+    """
+    if not items:
+        return []
+
+    total = len(items)
+    concurrency = _detail_page_pool_size(total, max_concurrency)
+
+    # 1) 页面池：开不出 page 时退化为顺序抓取，绝不让整轮抓取失败
+    pages: list[Any] = []
+    for _ in range(concurrency):
+        try:
+            pages.append(await context.new_page())
+        except Exception as exc:  # noqa: BLE001
+            print(f"[诊断][详情][警告] 创建并发页面失败（已建 {len(pages)}/{concurrency}）："
+                  f"{type(exc).__name__}: {exc}")
+            break
+
+    if not pages:
+        print("[诊断][详情][警告] 无法创建并发页面，退化为顺序抓取。")
+        out: list[dict[str, Any]] = []
+        for n, item in enumerate(items, 1):
+            if fallback_page is None:
+                out.append({})
+                continue
+            print(f"[诊断] ({n}/{total}) 详情页：{item['url']}")
+            out.append(await _fetch_detail(fallback_page, item["url"]))
+        return out
+
+    concurrency = len(pages)
+    print(f"[诊断][详情] 页面池就绪：{concurrency} 路并发（{concurrency} 个标签页）")
+
+    queue: "asyncio.Queue[Any]" = asyncio.Queue()
+    for pg in pages:
+        queue.put_nowait(pg)
+
+    semaphore = asyncio.Semaphore(concurrency)
+    dump_lock = asyncio.Lock()
+    dump_used = 0
+
+    async def _one(index: int, item: dict[str, Any]) -> dict[str, Any]:
+        nonlocal dump_used
+        async with semaphore:
+            pg = await queue.get()
+            try:
+                # 3) 每条之间的随机延迟：并发也保持人类节奏
+                await asyncio.sleep(random.uniform(*delay_range))
+                detail = await _fetch_detail(pg, item["url"])
+                # 空正文的 HTML dump 在 worker 内完成（page 用完就要还回池子）
+                if not detail.get("description"):
+                    async with dump_lock:
+                        if dump_used < MAX_EMPTY_JD_DUMPS:
+                            dump_used += 1
+                            print(f"[诊断][详情][警告] 岗位 {item.get('job_id') or '未知'} "
+                                  "的 JD 正文为空，保存详情页 HTML 供排查。")
+                            try:
+                                _write_detail_html(await pg.content(),
+                                                   item.get("job_id", ""), index)
+                            except Exception as exc:  # noqa: BLE001
+                                print("[诊断]   保存详情页 HTML 失败："
+                                      f"{type(exc).__name__}: {exc}")
+                return detail if isinstance(detail, dict) else {}
+            finally:
+                queue.put_nowait(pg)
+
+    tasks = [asyncio.create_task(_one(i, item)) for i, item in enumerate(items, 1)]
+    try:
+        # 4) return_exceptions=True：任何一条报错都不会取消/拖垮其他条
+        gathered = await asyncio.gather(*tasks, return_exceptions=True)
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        for pg in pages:
+            try:
+                await pg.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    out = []
+    failed = 0
+    for index, (item, res) in enumerate(zip(items, gathered), 1):
+        if isinstance(res, BaseException):
+            failed += 1
+            print(f"[诊断][详情][警告] ({index}/{total}) 抓取异常，跳过该条："
+                  f"{type(res).__name__}: {str(res).splitlines()[0][:140]}")
+            out.append({})
+        else:
+            out.append(res if isinstance(res, dict) else {})
+    if failed:
+        print(f"[诊断][详情][警告] 共 {failed}/{total} 条详情页失败（其余不受影响）。")
+    return out
+
+
+# ---------------------------------------------------------------------------
 # 主入口
 # ---------------------------------------------------------------------------
 async def search_shixiseng(
@@ -815,6 +982,7 @@ async def search_shixiseng(
     headless: bool = False,
     fetch_detail: bool = True,
     max_pages: int = 3,
+    detail_concurrency: Optional[int] = None,
 ) -> list[Job]:
     """
     抓取实习僧搜索页岗位（支持翻页 + 跨页去重）。
@@ -829,6 +997,10 @@ async def search_shixiseng(
                        强烈建议 True）
         max_pages: 最多翻多少页（每页实测 20 条，默认 3 页 ≈ 60 条）。
                    <=0 表示不设上限，翻到没有新岗位为止（有硬上限安全阀）。
+        detail_concurrency: 详情页并发路数（同时打开的标签页数）。
+                   None 用模块常量 MAX_DETAIL_CONCURRENCY（默认 5，可用环境变量
+                   SHIXISENG_DETAIL_CONCURRENCY 覆盖）；<=1 退化为原来的顺序抓取。
+                   **只并发详情页**，列表翻页仍是顺序的。
 
     返回：
         list[Job]（复用 agent.tools.job_search.Job）
@@ -992,9 +1164,31 @@ async def search_shixiseng(
             empty_jd: list[str] = []
             missing_date: list[str] = []
             if need_detail:
-                for n, item in enumerate(need_detail, 1):
-                    print(f"[诊断] ({n}/{len(need_detail)}) 详情页：{item['url']}")
-                    detail = await _fetch_detail(page, item["url"])
+                conc = _resolve_detail_concurrency(detail_concurrency)
+                used_concurrency = conc > 1 and len(need_detail) > 1
+                details: list[dict[str, Any]] = []
+                if used_concurrency:
+                    print(f"[诊断][详情] 并发 {conc} 路抓取 {len(need_detail)} 条…"
+                          f"（每条之间随机延迟 {DELAY_BETWEEN_DETAILS[0]}~"
+                          f"{DELAY_BETWEEN_DETAILS[1]} 秒）")
+                    t_detail = time.monotonic()
+                    details = await _fetch_details_concurrent(
+                        context, need_detail, max_concurrency=conc,
+                        fallback_page=page,
+                    )
+                    print(f"[诊断][详情] 完成 "
+                          f"{sum(1 for d in details if d.get('description'))}"
+                          f"/{len(need_detail)} 条（耗时 "
+                          f"{time.monotonic() - t_detail:.1f} 秒）")
+                else:
+                    print(f"[诊断][详情] 顺序抓取 {len(need_detail)} 条…")
+                    for n, item in enumerate(need_detail, 1):
+                        print(f"[诊断] ({n}/{len(need_detail)}) 详情页：{item['url']}")
+                        details.append(await _fetch_detail(page, item["url"]))
+
+                for n, (item, detail) in enumerate(zip(need_detail, details), 1):
+                    if not isinstance(detail, dict):
+                        detail = {}
                     item["title_detail"] = detail.get("title", "")
                     item["salary_detail"] = detail.get("salary", "")
                     item["city_detail"] = detail.get("city", "")
@@ -1016,7 +1210,8 @@ async def search_shixiseng(
                         print(f"[诊断][警告] 岗位 {item['job_id']} 的 JD 正文为空！"
                               f" url={item['url']}")
                         empty_jd.append(item["job_id"])
-                        if len(empty_jd) <= MAX_EMPTY_JD_DUMPS:
+                        # 并发路径下 HTML 已在 worker 内 dump（page 已还池），这里不再重复
+                        if not used_concurrency and len(empty_jd) <= MAX_EMPTY_JD_DUMPS:
                             await _dump_detail_html(page, item["job_id"], n)
                     elif item["description_obfuscated"]:
                         print(f"[诊断][警告] 岗位 {item['job_id']} 的 JD 正文含字体混淆字符，"
@@ -1124,6 +1319,7 @@ async def search_multi_keywords(
     limit_per_keyword: int = 40,
     headless: bool = False,
     fetch_detail: bool = True,
+    detail_concurrency: Optional[int] = None,
 ) -> list[Job]:
     """
     多关键词搜索：逐个关键词调用 search_shixiseng -> 合并 -> 按 job_id 去重。
@@ -1175,6 +1371,7 @@ async def search_multi_keywords(
 
     for idx, kw in enumerate(keywords, 1):
         print("=" * 70)
+        print(f"[关键词 {idx}/{len(keywords)}] {kw}")
         print(f"[多关键词] ({idx}/{len(keywords)}) 关键词：{kw!r}")
         kw_jobs: list[Job] = []
         try:
@@ -1185,6 +1382,7 @@ async def search_multi_keywords(
                 headless=headless,
                 fetch_detail=fetch_detail,
                 max_pages=max_pages_per_keyword,
+                detail_concurrency=detail_concurrency,
             )
         except Exception as exc:  # noqa: BLE001 - 单个关键词失败不拖垮整轮
             msg = f"{kw}: {type(exc).__name__}: {str(exc).splitlines()[0][:160]}"

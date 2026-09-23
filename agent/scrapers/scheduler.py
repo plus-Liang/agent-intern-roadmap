@@ -69,6 +69,18 @@ DEFAULT_MAX_PAGES = int(os.getenv("SCHEDULER_MAX_PAGES", "2"))
 DEFAULT_LIMIT_PER_KEYWORD = int(os.getenv("SCHEDULER_LIMIT_PER_KEYWORD", "40"))
 DEFAULT_LIMIT_TOTAL = int(os.getenv("SCHEDULER_LIMIT_TOTAL", "100"))
 
+# 详情页并发路数（透传给抓取器的 detail_concurrency）。
+# 默认 None = 用抓取器自己的常量 / SHIXISENG_DETAIL_CONCURRENCY，**不改默认调用形状**：
+# 只有显式配置 SCHEDULER_DETAIL_CONCURRENCY 时才把这个参数传给 scraper，
+# 免得自测里注入的假 scraper 因为多出一个关键字参数而报错。
+DEFAULT_DETAIL_CONCURRENCY = None
+_env_detail_concurrency = (os.getenv("SCHEDULER_DETAIL_CONCURRENCY") or "").strip()
+if _env_detail_concurrency:
+    try:
+        DEFAULT_DETAIL_CONCURRENCY = int(_env_detail_concurrency)
+    except ValueError:
+        DEFAULT_DETAIL_CONCURRENCY = None
+
 # 清洗参数（与 rag/quality/cleaner.py 的默认口径一致）
 DEFAULT_MAX_AGE_DAYS = int(os.getenv("SCHEDULER_MAX_AGE_DAYS", "60"))
 DEFAULT_MIN_DESC_LEN = int(os.getenv("SCHEDULER_MIN_DESC_LEN", "200"))
@@ -351,6 +363,7 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
         "max_pages": DEFAULT_MAX_PAGES,
         "limit_per_keyword": DEFAULT_LIMIT_PER_KEYWORD,
         "limit_total": DEFAULT_LIMIT_TOTAL,
+        "detail_concurrency": DEFAULT_DETAIL_CONCURRENCY,
         "stale_days": DEFAULT_STALE_DAYS,
     }
 
@@ -361,13 +374,14 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
 def scrape_jobs(keywords: list[str], city=None, max_pages=DEFAULT_MAX_PAGES,
                 limit_per_keyword=DEFAULT_LIMIT_PER_KEYWORD,
                 limit_total=DEFAULT_LIMIT_TOTAL,
-                headless: bool = True, scraper=None) -> list:
+                headless: bool = True, detail_concurrency=None, scraper=None) -> list:
     """调 agent.scrapers.shixiseng.search_multi_keywords 抓取岗位。
 
     scraper: 参数用于注入假实现（离线自测），不传就用真实的
               search_multi_keywords（async 函数）。两种都能接：
               async 的直接 await，同步返回列表的包一层 coroutine。
     headless 默认 True：定时任务在后台跑，不该弹浏览器窗口。
+    detail_concurrency: 详情页并发路数；None 时**不传该参数**，让抓取器用自身默认值。
 
     逐关键词的命中/零命中明细由抓取器自己打印（[多关键词] 前缀的日志）——
     它内部就是逐词循环，归属是准的；这里不重复统计，避免造一份口径不同的
@@ -377,6 +391,7 @@ def scrape_jobs(keywords: list[str], city=None, max_pages=DEFAULT_MAX_PAGES,
         from agent.scrapers.shixiseng import search_multi_keywords as scraper
 
     async def _run():
+        extra = {} if detail_concurrency is None else {"detail_concurrency": detail_concurrency}
         result = scraper(
             keywords,
             city=city,
@@ -385,6 +400,7 @@ def scrape_jobs(keywords: list[str], city=None, max_pages=DEFAULT_MAX_PAGES,
             limit_per_keyword=limit_per_keyword,
             headless=headless,
             fetch_detail=True,
+            **extra,
         )
         if inspect.isawaitable(result):
             return await result
@@ -396,7 +412,7 @@ def scrape_jobs(keywords: list[str], city=None, max_pages=DEFAULT_MAX_PAGES,
 def scrape_all_cities(cities, keywords, max_pages=DEFAULT_MAX_PAGES,
                       limit_per_keyword=DEFAULT_LIMIT_PER_KEYWORD,
                       limit_total=DEFAULT_LIMIT_TOTAL,
-                      headless: bool = True, scraper=None,
+                      headless: bool = True, detail_concurrency=None, scraper=None,
                       logger: logging.Logger = None) -> dict:
     """逐个城市抓取并合并（Task 4：不再只抓第一个城市）。
 
@@ -404,6 +420,9 @@ def scrape_all_cities(cities, keywords, max_pages=DEFAULT_MAX_PAGES,
     抓取器只接一个 city 参数，且"广州 20 条 + 深圳 20 条"合并后才 40 条，
     若共用一个 limit_total，先跑的城市会把预算吃光、后面的城市一条都拿不到。
     所以每个城市各给一份 limit_total 配额，最后再整体去重。
+
+    城市是**顺序**跑的（不做城市并发）：城市并发会让同一 IP 短时间内打到多个搜索
+    入口，反爬风险最高；提速交给详情页并发（detail_concurrency）。
 
     返回：
         {
@@ -423,13 +442,17 @@ def scrape_all_cities(cities, keywords, max_pages=DEFAULT_MAX_PAGES,
     failed: dict[str, str] = {}
     raw_total = 0
 
-    for city in cities:
+    for city_index, city in enumerate(cities, 1):
         label = city or "不限"
+        # [城市 i/N]：城市是顺序跑的，这行日志是"跑到第几个城市"的唯一凭据
+        if logger:
+            logger.info("[城市 %d/%d] %s", city_index, len(cities), label)
         try:
             jobs = scrape_jobs(
                 keywords, city=city, max_pages=max_pages,
                 limit_per_keyword=limit_per_keyword, limit_total=limit_total,
-                headless=headless, scraper=scraper,
+                headless=headless, detail_concurrency=detail_concurrency,
+                scraper=scraper,
             ) or []
         except Exception as exc:                 # noqa: BLE001 - 单城市失败不拖垮整轮
             failed[label] = f"{type(exc).__name__}: {exc}"
@@ -723,10 +746,13 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
     started = time.time()
 
     log.info(
-        "===== 定时抓取开始：关键词组=[%s] 城市=%s dry_run=%s =====",
+        "===== 定时抓取开始：关键词组=[%s] 城市=%s dry_run=%s "
+        "详情页并发=%s（城市/关键词顺序）=====",
         _format_keyword_groups(keyword_groups),
         "、".join(cities) if cities else "不限",
         dry_run,
+        config.get("detail_concurrency", DEFAULT_DETAIL_CONCURRENCY)
+        or f"默认({os.getenv('SHIXISENG_DETAIL_CONCURRENCY') or '5'})",
     )
 
     result = {
@@ -760,6 +786,8 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                 limit_per_keyword=config.get("limit_per_keyword", DEFAULT_LIMIT_PER_KEYWORD),
                 limit_total=config.get("limit_total", DEFAULT_LIMIT_TOTAL),
                 headless=headless,
+                detail_concurrency=config.get("detail_concurrency",
+                                              DEFAULT_DETAIL_CONCURRENCY),
                 scraper=scraper,
                 logger=log,
             )
