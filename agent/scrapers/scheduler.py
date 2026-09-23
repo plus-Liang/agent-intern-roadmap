@@ -502,29 +502,49 @@ def _load_job_db():
     return importlib.import_module("db")
 
 
-def _persist_raw_jobs(rows: list[dict], platform: str,
-                      logger: logging.Logger = None) -> dict:
-    """把某平台的 RawJob 写进 SQLite（rag/data/jobs.db）。
+def _persist_jobs_to_sqlite(rows: list[dict], logger: logging.Logger = None,
+                            stage: str = "清洗后") -> dict:
+    """把岗位写进 SQLite（rag/data/jobs.db）。
+
+    ⚠️ **只允许写清洗后的岗位**：本函数在 cleaner 之后调用，jobs.db 是
+    Agent 真正检索的数据源，里面不能出现被相关性/城市/时效/正文长度过滤掉的
+    脏数据（这正是上一版"抓完立刻落库"的数据流 bug）。
 
     * 走既有 `db.upsert_jobs()`，**不改 db.py**；按 job_id 幂等 upsert，
       每条记录自带 platform 字段，多平台数据就靠它区分。
-    * 写库失败不回滚也不抛异常：抓取结果还要继续走清洗/入库链路，
+    * 字段映射统一由 `_job_to_dict()` 负责（job_id / platform / title / company /
+      city / salary / url / description / publish_date）。
+    * 写库失败不回滚也不抛异常：后面还有 chunk 与语料落盘链路，
       不能因为本地库写不进去就让整轮任务失败。
     """
     try:
         stats = _load_job_db().upsert_jobs(rows)
     except Exception as exc:                      # noqa: BLE001
         if logger:
-            logger.warning("[平台 %s] RawJob 写入 SQLite 失败（继续后续链路）：%s: %s",
-                           platform, type(exc).__name__, exc)
+            logger.warning("[落库] %s岗位写入 SQLite 失败（继续后续链路）：%s: %s",
+                           stage, type(exc).__name__, exc)
         return {}
     if logger:
-        logger.info(
-            "[平台 %s] RawJob 已写入 SQLite（jobs.platform=%s）：新增 %d，更新 %d，跳过 %d",
-            platform, platform, stats.get("added", 0), stats.get("updated", 0),
-            stats.get("skipped", 0),
-        )
+        logger.info("[落库] %s岗位已写入 SQLite：新增 %d，更新 %d，跳过 %d",
+                    stage, stats.get("added", 0), stats.get("updated", 0),
+                    stats.get("skipped", 0))
     return stats
+
+
+def _normalize_city_label(text) -> str:
+    """城市名归一（去空白、去结尾「市」），把清洗结果对回抓取时的城市标签。"""
+    value = str(text or "").strip()
+    return value[:-1] if value.endswith("市") else value
+
+
+def _cleaned_counts_by_platform_city(jobs: list[dict]) -> dict[tuple, int]:
+    """清洗后的岗位按 (平台, 城市) 计数，用于打印「清洗后 M 条」。"""
+    counts: dict[tuple, int] = {}
+    for job in jobs or []:
+        row = _job_to_dict(job)
+        key = (row.get("platform") or "unknown", _normalize_city_label(row.get("city")))
+        counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def scrape_multi_platform(
@@ -535,10 +555,9 @@ def scrape_multi_platform(
     headless: bool = True,
     detail_concurrency=None,
     scraper=None,
-    persist_db: bool = True,
     logger: logging.Logger = None,
 ) -> dict:
-    """遍历 [平台 × 城市 × 关键词] 抓取 → 合并去重 → RawJob 落 SQLite。
+    """遍历 [平台 × 城市 × 关键词] 抓取 → 合并去重。
 
     遍历顺序是 **平台 -> 城市 -> 关键词**，三层都是**顺序**的：
     并发会让同一 IP 短时间内打到多个搜索入口，反爬风险最高；
@@ -547,18 +566,19 @@ def scrape_multi_platform(
     去重键是 **(platform, job_id)**：不同平台的 job_id 可能撞车，
     只用 job_id 去重会把别的平台的岗位误当重复丢掉。
 
-    每个平台抓完**立刻** upsert 进 SQLite，后一个平台崩了也不影响
-    前面平台已经落库的数据。
+    ⚠️ 本函数**只负责抓取，不碰 SQLite**：抓到的原始岗位要等 run_daily_job
+    清洗之后才落库，否则 jobs.db 会混进被 cleaner 过滤掉的脏数据
+    （相关性差 / 过时 / 正文太短）。
 
     返回：
         {
-          "jobs":         [去重合并后的岗位 dict]（清洗/落盘链路直接用）,
-          "per_platform": {平台: 抓到条数},
-          "per_city":     {城市: 抓到条数},
-          "per_keyword":  {关键词: 抓到条数},
-          "failed":       {"平台/城市/关键词": 错误摘要},
-          "raw_total":    去重前总条数,
-          "db":           {"added","updated","skipped"}（未落库时为 {}）,
+          "jobs":              [去重合并后的原始岗位 dict]（交给清洗链路）,
+          "per_platform":      {平台: 抓到条数},
+          "per_city":          {城市: 抓到条数},
+          "per_keyword":       {关键词: 抓到条数},
+          "per_platform_city": {(平台, 城市): 抓到条数},
+          "failed":            {"平台/城市/关键词": 错误摘要},
+          "raw_total":         去重前总条数,
         }
     """
     platforms = [p for p in (platforms or []) if str(p).strip()] or list(DEFAULT_PLATFORMS)
@@ -567,7 +587,7 @@ def scrape_multi_platform(
 
     result = {
         "jobs": [], "per_platform": {}, "per_city": {}, "per_keyword": {},
-        "failed": {}, "raw_total": 0, "db": {},
+        "per_platform_city": {}, "failed": {}, "raw_total": 0,
     }
     if not keywords:
         if logger:
@@ -596,7 +616,6 @@ def scrape_multi_platform(
                                  platform, result["failed"][platform])
                 continue
 
-            platform_rows: dict[str, dict] = {}
             try:
                 for city in cities:
                     label = city or "不限"
@@ -619,6 +638,7 @@ def scrape_multi_platform(
                             (result["per_city"], label),
                             (result["per_keyword"], keyword),
                             (result["per_platform"], platform),
+                            (result["per_platform_city"], (platform, label)),
                         ):
                             bucket[name] = bucket.get(name, 0) + len(raw_jobs)
                         # 统一的抓取日志格式：谁（平台）在哪儿（城市）搜什么（关键词）抓到几条
@@ -635,19 +655,12 @@ def scrape_multi_platform(
                                 f"{job.get('company')}|{job.get('title')}|{job.get('url')}",
                             )
                             merged.setdefault(key, job)
-                            platform_rows.setdefault(job_id or key[1], job)
             finally:
                 try:
                     await instance.close()
                 except Exception as exc:          # noqa: BLE001
                     if logger:
                         logger.warning("[平台 %s] 关闭抓取器失败：%s", platform, exc)
-
-            # 该平台抓完立刻落库（platform 字段区分平台，upsert 幂等）
-            if persist_db and platform_rows:
-                stats = _persist_raw_jobs(list(platform_rows.values()), platform, logger)
-                for name, value in stats.items():
-                    result["db"][name] = result["db"].get(name, 0) + value
 
     asyncio.run(_run())
 
@@ -1023,7 +1036,8 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
         out_dir:     落盘目录；默认写 rag/data/（保持 Agent 能搜到新岗位）
         state_file:  状态文件路径（--status 读的就是它）
         dry_run:     True 时跳过真实抓取（只验证链路），并且不落盘
-        persist_db:  是否把抓到的 RawJob 写进 SQLite（rag/data/jobs.db，platform 字段区分平台）。
+        persist_db:  是否把**清洗后**的有效岗位写进 SQLite（rag/data/jobs.db，
+                     platform 字段区分平台）。清洗前的原始数据一律不落库。
                      None（默认）= 自动：注入了假抓取器（离线自测 / 测试替身）时不落库，
                      避免自测写真实库；True/False 可强制打开/关闭。
     """
@@ -1095,15 +1109,11 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                 detail_concurrency=config.get("detail_concurrency",
                                               DEFAULT_DETAIL_CONCURRENCY),
                 scraper=scraper,
-                # 注入式假抓取器（离线自测 / 测试替身）默认不落 SQLite：
-                # 自测必须只碰临时目录，绝不能写真实的 rag/data/jobs.db。
-                persist_db=(scraper is None) if persist_db is None else bool(persist_db),
                 logger=log,
             )
             jobs = merged_scrape["jobs"]
             result["per_city"] = merged_scrape["per_city"]
             result["per_platform"] = merged_scrape["per_platform"]
-            result["db"] = merged_scrape["db"]
             log.info("[1/4] 抓取完成：%d 个平台 × %d 个城市 → 去重合并 %d 条%s",
                      len(platforms), len(merged_scrape["per_city"]), len(jobs),
                      f"（{len(merged_scrape['failed'])} 个组合失败）"
@@ -1152,6 +1162,46 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
             removed.get("relevance", 0), removed.get("city", 0),
             removed.get("age", 0), removed.get("length", 0),
         )
+
+        # 2.5) 落库：**清洗之后**才写 SQLite
+        #      jobs.db 是 Agent 真正检索的数据源，只能放清洗后的有效岗位；
+        #      清洗前的原始数据一律不落库（本轮只随 kept 继续走 chunk / 语料落盘）。
+        #      persist_db=None 时自动：注入了假抓取器（离线自测 / 测试替身）就不落库，
+        #      免得自测写到真实的 rag/data/jobs.db。
+        if dry_run:
+            log.info("[落库] dry-run：跳过写 SQLite")
+        else:
+            should_persist = (scraper is None) if persist_db is None else bool(persist_db)
+            if should_persist:
+                # 字段映射统一走 _job_to_dict()：job_id / platform / title / company /
+                # city / salary / url / description / publish_date
+                result["db"] = _persist_jobs_to_sqlite(
+                    [_job_to_dict(job) for job in kept], logger=log
+                )
+            else:
+                log.info("[落库] 已关闭 SQLite 落库（persist_db=False 或存在注入式假抓取器）")
+
+            # 每个「平台 × 城市」一行：抓到 N 条 → 清洗后 M 条 → 落库 M 条
+            cleaned_by_pc = _cleaned_counts_by_platform_city(kept)
+            platform_totals: dict[str, int] = {}
+            cleaned_by_city: dict[str, int] = {}
+            for (pf, city_key), count in cleaned_by_pc.items():
+                platform_totals[pf] = platform_totals.get(pf, 0) + count
+                cleaned_by_city[city_key] = cleaned_by_city.get(city_key, 0) + count
+            for (platform, city), raw_n in (merged_scrape.get("per_platform_city") or {}).items():
+                label = _normalize_city_label(city or "")
+                if not label:
+                    # 「不限」城市：清洗后岗位带的是真实城市，只能按平台总量报
+                    cleaned_n = platform_totals.get(platform, 0)
+                elif (platform, label) in cleaned_by_pc:
+                    cleaned_n = cleaned_by_pc[(platform, label)]
+                else:
+                    # 岗位自带的 platform 与注册名不一致时（例如注入的假数据）按城市兜底，
+                    # 免得日志显示「清洗后 0 条」而实际留下了岗位
+                    cleaned_n = cleaned_by_city.get(label, 0)
+                log.info("[平台 %s][城市 %s] 抓到 %d 条 → 清洗后 %d 条 → 落库 %d 条",
+                         platform, city, raw_n, cleaned_n,
+                         cleaned_n if should_persist else 0)
 
         # 3) 生成 chunk
         chunks = build_chunks(kept)
@@ -1257,7 +1307,7 @@ def format_status(state: dict = None, state_file=None) -> str:
     db_stats = state.get("db") or {}
     if db_stats:
         lines.append(
-            f"RawJob 落 SQLite：新增 {db_stats.get('added', 0)}，"
+            f"清洗后落 SQLite：新增 {db_stats.get('added', 0)}，"
             f"更新 {db_stats.get('updated', 0)}，跳过 {db_stats.get('skipped', 0)}"
         )
     if merge:
