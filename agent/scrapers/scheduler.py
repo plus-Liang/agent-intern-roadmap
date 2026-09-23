@@ -504,6 +504,11 @@ def scraper_registry() -> dict[str, type]:
         from agent.scrapers.shixiseng import ShixisengScraper
 
         SCRAPERS.setdefault("shixiseng", ShixisengScraper)
+        # 牛客网走公开 JSON 接口（只用 requests，不含 playwright），
+        # 与实习僧的浏览器方案互补；同样是惰性 import，离线命令不受影响。
+        from agent.scrapers.niuke import NiukeScraper
+
+        SCRAPERS.setdefault("niuke", NiukeScraper)
         # mock_scraper 只依赖 base（不含 playwright），离线端到端自测用：
         # SCHEDULER_USE_MOCK=1 时平台被切成 "mock"，几秒钟跑完整条链路。
         from agent.scrapers.mock_scraper import MockScraper
