@@ -408,6 +408,39 @@
   },
   {
     "platform": "shixiseng",
+    "job_id": "inn_hfafgasj8tnt",
+    "title": "Agent策略实习生",
+    "company": "百度",
+    "city": "北京",
+    "salary": "250-400/天",
+    "url": "https://www.shixiseng.com/intern/inn_hfafgasj8tnt?pcm=pc_SearchList",
+    "description": "【岗位职责】\n参与 AI Agent 的策略设计、实验与迭代，覆盖任务理解、规划拆解、工具调用、记忆管理、多轮交互、异常兜底等环节；\n协助优化 Prompt、规则策略、工作流编排与上下文组织方式，提升 Agent 在真实场景中的任务完成率、准确率、稳定性与效率；\n参与 Agent 评测体系搭建，设计评测集与指标，分析 bad case，基于数据输出策略优化建议；\n与算法、产品、工程团队协作，推动策略验证、上线测试与效果复盘；\n跟踪大模型与 Agent 领域前沿进展，整理调研文档并探索新策略、新范式。\n\n【任职要求】\n本科及以上在读，计算机、人工智能、软件工程、数学、统计、人机交互等相关专业优先；\n了解 LLM、AI Agent、Prompt Engineering、RAG、工具调用、多智能体等基本概念，有相关项目、竞赛、开源或论文经验者优先；\n具备较好的逻辑分析、问题拆解、实验设计与数据分析能力，能从数据和案例中提炼策略；\n熟悉 Python，能进行基础脚本、数据处理或简单 Demo 开发；了解常见大模型 API 及 LangChain、LlamaIndex、AutoGen、Dify、Coze 等框架/平台者优先；\n具备良好的中文表达与文档能力，能清晰撰写策略说明、评测报告和调研文档；\n责任心强，主动性好，能适应快速迭代，具备团队协作意识；\n每周到岗至少 3-4 天，连续实习 3 个月以上，可长期实习者优先。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "shixiseng",
+    "job_id": "inn_iypvifeu1trc",
+    "title": "AI Agent开发（可转正）",
+    "company": "蜀俊博凌",
+    "city": "北京",
+    "salary": "200-400/天",
+    "url": "https://www.shixiseng.com/intern/inn_iypvifeu1trc?pcm=pc_SearchList",
+    "description": "【岗位职责】\n1.负责设计、开发和落地具备自主规划、决策与执行能力的智能体系统;\n2.参与AI智能体系统架构设计，负责智能体规划、决策、记忆、工具调用等核心模块的开发与优化;\n3.研究和应用检索增强生成(RAG)、向量检索及非结构化文档处理技术，将私域知识库与大模型深度结合;\n4.参与模型训练与调优流程，针对智能体的决策与推理能力进行针对性优化;\n\n【任职要求】\n1.本科及以上学历，计算机、AI、数据、电子信息、自动化，软件工程、人工智能等相关专业;\n2.需有扎实的项目或研究基础；\n3.熟悉Python/Java/Go/php中的至少一种，具备扎实的代码能力和系统设计能力;\n4.深入掌握LangChain、LangGraph、Llamalndex等主流智能体开发框架，有实际项目落地经验优先;",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "shixiseng",
+    "job_id": "inn_2mimjhsdf0o9",
+    "title": "AI Agent 研发实习生",
+    "company": "原力金智",
+    "city": "北京",
+    "salary": "300/天",
+    "url": "https://www.shixiseng.com/intern/inn_2mimjhsdf0o9?pcm=pc_SearchList",
+    "description": "【职位描述】\n我们基于真实业务场景构建 AI Agent，欢迎对 AI Agent 技术充满热情的你加入。\n\n【任职要求】\n本科或硕士在读，计算机、人工智能、软件工程等相关专业优先；\n熟悉 Python 或 TypeScript/JavaScript，具备良好的工程能力；\n熟悉 LangChain、LangGraph、Deep Agents 等主流 Agent 框架；\n对 AI Agent、LLM、AI Coding Assistant 有浓厚兴趣；\n能够熟练阅读英文技术文档及开源项目源码；\n具备良好的学习能力和问题分析能力；\n每周可实习不少于 5 天，可连续实习 3 个月及以上。\n加分项\n有 AI Agent 或 AI Coding 相关开源项目贡献经验；\n具备 Prompt Engineering、Tool Calling、RAG、多 Agent 系统等实践经验。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "shixiseng",
     "job_id": "inn_vcanb2oeh0ya",
     "title": "大模型/agent应用产品实习生",
     "company": "原力金智",
