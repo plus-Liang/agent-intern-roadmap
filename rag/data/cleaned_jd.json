@@ -23,6 +23,39 @@
   },
   {
     "platform": "shixiseng",
+    "job_id": "inn_hfafgasj8tnt",
+    "title": "Agent策略实习生",
+    "company": "百度",
+    "city": "北京",
+    "salary": "250-400/天",
+    "url": "https://www.shixiseng.com/intern/inn_hfafgasj8tnt?pcm=pc_SearchList",
+    "description": "【岗位职责】\n参与 AI Agent 的策略设计、实验与迭代，覆盖任务理解、规划拆解、工具调用、记忆管理、多轮交互、异常兜底等环节；\n协助优化 Prompt、规则策略、工作流编排与上下文组织方式，提升 Agent 在真实场景中的任务完成率、准确率、稳定性与效率；\n参与 Agent 评测体系搭建，设计评测集与指标，分析 bad case，基于数据输出策略优化建议；\n与算法、产品、工程团队协作，推动策略验证、上线测试与效果复盘；\n跟踪大模型与 Agent 领域前沿进展，整理调研文档并探索新策略、新范式。\n\n【任职要求】\n本科及以上在读，计算机、人工智能、软件工程、数学、统计、人机交互等相关专业优先；\n了解 LLM、AI Agent、Prompt Engineering、RAG、工具调用、多智能体等基本概念，有相关项目、竞赛、开源或论文经验者优先；\n具备较好的逻辑分析、问题拆解、实验设计与数据分析能力，能从数据和案例中提炼策略；\n熟悉 Python，能进行基础脚本、数据处理或简单 Demo 开发；了解常见大模型 API 及 LangChain、LlamaIndex、AutoGen、Dify、Coze 等框架/平台者优先；\n具备良好的中文表达与文档能力，能清晰撰写策略说明、评测报告和调研文档；\n责任心强，主动性好，能适应快速迭代，具备团队协作意识；\n每周到岗至少 3-4 天，连续实习 3 个月以上，可长期实习者优先。",
+    "publish_date": "2026-09-23"
+  },
+  {
+    "platform": "shixiseng",
+    "job_id": "inn_vstr8t8cxayz",
+    "title": "Agent效果运营实习生 - 抖音社交与互动",
+    "company": "字节跳动",
+    "city": "深圳",
+    "salary": "350/天",
+    "url": "https://www.shixiseng.com/intern/inn_vstr8t8cxayz?pcm=pc_SearchList",
+    "description": "【岗位职责】\n团队介绍：抖音社交与互动团队服务于抖音连接人与人的愿景，希望为用户提供更好的社交、创作体验，以拓宽抖音的使用场景，成为更多人打开和使用抖音的新理由，提升抖音的用户规模。我们是一支有朝气、背景多元的团队，致力为用户提供最佳的产品体验，热衷听取用户声音和反馈，也运用科学严谨的分析方法，仔细衡量我们的工作成果。抖音社交与互动欢迎你的加入，和我们一起做有挑战的事情。\n\n日常实习：面向全体在校生，为符合岗位要求的同学提供为期3个月及以上的项目实践机会。\n\n1、负责多闪仔仔Agent评测体系搭建，包括对话相关测评集、制定测评标准与标准化SOP；\n2、负责日常评测工作，精准发现、梳理并深度分析Agent运行及能力问题，形成有效结论；\n3、联动算法团队输出问题清单与优化建议，持续反哺算法迭代与模型调优；\n4、跟进Agent能力迭代效果，复盘测评数据，动态优化测评规则与流程。\n\n【任职要求】\n1、本科及以上学历在读；\n2、有AI产品运营的相关经验，对AI和社交有热情，具备行业的认知和思考；了解AI Agent基本架构与工作逻辑，有大模型、AI Agent评测经验；\n3、有优秀的沟通能力、自驱力，善于跨部门沟通，有较强的责任心，敢于担当；\n4、有较强的自我驱动和学习能力。",
+    "publish_date": "2026-09-23"
+  },
+  {
+    "platform": "shixiseng",
+    "job_id": "inn_fv6aajp5wwy5",
+    "title": "千帆大模型解决方案实习生",
+    "company": "百度",
+    "city": "深圳",
+    "salary": "250-300/天",
+    "url": "https://www.shixiseng.com/intern/inn_fv6aajp5wwy5?pcm=pc_SearchList",
+    "description": "【岗位职责】\n-协助与行业销售团队的对齐：协助跟进与行业销售侧相关的重点工作和问题的解决进展\n-协助与产研团队的对齐：协助在产研团队内部就相关金融行业大模型需求的落地和推进\n-协助项目商机分析和研究：协助千帆一体机小组对行业项目商机汇总和进展状态的梳理\n-协助项目需求评估与分析：参与并协助完成千帆大模型一体机项目的需求评估，并协助支持大模型项目的拓展\n\n【任职要求】\n-专业能力：本科/研究生在读，计算机及相关专业优先，具备扎实的专业基础知识，了解人工智能、机器学习、大模型等方向的应用或者技术优先\n-文档能力：具备良好的文档编写能力，能够撰写结构清晰、逻辑严谨的技术文档，熟悉Office等常用办公软件，能够快速整理项目资料\n-其他能力要求：具备较强的学习能力和自我驱动力，能够快速适应新环境和新任务，具备良好的团队合作精神，能够积极参与项目讨论和协作",
+    "publish_date": "2026-09-23"
+  },
+  {
+    "platform": "shixiseng",
     "job_id": "inn_py1hkw0wds9o",
     "title": "Agent研发工程师（实习生）",
     "company": "百度",
@@ -415,17 +448,6 @@
     "salary": "300-500/天",
     "url": "https://www.shixiseng.com/intern/inn_pqlh9uo9jumv?pcm=pc_SearchList",
     "description": "【岗位职责】\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n【任职要求】\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
-    "publish_date": "2026-09-22"
-  },
-  {
-    "platform": "shixiseng",
-    "job_id": "inn_hfafgasj8tnt",
-    "title": "Agent策略实习生",
-    "company": "百度",
-    "city": "北京",
-    "salary": "250-400/天",
-    "url": "https://www.shixiseng.com/intern/inn_hfafgasj8tnt?pcm=pc_SearchList",
-    "description": "【岗位职责】\n参与 AI Agent 的策略设计、实验与迭代，覆盖任务理解、规划拆解、工具调用、记忆管理、多轮交互、异常兜底等环节；\n协助优化 Prompt、规则策略、工作流编排与上下文组织方式，提升 Agent 在真实场景中的任务完成率、准确率、稳定性与效率；\n参与 Agent 评测体系搭建，设计评测集与指标，分析 bad case，基于数据输出策略优化建议；\n与算法、产品、工程团队协作，推动策略验证、上线测试与效果复盘；\n跟踪大模型与 Agent 领域前沿进展，整理调研文档并探索新策略、新范式。\n\n【任职要求】\n本科及以上在读，计算机、人工智能、软件工程、数学、统计、人机交互等相关专业优先；\n了解 LLM、AI Agent、Prompt Engineering、RAG、工具调用、多智能体等基本概念，有相关项目、竞赛、开源或论文经验者优先；\n具备较好的逻辑分析、问题拆解、实验设计与数据分析能力，能从数据和案例中提炼策略；\n熟悉 Python，能进行基础脚本、数据处理或简单 Demo 开发；了解常见大模型 API 及 LangChain、LlamaIndex、AutoGen、Dify、Coze 等框架/平台者优先；\n具备良好的中文表达与文档能力，能清晰撰写策略说明、评测报告和调研文档；\n责任心强，主动性好，能适应快速迭代，具备团队协作意识；\n每周到岗至少 3-4 天，连续实习 3 个月以上，可长期实习者优先。",
     "publish_date": "2026-09-22"
   },
   {
@@ -1538,17 +1560,6 @@
     "url": "https://www.shixiseng.com/intern/inn_wwbbnmeru9dk?pcm=pc_SearchList",
     "description": "【职位描述】\n我们是一支聚焦\"具身智能 + Agentic 系统\"落地的算法团队,目标是让通用机器人在真实居家与工业场景中完成开放式任务。当前关注三条主线: 3D 语言场景图构建 (Scene Graph)，让机器人理解 3D 世界 - 基于多视图 RGB-D / 点云 / 3DGS 等输入,构建可被 VLM 推理的 3D scene graph - 探索语义 / 几何 / affordance 的统一表示与开放词汇 grounding - 用 VLM/MLLM 做空间关系推理 (on / inside / reachable / behind...) ,为下游策略提供可解释的场景表征 - 实验主线:Habitat / Isaac Sim 中构建 benchmark + 真机验证 空间运动规划与场景内策略适配，让机器人在场景里完成精细任务 - 基于 scene graph / occupancy / BEV 做长时序导航与可达性规划 - 语言驱动的物体导航 (Object-Goal Navigation / VLN-CE) 与闭环 manipulation 高保真虚拟场景 + Agentic OS，通过高保真仿真加速能力迭代与验证 - 基于 Isaac Sim / Isaac Lab / Habitat / Gazebo 搭建可参数化的家居 / 工业场景 - 打通 ROS 2 <--> Sim <--> Real 全链路,支持本体在仿真里 24h 不间断运行评测 任职要求： 硕士以上学历，可实习4个月以上； 有具身智能或自动驾驶的多模态（视觉 力触觉 交互 运动等）数据采集、清洗、标注与增强的经验； 有具身智能或自动驾驶的多模态数据格式、数据存储、数据工程化的相关经验； 有具身智能或自动驾驶的端侧和云端数据的采集、回传、存储、回放、预处理、标注、评测的相关经验； 有具身智能或自动驾驶的数据挖掘、标注、训练、评测、部署的相关经验； 有具身智能或自动驾驶的端侧数据采集平台或云端数据平台开发、部署的相关经验； - 在读硕士或博士; CS / AI / 自动化 / 机械 等相关专业 - Python + PyTorch 扎实,能独立读懂顶会论文并复现 - 至少在以下技术栈里有一项跑通过的、可演示的经验: - 3D 视觉:3DGS / NeRF / COLMAP / SLAM / 点云语义分割 - 仿真平台:Isaac Sim / Isaac Lab / Habitat / MuJoCo / Gazebo / SAPIEN - 具身策略:ROS 2 / MoveIt / Diffusion Policy / ACT / OpenVLA / π 系列 - 大模型:VLM / VLA / SFT / DPO / GRPO / LangGraph / MCP / RAG 加分项： - 在 Isaac Sim/Lab 或 Habitat 上跑通过端到端 Sim2Real 闭环 - 用 LeRobot / OpenVLA / π0/π0.5 / RDT / GR00T 等开源 VLA 框架做过真机部署 - 真机经验:Unitree / Franka / xArm / 松灵 PiPER / 灵巧手 / 移动底盘 - 在 MCP 协议、Apple VisionPro 遥操作、Talk2DINO、Gaussian Splatting 实时渲染上有 hands-on",
     "publish_date": "2026-09-09"
-  },
-  {
-    "platform": "shixiseng",
-    "job_id": "inn_vstr8t8cxayz",
-    "title": "Agent效果运营实习生 - 抖音社交与互动",
-    "company": "字节跳动",
-    "city": "深圳",
-    "salary": "350/天",
-    "url": "https://www.shixiseng.com/intern/inn_vstr8t8cxayz?pcm=pc_SearchList",
-    "description": "【岗位职责】\n团队介绍：抖音社交与互动团队服务于抖音连接人与人的愿景，希望为用户提供更好的社交、创作体验，以拓宽抖音的使用场景，成为更多人打开和使用抖音的新理由，提升抖音的用户规模。我们是一支有朝气、背景多元的团队，致力为用户提供最佳的产品体验，热衷听取用户声音和反馈，也运用科学严谨的分析方法，仔细衡量我们的工作成果。抖音社交与互动欢迎你的加入，和我们一起做有挑战的事情。\n\n日常实习：面向全体在校生，为符合岗位要求的同学提供为期3个月及以上的项目实践机会。\n\n1、负责多闪仔仔Agent评测体系搭建，包括对话相关测评集、制定测评标准与标准化SOP；\n2、负责日常评测工作，精准发现、梳理并深度分析Agent运行及能力问题，形成有效结论；\n3、联动算法团队输出问题清单与优化建议，持续反哺算法迭代与模型调优；\n4、跟进Agent能力迭代效果，复盘测评数据，动态优化测评规则与流程。\n\n【任职要求】\n1、本科及以上学历在读；\n2、有AI产品运营的相关经验，对AI和社交有热情，具备行业的认知和思考；了解AI Agent基本架构与工作逻辑，有大模型、AI Agent评测经验；\n3、有优秀的沟通能力、自驱力，善于跨部门沟通，有较强的责任心，敢于担当；\n4、有较强的自我驱动和学习能力。",
-    "publish_date": "2026-09-08"
   },
   {
     "platform": "shixiseng",
