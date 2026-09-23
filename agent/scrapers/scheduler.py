@@ -692,10 +692,16 @@ def scrape_multi_platform(
                                  platform, result["failed"][platform])
                 continue
 
+            # 关键：instance 只在**平台这一层**创建一次，下面的「所有城市 × 所有关键词」
+            # 共用同一个实例、且只在最后 close 一次。平台的抓取器因此可以复用同一个
+            # 浏览器（ShixisengScraper 就是这么做的），而不是每个关键词重启一次
+            # （实测启动+context+关闭 ≈30 秒/次，5 城市 × 7 关键词 ≈ 17.5 分钟）。
+            searches_done = 0
             try:
                 for city in cities:
                     label = city or "不限"
                     for keyword in keywords:
+                        searches_done += 1
                         try:
                             raw_jobs = await instance.search(
                                 keyword, city=city, limit=limit_per_keyword
@@ -737,6 +743,14 @@ def scrape_multi_platform(
                 except Exception as exc:          # noqa: BLE001
                     if logger:
                         logger.warning("[平台 %s] 关闭抓取器失败：%s", platform, exc)
+                if logger:
+                    # 这行是"浏览器被复用而不是每次重启"的可核对凭据：
+                    # 每平台 1 个实例 / 1 次 close，搜索次数 = 城市 × 关键词。
+                    logger.info(
+                        "[平台 %s] 本轮共 %d 次搜索（城市 %d × 关键词 %d）："
+                        "抓取器实例 1 个、close 1 次（浏览器按平台复用，不随关键词重启）",
+                        platform, searches_done, len(cities), len(keywords),
+                    )
 
     asyncio.run(_run())
 

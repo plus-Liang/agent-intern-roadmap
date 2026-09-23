@@ -50,6 +50,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import pathlib
@@ -977,6 +978,58 @@ async def _fetch_details_concurrent(
 
 
 # ---------------------------------------------------------------------------
+# 浏览器 / 页面生命周期
+# ---------------------------------------------------------------------------
+async def _new_context(browser: Any) -> Any:
+    """按站点要求新建 browser context（UA 伪装 + viewport 1440x900 + zh-CN）。"""
+    return await browser.new_context(
+        viewport=VIEWPORT,           # 要求 b) viewport 1440x900
+        user_agent=UA,               # 要求 a) UA 伪装
+        locale="zh-CN",
+        extra_http_headers={"Accept-Language": "zh-CN,zh;q=0.9"},
+    )
+
+
+@contextlib.asynccontextmanager
+async def _search_context(headless: bool, context: Any = None):
+    """给一次搜索准备 (context, page)，并负责**只关自己开的东西**。
+
+    * 不传 context（默认）：自己 `async_playwright()` + launch + 建 context，
+      退出时全部关掉 —— 即原有的"每次搜索一套新浏览器"行为，向后兼容。
+    * 传 context（ShixisengScraper 复用模式）：**只借不关**，本次只新开一个 page
+      并在退出时关掉它；浏览器留给调用方跨关键词/城市复用。
+
+    yield (context, page)
+    """
+    if context is not None:
+        page = await context.new_page()
+        try:
+            yield context, page
+        finally:
+            try:
+                await page.close()
+            except Exception:  # noqa: BLE001 - 页面已关/浏览器已死都不该抛出
+                pass
+        return
+
+    async with async_playwright() as p:
+        browser = await _launch_browser(p, headless)
+        fresh_context = await _new_context(browser)
+        page = await fresh_context.new_page()
+        try:
+            yield fresh_context, page
+        finally:
+            try:
+                await fresh_context.close()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                await browser.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+# ---------------------------------------------------------------------------
 # 主入口
 # ---------------------------------------------------------------------------
 async def search_shixiseng(
@@ -987,6 +1040,7 @@ async def search_shixiseng(
     fetch_detail: bool = True,
     max_pages: int = 3,
     detail_concurrency: Optional[int] = None,
+    context: Any = None,
 ) -> list[Job]:
     """
     抓取实习僧搜索页岗位（支持翻页 + 跨页去重）。
@@ -1005,6 +1059,10 @@ async def search_shixiseng(
                    None 用模块常量 MAX_DETAIL_CONCURRENCY（默认 5，可用环境变量
                    SHIXISENG_DETAIL_CONCURRENCY 覆盖）；<=1 退化为原来的顺序抓取。
                    **只并发详情页**，列表翻页仍是顺序的。
+        context: 传入一个**既有** browser context 时复用它。ShixisengScraper 走这条路：
+                   一个平台的所有城市/关键词共用同一个浏览器，省掉每次约 30 秒的
+                   启动+关闭开销。此时本函数不开关它，只开/关自己那个 page；
+                   不传则保持原行为（自己开 playwright + browser + context 并关闭）。
 
     返回：
         list[Job]（复用 agent.tools.job_search.Job）
@@ -1025,15 +1083,9 @@ async def search_shixiseng(
     seen_ids: set[str] = set()
     page_stats: list[dict[str, Any]] = []
 
-    async with async_playwright() as p:
-        browser = await _launch_browser(p, headless)
-        context = await browser.new_context(
-            viewport=VIEWPORT,           # 要求 b) viewport 1440x900
-            user_agent=UA,               # 要求 a) UA 伪装
-            locale="zh-CN",
-            extra_http_headers={"Accept-Language": "zh-CN,zh;q=0.9"},
-        )
-        page = await context.new_page()
+    # 浏览器生命周期统一交给 _search_context：
+    # 不传 context 就自己开一套（原行为）；传了就只借不关，复用长驻浏览器。
+    async with _search_context(headless, context) as (context, page):
         try:
             # ------------------------------------------------------------------
             # 翻页抓列表：每页解析卡片 -> 按 job_id 去重累加
@@ -1281,14 +1333,9 @@ async def search_shixiseng(
                 await _dump_debug(page, note="卡片存在但全部解析失败")
 
         finally:
-            try:
-                await context.close()
-            except Exception:  # noqa: BLE001
-                pass
-            try:
-                await browser.close()
-            except Exception:  # noqa: BLE001
-                pass
+            # page / context / browser 的关闭都交给 _search_context 统一处理：
+            # 复用模式（外部传入 context）下只关本次的 page，浏览器留给下一次搜索。
+            pass
 
     print("=" * 70)
     return jobs
@@ -1477,6 +1524,16 @@ class ShixisengScraper(PlatformScraper):
 
     平台相关的参数（headless / 翻页数 / 详情页并发）放在**构造参数**里，
     这样调度器只需要跟 `search(keyword, city, limit)` 这一个接口打交道。
+
+    **浏览器复用（本类存在的关键性能理由）**：
+    调度器对每个平台只 new 一次本类实例，然后拿它依次跑完「所有城市 × 所有关键词」。
+    因此本类持有**长驻**的 playwright / browser / context：首次 `search()` 时启动，
+    最后一次 `close()` 才关闭，而不是每次 search 重开一套浏览器。
+    实测浏览器启动 + context 创建 + 关闭 ≈ 30 秒/次；5 城市 × 7 关键词 = 35 次搜索，
+    光开关就吃掉约 17.5 分钟。复用后这笔开销只付一次。
+
+    注意：**每次 search 仍然新开一个 page**，页面级隔离不变（复用只到 context 层），
+    所以不会把上一轮的页面状态带进下一轮。
     """
 
     platform_name = PLATFORM          # "shixiseng"
@@ -1492,6 +1549,14 @@ class ShixisengScraper(PlatformScraper):
         self.fetch_detail = fetch_detail
         self.max_pages = max_pages
         self.detail_concurrency = detail_concurrency
+
+        # 长驻资源（惰性启动，见 _ensure_context）
+        self._playwright: Any = None
+        self._browser: Any = None
+        self._context: Any = None
+        self._browser_lock: Any = None   # 惰性创建，避免在无事件循环时构造 asyncio.Lock
+        self._launches = 0               # 浏览器实际启动次数（用于验证"只启动一次"）
+        self._searches = 0               # 本实例完成的 search 次数
 
     # -- 转换 ---------------------------------------------------------------
     @staticmethod
@@ -1517,20 +1582,82 @@ class ShixisengScraper(PlatformScraper):
             publish_date=get("publish_date") or "",
         )
 
+    # -- 长驻浏览器 ---------------------------------------------------------
+    async def _ensure_context(self) -> Any:
+        """返回长驻 browser context；首次调用时启动浏览器，之后直接复用。
+
+        双检锁：只有真的并发调用（例如将来多个城市并行抓）才走加锁分支，
+        保证浏览器**只启动一次**。
+        """
+        if self._context is not None:
+            return self._context
+
+        if self._browser_lock is None:
+            self._browser_lock = asyncio.Lock()
+        async with self._browser_lock:
+            if self._context is not None:          # 等锁期间别人已经建好了
+                return self._context
+            print(f"[诊断] 启动浏览器（headless={self.headless}），之后跨关键词/城市复用…")
+            self._playwright = await async_playwright().start()
+            try:
+                self._browser = await _launch_browser(self._playwright, self.headless)
+                self._context = await _new_context(self._browser)
+            except Exception:
+                await self._teardown()             # 半成品不留，下次调用重新启动
+                raise
+            self._launches += 1
+            print(f"[诊断] 浏览器就绪（第 {self._launches} 次启动）；"
+                  "后续每次搜索只新开一个 page。")
+            return self._context
+
+    async def _teardown(self) -> None:
+        """关掉长驻的 context / browser / playwright（幂等，可重复调用）。"""
+        if self._context is not None:
+            try:
+                await self._context.close()
+            except Exception:  # noqa: BLE001
+                pass
+            self._context = None
+        if self._browser is not None:
+            try:
+                await self._browser.close()
+            except Exception:  # noqa: BLE001
+                pass
+            self._browser = None
+        if self._playwright is not None:
+            try:
+                await self._playwright.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            self._playwright = None
+
     # -- PlatformScraper 接口 ----------------------------------------------
     async def search(
         self, keyword: str, city: str = None, limit: int = 20
     ) -> list[RawJob]:
-        """抓单个「关键词 + 城市」组合，返回 RawJob 列表（含详情页正文）。"""
-        jobs = await search_shixiseng(
-            keyword,
-            city=city,
-            limit=limit,
-            headless=self.headless,
-            fetch_detail=self.fetch_detail,
-            max_pages=self.max_pages,
-            detail_concurrency=self.detail_concurrency,
-        )
+        """抓单个「关键词 + 城市」组合，返回 RawJob 列表（含详情页正文）。
+
+        复用长驻 context：这里只新开一个 page，不再重开浏览器。
+        """
+        context = await self._ensure_context()
+        self._searches += 1
+        try:
+            jobs = await search_shixiseng(
+                keyword,
+                city=city,
+                limit=limit,
+                headless=self.headless,
+                fetch_detail=self.fetch_detail,
+                max_pages=self.max_pages,
+                detail_concurrency=self.detail_concurrency,
+                context=context,
+            )
+        except Exception:
+            # 浏览器/context 可能已经死了：丢掉长驻实例，让**下一个**关键词重新启动，
+            # 而不是让后面所有城市/关键词组合跟着一起失败。
+            print("[诊断][警告] 本次搜索异常，关闭长驻浏览器；下次调用会重新启动。")
+            await self._teardown()
+            raise
         return [self.to_raw_job(job) for job in jobs]
 
     async def search_multi(
@@ -1561,8 +1688,14 @@ class ShixisengScraper(PlatformScraper):
         return [self.to_raw_job(job) for job in jobs]
 
     async def close(self) -> None:
-        """无长驻资源：每次 search 内部自行开关浏览器，这里无需清理。"""
-        return None
+        """关闭长驻浏览器。调度器在每个平台抓完后调用**一次**。
+
+        与旧实现的区别：以前"无长驻资源"所以什么都不做；现在必须由调用方
+        显式收尾，否则浏览器进程会一直挂着。
+        """
+        await self._teardown()
+        print(f"[诊断] 浏览器已关闭：共启动 {self._launches} 次浏览器，"
+              f"完成 {self._searches} 次搜索。")
 
 
 # ---------------------------------------------------------------------------
