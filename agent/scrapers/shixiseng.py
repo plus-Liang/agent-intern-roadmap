@@ -96,11 +96,9 @@ DETAIL_SLEEP_RANGE = (0.5, 1.5)
 # ---------------------------------------------------------------------------
 # 详情页并发（顺序 -> 并发 的唯一开关）
 #
-# 为什么只并发详情页，不并发城市/关键词：
+# 为什么先并发详情页：
 #   * 详情页之间**没有任何数据依赖**，一个页面抓一条，纯 I/O 等待，最安全的并发点；
-#   * 列表页翻页是站点交互（page 参数、cookie、风控节奏），并发翻页收益低风险高；
-#   * 城市/关键词并发会让同一 IP 在短时间内对多个搜索入口发起请求，风控风险最高，
-#     因此城市与关键词**保持顺序**（scheduler 里仍是逐个城市、逐个关键词）。
+#   * 列表页的并发放在**组合层**（见下方「列表页并发」），单个组合内部翻页仍是顺序。
 #
 # MAX_DETAIL_CONCURRENCY 是并发路数（同时打开的标签页数），可用环境变量覆盖：
 #   SHIXISENG_DETAIL_CONCURRENCY=3
@@ -113,6 +111,30 @@ DETAIL_CONCURRENCY_MAX_LIMIT = 8
 #   DETAIL_SLEEP_RANGE     = 单条请求内部的抖动（原有行为，动它等于改抓取节奏）
 #   DELAY_BETWEEN_DETAILS  = 并发 worker 两次请求之间的间隔（新增，控制"看起来的点击速度"）
 DELAY_BETWEEN_DETAILS = (0.3, 0.5)
+
+# ---------------------------------------------------------------------------
+# 列表页并发（本轮提速的关键）
+#
+# 计时结论（实测）：一次完整抓取 35 次搜索里，**列表页加载占 2214 秒（87%）**，
+# 其中 wait_for_selector 独吞 2077 秒 —— 每个列表页都要干等约 33 秒卡片选择器才出现，
+# 这 33 秒是站点渲染 + 网络等待，本地完全闲着。详情页早已并发 5 路，列表页却还是串行，
+# 所以把「关键词 + 城市」的列表页并发起来，是收益最大的改法。
+#
+# 并发边界（重要）：
+#   * 并发单位是 **(keyword, city) 组合**，每个组合**独立一个 page**（同一个长驻
+#     context 里新开），组合之间不共享页面、不共享去重集合，因此没有数据竞争；
+#   * 平台之间仍然**顺序**（scheduler 逐个平台跑）；单个组合内部的翻页也仍然顺序
+#     （?page=N 翻页带 cookie / 风控节奏，不动）；
+#   * 同时打开的列表页数默认 3、硬上限 5：同一 IP 同时打 3 个搜索入口已经是
+#     "并发但不像压测"，再加路数风控风险涨得比收益快。
+#
+# 可用环境变量覆盖：SHIXISENG_LIST_CONCURRENCY=3
+MAX_LIST_CONCURRENCY = int(os.getenv("SHIXISENG_LIST_CONCURRENCY", "3"))
+LIST_CONCURRENCY_MAX_LIMIT = 5
+
+# 每个并发 page 启动前的随机延迟（伪装人类节奏，避免几个请求齐射），单位秒。
+# 与 DELAY_BETWEEN_DETAILS 是同一类东西，只是作用在列表页组合之间。
+DELAY_BETWEEN_LISTS = (0.5, 1.0)
 
 # max_pages<=0（不限页数）时的硬上限安全阀。
 # 实测 keyword=实习 无城市时有 46 页，这里给到 50 足以覆盖，同时防止无限循环。
@@ -863,6 +885,35 @@ def _detail_page_pool_size(total: int, max_concurrency: int) -> int:
     return max(1, min(int(max_concurrency or 1), max(1, int(total))))
 
 
+def _resolve_list_concurrency(value: Optional[int] = None) -> int:
+    """把列表页并发配置收敛到 [1, LIST_CONCURRENCY_MAX_LIMIT]。
+
+    None -> 用模块常量 MAX_LIST_CONCURRENCY（环境变量 SHIXISENG_LIST_CONCURRENCY）；
+    非法值（字符串 / 负数）一律退回常量——配置写错不该让整轮抓取挂掉。
+    """
+    raw = MAX_LIST_CONCURRENCY if value is None else value
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        n = MAX_LIST_CONCURRENCY
+    return max(1, min(n, LIST_CONCURRENCY_MAX_LIMIT))
+
+
+def _detail_concurrency_for_list(list_concurrency: int,
+                                 detail_concurrency: Optional[int] = None) -> int:
+    """列表页并发时，**每个组合**的详情页并发路数。
+
+    为什么需要它：详情页并发是"每个组合各开一个页面池"。如果 3 路列表 × 5 路详情
+    都按原样跑，同一时刻就有 15 个标签页在打同一个站点，风控风险明显上升。
+    这里按列表并发等比缩小：max(1, 详情并发 // 列表并发)，让同时打开的标签页数
+    维持在原有量级。显式传了 detail_concurrency 也按同一口径收敛（不做齐射是硬约束）。
+    """
+    base = _resolve_detail_concurrency(detail_concurrency)
+    if list_concurrency <= 1:
+        return base
+    return max(1, base // list_concurrency)
+
+
 async def _fetch_details_concurrent(
     context: Any,
     items: list[dict[str, Any]],
@@ -1027,6 +1078,25 @@ def _fmt(seconds: float) -> str:
 
 
 # ---------------------------------------------------------------------------
+# 调试产物的串行锁（并发列表页专用）
+#
+# DEBUG_SCREENSHOT / DEBUG_CARDS / DEBUG_HTML 都是**全局固定路径**。顺序抓取时
+# 谁后写谁覆盖，无所谓；列表页并发后就会有两个 page 同时往同一个文件写，
+# 轻则内容残缺、重则抛异常。这里只串行化"写调试文件"这一小段，
+# 不影响真正的抓取并发，也不改任何解析逻辑。
+# ---------------------------------------------------------------------------
+_DEBUG_DUMP_LOCK: Optional[asyncio.Lock] = None
+
+
+def _debug_dump_lock() -> asyncio.Lock:
+    """惰性创建全局调试写锁（模块导入时可能还没有事件循环）。"""
+    global _DEBUG_DUMP_LOCK
+    if _DEBUG_DUMP_LOCK is None:
+        _DEBUG_DUMP_LOCK = asyncio.Lock()
+    return _DEBUG_DUMP_LOCK
+
+
+# ---------------------------------------------------------------------------
 # 浏览器 / 页面生命周期
 # ---------------------------------------------------------------------------
 async def _new_context(browser: Any) -> Any:
@@ -1124,7 +1194,8 @@ async def search_shixiseng(
         detail_concurrency: 详情页并发路数（同时打开的标签页数）。
                    None 用模块常量 MAX_DETAIL_CONCURRENCY（默认 5，可用环境变量
                    SHIXISENG_DETAIL_CONCURRENCY 覆盖）；<=1 退化为原来的顺序抓取。
-                   **只并发详情页**，列表翻页仍是顺序的。
+                   **本函数只并发详情页**；列表页的并发在 search_multi() 那一层做
+                   （本函数自身仍是"一个 page 顺序翻完这个组合的页"）。
         context: 传入一个**既有** browser context 时复用它。ShixisengScraper 走这条路：
                    一个平台的所有城市/关键词共用同一个浏览器，省掉每次约 30 秒的
                    启动+关闭开销。此时本函数不开关它，只开/关自己那个 page；
@@ -1201,11 +1272,13 @@ async def search_shixiseng(
 
                 # 要求 d) 截图（只截第 1 页，避免每页都刷盘）
                 if page_no == 1:
-                    try:
-                        await page.screenshot(path=str(DEBUG_SCREENSHOT), full_page=True)
-                        print(f"[诊断] 已保存截图：{DEBUG_SCREENSHOT}")
-                    except Exception as exc:  # noqa: BLE001
-                        print(f"[诊断] 截图失败：{type(exc).__name__}: {exc}")
+                    # 并发列表页共用同一个截图路径：加锁串行化，避免两个 page 同时写
+                    async with _debug_dump_lock():
+                        try:
+                            await page.screenshot(path=str(DEBUG_SCREENSHOT), full_page=True)
+                            print(f"[诊断] 已保存截图：{DEBUG_SCREENSHOT}")
+                        except Exception as exc:  # noqa: BLE001
+                            print(f"[诊断] 截图失败：{type(exc).__name__}: {exc}")
 
                 if not card_count:
                     # 要求 7) 选择器找不到 -> 保存截图 + HTML 便于人工分析
@@ -1248,12 +1321,13 @@ async def search_shixiseng(
 
                 # 保存首卡 HTML，便于后续核对选择器（只存第 1 页第一张）
                 if page_no == 1:
-                    try:
-                        first_html = await cards.first.inner_html()
-                        DEBUG_CARDS.write_text(first_html, encoding="utf-8")
-                        print(f"[诊断] 首卡 HTML 已保存：{DEBUG_CARDS}")
-                    except Exception as exc:  # noqa: BLE001
-                        print(f"[诊断] 保存首卡 HTML 失败：{type(exc).__name__}: {exc}")
+                    async with _debug_dump_lock():
+                        try:
+                            first_html = await cards.first.inner_html()
+                            DEBUG_CARDS.write_text(first_html, encoding="utf-8")
+                            print(f"[诊断] 首卡 HTML 已保存：{DEBUG_CARDS}")
+                        except Exception as exc:  # noqa: BLE001
+                            print(f"[诊断] 保存首卡 HTML 失败：{type(exc).__name__}: {exc}")
 
                 # 翻页终止条件：本页没有新增岗位（可能到末页，也可能站点把翻页重置了）
                 if not page_items:
@@ -1431,22 +1505,24 @@ async def search_shixiseng(
 async def _dump_debug(page: Any, note: str = "") -> None:
     """保存截图 + HTML，便于人工分析选择器。"""
     print(f"[诊断] 保存调试快照（{note}）")
-    try:
-        await page.screenshot(path=str(DEBUG_SCREENSHOT), full_page=True)
-        print(f"[诊断]   截图 -> {DEBUG_SCREENSHOT}")
-    except Exception as exc:  # noqa: BLE001
-        print(f"[诊断]   截图失败：{type(exc).__name__}: {exc}")
-    try:
-        html = await page.content()
-        DEBUG_HTML.write_text(html, encoding="utf-8")
-        print(f"[诊断]   HTML -> {DEBUG_HTML} ({len(html)} 字符)")
-        classes = re.findall(r'class="([^"]*intern[^"]*)"', html)
-        from collections import Counter
-        print("[诊断]   含 intern 的 class TOP10：")
-        for cls, num in Counter(classes).most_common(10):
-            print(f"[诊断]     {num:3d}  {cls}")
-    except Exception as exc:  # noqa: BLE001
-        print(f"[诊断]   保存 HTML 失败：{type(exc).__name__}: {exc}")
+    # 并发列表页可能同时走到这里，调试文件是全局固定路径：串行化写入
+    async with _debug_dump_lock():
+        try:
+            await page.screenshot(path=str(DEBUG_SCREENSHOT), full_page=True)
+            print(f"[诊断]   截图 -> {DEBUG_SCREENSHOT}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[诊断]   截图失败：{type(exc).__name__}: {exc}")
+        try:
+            html = await page.content()
+            DEBUG_HTML.write_text(html, encoding="utf-8")
+            print(f"[诊断]   HTML -> {DEBUG_HTML} ({len(html)} 字符)")
+            classes = re.findall(r'class="([^"]*intern[^"]*)"', html)
+            from collections import Counter
+            print("[诊断]   含 intern 的 class TOP10：")
+            for cls, num in Counter(classes).most_common(10):
+                print(f"[诊断]     {num:3d}  {cls}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[诊断]   保存 HTML 失败：{type(exc).__name__}: {exc}")
 
 
 async def search_multi_keywords(
@@ -1782,30 +1858,124 @@ class ShixisengScraper(PlatformScraper):
 
     async def search_multi(
         self,
-        keywords: list[str],
-        city: str = None,
-        limit_per_keyword: int = 40,
-        limit_total: int = 100,
-        max_pages_per_keyword: Optional[int] = None,
-    ) -> list[RawJob]:
-        """多关键词搜索（保留原有「合并 + 按 job_id 去重」语义）-> RawJob。
+        pairs: list,
+        limit: int = 20,
+        concurrency: Optional[int] = None,
+        return_groups: bool = False,
+    ) -> list:
+        """**并发**抓多组「关键词 + 城市」的列表页（调度器的批量入口）。
 
-        调度器默认逐关键词调 `search()`（日志要按关键词分别统计），
-        这个方法留给"想一次性搜一组同义词"的调用方。
+        为什么需要它（计时结论）：
+            一次完整抓取 35 次搜索里，列表页加载占 2214 秒（87%），其中
+            wait_for_selector 独吞 2077 秒 —— 每个列表页都要干等约 33 秒卡片选择器
+            才出现。详情页早已并发，列表页还是串行，于是它成了唯一瓶颈。
+            本方法把「关键词 + 城市」的组合并发跑起来。
+
+        参数：
+            pairs: [(keyword, city), ...] 组合列表；city 传 None 表示不限城市。
+                   也接受 ["keyword", ...] 这种只有关键词的简写（城市取 None）。
+            limit: 每个组合返回的岗位上限（透传给 search_shixiseng）。
+            concurrency: 列表页并发路数（同时打开的标签页数）。None 用模块常量
+                   MAX_LIST_CONCURRENCY（默认 3，可用环境变量
+                   SHIXISENG_LIST_CONCURRENCY 覆盖）；硬上限 LIST_CONCURRENCY_MAX_LIMIT。
+            return_groups: False（默认）返回**平铺**的 RawJob 列表；
+                   True 返回与 pairs 等长的
+                   [{"keyword", "city", "jobs": [...], "error": ""}, ...]，
+                   供调度器保留"哪个组合抓到几条 / 哪个组合失败"的归属。
+
+        并发与限流（只用 asyncio，不装新依赖）：
+            * `asyncio.Semaphore(concurrency)` 限制同时在跑的列表页数；
+            * 每个组合**独立一个 page**（同一个长驻 context 里新开）；
+            * 每个组合启动前随机等待 DELAY_BETWEEN_LISTS（0.5~1.0 秒），不做齐射；
+            * 每个组合的详情页并发按列表并发等比缩小
+              （见 _detail_concurrency_for_list），避免标签页数叠乘；
+            * `asyncio.gather(..., return_exceptions=True)`：单个组合失败只记错误，
+              不影响其他组合 —— 与调度器原来"逐组合 try/except"的行为一致。
+
+        本方法**不改** search() / search_shixiseng() 的任何抓取与解析逻辑，
+        也不碰清洗/入库；只是把 search_shixiseng 按组合并发地调用多次。
         """
-        jobs = await search_multi_keywords(
-            list(keywords or []),
-            city=city,
-            max_pages_per_keyword=(
-                self.max_pages if max_pages_per_keyword is None else max_pages_per_keyword
-            ),
-            limit_total=limit_total,
-            limit_per_keyword=limit_per_keyword,
-            headless=self.headless,
-            fetch_detail=self.fetch_detail,
-            detail_concurrency=self.detail_concurrency,
-        )
-        return [self.to_raw_job(job) for job in jobs]
+        combos: list[tuple[str, Optional[str]]] = []
+        for item in pairs or []:
+            if isinstance(item, (list, tuple)):
+                keyword = str(item[0]).strip() if item else ""
+                city = item[1] if len(item) > 1 else None
+            else:
+                keyword, city = str(item or "").strip(), None
+            if keyword:
+                combos.append((keyword, city))
+
+        if not combos:
+            print("[列表并发][警告] 没有任何 (关键词, 城市) 组合，返回空结果。")
+            return []
+
+        conc = _resolve_list_concurrency(concurrency)
+        detail_conc = _detail_concurrency_for_list(conc, self.detail_concurrency)
+        print("=" * 70)
+        print(f"[列表并发] {len(combos)} 个「关键词 + 城市」组合：{conc} 路并发"
+              f"（每个 page 启动前随机延迟 {DELAY_BETWEEN_LISTS[0]}~"
+              f"{DELAY_BETWEEN_LISTS[1]} 秒，每组合详情页 {detail_conc} 路）")
+
+        context = await self._ensure_context()
+        semaphore = asyncio.Semaphore(conc)
+        results: list[list[RawJob]] = [[] for _ in combos]
+        errors: list[str] = [""] * len(combos)
+
+        async def _one(index: int, keyword: str, city: Optional[str]) -> None:
+            async with semaphore:
+                label = city or "不限"
+                # 组合之间的随机延迟：并发但不"齐射"
+                await asyncio.sleep(random.uniform(*DELAY_BETWEEN_LISTS))
+                t_one = time.monotonic()
+                try:
+                    jobs = await search_shixiseng(
+                        keyword,
+                        city=city,
+                        limit=limit,
+                        headless=self.headless,
+                        fetch_detail=self.fetch_detail,
+                        max_pages=self.max_pages,
+                        detail_concurrency=detail_conc,
+                        context=context,
+                        timings=self.timings,
+                    )
+                except Exception as exc:  # noqa: BLE001 - 单组合失败不拖垮其他组合
+                    errors[index] = (
+                        f"{type(exc).__name__}: {str(exc).splitlines()[0][:160]}"
+                    )
+                    print(f"[列表并发][警告] ({index + 1}/{len(combos)}) "
+                          f"{keyword!r} @ {label} 失败：{errors[index]}")
+                    return
+                self._searches += 1
+                results[index] = [self.to_raw_job(job) for job in jobs]
+                print(f"[列表并发] ({index + 1}/{len(combos)}) {keyword!r} @ {label}："
+                      f"{len(results[index])} 条（耗时 {_fmt(time.monotonic() - t_one)} 秒）")
+
+        tasks = [asyncio.create_task(_one(i, kw, c))
+                 for i, (kw, c) in enumerate(combos)]
+        try:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+
+        # 全部组合都失败，多半是长驻浏览器 / context 已经死了：丢掉实例，让下次调用重启。
+        # 注意**不按单条失败就 teardown**：那样会把其他还在跑的并发组合一起打死。
+        if errors and all(errors):
+            print("[列表并发][警告] 全部组合失败，关闭长驻浏览器；下次调用会重新启动。")
+            await self._teardown()
+
+        if not return_groups:
+            flat: list[RawJob] = []
+            for group in results:
+                flat.extend(group)
+            return flat
+
+        return [
+            {"keyword": kw, "city": city, "jobs": results[i], "error": errors[i]}
+            for i, (kw, city) in enumerate(combos)
+        ]
 
     async def close(self) -> None:
         """关闭长驻浏览器。调度器在每个平台抓完后调用**一次**。

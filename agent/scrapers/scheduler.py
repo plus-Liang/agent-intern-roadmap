@@ -635,9 +635,11 @@ def scrape_multi_platform(
 ) -> dict:
     """遍历 [平台 × 城市 × 关键词] 抓取 → 合并去重。
 
-    遍历顺序是 **平台 -> 城市 -> 关键词**，三层都是**顺序**的：
-    并发会让同一 IP 短时间内打到多个搜索入口，反爬风险最高；
-    提速交给各平台自己的详情页并发（detail_concurrency）。
+    平台之间是**顺序**的（同一 IP 同时打多个平台的风控风险最高）。
+    平台内部的「城市 × 关键词」组合交给抓取器的 `search_multi()` **并发**跑列表页
+    （默认 3 路、上限 5，见 ShixisengScraper.search_multi）——列表页加载原本占一次
+    抓取的 87%，是最大瓶颈。抓取器没有这个接口时（例如离线自测注入的假抓取器）
+    退回原来的顺序双层遍历，行为与统计口径完全一致。
 
     去重键是 **(platform, job_id)**：不同平台的 job_id 可能撞车，
     只用 job_id 去重会把别的平台的岗位误当重复丢掉。
@@ -698,51 +700,119 @@ def scrape_multi_platform(
             # 浏览器（ShixisengScraper 就是这么做的），而不是每个关键词重启一次
             # （实测启动+context+关闭 ≈30 秒/次，5 城市 × 7 关键词 ≈ 17.5 分钟）。
             searches_done = 0
+
+            def _absorb(keyword: str, city, raw_jobs) -> None:
+                """把单个「城市 × 关键词」组合的结果并入统计与去重表。
+
+                抽成函数是为了让**并发批量路径**与**顺序兜底路径**共用同一套统计口径，
+                保证日志与计数和改动前逐字一致（去重仍是先到先得）。
+                """
+                label = city or "不限"
+                raw_jobs = list(raw_jobs or [])
+                result["raw_total"] += len(raw_jobs)
+                for bucket, name in (
+                    (result["per_city"], label),
+                    (result["per_keyword"], keyword),
+                    (result["per_platform"], platform),
+                    (result["per_platform_city"], (platform, label)),
+                ):
+                    bucket[name] = bucket.get(name, 0) + len(raw_jobs)
+                # 统一的抓取日志格式：谁（平台）在哪儿（城市）搜什么（关键词）抓到几条
+                if logger:
+                    logger.info("[平台 %s][城市 %s][关键词 %s] 抓到 %d 条",
+                                platform, label, keyword, len(raw_jobs))
+
+                for raw_job in raw_jobs:
+                    job = _job_to_dict(raw_job)
+                    job["platform"] = job.get("platform") or platform
+                    job_id = (job.get("job_id") or "").strip()
+                    key = (platform, job_id) if job_id else (
+                        platform,
+                        f"{job.get('company')}|{job.get('title')}|{job.get('url')}",
+                    )
+                    merged.setdefault(key, job)
+
             try:
-                for city in cities:
-                    label = city or "不限"
-                    # 城市级计时：该城市所有关键词跑完（含失败的关键词）的总耗时
-                    t_city = time.monotonic()
-                    for keyword in keywords:
-                        searches_done += 1
-                        try:
-                            raw_jobs = await instance.search(
-                                keyword, city=city, limit=limit_per_keyword
-                            )
-                        except Exception as exc:   # noqa: BLE001 - 单组合失败不拖垮整轮
-                            key = f"{platform}/{label}/{keyword}"
-                            result["failed"][key] = f"{type(exc).__name__}: {exc}"
+                # 组合顺序 = 城市外层、关键词内层，与原顺序遍历完全一致，
+                # 所以去重时的"先到先得"归属不变。
+                combos = [(keyword, city) for city in cities for keyword in keywords]
+                multi = getattr(instance, "search_multi", None)
+                use_multi = False
+                if callable(multi):
+                    # 只有抓取器明确实现了带 return_groups 的批量接口才走并发路径，
+                    # 免得将来别的平台签名不同被误用（那时退回顺序遍历即可）。
+                    try:
+                        use_multi = "return_groups" in inspect.signature(multi).parameters
+                    except (TypeError, ValueError):
+                        use_multi = False
+
+                if use_multi:
+                    # 列表页并发：整批交给抓取器，由它用 Semaphore(3) 并发跑列表页
+                    # （详情页有自己的并发，按列表并发等比缩小，见抓取器实现）。
+                    t_batch = time.monotonic()
+                    try:
+                        grouped = await multi(
+                            combos, limit=limit_per_keyword, return_groups=True
+                        )
+                    except Exception as exc:   # noqa: BLE001 - 整批失败不拖垮其他平台
+                        summary = f"{type(exc).__name__}: {str(exc).splitlines()[0][:160]}"
+                        for keyword, city in combos:
+                            label = city or "不限"
+                            searches_done += 1
+                            result["failed"][f"{platform}/{label}/{keyword}"] = summary
                             if logger:
                                 logger.error("[平台 %s][城市 %s][关键词 %s] 抓取失败：%s",
-                                             platform, label, keyword, result["failed"][key])
+                                             platform, label, keyword, summary)
+                        grouped = []
+
+                    for entry in grouped or []:
+                        if not isinstance(entry, dict):
                             continue
+                        keyword = str(entry.get("keyword") or "")
+                        city = entry.get("city")
+                        searches_done += 1
+                        error = entry.get("error")
+                        if error:
+                            # 单组合失败：与顺序路径一样，只记失败、继续其他组合
+                            result["failed"][
+                                f"{platform}/{city or '不限'}/{keyword}"
+                            ] = str(error)
+                            if logger:
+                                logger.error("[平台 %s][城市 %s][关键词 %s] 抓取失败：%s",
+                                             platform, city or "不限", keyword, error)
+                            continue
+                        _absorb(keyword, city, entry.get("jobs"))
 
-                        raw_jobs = list(raw_jobs or [])
-                        result["raw_total"] += len(raw_jobs)
-                        for bucket, name in (
-                            (result["per_city"], label),
-                            (result["per_keyword"], keyword),
-                            (result["per_platform"], platform),
-                            (result["per_platform_city"], (platform, label)),
-                        ):
-                            bucket[name] = bucket.get(name, 0) + len(raw_jobs)
-                        # 统一的抓取日志格式：谁（平台）在哪儿（城市）搜什么（关键词）抓到几条
-                        if logger:
-                            logger.info("[平台 %s][城市 %s][关键词 %s] 抓到 %d 条",
-                                        platform, label, keyword, len(raw_jobs))
-
-                        for raw_job in raw_jobs:
-                            job = _job_to_dict(raw_job)
-                            job["platform"] = job.get("platform") or platform
-                            job_id = (job.get("job_id") or "").strip()
-                            key = (platform, job_id) if job_id else (
-                                platform,
-                                f"{job.get('company')}|{job.get('title')}|{job.get('url')}",
-                            )
-                            merged.setdefault(key, job)
                     if logger:
-                        logger.info("[计时][城市 %s] %d 个关键词共耗时: %.1f 秒",
-                                    label, len(keywords), time.monotonic() - t_city)
+                        logger.info("[计时][平台 %s] 列表页并发：%d 个组合"
+                                    "（城市 %d × 关键词 %d）共耗时: %.1f 秒",
+                                    platform, len(combos), len(cities), len(keywords),
+                                    time.monotonic() - t_batch)
+                else:
+                    # 顺序兜底：抓取器没有并发批量接口（注入式假抓取器等）时，
+                    # 保持原来的遍历方式与日志，行为完全不变。
+                    for city in cities:
+                        label = city or "不限"
+                        # 城市级计时：该城市所有关键词跑完（含失败的关键词）的总耗时
+                        t_city = time.monotonic()
+                        for keyword in keywords:
+                            searches_done += 1
+                            try:
+                                raw_jobs = await instance.search(
+                                    keyword, city=city, limit=limit_per_keyword
+                                )
+                            except Exception as exc:  # noqa: BLE001 - 单组合失败不拖垮整轮
+                                key = f"{platform}/{label}/{keyword}"
+                                result["failed"][key] = f"{type(exc).__name__}: {exc}"
+                                if logger:
+                                    logger.error(
+                                        "[平台 %s][城市 %s][关键词 %s] 抓取失败：%s",
+                                        platform, label, keyword, result["failed"][key])
+                                continue
+                            _absorb(keyword, city, raw_jobs)
+                        if logger:
+                            logger.info("[计时][城市 %s] %d 个关键词共耗时: %.1f 秒",
+                                        label, len(keywords), time.monotonic() - t_city)
             finally:
                 try:
                     await instance.close()
@@ -1210,7 +1280,7 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
 
     log.info(
         "===== 定时抓取开始：平台=%s 关键词组=[%s] 城市=%s dry_run=%s "
-        "详情页并发=%s（平台/城市/关键词顺序）=====",
+        "详情页并发=%s（平台之间顺序，平台内「城市×关键词」列表页并发）=====",
         "、".join(platforms),
         _format_keyword_groups(keyword_groups),
         "、".join(cities) if cities else "不限",
