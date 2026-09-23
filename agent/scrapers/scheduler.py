@@ -219,6 +219,7 @@ def _record_state(result: dict, state_file=None, logger: logging.Logger = None) 
         "per_city": result.get("per_city", {}),
         "per_platform": result.get("per_platform", {}),
         "db": result.get("db", {}),
+        "sync": result.get("sync", {}),
         "scraped": result.get("scraped", 0),
         "cleaned": result.get("cleaned", 0),
         "chunks": result.get("chunks", 0),
@@ -488,18 +489,93 @@ def _make_scraper(platform_name: str, options: dict, factory=None) -> PlatformSc
 
 
 def _load_job_db():
-    """导入 rag/data/db.py。
+    """导入岗位 SQLite 模块（rag/data/db.py）。
 
-    `rag/data` 没有 __init__.py（不是包），所以按 `_load_cleaner()` 的老办法
-    把该目录加进 sys.path 后按模块名导入，避免为了导入一个文件去动 rag/ 结构。
+    优先按包路径 `rag.data.db` 导入：这样和 migrate_json_to_sqlite.py 里
+    `from rag.data import db` 拿到的是**同一个模块对象**，不会出现
+    "两个 db 模块、两套 DB_PATH" 的隐患；拿不到时再退回老的按模块名导入
+    （`rag/data` 没有 __init__.py，靠 sys.path + importlib 兜底）。
     """
-    import importlib
-    import sys
+    try:
+        from rag.data import db as _db
+        return _db
+    except ImportError:
+        import importlib
+        import sys
 
-    data_dir = str(ROOT_DIR / "rag" / "data")
-    if data_dir not in sys.path:
-        sys.path.insert(0, data_dir)
-    return importlib.import_module("db")
+        data_dir = str(ROOT_DIR / "rag" / "data")
+        if data_dir not in sys.path:
+            sys.path.insert(0, data_dir)
+        return importlib.import_module("db")
+
+
+def _count_json_jobs(json_path) -> int:
+    """数出 JSON 里的岗位条数（顶层 list 或 {"jobs": [...]}）；读不到返回 0。"""
+    try:
+        data = json.loads(Path(json_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    if isinstance(data, dict):
+        data = data.get("jobs", [])
+    return len(data) if isinstance(data, list) else 0
+
+
+def _sync_json_to_sqlite(json_path, logger: logging.Logger = None) -> dict:
+    """收尾步骤：把 cleaned_jd.json 的**全量**同步进 SQLite。
+
+    为什么需要它：本轮"清洗后落库"只是增量 upsert 这次抓到的岗位。用户一旦
+    清空了 jobs.db，历史岗位就再也回不来了。收尾时从 JSON 全量迁一次，
+    保证 **SQLite 始终 = JSON 全量**。
+
+    复用 rag/data/migrate_json_to_sqlite.py 的 `migrate()`（**不改迁移逻辑**）；
+    该模块不可用时退回 `db.import_json()`——同样是"读 JSON → upsert_jobs"。
+    同步失败只记日志，不影响本轮任务结果。
+    """
+    path = Path(json_path)
+    if not path.is_file():
+        if logger:
+            logger.warning("[同步] JSON 不存在，跳过同步：%s", path)
+        return {}
+
+    stats: dict = {}
+    try:
+        import importlib
+        import sys
+
+        data_dir = str(ROOT_DIR / "rag" / "data")
+        if data_dir not in sys.path:
+            sys.path.insert(0, data_dir)
+        stats = importlib.import_module("migrate_json_to_sqlite").migrate(path) or {}
+    except Exception as exc:                      # noqa: BLE001 - 迁移脚本不可用就退回 db
+        if logger:
+            logger.warning("[同步] migrate_json_to_sqlite 不可用（%s: %s），改用 db.import_json",
+                           type(exc).__name__, exc)
+        try:
+            stats = _load_job_db().import_json(path) or {}
+        except Exception as exc2:                 # noqa: BLE001
+            if logger:
+                logger.warning("[同步] JSON → SQLite 同步失败（不影响本轮结果）：%s: %s",
+                               type(exc2).__name__, exc2)
+            return {}
+
+    # 返回结构要归一：migrate() 给的是嵌套的
+    # {"total", "json_count", "db_total", "stats": {"added","updated","skipped"}}，
+    # 而 db.import_json() 给的是平铺的 {"added","updated","skipped"}——两种都要认，
+    # 否则日志会把「更新 3」错报成「更新 0」。
+    inner = stats.get("stats") if isinstance(stats.get("stats"), dict) else stats
+    total = stats.get("total") or stats.get("db_total") or _count_json_jobs(path)
+    outcome = {
+        "total": total,
+        "added": inner.get("added", 0),
+        "updated": inner.get("updated", 0),
+        "skipped": inner.get("skipped", 0),
+    }
+    if logger:
+        # 约定的同步日志格式：JSON 全量条数 + 本次 upsert 明细
+        logger.info("[同步] JSON → SQLite: %d 条（新增 %d，更新 %d，跳过 %d）",
+                    outcome["total"], outcome["added"],
+                    outcome["updated"], outcome["skipped"])
+    return outcome
 
 
 def _persist_jobs_to_sqlite(rows: list[dict], logger: logging.Logger = None,
@@ -1026,7 +1102,8 @@ def _write_rag_text_local(jobs: list[dict], target: Path) -> int:
 def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                   logger: logging.Logger = None, headless: bool = True,
                   scraper=None, dry_run: bool = False, persist_db=None) -> dict:
-    """跑一次完整任务：抓取（多平台）→ 清洗 → 生成 chunk → 增量入库 →（可选）落盘。
+    """跑一次完整任务：抓取（多平台）→ 清洗 → 增量落库 → 生成 chunk → 增量入库
+    →（可选）落盘 → 从 JSON 全量同步 SQLite。
 
     返回摘要 dict（同时写进日志和状态文件）。异常一律在这里兜住并记进日志：
     定时任务里抛异常=任务静默死掉，比失败更糟。
@@ -1081,6 +1158,7 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
         "per_city": {},
         "per_platform": {},
         "db": {},
+        "sync": {},
         "scraped": 0,
         "cleaned": 0,
         "chunks": 0,
@@ -1252,6 +1330,17 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
             )
             log.info("[落盘] 已刷新 RAG 语料 %s（合并后全量 %d 条）", txt_path, count)
 
+        # 6) 收尾：从 cleaned_jd.json **全量**同步进 SQLite
+        #    上面 2.5 只是把"本次清洗出的岗位"增量写库；用户一旦清空 jobs.db，
+        #    历史岗位就再也回不来了。这里以刚落盘的 JSON 全量为准再迁一次，
+        #    保证 SQLite 始终 = JSON 全量（复用 migrate_json_to_sqlite，不改迁移逻辑）。
+        if dry_run:
+            log.info("[同步] dry-run：跳过 JSON → SQLite 同步")
+        elif should_persist:
+            result["sync"] = _sync_json_to_sqlite(merged_result["path"], logger=log)
+        else:
+            log.info("[同步] 已关闭（persist_db=False 或存在注入式假抓取器）")
+
         result["ok"] = True
     except Exception as exc:                     # noqa: BLE001 - 定时任务必须活下来
         result["error"] = f"{type(exc).__name__}: {exc}"
@@ -1309,6 +1398,12 @@ def format_status(state: dict = None, state_file=None) -> str:
         lines.append(
             f"清洗后落 SQLite：新增 {db_stats.get('added', 0)}，"
             f"更新 {db_stats.get('updated', 0)}，跳过 {db_stats.get('skipped', 0)}"
+        )
+    sync_stats = state.get("sync") or {}
+    if sync_stats:
+        lines.append(
+            f"JSON 全量同步 SQLite：{sync_stats.get('total', 0)} 条"
+            f"（新增 {sync_stats.get('added', 0)}，更新 {sync_stats.get('updated', 0)}）"
         )
     if merge:
         lines.append(
