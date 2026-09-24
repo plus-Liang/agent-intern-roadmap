@@ -937,12 +937,29 @@ def scrape_multi_platform(
 
     asyncio.run(_run())
 
-    jobs = list(merged.values())
-    if limit_total and len(jobs) > limit_total:
-        if logger:
-            logger.info("[多平台] 已按 limit_total=%d 截断，丢弃 %d 条",
-                        limit_total, len(jobs) - limit_total)
-        jobs = jobs[:limit_total]
+    # 截断按**平台**分配额，而不是全局 [:limit_total]。
+    # 为什么：merged 是按平台顺序插入的（先 shixiseng、后 niuke），全局截断会让
+    # 先跑的平台把配额吃光，后跑的平台一条不剩——niuke 抓到 78 条却在
+    # cleaned_jd.json / jobs.db 里一条都没有，根因就在这里。
+    # 现在 limit_total 的语义是「**每个平台**的上限」，各平台互不挤占。
+    jobs: list[dict] = []
+    kept_by_platform: dict[str, int] = {}
+    dropped_by_platform: dict[str, int] = {}
+    for key, job in merged.items():
+        platform_name = (key[0] if isinstance(key, tuple) and key
+                         else (job.get("platform") or ""))
+        if limit_total and kept_by_platform.get(platform_name, 0) >= limit_total:
+            dropped_by_platform[platform_name] = (
+                dropped_by_platform.get(platform_name, 0) + 1)
+            continue
+        kept_by_platform[platform_name] = kept_by_platform.get(platform_name, 0) + 1
+        jobs.append(job)
+    if dropped_by_platform and logger:
+        logger.info(
+            "[多平台] 已按每平台 limit_total=%d 截断：%s（各平台独立配额，不互相挤占）",
+            limit_total,
+            "、".join(f"{pf} 丢弃 {n} 条" for pf, n in dropped_by_platform.items()),
+        )
     result["jobs"] = jobs
     return result
 
@@ -1582,8 +1599,15 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                     cleaned_n = cleaned_by_pc[(platform, label)]
                 else:
                     # 岗位自带的 platform 与注册名不一致时（例如注入的假数据）按城市兜底，
-                    # 免得日志显示「清洗后 0 条」而实际留下了岗位
+                    # 但**必须显式告警**：这个兜底会把"平台维度查不到"伪装成
+                    # "该平台清洗后 N 条"，之前正是它掩盖了 niuke 被全局截断丢光的事实。
                     cleaned_n = cleaned_by_city.get(label, 0)
+                    if logger:
+                        logger.warning(
+                            "[WARN] 平台 %s 的清洗计数未找到，使用城市兜底"
+                            "（城市 %s：%d 条；真实平台维度计数为 0 时此值可能虚高）",
+                            platform, label, cleaned_n,
+                        )
                 log.info("[平台 %s][城市 %s] 抓到 %d 条 → 清洗后 %d 条 → 落库 %d 条",
                          platform, city, raw_n, cleaned_n,
                          cleaned_n if should_persist else 0)

@@ -293,16 +293,21 @@ def load_jobs_if_exists(path) -> list[dict]:
 
 
 def _job_identity(job: dict) -> str:
-    """去重键：优先 job_id（平台内唯一），没有就用「平台|公司|岗位|链接」兜底。
+    """去重键：**平台 + job_id**；没有 job_id 就用「平台|公司|岗位|链接」兜底。
 
-    job_id 应该是主键，但自测/手工数据里可能是空的；全用空串当键会把这些
-    互不相同的岗位错误地合并成一条，所以退到内容签名。
+    job_id 只在**平台内**唯一：不同平台用自增数字当 id 是常态，
+    只用 job_id 当键会让两个平台的岗位互相覆盖（niuke 的岗位被 shixiseng 顶掉），
+    所以键里必须带 platform。
+
+    job_id 可能是空的；全用空串当键会把这些互不相同的岗位错误地合并成一条，
+    所以退到内容签名。
     """
+    platform = _job_field(job, "platform").strip()
     job_id = _job_field(job, "job_id").strip()
     if job_id:
-        return f"id:{job_id}"
+        return f"id:{platform}|{job_id}"
     return "sig:" + "|".join((
-        _job_field(job, "platform").strip(),
+        platform,
         _job_field(job, "company").strip(),
         _job_field(job, "title").strip(),
         _job_field(job, "url").strip(),
