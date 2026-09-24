@@ -27,8 +27,8 @@
 
   <Principals>
     <Principal id="Author">
-      <!-- 改成你自己的账户，例如：<UserId>desktop-abc\ljh</UserId> -->
-      <UserId>REPLACE_WITH_YOUR_USERNAME</UserId>
+      
+      <UserId>desktop-pqrf6uq\ljh</UserId>
       <LogonType>InteractiveToken</LogonType>
       <RunLevel>HighestAvailable</RunLevel>
     </Principal>
