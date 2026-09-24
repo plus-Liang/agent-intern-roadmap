@@ -1705,7 +1705,7 @@ def format_status(state: dict = None, state_file=None) -> str:
     city_text = "、".join(state.get("cities") or []) or state.get("city") or "（不限）"
     lines = [
         f"上次运行时间：{state.get('last_run') or '（未知）'}",
-        f"结果：{'✅ 成功' if state.get('ok') else '❌ 失败'}"
+        f"结果：{'[OK] 成功' if state.get('ok') else '[FAIL] 失败'}"
         + (f"　错误：{state['error']}" if state.get("error") else ""),
         f"平台：{'、'.join(state.get('platforms') or []) or '（未记录）'}",
         f"关键词：{'、'.join(state.get('keywords') or []) or '（未记录）'}",

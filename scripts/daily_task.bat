@@ -15,6 +15,7 @@ set "LOG=%LOGDIR%\daily_task.log"
 if not exist "%LOGDIR%" mkdir "%LOGDIR%" 2>nul
 
 cd /d "%REPO%"
+set PYTHONIOENCODING=utf-8
 if errorlevel 1 (
     echo [%date% %time%] 严重错误：无法进入工作目录 %REPO% >> "%LOG%"
     endlocal
