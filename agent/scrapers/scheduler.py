@@ -152,6 +152,36 @@ DEFAULT_PLATFORMS = ["shixiseng", "niuke"]
 # 合并落盘：超过这个天数的记录移进归档文件（口径与 cleaner.DEFAULT_STALE_DAYS 一致）
 DEFAULT_STALE_DAYS = int(os.getenv("SCHEDULER_STALE_DAYS", "90"))
 
+# 分批滚动抓取：每次只抓「最久未抓」的 N 个 (平台, 城市, 关键词) 组合，
+# 多轮跑下来滚动覆盖全池。0 = 不分批（一次抓全池，与改造前完全一致）。
+# 取值优先级：环境变量 SCHEDULER_BATCH_SIZE > config/scraping.yaml 的 schedule.batch_size
+# > 这里的兜底值（0，保证 yaml 缺失时行为不变）。
+DEFAULT_BATCH_SIZE = int(os.getenv("SCHEDULER_BATCH_SIZE", "0") or 0)
+
+
+def _resolve_batch_size(config: dict = None) -> int:
+    """决定本次的 batch_size：SCHEDULER_BATCH_SIZE > config（yaml/兜底）> 0。
+
+    非法值（空串 / 非数字 / 负数）一律退回 DEFAULT_BATCH_SIZE，绝不因为一个
+    配置写错就让定时任务抓不到东西。
+    """
+    raw = os.getenv("SCHEDULER_BATCH_SIZE")
+    if raw is None or not str(raw).strip():
+        raw = (config or {}).get("batch_size", DEFAULT_BATCH_SIZE)
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        if raw not in (None, ""):
+            logging.getLogger(__name__).warning(
+                "batch_size=%r 不是整数，改用默认值 %d", raw, DEFAULT_BATCH_SIZE)
+        return max(DEFAULT_BATCH_SIZE, 0)
+    return value if value > 0 else 0
+
+
+def _combo_key(platform, city, keyword) -> tuple[str, str, str]:
+    """统一组合键口径：None / 空值都当 ""（与 rag/data/db.py 的历史表一致）。"""
+    return (str(platform or ""), str(city or ""), str(keyword or ""))
+
 CITY_SPLIT_RE = re.compile(r"[,，、;；/\s]+")
 
 # 关键词组分隔：分号只用来切"组"，逗号用来切"同义词"。
@@ -558,6 +588,9 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
         "limit_total": DEFAULT_LIMIT_TOTAL,
         "detail_concurrency": DEFAULT_DETAIL_CONCURRENCY,
         "stale_days": DEFAULT_STALE_DAYS,
+        # 分批滚动抓取：来自 config/scraping.yaml 的 schedule.batch_size，
+        # 环境变量 SCHEDULER_BATCH_SIZE 可覆盖（见 _resolve_batch_size）。
+        "batch_size": _resolve_batch_size(ext_config.get("schedule") or {}),
     }
     # 快速模式在这里就收敛规模；main() 用命令行参数覆盖之后再收敛一次（幂等）。
     return _apply_fast_mode(config, logger)
@@ -812,6 +845,7 @@ def scrape_multi_platform(
     headless: bool = True,
     detail_concurrency=None,
     scraper=None,
+    batch_size: int = 0,
     logger: logging.Logger = None,
 ) -> dict:
     """遍历 [平台 × 城市 × 关键词] 抓取 → 合并去重。
@@ -825,9 +859,15 @@ def scrape_multi_platform(
     去重键是 **(platform, job_id)**：不同平台的 job_id 可能撞车，
     只用 job_id 去重会把别的平台的岗位误当重复丢掉。
 
-    ⚠️ 本函数**只负责抓取，不碰 SQLite**：抓到的原始岗位要等 run_daily_job
+    ⚠️ 本函数**只负责抓取，不碰岗位表 jobs**：抓到的原始岗位要等 run_daily_job
     清洗之后才落库，否则 jobs.db 会混进被 cleaner 过滤掉的脏数据
-    （相关性差 / 过时 / 正文太短）。
+    （相关性差 / 过时 / 正文太短）。分批模式下唯一会写库的是进度表
+    scrape_history（记录每个组合的 last_run_at），与岗位数据无关。
+
+    分批滚动抓取（batch_size>0 时生效，默认 0 = 不分批、抓全池）：
+    先按 platforms × cities × keywords 展开全池，用 db.get_stale_combos() 取
+    「最久未抓」的 batch_size 个组合，本轮只抓这些，每抓完一个就
+    db.record_scrape() 回写进度；下轮接着抓没抓过的，N 轮后覆盖全池。
 
     返回：
         {
@@ -867,8 +907,82 @@ def scrape_multi_platform(
 
     merged: dict[tuple, dict] = {}
 
+    # ---- 分批滚动抓取：本次只抓「最久未抓」的 batch_size 个组合 ----
+    # 两支独立逻辑，互不干扰：
+    #   * 记录（_record）—— 不论是否分批都写进度表，这样 batch_size=0 的老用法
+    #     也在积累 last_run_at，将来切到分批时"最久未抓"的判断是准的；
+    #   * 挑选（batch_plan）—— 只有 batch_size>0 才过滤组合；batch_size<=0 时
+    #     batch_plan=False，抓取组合与行为跟改造前逐字一致（一次抓全池）。
+    # 注入了假抓取器（离线自测 / 测试替身）时一律不写真实进度表：与
+    # "假抓取器不落库" 同一口径，避免假组合污染真实进度。
+    batch_size = _resolve_batch_size({"batch_size": batch_size})
+    batch_db = None
+    batch_selected: set[tuple] = set()
+    batch_plan = False
+    if scraper is None:
+        try:
+            batch_db = _load_job_db()
+            batch_db.init_db()
+        except Exception as exc:              # noqa: BLE001 - 进度表坏掉也要照常抓
+            batch_db = None
+            if logger:
+                logger.warning("[分批] 进度表不可用（%s: %s），本次不记录抓取进度",
+                               type(exc).__name__, exc)
+    if batch_size > 0 and batch_db is not None:
+        pool_size = len(platforms) * len(cities) * len(keywords)
+        try:
+            history = batch_db.get_history_stats()
+            selected = batch_db.get_stale_combos(
+                platforms, [str(c).strip() if c else "" for c in cities],
+                keywords, limit=batch_size,
+            )
+            batch_selected = {_combo_key(p, c, k) for p, c, k in selected}
+            batch_plan = True
+            if logger:
+                logger.info("[分批] 全池 %d 组合，已覆盖 %d，本次抓 %d",
+                            pool_size, history.get("covered_combos", 0),
+                            len(batch_selected))
+                logger.info("[分批] 全池 %d 组合，本批 %d 个，剩余 %d 未抓",
+                            pool_size, len(batch_selected),
+                            max(pool_size - len(batch_selected), 0))
+                preview = "，".join(
+                    f"{p}/{c or '不限'}/{k}" for p, c, k in selected[:8]
+                )
+                if preview:
+                    logger.info("[分批] 本批覆盖：%s%s", preview,
+                                f" …（共 {len(batch_selected)} 个）"
+                                if len(batch_selected) > 8 else "")
+        except Exception as exc:              # noqa: BLE001 - 排序失败也要照常抓
+            batch_selected, batch_plan = set(), False
+            if logger:
+                logger.warning("[分批] 取「最久未抓」组合失败（%s: %s），本次改为抓全池",
+                               type(exc).__name__, exc)
+
     async def _run() -> None:
+        def _record(platform: str, keyword: str, city, success: bool,
+                    error: str = "") -> None:
+            """把单个组合的抓取结果写回进度表；进度表不可用时是空操作。"""
+            if batch_db is None:
+                return
+            try:
+                batch_db.record_scrape(platform, city, keyword, success, error)
+            except Exception as exc:          # noqa: BLE001 - 记录失败不拖垮抓取
+                if logger:
+                    logger.warning("[分批] 记录进度失败（%s/%s/%s）：%s",
+                                   platform, city or "不限", keyword, exc)
+
         for platform in platforms:
+            # 分批：本平台只保留选中的 (关键词, 城市) 组合；一个都没有就跳过，
+            # 连抓取器实例（浏览器）都不启动——这正是分批省时间的来源。
+            combos = [
+                (keyword, city) for city in cities for keyword in keywords
+                if not batch_plan
+                or _combo_key(platform, city, keyword) in batch_selected
+            ]
+            if not combos:
+                if logger:
+                    logger.info("[分批][平台 %s] 本批没有该平台的组合，跳过", platform)
+                continue
             try:
                 instance = _make_scraper(platform, options, factory=factory)
             except Exception as exc:              # noqa: BLE001 - 单平台失败不拖垮整轮
@@ -876,6 +990,8 @@ def scrape_multi_platform(
                 if logger:
                     logger.error("[平台 %s] 抓取器初始化失败：%s（继续跑其他平台）",
                                  platform, result["failed"][platform])
+                for keyword, city in combos:
+                    _record(platform, keyword, city, False, result["failed"][platform])
                 continue
 
             # 关键：instance 只在**平台这一层**创建一次，下面的「所有城市 × 所有关键词」
@@ -915,10 +1031,13 @@ def scrape_multi_platform(
                     )
                     merged.setdefault(key, job)
 
+                # 分批进度：这个组合本次跑成功了（不分批时是空操作）
+                _record(platform, keyword, city, True)
+
             try:
                 # 组合顺序 = 城市外层、关键词内层，与原顺序遍历完全一致，
                 # 所以去重时的"先到先得"归属不变。
-                combos = [(keyword, city) for city in cities for keyword in keywords]
+                # combos 已在上面的分批过滤里算好（batch_plan 时只含本批选中的组合）。
                 multi = getattr(instance, "search_multi", None)
                 use_multi = False
                 if callable(multi):
@@ -946,6 +1065,7 @@ def scrape_multi_platform(
                             if logger:
                                 logger.error("[平台 %s][城市 %s][关键词 %s] 抓取失败：%s",
                                              platform, label, keyword, summary)
+                            _record(platform, keyword, city, False, summary)
                         grouped = []
 
                     for entry in grouped or []:
@@ -963,6 +1083,7 @@ def scrape_multi_platform(
                             if logger:
                                 logger.error("[平台 %s][城市 %s][关键词 %s] 抓取失败：%s",
                                              platform, city or "不限", keyword, error)
+                            _record(platform, keyword, city, False, str(error))
                             continue
                         _absorb(keyword, city, entry.get("jobs"))
 
@@ -979,6 +1100,9 @@ def scrape_multi_platform(
                         # 城市级计时：该城市所有关键词跑完（含失败的关键词）的总耗时
                         t_city = time.monotonic()
                         for keyword in keywords:
+                            if batch_plan and _combo_key(
+                                    platform, city, keyword) not in batch_selected:
+                                continue
                             searches_done += 1
                             try:
                                 raw_jobs = await instance.search(
@@ -991,6 +1115,8 @@ def scrape_multi_platform(
                                     logger.error(
                                         "[平台 %s][城市 %s][关键词 %s] 抓取失败：%s",
                                         platform, label, keyword, result["failed"][key])
+                                _record(platform, keyword, city, False,
+                                        result["failed"][key])
                                 continue
                             _absorb(keyword, city, raw_jobs)
                         if logger:
@@ -1588,6 +1714,7 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                 detail_concurrency=config.get("detail_concurrency",
                                               DEFAULT_DETAIL_CONCURRENCY),
                 scraper=scraper,
+                batch_size=config.get("batch_size", DEFAULT_BATCH_SIZE),
                 logger=log,
             )
             jobs = merged_scrape["jobs"]

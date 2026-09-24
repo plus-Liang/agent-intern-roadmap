@@ -57,6 +57,21 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_city     ON jobs(city);
 CREATE INDEX IF NOT EXISTS idx_jobs_publish  ON jobs(publish_date DESC);
 CREATE INDEX IF NOT EXISTS idx_jobs_platform ON jobs(platform);
+
+-- 分批滚动抓取的进度表：每个 (平台, 城市, 关键词) 组合一行，
+-- 记录"上次抓取时间"，让调度器每次只抓最久未抓的 N 个组合（见 get_stale_combos）。
+CREATE TABLE IF NOT EXISTS scrape_history (
+    platform      TEXT NOT NULL,
+    city          TEXT NOT NULL,
+    keyword       TEXT NOT NULL,
+    last_run_at   TEXT,
+    run_count     INTEGER DEFAULT 0,
+    success_count INTEGER DEFAULT 0,
+    last_error    TEXT,
+    PRIMARY KEY (platform, city, keyword)
+);
+CREATE INDEX IF NOT EXISTS idx_scrape_history_last_run
+    ON scrape_history(last_run_at);
 """
 
 _UPSERT_SQL = """
@@ -399,6 +414,126 @@ def ensure_db(source_json: Optional[Path] = None) -> bool:
     except (sqlite3.Error, OSError, ValueError) as exc:
         _warn(f"初始化/同步数据库失败，回退 JSON：{exc}")
         return False
+
+
+# --------------------------------------------------------------------------
+# 分批滚动抓取：scrape_history 读写
+# --------------------------------------------------------------------------
+
+SCRAPE_HISTORY = "scrape_history"
+
+
+def _combo_key(platform: Any, city: Any, keyword: Any) -> tuple[str, str, str]:
+    """统一组合键的字符串口径（None / 空值都记成 ""，避免 None 与 "" 变成两行）。"""
+    return (str(platform or ""), str(city or ""), str(keyword or ""))
+
+
+def get_stale_combos(platforms, cities, keywords, limit: int = 0) -> list[tuple]:
+    """按「最久未抓」返回本批要抓的 (platform, city, keyword) 组合。
+
+    排序口径：**没抓过的（last_run_at 为 NULL）最优先**，其次按 last_run_at 升序
+    （越久没抓越靠前），同一年龄的按池内原始顺序（platform → city → keyword）
+    稳定排序，保证多轮跑下来可复现、不互相插队。
+
+    limit <= 0 时返回全部组合（不分批）；全池组合 = platforms × cities × keywords。
+    """
+    pool = [
+        _combo_key(platform, city, keyword)
+        for platform in (platforms or [])
+        for city in (cities or [])
+        for keyword in (keywords or [])
+    ]
+    if not pool:
+        return []
+
+    init_db()
+    try:
+        with _connect() as conn:
+            rows = conn.execute(
+                f"SELECT platform, city, keyword, last_run_at FROM {SCRAPE_HISTORY}"
+            ).fetchall()
+    except sqlite3.Error as exc:
+        # 进度表读不到时不分批：宁可多抓一轮，也不要因为历史表异常什么都不抓。
+        _warn(f"读取 {SCRAPE_HISTORY} 失败，本次不按历史排序：{exc}")
+        rows = []
+
+    history = {
+        _combo_key(row["platform"], row["city"], row["keyword"]): row["last_run_at"]
+        for row in rows
+    }
+    ranked = [
+        (history.get(combo), index, combo) for index, combo in enumerate(pool)
+    ]
+    ranked.sort(key=lambda item: (item[0] is not None, item[0] or "", item[1]))
+    combos = [combo for _, _, combo in ranked]
+    if limit and int(limit) > 0:
+        return combos[: int(limit)]
+    return combos
+
+
+def record_scrape(platform, city, keyword, success: bool, error: str = "") -> None:
+    """记录一个组合的抓取结果：刷新 last_run_at，累加 run_count / success_count。
+
+    失败时把原因写进 last_error；成功时清空 last_error（表示最近一次是好的）。
+    幂等：同一组合反复调用只会累加计数，不会产生重复行（主键 UPSERT）。
+    """
+    init_db()
+    sql = f"""
+    INSERT INTO {SCRAPE_HISTORY}
+        (platform, city, keyword, last_run_at, run_count, success_count, last_error)
+    VALUES (?, ?, ?, datetime('now'), 1, ?, ?)
+    ON CONFLICT(platform, city, keyword) DO UPDATE SET
+        last_run_at   = datetime('now'),
+        run_count     = {SCRAPE_HISTORY}.run_count + 1,
+        success_count = {SCRAPE_HISTORY}.success_count + excluded.success_count,
+        last_error    = excluded.last_error
+    """
+    row = _combo_key(platform, city, keyword) + (
+        1 if success else 0,
+        "" if success else str(error or ""),
+    )
+    try:
+        with _connect() as conn:
+            conn.execute(sql, row)
+    except sqlite3.Error as exc:
+        # 进度记录失败不影响本轮抓取本身（最坏情况是下轮重复抓这几个组合）。
+        _warn(f"写入 {SCRAPE_HISTORY} 失败（{platform}/{city}/{keyword}）：{exc}")
+
+
+def get_history_stats() -> dict:
+    """分批进度概览：{total_combos, covered_combos, never_run, last_24h_runs}。
+
+    * total_combos  —— 进度表里出现过的组合数（= 抓过至少一次的组合数）；
+    * covered_combos—— last_run_at 非空的组合数（正常等于 total_combos）；
+    * never_run     —— last_run_at 为空的组合数（建行但没跑成功过）；
+    * last_24h_runs —— 最近 24 小时内抓过的组合数（表里只留 last_run_at，
+                       所以这里是"组合数"而不是历史总次数；历史总次数看 run_count）。
+    """
+    init_db()
+    stats = {"total_combos": 0, "covered_combos": 0, "never_run": 0,
+             "last_24h_runs": 0}
+    try:
+        with _connect() as conn:
+            row = conn.execute(
+                f"""
+                SELECT
+                    COUNT(*)                                          AS total_combos,
+                    SUM(CASE WHEN last_run_at IS NOT NULL THEN 1 ELSE 0 END)
+                                                                      AS covered_combos,
+                    SUM(CASE WHEN last_run_at IS NULL THEN 1 ELSE 0 END)
+                                                                      AS never_run,
+                    SUM(CASE WHEN last_run_at >= datetime('now', '-1 day')
+                             THEN 1 ELSE 0 END)                       AS last_24h_runs
+                FROM {SCRAPE_HISTORY}
+                """
+            ).fetchone()
+    except sqlite3.Error as exc:
+        _warn(f"统计 {SCRAPE_HISTORY} 失败：{exc}")
+        return stats
+    if row is not None:
+        for key in stats:
+            stats[key] = int(row[key] or 0)
+    return stats
 
 
 def reset_db() -> None:

@@ -34,8 +34,9 @@ keywords:
   - RAG
   - 检索增强生成
 
-# 预留字段：Step 2 的滚动抓取用（batch_size=0 表示不限制）。
-# 当前版本只读取、不改变抓取/清洗/入库行为。
+# 分批滚动抓取（Step 2 已实现）：每次只抓「最久未抓」的 N 个 (平台×城市×关键词) 组合，
+# 多轮跑下来滚动覆盖全池；0 = 不分批（一次抓全池，向后兼容）。
+# 环境变量 SCHEDULER_BATCH_SIZE 可覆盖本值。
 schedule:
-  batch_size: 0
+  batch_size: 60
   max_age_days: 90
