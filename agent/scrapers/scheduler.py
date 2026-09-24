@@ -936,9 +936,20 @@ def scrape_multi_platform(
                 platforms, [str(c).strip() if c else "" for c in cities],
                 keywords, limit=batch_size,
             )
+            # 平台过滤（双保险）：组合池已按 platforms 展开，这里再按本次请求的平台
+            # 过滤一次——`--platforms niuke` 时候选集必须 100% 来自 niuke，不能因为
+            # 池子口径变化（或将来有调用方传了全平台池）混进别的平台。
+            requested = {str(p).strip() for p in platforms if str(p).strip()}
+            selected = [c for c in selected if str(c[0]).strip() in requested]
+            selected = selected[:batch_size]
             batch_selected = {_combo_key(p, c, k) for p, c, k in selected}
             batch_plan = True
             if logger:
+                dist: dict[str, int] = {}
+                for p, _c, _k in selected:
+                    dist[str(p)] = dist.get(str(p), 0) + 1
+                logger.info("[分批] 本批平台分布：%s",
+                            "，".join(f"{p} {n} 个" for p, n in dist.items()) or "（空）")
                 logger.info("[分批] 全池 %d 组合，已覆盖 %d，本次抓 %d",
                             pool_size, history.get("covered_combos", 0),
                             len(batch_selected))
