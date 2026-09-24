@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DailyJobScrape - Windows 任务计划程序任务定义（导入用）
+  每天 23:00 抓取双平台岗位（shixiseng + niuke）并 git push。
+
+  导入前必改的一处：下面 <Principals> 里的 <UserId>，
+  换成你自己的 Windows 账户（命令行执行 whoami 查看，形如 desktop-abc\ljh）。
+  必须用你自己的账户，否则任务以 SYSTEM 身份运行时拿不到 git 凭据，push 会失败。
+-->
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Date>2026-09-24T23:00:00</Date>
+    <Author>agent-intern-roadmap</Author>
+    <Description>Daily job scrape (shixiseng + niuke) at 23:00, then git push so Streamlit Cloud updates.</Description>
+    <URI>\DailyJobScrape</URI>
+  </RegistrationInfo>
+
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-09-24T23:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+
+  <Principals>
+    <Principal id="Author">
+      <!-- 改成你自己的账户，例如：<UserId>desktop-abc\ljh</UserId> -->
+      <UserId>REPLACE_WITH_YOUR_USERNAME</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <!-- 错过后尽快补跑：睡眠/关机错过 23:00，下次可用时立刻启动 -->
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <!-- 不唤醒计算机：避免半夜自动开机 -->
+    <WakeToRun>false</WakeToRun>
+    <!-- 抓取含详情页约 20~40 分钟，给足 4 小时上限，避免被强杀 -->
+    <ExecutionTimeLimit>PT4H</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+
+  <Actions Context="Author">
+    <Exec>
+      <Command>D:\agent-intern-roadmap\scripts\daily_task.bat</Command>
+      <WorkingDirectory>D:\agent-intern-roadmap</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
