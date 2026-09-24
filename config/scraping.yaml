@@ -1,0 +1,41 @@
+# 抓取配置：城市池 + 关键词池（+ 预留调度参数）
+#
+# 目的：扩展抓取范围只改这个文件，不用改代码。
+# 生效优先级：环境变量 > 本文件 > agent/data/user_profile.json / 代码内置兜底。
+# 解析入口：config/loader.py；消费方：agent/scrapers/scheduler.py:resolve_config()。
+#
+# 改完怎么确认生效：
+#   python agent/scrapers/scheduler.py --once --dry-run
+# 启动会打印一行 `[配置] 城市来源=config/scraping.yaml（N 个） 关键词来源=...`。
+
+# 城市池：全部城市都会被逐个抓取后合并（不是只抓第一个）。
+# 默认值与现状一致（顺序沿用 user_profile.json，避免改变抓取顺序与默认 city）。
+cities:
+  - 广州
+  - 深圳
+  - 北京
+  - 上海
+  - 杭州
+
+# 关键词池：平铺列表即可，新词自动按"每个词一组"搜索。
+# 同义词（同一概念的中英文写法）按代码内置分组继续归组，例如
+# Agent/智能体、大模型/LLM/大语言模型、RAG/检索增强生成，
+# 保证默认 7 个词的行为与改造前完全一致。
+# 想自定义同义词组时，可改用下面的嵌套写法（优先级高于 keywords）：
+#   keyword_groups:
+#     - [Agent, 智能体]
+#     - [大模型, LLM, 大语言模型]
+keywords:
+  - Agent
+  - 智能体
+  - 大模型
+  - LLM
+  - 大语言模型
+  - RAG
+  - 检索增强生成
+
+# 预留字段：Step 2 的滚动抓取用（batch_size=0 表示不限制）。
+# 当前版本只读取、不改变抓取/清洗/入库行为。
+schedule:
+  batch_size: 0
+  max_age_days: 90

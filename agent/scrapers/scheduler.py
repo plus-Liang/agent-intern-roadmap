@@ -47,6 +47,14 @@ from shared.config import DATA_DIR, LOG_DIR, ROOT_DIR        # noqa: E402
 from agent import storage                                    # noqa: E402
 from agent import user_profile                               # noqa: E402
 
+# 抓取配置（城市池 / 关键词池）外置到 config/scraping.yaml：改配置不改代码。
+# 优先级：环境变量 > config/scraping.yaml > user_profile.json / DEFAULT_KEYWORDS。
+# 导入失败（config 包不在 sys.path 等）时置 None，退回本文件既有的兜底逻辑。
+try:                                                         # noqa: E402
+    from config import loader as scraping_config
+except ImportError:                                          # pragma: no cover
+    scraping_config = None
+
 # 多平台抽象层。base.py 只依赖标准库，模块级导入不会拖入 playwright
 # （真正的平台实现仍在 scraper_registry() 里惰性导入，见下方说明）。
 from agent.scrapers.base import PlatformScraper, RawJob       # noqa: E402
@@ -410,11 +418,57 @@ def _apply_fast_mode(config: dict, logger: logging.Logger = None) -> dict:
     return config
 
 
+_SOURCE_LABELS = {
+    "env": "环境变量",
+    "config": "config/scraping.yaml",
+    "profile": "user_profile.json",
+    "default": "内置默认",
+}
+
+
+def _load_scraping_config() -> dict:
+    """读外置抓取配置（config/scraping.yaml）。
+
+    读不到/loader 不可用就返回空壳，由 resolve_config 走本文件内置兜底；
+    配置问题绝不能拖垮定时任务。
+    """
+    if scraping_config is None:
+        return {"cities": [], "keyword_groups": [], "sources": {}}
+    try:
+        return scraping_config.load_scraping_config()
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "读 config/scraping.yaml 失败：%s；改用内置默认值", exc)
+        return {"cities": [], "keyword_groups": [], "sources": {}}
+
+
+def format_config_sources(config: dict) -> str:
+    """启动时打印一行生效配置，确认 config/scraping.yaml 有没有被读到。
+
+    形如：`[配置] 城市来源=config/scraping.yaml（5 个） 关键词来源=config/scraping.yaml（7 个）`
+    """
+    cities = config.get("cities") or []
+    keywords = (flatten_keyword_groups(config.get("keyword_groups") or [])
+                or list(config.get("keywords") or []))
+    cities_label = _SOURCE_LABELS.get(config.get("cities_source"), "内置默认")
+    keywords_label = _SOURCE_LABELS.get(config.get("keywords_source"), "内置默认")
+    return (f"[配置] 城市来源={cities_label}（{len(cities)} 个） "
+            f"关键词来源={keywords_label}（{len(keywords)} 个）")
+
+
 def resolve_config(profile: dict = None, logger: logging.Logger = None,
                    allow_fallback: bool = True) -> dict:
     """决定这次抓什么：关键词组 + 城市列表。
 
-    优先级：环境变量（SCHEDULER_KEYWORDS / SCHEDULER_CITY）> user_profile.json > 兜底。
+    优先级（城市与关键词同口径）：
+        环境变量（SCHEDULER_KEYWORDS / SCHEDULER_CITY，向后兼容 SCRAPE_*）
+        > config/scraping.yaml（见 config/loader.py）
+        > user_profile.json（target_keywords / target_cities）
+        > 本文件内置兜底（DEFAULT_KEYWORDS / ["广州"]）
+
+    城市池和关键词池外置到 config/scraping.yaml 之后，扩展抓取范围只改那个文件，
+    不用改代码；两个 sources 字段记录本次的实际来源，启动时由
+    format_config_sources() 打印成一行，方便确认配置有没有生效。
 
     返回值里同时给两种形状：
         keyword_groups: [[同义词...], ...]  —— 搜索引擎按"组"记录贡献
@@ -425,26 +479,50 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
     时不打这条告警也不兜底：那次根本不抓网络，提示"用了兜底关键词"只会误导。
     """
     profile = profile if isinstance(profile, dict) else user_profile.load_profile()
+    # 外置配置：文件不存在/解析失败时，loader 内部已回退到内置默认值并打 WARN。
+    ext_config = _load_scraping_config()
+    ext_sources = ext_config.get("sources") or {}
 
-    groups = split_keyword_groups(
-        os.getenv("SCHEDULER_KEYWORDS") or os.getenv("SCRAPE_KEYWORDS")
-    ) or split_keyword_groups(profile.get("target_keywords"))
+    # 关键词：环境变量 > config/scraping.yaml > user_profile.target_keywords > 兜底。
+    env_keywords = os.getenv("SCHEDULER_KEYWORDS") or os.getenv("SCRAPE_KEYWORDS")
+    if env_keywords:
+        groups = split_keyword_groups(env_keywords)
+        keywords_source = "env"
+    elif ext_sources.get("keywords") == "config":
+        # yaml 平铺写 keywords 时，loader 已按内置同义词表归好组（新词各自成组）。
+        groups = [list(group) for group in (ext_config.get("keyword_groups") or [])]
+        keywords_source = "config"
+    else:
+        # 没有外置关键词配置：保持改造前的顺序——先读画像。
+        groups = split_keyword_groups(profile.get("target_keywords"))
+        keywords_source = "profile" if groups else "default"
     if not groups:
+        keywords_source = "default"
         if allow_fallback:
             groups = [list(group) for group in DEFAULT_KEYWORDS]
             if logger:
                 logger.warning(
-                    "没配置关键词（SCHEDULER_KEYWORDS / user_profile.target_keywords 都是空），"
+                    "没配置关键词（SCHEDULER_KEYWORDS / config/scraping.yaml / "
+                    "user_profile.target_keywords 都是空），"
                     "本次用兜底关键词组：%s", _format_keyword_groups(groups),
                 )
     keywords = flatten_keyword_groups(groups)
 
-    # 城市：**全部**都要抓，不再只取第一个（多城市在这里就展开）
-    cities = _split_list(
-        os.getenv("SCHEDULER_CITY") or os.getenv("SCRAPE_CITY")
-    ) or _split_list(profile.get("target_cities"))
+    # 城市：**全部**都要抓，不再只取第一个（多城市在这里就展开）。
+    # 优先级：环境变量 > config/scraping.yaml > user_profile.target_cities > ["广州"]。
+    cities = _split_list(os.getenv("SCHEDULER_CITY") or os.getenv("SCRAPE_CITY"))
+    if cities:
+        cities_source = "env"
+    elif ext_sources.get("cities") == "config":
+        cities = [str(city).strip() for city in (ext_config.get("cities") or [])]
+        cities = [city for city in cities if city]
+        cities_source = "config"
+    else:
+        cities = _split_list(profile.get("target_cities"))
+        cities_source = "profile" if cities else "default"
     if not cities:
         cities = ["广州"]
+        cities_source = "default"
     if len(cities) > 1 and logger:
         logger.info("配置了 %d 个城市：%s（将逐个城市分别抓取后合并）",
                     len(cities), "、".join(cities))
@@ -469,6 +547,9 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
     config = {
         "keyword_groups": groups,
         "keywords": keywords,
+        # 生效来源（env / config / profile / default），供启动那行 [配置] 打印
+        "keywords_source": keywords_source,
+        "cities_source": cities_source,
         "cities": cities,
         "city": cities[0],
         "platforms": platforms,
@@ -1961,6 +2042,10 @@ def _selftest() -> int:
         )
         saved_profile_path = user_profile.PROFILE_PATH
         user_profile.PROFILE_PATH = profile_path
+        # 外置配置（config/scraping.yaml）优先级高于画像，本用例要验的是"画像"这条路径，
+        # 所以把配置文件路径指到不存在的文件；环境变量优先级另有用例 2 覆盖。
+        saved_config_path = os.environ.get("SCRAPING_CONFIG_PATH")
+        os.environ["SCRAPING_CONFIG_PATH"] = str(work / "no_such_scraping.yaml")
         try:
             cfg = resolve_config(logger=logger)
             check("1. 关键词/城市从画像读取",
@@ -1978,6 +2063,10 @@ def _selftest() -> int:
                   detail="")
         finally:
             os.environ.pop("SCHEDULER_KEYWORDS", None)
+            if saved_config_path is None:
+                os.environ.pop("SCRAPING_CONFIG_PATH", None)
+            else:
+                os.environ["SCRAPING_CONFIG_PATH"] = saved_config_path
             user_profile.PROFILE_PATH = saved_profile_path
 
         # ---- 2. 全链路（假 scraper，真 chroma，只是换了 DB_PATH） ----
@@ -2236,6 +2325,8 @@ def main(argv=None) -> int:
     logger = setup_logger(log_path=args.log_file or None, verbose=not args.quiet)
 
     config = resolve_config(logger=logger, allow_fallback=not args.dry_run)
+    # 启动第一行：确认城市池/关键词池到底读的是哪一份配置（改 yaml 后先看这行）。
+    print(format_config_sources(config))
     if args.keywords:
         # 用组分隔符解析：`--keywords "Agent,智能体;RAG,检索增强生成"` 得到两组，
         # `--keywords 智能体` 得到一组一个词。两种写法都保持"同义词归组"的信息。
