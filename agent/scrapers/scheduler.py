@@ -2214,12 +2214,22 @@ def _selftest() -> int:
             scraper=lambda *a, **k: fake_jobs,
         )
 
+        # 期望值从本次实际配置与 mock 输入动态算：多平台时每个平台各抓一遍，
+        # 所以 scraped = 平台数 × 每平台 mock 条数，cleaned 同理（每平台各清洗一遍）。
+        mock_platforms = max(1, len(first.get("platforms") or []))
+        expected_scraped = len(fake_jobs) * mock_platforms
+        expected_cleaned = len(clean_jobs(fake_jobs, city="广州")["jobs"]) * mock_platforms
+
         check("3. 全链路 run_daily_job 成功",
               lambda: (
                   f"抓取 {first['scraped']} → 清洗 {first['cleaned']} → "
                   f"chunk {first['chunks']} → 入库 +{first['incremental']['added']}"
-                  if first["ok"] and first["scraped"] == 2 and first["cleaned"] == 1
-                  and first["chunks"] > 0 and first["incremental"]["added"] == first["chunks"]
+                  if first["ok"] and first["scraped"] == expected_scraped
+                  and first["cleaned"] == expected_cleaned
+                  # added 允许 <= chunks：多平台时同一个岗位会在两个平台各切一份，
+                  # chunk id 相同被增量入库去重，added 因此可能略小于 chunks。
+                  and first["chunks"] > 0
+                  and 0 < first["incremental"]["added"] <= first["chunks"]
                   else _fail(str(first))
               ))
 
