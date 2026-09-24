@@ -33,10 +33,19 @@
 因此本模块的策略是：
 
     * 按 city 分页拉取候选人（每页 20 条，最多 5 页 = 100 条）；
-    * 在**本地**用 keyword 过滤 `jobName`（大小写不敏感、多关键词按空格拆开取交集）。
+    * 在**本地**用 keyword 过滤 `jobName`（大小写不敏感、多关键词按空格拆开取交集）；
+    * 再对**同城镜像**做一次内容去重（见 `_dedup_mirrors`）。
 
 这样虽然多拉了一点数据，但请求数仍然是常数级（<=5 次/城市），
 而且过滤逻辑完全可控、不会因为站点搜索接口变动而失效。
+
+站内镜像为什么必须单独处理
+--------------------------
+牛客会把「同公司 + 同标题」的一个岗位按城市拆成多条记录：id 各不相同
+（常常只差 1）、description 完全一致。它们不是本模块重复抓取造成的，
+所以按 `job_id` 去重（以及 rag/data/db.py 的 `ON CONFLICT(job_id)`）
+一条都拦不住。本模块因此在返回前按 (公司, 标题, 城市) 折叠同城镜像，
+跨城市的投放**保留**——搜「广州」仍应看到广州的岗位。
 
 边界情况
 --------
@@ -58,6 +67,7 @@ import json
 import re
 import time
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -78,6 +88,12 @@ RECRUIT_TYPE_INTERN = 2  # 2 = 实习
 PAGE_SOURCE = 5001
 CAREER_JOB_ID = 11006   # 实习职位分类 ID
 REQUEST_FROM = 1
+
+# 入参 keyword 允许带平台前缀（如 "niuke:大模型"），过滤前必须剥掉，
+# 否则它会被当成标题里必须出现的词，把所有结果都过滤没。
+# 只认「平台名 + 冒号」或「平台名 + 空格」：不加 {1,2} 这类量词，
+# 否则 "牛客大模型" 会被误剥成 "大模型"。
+_PLATFORM_PREFIX = re.compile(r"^\s*(?:niuke|牛客)\s*(?:[:：]|\s)\s*", re.IGNORECASE)
 
 TIMEOUT = 30            # 秒
 MAX_RETRIES = 2         # 失败后重试 2 次（总计最多 3 次尝试）
@@ -209,6 +225,79 @@ def _match_keyword(title: str, keywords: list[str]) -> bool:
     return all(kw in lowered for kw in keywords)
 
 
+def _norm_text(value: Any) -> str:
+    """公司名/标题归一：去首尾空白、内部空白折叠、转小写（用于比对）。"""
+    return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+
+
+def _norm_city(value: Any) -> str:
+    """城市归一：去后缀（"广州市"->"广州"）、去空白。"""
+    return _CITY_SUFFIX.sub("", str(value or "").strip())
+
+
+def _mirror_key(job: RawJob) -> tuple[str, str, str]:
+    """同城镜像判定键：(公司, 标题, 城市)。
+
+    为什么按这个键折叠
+    ------------------
+    牛客一个岗位常被拆成多条记录：同公司、同标题、同 JD，只是 id 不同
+    （id 往往只差 1——站点按城市配额批量生成的镜像投放）。实测审计里的
+    "哔哩哔哩《大模型算法工程师》6 条"就是 6 个不同 id、description 完全
+    一致、分布在 5 个城市。
+
+    因此这里把**同城**镜像折叠成一条（保留各地投放，不丢城市维度）；
+    跨城市的同岗位**不折叠**——搜"广州"仍要能看到广州的岗位。
+    """
+    return (_norm_text(job.company), _norm_text(job.title), _norm_city(job.city))
+
+
+def _salary_value(text: str) -> int:
+    """从 "300-520/天" 这类原文里取第一个数字，用于比较两条镜像的薪资完整度。"""
+    match = re.search(r"\d+", str(text or ""))
+    return int(match.group()) if match else -1
+
+
+def _dedup_mirrors(jobs: list[RawJob]) -> list[RawJob]:
+    """把同 (公司, 标题, 城市) 的镜像折叠成一条，返回保序去重后的列表。
+
+    代表行 = 组内**原始 id 最小**的那条，并把组内信息量最大的
+    description / 薪资合并上去。刻意**不改写 job_id**：
+
+    * 只用站点自己的 id，没有本地 hash，所以同一岗位重复抓取 id 恒定；
+    * 代表行的选取只依赖组内最小原始 id，与翻页顺序无关，不会因为接口
+      返回顺序变化就换一个 id（按"JD 最长"选代表行会引入这种不稳定）；
+    * 镜像的 city 相同、只有 id 不同，所以折叠后每个
+      (公司, 标题, 城市) 在库里只留一条可检索记录。
+    """
+    groups: dict[tuple[str, str, str], list[RawJob]] = {}
+    for job in jobs:
+        groups.setdefault(_mirror_key(job), []).append(job)
+
+    out: list[RawJob] = []
+    for group in groups.values():
+        if len(group) == 1:
+            out.append(group[0])
+            continue
+        ordered = sorted(group, key=_sort_key)
+        rep = ordered[0]
+        if any((j.description or "").strip() for j in ordered) and not (rep.description or "").strip():
+            richest = max(ordered, key=lambda j: len(j.description or ""))
+            rep = replace(rep, description=richest.description)
+        if _salary_value(rep.salary) < max(_salary_value(j.salary) for j in ordered):
+            best_pay = max(ordered, key=lambda j: _salary_value(j.salary))
+            rep = replace(rep, salary=best_pay.salary)
+        out.append(rep)
+    return out
+
+
+def _sort_key(job: RawJob) -> tuple[int, int, str]:
+    """确定性排序键：数字 id 按数值升序排前，非数字 id 排后。"""
+    text = str(job.job_id)
+    if text.isdigit():
+        return (0, int(text), "")
+    return (1, 0, text)
+
+
 class NiukeScraper(PlatformScraper):
     """牛客网岗位抓取器（公开 JSON 接口，无浏览器、无登录）。"""
 
@@ -313,9 +402,14 @@ class NiukeScraper(PlatformScraper):
         """按关键词 + 城市抓取牛客实习岗位。
 
         接口不支持关键词参数，故按城市分页拉取后在**本地过滤 jobName**。
+        然后再对**同城镜像**做一次内容去重（见 _dedup_mirrors）：牛客会把
+        同公司同标题的岗位按城市拆成多条 id 不同的记录，只按 job_id 去重
+        会把它们当成不同岗位全部留下。
+
         任何异常都被吞掉并返回已抓到的部分（基类约定：不抛异常）。
         """
-        keywords = [k.lower() for k in str(keyword or "").split() if k]
+        keyword = _PLATFORM_PREFIX.sub("", str(keyword or ""))
+        keywords = [k.lower() for k in keyword.split() if k]
         job_city = _normalize_city(city)
         limit = max(1, int(limit or 20))
 
@@ -356,12 +450,13 @@ class NiukeScraper(PlatformScraper):
                         continue
                     seen.add(job.job_id)
                     results.append(job)
-                    if len(results) >= limit:
-                        return results
+                    # 注意：这里不能在 limit 处提前 return——镜像去重发生在
+                    # 全部候选收集完之后，提前截断会让删掉重复后的条数明显变少。
         except Exception as exc:  # 兜底：任何意外都不该拖垮整轮抓取
             print(f"[niuke] 抓取异常，返回已抓到的 {len(results)} 条：{exc}")
+            return results[:limit]
 
-        return results
+        return _dedup_mirrors(results)[:limit]
 
     async def close(self) -> None:
         """关闭 HTTP 会话。"""
