@@ -103,4 +103,4 @@ keywords:
 # 环境变量 SCHEDULER_BATCH_SIZE 可覆盖本值。
 schedule:
   batch_size: 60
-  max_age_days: 90
+  max_age_days: 180

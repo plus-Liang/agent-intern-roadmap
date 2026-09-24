@@ -9,7 +9,7 @@
 依次应用三道过滤（命中即计数并丢弃，一条只计一次，按下列顺序判定）：
     a) city      城市：宽松匹配——job city 等于目标城市、含目标城市（多城市串）、
                  去掉"市"后缀后含目标城市，或 job city == "全国"
-    b) age       时间：publish_date 距今天 <= max_age_days（publish_date 为空则不参与时间过滤）
+    b) age       时间：publish_date 距今天 <= max_age_days（默认 180；publish_date 为空则不参与时间过滤）
     c) length    正文长度：len(description) >= min_desc_len
 
 原 a) relevance 相关性过滤**已停用**：项目定位从"AI 求职助手"扩展为
@@ -36,14 +36,18 @@ REPO_DIR = RAG_DIR.parent
 DEFAULT_INPUT = REPO_DIR / "agent" / "scrapers" / "shixiseng_result.json"
 DEFAULT_OUTPUT = RAG_DIR / "data" / "cleaned_jd.json"
 
-# 时间过滤默认值：60 天
-DEFAULT_MAX_AGE_DAYS = 60
+# 时间过滤默认值：180 天
+# 口径说明：牛客等平台的大厂岗位生命周期比实习僧长（挂半年是常态），
+# 60/90 天会误杀仍有效的在招岗位，因此放宽到 180 天。
+# 需按平台/场景调整时可由调用方传参（如 scheduler 从 config/scraping.yaml
+# 的 schedule.max_age_days 读取后传入），本模块自身不读配置文件。
+DEFAULT_MAX_AGE_DAYS = 180
 
 # 合并落盘的"过期归档"阈值：超过这个天数的记录从主文件移进归档文件。
-# 为什么比 max_age_days(60) 宽：60 天是"这次抓到的岗位值不值得入库"的准入门槛，
-# 而 90 天是"已经在库里的老记录什么时候该退场"。两者口径不同，
-# 合并时若沿用 60 天，会把上一次刚通过清洗、这次没被抓到的岗位顺手删掉——
-# 这正是"覆盖式落盘"之外的另一条丢数据路径。所以特意留宽一档。
+# 为什么与 max_age_days 分开：max_age_days 是"这次抓到的岗位值不值得入库"的准入门槛，
+# 而本值是"已经在库里的老记录什么时候该退场"。两者口径不同，
+# 合并时若沿用入库口径，会把上一次刚通过清洗、这次没被抓到的岗位顺手删掉——
+# 这正是"覆盖式落盘"之外的另一条丢数据路径。所以特意单独留一档。
 DEFAULT_STALE_DAYS = 90
 
 # 过期记录的归档文件名（与 cleaned_jd.json 同目录）
@@ -201,7 +205,7 @@ def clean_jobs(jobs: list[dict], city: str = "广州",
     参数：
         jobs:         原始岗位 dict 列表
         city:         目标城市（宽松匹配：相等、包含、去"市"后缀包含，或 job city == "全国" 时保留）
-        max_age_days: publish_date 距今天最大天数（默认 60）
+        max_age_days: publish_date 距今天最大天数（默认 180）
         min_desc_len: 正文最小长度
         today:        基准日期，默认取系统当天；测试时可显式传入
 
