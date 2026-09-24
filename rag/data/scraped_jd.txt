@@ -1,4 +1,97 @@
-【1】公司：正和御风
+【1】公司：百度
+岗位：千帆大模型解决方案实习生
+城市：深圳 ｜ 薪资：250-300/天
+来源链接：https://www.shixiseng.com/intern/inn_fv6aajp5wwy5?pcm=pc_SearchList
+发布时间：2026-09-25
+----------------------------------------------------------------------------------------
+【岗位职责】
+-协助与行业销售团队的对齐：协助跟进与行业销售侧相关的重点工作和问题的解决进展
+-协助与产研团队的对齐：协助在产研团队内部就相关金融行业大模型需求的落地和推进
+-协助项目商机分析和研究：协助千帆一体机小组对行业项目商机汇总和进展状态的梳理
+-协助项目需求评估与分析：参与并协助完成千帆大模型一体机项目的需求评估，并协助支持大模型项目的拓展
+
+【任职要求】
+-专业能力：本科/研究生在读，计算机及相关专业优先，具备扎实的专业基础知识，了解人工智能、机器学习、大模型等方向的应用或者技术优先
+-文档能力：具备良好的文档编写能力，能够撰写结构清晰、逻辑严谨的技术文档，熟悉Office等常用办公软件，能够快速整理项目资料
+-其他能力要求：具备较强的学习能力和自我驱动力，能够快速适应新环境和新任务，具备良好的团队合作精神，能够积极参与项目讨论和协作
+----------------------------------------------------------------------------------------
+
+【2】公司：信投智联科技
+岗位：Ai应用开发
+城市：广州 ｜ 薪资：300-500/天
+来源链接：https://www.shixiseng.com/intern/inn_u01y1yci5ucw?pcm=pc_SearchList
+发布时间：2026-09-24
+----------------------------------------------------------------------------------------
+【岗位职责】
+1，参与制定公司级Ai技术发展规划，明确重点方向与实施路径
+2，主导设计并构建企业级Ai Agent:智能体平台，支持智能应用的快速开发与部署。
+3，负责与业务沟通，识别Ai应用落地场景并研究可行性方案，实际落地Ai应用为业务赋能。
+4，配合跨团队协作，对接电控开发、测试等团队，反馈Ai研发使用过程中的问题，协助推进项目进度。
+岗位要求,
+1，计算机、电子信息、自动化、人工智能等相关专业，本科及以上学历。
+2，有AI辅助研发、AI工具使用经验。
+3，熟悉嵌入式开发流程，具备基础的嵌入式代码编写、调试能力，能配合完成简单的嵌入式设备联调。
+4，熟练使用市面上常用的Al Agent模型，例如opencode、open claw工具，完成相关代码编写、调试及功能验证，确保工具在Ai研发流程中正常应用。
+5，工作认真负责，有耐心，具备基本的逻辑思维能力和问题解决能力，愿意主动学习新工具、新技术。
+----------------------------------------------------------------------------------------
+
+【3】公司：友邦资讯科技
+岗位：.Net开发实习生
+城市：广州 ｜ 薪资：180-200/天
+来源链接：https://www.shixiseng.com/intern/inn_s2bb9mhkxnuv?pcm=pc_SearchList
+发布时间：2026-09-24
+----------------------------------------------------------------------------------------
+【职位描述】
+We are seeking an Azure Cloud and Backend Development Intern to join our team, providing hands-on experience in designing and developing cloud-based solutions using Azure, SQL Server, ASP.NET, and C#. This internship offers an excellent opportunity to gain practical skills in backend development and cloud infrastructure while contributing to our IT systems.
+
+Responsibilities:
+• Assist in designing and developing scalable, secure, and efficient cloud-based solutions.
+• Participate in team meetings and contribute to discussions on project requirements.
+• Support database optimization tasks under supervision.
+• Help develop RESTful APIs and web services to support frontend applications.
+• Ensure code quality and maintainability by participating in code reviews.
+• Stay updated with the latest Azure services and .NET framework advancements.
+• Learn from experienced team members and contribute to a collaborative environment.
+
+Requirements:
+• Pursuing a degree in Computer Science, Information Technology, Software Engineering, or a related field.
+• Basic understanding of Azure cloud services, including compute, storage, and databases.
+• Familiarity with SQL Server, including database design and optimization.
+• Basic knowledge of ASP.NET and C#, with an interest in building web applications and APIs.
+• Strong problem-solving skills and a foundational understanding of software engineering principles.
+• Fluency in English, with the ability to communicate effectively in a team setting.
+• Good teamwork skills and a willingness to collaborate and learn.
+• Self-motivated and detail-oriented, with a passion for continuous learning.
+Nice to Have:
+• Exposure to Azure DevOps or CI/CD pipelines.
+• Interest in the insurance industry or related IT systems.
+• Basic understanding of cloud security and monitoring.
+• Familiarity with DevOps practices or containerization technologies
+----------------------------------------------------------------------------------------
+
+【4】公司：友邦资讯科技
+岗位：Java开发实习生
+城市：广州 ｜ 薪资：180-200/天
+来源链接：https://www.shixiseng.com/intern/inn_jzvdmurpamdk?pcm=pc_SearchList
+发布时间：2026-09-24
+----------------------------------------------------------------------------------------
+【职位描述】
+工作描述:
+1、与项目经理和需求分析师沟通系统需求；
+2、根据TSS开发标准进行系统开发、测试和应用支持工作；
+3、 按时高质量地完成工作要求；
+4、与AIA伙伴合作完成项目交付目标。
+
+【任职要求】
+1、2026届统招本科及以上学历，计算机相关专业；
+2、了解网页应用开发，了解Java相关技术框架；
+3、了解流行的数据库，例如Oracle, MS SQL SERVER, Sybase或者MySQL；
+4、英语听说读写能力优秀，具有英语四级证书优先；
+5、自我驱动力和学习能力强；
+6、沟通能力强，问题解决能力和分析能力强。
+----------------------------------------------------------------------------------------
+
+【5】公司：正和御风
 岗位：时尚AI Agent训练师
 城市：深圳 ｜ 薪资：150-250/天
 来源链接：https://www.shixiseng.com/intern/inn_rqaxno945chy?pcm=pc_SearchList
@@ -22,7 +115,7 @@
 4. 加分项：有北美/海外生活经历，熟悉欧美女性的穿搭习惯和审美偏好；英语可作为工作语言者优先
 ----------------------------------------------------------------------------------------
 
-【2】公司：中国工业互联网研究院
+【6】公司：中国工业互联网研究院
 岗位：助理工程师（智能体方向）
 城市：北京 ｜ 薪资：120-150/天
 来源链接：https://www.shixiseng.com/intern/inn_obtmflgx1qbh?pcm=pc_SearchList
@@ -40,7 +133,7 @@
 4.可实习至少3个月，每周到岗至少4天，每天工作时长8小时，实习薪酬120-150元/天。
 ----------------------------------------------------------------------------------------
 
-【3】公司：百度
+【7】公司：百度
 岗位：Agent策略实习生
 城市：北京 ｜ 薪资：250-400/天
 来源链接：https://www.shixiseng.com/intern/inn_hfafgasj8tnt?pcm=pc_SearchList
@@ -63,7 +156,7 @@
 每周到岗至少 3-4 天，连续实习 3 个月以上，可长期实习者优先。
 ----------------------------------------------------------------------------------------
 
-【4】公司：字节跳动
+【8】公司：字节跳动
 岗位：Agent效果运营实习生 - 抖音社交与互动
 城市：深圳 ｜ 薪资：350/天
 来源链接：https://www.shixiseng.com/intern/inn_vstr8t8cxayz?pcm=pc_SearchList
@@ -86,25 +179,7 @@
 4、有较强的自我驱动和学习能力。
 ----------------------------------------------------------------------------------------
 
-【5】公司：百度
-岗位：千帆大模型解决方案实习生
-城市：深圳 ｜ 薪资：250-300/天
-来源链接：https://www.shixiseng.com/intern/inn_fv6aajp5wwy5?pcm=pc_SearchList
-发布时间：2026-09-23
-----------------------------------------------------------------------------------------
-【岗位职责】
--协助与行业销售团队的对齐：协助跟进与行业销售侧相关的重点工作和问题的解决进展
--协助与产研团队的对齐：协助在产研团队内部就相关金融行业大模型需求的落地和推进
--协助项目商机分析和研究：协助千帆一体机小组对行业项目商机汇总和进展状态的梳理
--协助项目需求评估与分析：参与并协助完成千帆大模型一体机项目的需求评估，并协助支持大模型项目的拓展
-
-【任职要求】
--专业能力：本科/研究生在读，计算机及相关专业优先，具备扎实的专业基础知识，了解人工智能、机器学习、大模型等方向的应用或者技术优先
--文档能力：具备良好的文档编写能力，能够撰写结构清晰、逻辑严谨的技术文档，熟悉Office等常用办公软件，能够快速整理项目资料
--其他能力要求：具备较强的学习能力和自我驱动力，能够快速适应新环境和新任务，具备良好的团队合作精神，能够积极参与项目讨论和协作
-----------------------------------------------------------------------------------------
-
-【6】公司：百度
+【9】公司：百度
 岗位：Agent研发工程师（实习生）
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_py1hkw0wds9o?pcm=pc_SearchList
@@ -129,7 +204,7 @@
 -架构能力：具备一定的系统设计与抽象能力，能对通用模块、执行框架进行合理分层与封装，关注可扩展性、稳定性与性能（加分：有框架/中间件设计或落地经验）。
 ----------------------------------------------------------------------------------------
 
-【7】公司：新浪
+【10】公司：新浪
 岗位：大模型实习生
 城市：北京 ｜ 薪资：150/天
 来源链接：https://www.shixiseng.com/intern/inn_0neumlfauinu?pcm=pc_SearchList
@@ -150,7 +225,7 @@
 4、积极主动，团队合作精神强；
 ----------------------------------------------------------------------------------------
 
-【8】公司：西门子
+【11】公司：西门子
 岗位：AI大模型应用实习生
 城市：北京 ｜ 薪资：100-120/天
 来源链接：https://www.shixiseng.com/intern/inn_tqlm8ajblbo3?pcm=pc_SearchList
@@ -175,7 +250,7 @@
 • 加分项： 性格开朗，善于沟通，具备优秀的团队协作精神。我们相信，积极的沟通和良好的团队合作是成功的关键！
 ----------------------------------------------------------------------------------------
 
-【9】公司：梅赛德斯-奔驰
+【12】公司：梅赛德斯-奔驰
 岗位：Intern_自动驾驶数据产线Agent开发实习生 ID218238
 城市：上海 ｜ 薪资：250-300/天
 来源链接：https://www.shixiseng.com/intern/inn_qbgpwm30hsan?pcm=pc_SearchList
@@ -219,7 +294,7 @@ Chinese: Proficient
 English: Conversational
 ----------------------------------------------------------------------------------------
 
-【10】公司：小米
+【13】公司：小米
 岗位：大模型后训练实习生(A143057)
 城市：上海 ｜ 薪资：250-400/天
 来源链接：https://www.shixiseng.com/intern/inn_l9jpzkv6dtd9?pcm=pc_SearchList
@@ -246,7 +321,7 @@ English: Conversational
 - 了解 Yosys、Verilator 等开源 EDA 工具。
 ----------------------------------------------------------------------------------------
 
-【11】公司：字节跳动
+【14】公司：字节跳动
 岗位：豆包AI大模型产品实习生 - 火山方舟
 城市：杭州 ｜ 薪资：500-510/天
 来源链接：https://www.shixiseng.com/intern/inn_chuzbtxc6h7i?pcm=pc_SearchList
@@ -270,7 +345,7 @@ English: Conversational
 4、有互联网产品实习经历，了解产品经理基本方法论，实习6个月。工作地点：上海/杭州
 ----------------------------------------------------------------------------------------
 
-【12】公司：百度
+【15】公司：百度
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_hukw9caofndz?pcm=pc_SearchList
@@ -291,7 +366,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【13】公司：腾讯
+【16】公司：腾讯
 岗位：大模型算法
 城市：北京 ｜ 薪资：400-800/天
 来源链接：https://www.shixiseng.com/intern/inn_q48lmwqeqisw?pcm=pc_SearchList
@@ -312,7 +387,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【14】公司：小米智能科技
+【17】公司：小米智能科技
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_3qnvdx01iidk?pcm=pc_SearchList
@@ -333,7 +408,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【15】公司：荷叶健康
+【18】公司：荷叶健康
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_ianoehxjevqq?pcm=pc_SearchList
@@ -354,7 +429,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【16】公司：小红书
+【19】公司：小红书
 岗位：大模型算法
 城市：上海 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_gd3uoeu2bxh2?pcm=pc_SearchList
@@ -375,7 +450,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【17】公司：渡口网络科技
+【20】公司：渡口网络科技
 岗位：大模型算法
 城市：上海 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_apomvci4nk0q?pcm=pc_SearchList
@@ -396,7 +471,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【18】公司：原创软件
+【21】公司：原创软件
 岗位：大模型算法
 城市：杭州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_fdesdov8iobp?pcm=pc_SearchList
@@ -417,7 +492,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【19】公司：字节跳动
+【22】公司：字节跳动
 岗位：语言学实习生（语音模型/agent评测） - Data语音
 城市：上海 ｜ 薪资：350-360/天
 来源链接：https://www.shixiseng.com/intern/inn_mkofcwovfjku?pcm=pc_SearchList
@@ -440,7 +515,7 @@ English: Conversational
 5、对Agent发展有热情，能深入探索Agent相关内容，了解最新的Benchmark，乐于学习前沿技术，各类热门Agent的重度使用者优先。
 ----------------------------------------------------------------------------------------
 
-【20】公司：字节跳动
+【23】公司：字节跳动
 岗位：豆包语音大模型策略产品实习生-Data 语音
 城市：深圳 ｜ 薪资：500-510/天
 来源链接：https://www.shixiseng.com/intern/inn_icpbiiix7ock?pcm=pc_SearchList
@@ -461,7 +536,7 @@ English: Conversational
 5、语音产品经验者优先
 ----------------------------------------------------------------------------------------
 
-【21】公司：墨泊可士
+【24】公司：墨泊可士
 岗位：AI Agent开发（可转正）
 城市：广州 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_qpa38aa45nvn?pcm=pc_SearchList
@@ -480,7 +555,7 @@ English: Conversational
 4.深入掌握LangChain、LangGraph、Llamalndex等主流智能体开发框架，有实际项目落地经验优先;
 ----------------------------------------------------------------------------------------
 
-【22】公司：信投智联科技
+【25】公司：信投智联科技
 岗位：大模型算法
 城市：广州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_thto1lkv1b00?pcm=pc_SearchList
@@ -501,7 +576,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【23】公司：墨泊可士
+【26】公司：墨泊可士
 岗位：大模型算法（可转正）
 城市：广州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_9j3knkthf4n8?pcm=pc_SearchList
@@ -522,7 +597,7 @@ English: Conversational
 5.优秀的产品和业务感知能力，责任心强，积极主动，有良好的沟通能力和团队合作能力，能够完成有挑战的目标。
 ----------------------------------------------------------------------------------------
 
-【24】公司：墨泊可士
+【27】公司：墨泊可士
 岗位：AI大模型应用开发（可转正）
 城市：广州 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_8n6ozfwjbrge?pcm=pc_SearchList
@@ -540,7 +615,7 @@ English: Conversational
 4.具备项目中和业务人员的基本沟通能力，能够通过不断沟通了解业务落地中的关键点;
 ----------------------------------------------------------------------------------------
 
-【25】公司：百度
+【28】公司：百度
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_vtaxzfwbbrdo?pcm=pc_SearchList
@@ -561,7 +636,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【26】公司：美团
+【29】公司：美团
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_dtc0wj4oi4ia?pcm=pc_SearchList
@@ -582,7 +657,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【27】公司：腾讯
+【30】公司：腾讯
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_41j1fpqum9pq?pcm=pc_SearchList
@@ -603,7 +678,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【28】公司：飞书
+【31】公司：飞书
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_x9qlo6om1b8m?pcm=pc_SearchList
@@ -624,7 +699,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【29】公司：荷叶健康
+【32】公司：荷叶健康
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_tdcdkntutnvz?pcm=pc_SearchList
@@ -645,7 +720,7 @@ English: Conversational
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【30】公司：蜀俊博凌
+【33】公司：蜀俊博凌
 岗位：大模型算法（可转正）
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_wq1ozyb2sfyj?pcm=pc_SearchList
@@ -666,7 +741,7 @@ English: Conversational
 5.优秀的产品和业务感知能力，责任心强，积极主动，有良好的沟通能力和团队合作能力，能够完成有挑战的目标。
 ----------------------------------------------------------------------------------------
 
-【31】公司：百度
+【34】公司：百度
 岗位：大模型算法工程师（实习）(J106176)
 城市：北京 ｜ 薪资：250-500/天
 来源链接：https://www.shixiseng.com/intern/inn_bmopjpumw4ss?pcm=pc_SearchList
@@ -684,7 +759,7 @@ English: Conversational
 - 团队协作： 具备良好的沟通能力和团队合作精神，工作积极主动，自我驱动力强
 ----------------------------------------------------------------------------------------
 
-【32】公司：妙客莱音
+【35】公司：妙客莱音
 岗位：AI Agent开发（可转正）
 城市：上海 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_zyges1apfcqb?pcm=pc_SearchList
@@ -703,7 +778,7 @@ English: Conversational
 4.深入掌握LangChain、LangGraph、Llamalndex等主流智能体开发框架，有实际项目落地经验优先;
 ----------------------------------------------------------------------------------------
 
-【33】公司：字节跳动
+【36】公司：字节跳动
 岗位：AI Agent策略运营实习生 - TikTok
 城市：上海 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_gob0hfiuwja7?pcm=pc_SearchList
@@ -730,7 +805,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 4、英语可作为工作语言，英文流利，雅思6.5及以上，托福/六级等需要同等水平。
 ----------------------------------------------------------------------------------------
 
-【34】公司：小红书
+【37】公司：小红书
 岗位：大模型算法
 城市：上海 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_pl02wb4uvfh0?pcm=pc_SearchList
@@ -751,7 +826,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【35】公司：阿里巴巴
+【38】公司：阿里巴巴
 岗位：大模型算法
 城市：上海 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_c3nzibnpdnw7?pcm=pc_SearchList
@@ -772,7 +847,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【36】公司：渡口网络科技
+【39】公司：渡口网络科技
 岗位：大模型算法
 城市：上海 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_t0onvyviy8ve?pcm=pc_SearchList
@@ -793,7 +868,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【37】公司：上海跳上月球科技有限公司
+【40】公司：上海跳上月球科技有限公司
 岗位：大模型评测实习生
 城市：上海 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_gysfxdj9vx9o?pcm=pc_SearchList
@@ -818,7 +893,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 3. 海外网文、二次元、同人文化爱好者
 ----------------------------------------------------------------------------------------
 
-【38】公司：阶跃星辰
+【41】公司：阶跃星辰
 岗位：大模型招聘实习生
 城市：上海 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_35ncbs1l05cc?pcm=pc_SearchList
@@ -841,7 +916,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 该岗位可开具实习证明，尽快到岗者优先。
 ----------------------------------------------------------------------------------------
 
-【39】公司：妙客莱音
+【42】公司：妙客莱音
 岗位：大模型算法（可转正）
 城市：上海 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_jno9qipigaca?pcm=pc_SearchList
@@ -860,7 +935,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 4.深入掌握LangChain、LangGraph、Llamalndex等主流智能体开发框架，有实际项目落地经验优先;
 ----------------------------------------------------------------------------------------
 
-【40】公司：浙江华为
+【43】公司：浙江华为
 岗位：大模型算法
 城市：杭州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_giygawswzlkf?pcm=pc_SearchList
@@ -881,7 +956,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【41】公司：原创软件
+【44】公司：原创软件
 岗位：大模型算法
 城市：杭州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_pqlh9uo9jumv?pcm=pc_SearchList
@@ -902,7 +977,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【42】公司：蜀俊博凌
+【45】公司：蜀俊博凌
 岗位：AI Agent开发（可转正）
 城市：北京 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_iypvifeu1trc?pcm=pc_SearchList
@@ -921,7 +996,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 4.深入掌握LangChain、LangGraph、Llamalndex等主流智能体开发框架，有实际项目落地经验优先;
 ----------------------------------------------------------------------------------------
 
-【43】公司：原力金智
+【46】公司：原力金智
 岗位：AI Agent 研发实习生
 城市：北京 ｜ 薪资：300/天
 来源链接：https://www.shixiseng.com/intern/inn_2mimjhsdf0o9?pcm=pc_SearchList
@@ -943,7 +1018,149 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 具备 Prompt Engineering、Tool Calling、RAG、多 Agent 系统等实践经验。
 ----------------------------------------------------------------------------------------
 
-【44】公司：原力金智
+【47】公司：墨泊可士
+岗位：C++开发（可转正）
+城市：广州 ｜ 薪资：200-400/天
+来源链接：https://www.shixiseng.com/intern/inn_nftdftzj91we?pcm=pc_SearchList
+发布时间：2026-09-22
+----------------------------------------------------------------------------------------
+【岗位职责】
+1.参与公司产品功能模块研发;
+2.完成功能自测试和单元测试;
+3.参与产品开发过程相关活动;
+4.完成上级安排的其他任务；
+
+【任职要求】
+1.本科及以上学历，计算机、电子信息、自动化、软件工程、人工智能等相关专业；
+2.熟悉C/C++编程语言;
+3.了解计算机的基本工作原理和相关概念;
+4.掌握Linux常用命令和Windows基本操作;
+5.逻辑严谨，注重细节，追求代码质量;
+6.善于学习，爱折腾，对编程技术有浓厚的兴趣;
+----------------------------------------------------------------------------------------
+
+【48】公司：墨泊可士
+岗位：AI应用开发（可转正）
+城市：广州 ｜ 薪资：200-400/天
+来源链接：https://www.shixiseng.com/intern/inn_ct9k5tle1quk?pcm=pc_SearchList
+发布时间：2026-09-22
+----------------------------------------------------------------------------------------
+【岗位职责】
+1.负责AI技术在实际应用场景中的研发与落地；
+2.参与模型设计、系统集成及性能优化；
+3.结合业务需求进行技术方案调研与验证；
+4.推动AI产品的持续迭代与效果提升；
+
+【任职要求】
+1.本科及以上学历，计算机、AI、数据、电子信息、自动化，软件工程、人工智能等相关专业;
+2.具有基础的编程能力，熟悉至少一门语言(Python/Java/Golang至少了解一种);
+3.对AIAgent技术领域充满兴趣和热情;
+4.善于沟通、按时完成上级交给的工作；
+5.拥有良好的团队合作精神，能迅速融入团队；
+6.具备良好的学习能力，能够不断改进工作方法；
+----------------------------------------------------------------------------------------
+
+【49】公司：友邦资讯科技
+岗位：开发实习生
+城市：广州 ｜ 薪资：180-250/天
+来源链接：https://www.shixiseng.com/intern/inn_fahj4gvsbnm7?pcm=pc_SearchList
+发布时间：2026-09-22
+----------------------------------------------------------------------------------------
+【职位描述】
+Job Description:
+We are looking for a motivated and detail-oriented Software Development Intern to join our team. This internship offers a valuable opportunity to gain hands-on experience in real-world software development projects and collaborate with experienced professionals in a dynamic and supportive environment.
+
+Key Responsibilities:
+- Assist in the design, development, and testing of software applications.
+- Participate in code reviews and contribute to improving code quality.
+- Support debugging and troubleshooting of existing systems.
+- Document technical processes and contribute to team knowledge sharing.
+- Collaborate with cross-functional teams to deliver project milestones.
+
+Qualifications:
+- Currently pursuing a bachelor's or master's degree in computer science, Software Engineering, or a related field.
+- Proficient in Java and Python.
+- Familiarity with software development tools such as Git, IDEs (e.g., IntelliJ, VS Code), and debugging tools.
+- Basic understanding of data structures, algorithms, and object-oriented programming.
+- Good communication and teamwork skills.
+- Attention to detail and ability to work independently.
+- Experience with web development frameworks (e.g., Spring Boot, Django).
+- Knowledge of databases (SQL/NoSQL).
+- Exposure to cloud platforms or DevOps tools is a plus.
+----------------------------------------------------------------------------------------
+
+【50】公司：墨泊可士
+岗位：Java开发（可转正）
+城市：广州 ｜ 薪资：200-400/天
+来源链接：https://www.shixiseng.com/intern/inn_d21pagsrmutc?pcm=pc_SearchList
+发布时间：2026-09-22
+----------------------------------------------------------------------------------------
+【岗位职责】
+1.负责公司系统开发工作；
+2.根据设计要求，完成程序的设计及代码编写，并撰写相关开发技术文档；
+3.能够协同其他开发工程师，共同参与项目研发；
+4.负责相关业务系统开发，调试和系统集成工作；
+
+【任职要求】
+1.本科及以上学历，计算机、电子信息、自动化、软件工程、人工智能等相关专业；
+2.熟悉Java编程，了解常用的开源框架;
+3.熟悉常用设计模式，了解面向对象编程，掌握软件开发的基础知识；
+4.熟悉操作系统、网络等基础知识，熟悉常用的数据结构及算法；
+5.熟悉主流的应用服务器软件和数据库，了解常用的开源框架；
+6.具有良好的沟通能力、团队合作精神，责任心和学习能力强；
+----------------------------------------------------------------------------------------
+
+【51】公司：顶辉数字
+岗位：算法工程师
+城市：广州 ｜ 薪资：320-540/天
+来源链接：https://www.nowcoder.com/jobs/detail/469372
+发布时间：2026-09-22
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【52】公司：美团
+岗位：具身vla（抓取）算法工程师实习生
+城市：深圳 ｜ 薪资：300-350/天
+来源链接：https://www.nowcoder.com/jobs/detail/468736
+发布时间：2026-09-22
+----------------------------------------------------------------------------------------
+负责基于视觉-语言-动作大模型（VLA）的抓取策略研发，实现自然语言指令驱动的开放场景抓取操作，推动泛化抓取能力在配送领域的落地；
+
+负责端到端感知-规划算法研发，探索基于大模型的端到端规划方法（如VLM/VLN驱动的行为决策与轨迹生成），评估前沿算法在实际配送场景的应用可行性并推动落地；
+
+负责数据的自动化标注、数据闭环体系建设，持续积累场景数据并驱动模型迭代；
+
+跟进行业最新AI算法动态（多模态大模型、世界模型、具身智能等），复现和优化前沿算法，保持算法在工业界和学术界的领先性；
+
+计算机科学、人工智能、自动化、电子信息、机器人等相关专业，硕士及以上学历；
+
+具备扎实的C/C++和Python编程功底，熟悉Linux开发环境，熟悉ROS/ROS2下机器人系统开发；
+
+熟练掌握PyTorch/TensorFlow等至少一种深度学习框架，具备扎实的深度学习与计算机视觉基础；
+
+熟悉目标检测、跟踪、语义分割、3D点云感知等视觉/激光感知任务，有实际项目落地经验；
+
+熟悉多模态大模型（VLM/VLA）、具身智能、端到端规划等前沿方向，有相关复现或研究经验者优先；
+
+熟练使用AI编程工具（如CodeX、Claude Code等）进行算法开发与代码生成，具备AI辅助编程的工程化实践能力，提升研发效率；
+
+具有良好的沟通能力、团队合作精神和高度的责任心。
+----------------------------------------------------------------------------------------
+
+【53】公司：原力金智
 岗位：大模型/agent应用产品实习生
 城市：北京 ｜ 薪资：150/天
 来源链接：https://www.shixiseng.com/intern/inn_vcanb2oeh0ya?pcm=pc_SearchList
@@ -969,7 +1186,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 每周可实习4天及以上，能连续实习3 个月以上实习者优先。
 ----------------------------------------------------------------------------------------
 
-【45】公司：百度
+【54】公司：百度
 岗位：Agent 前端研发实习生 J104168
 城市：北京 ｜ 薪资：250-400/天
 来源链接：https://www.shixiseng.com/intern/inn_ulq4qnkucubn?pcm=pc_SearchList
@@ -1006,7 +1223,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 善于借助 AI 扩展自己的能力，也愿意读懂代码、验证结果、认真打磨细节。你不需要一开始就掌握所有技术，我们期待你带着主动性和判断力，和团队一起把问题解决、把产品做好。
 ----------------------------------------------------------------------------------------
 
-【46】公司：字节跳动
+【55】公司：字节跳动
 岗位：Agent产品实习生 - 抖音增长
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_kz9yd9q5yyjd?pcm=pc_SearchList
@@ -1029,7 +1246,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 4、有实操做过AI项目的优先，包括但不限于Harness优化、上下文工程、Skill、工作流、模型后训练。
 ----------------------------------------------------------------------------------------
 
-【47】公司：小米
+【56】公司：小米
 岗位：agent后训练算法实习生-2027届(A16404)
 城市：北京 ｜ 薪资：250-400/天
 来源链接：https://www.shixiseng.com/intern/inn_mkjud7xjdtrn?pcm=pc_SearchList
@@ -1054,7 +1271,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 - 数学功底扎实，能独立推导优化目标、分析 loss 设计与梯度行为。
 ----------------------------------------------------------------------------------------
 
-【48】公司：字节跳动
+【57】公司：字节跳动
 岗位：Agent评测与工程实习生 - AI数据与安全
 城市：北京 ｜ 薪资：250/天
 来源链接：https://www.shixiseng.com/intern/inn_psimwuuzs2fr?pcm=pc_SearchList
@@ -1079,7 +1296,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 6、有基本工程习惯，能写可维护代码，能处理异常、日志、配置、接口对接和文档沉淀。
 ----------------------------------------------------------------------------------------
 
-【49】公司：字节跳动
+【58】公司：字节跳动
 岗位：Agent评测数据实习生 - AI数据与安全
 城市：北京 ｜ 薪资：250/天
 来源链接：https://www.shixiseng.com/intern/inn_ya2l3cendpvw?pcm=pc_SearchList
@@ -1103,7 +1320,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 5、对AI有高度热情，有较强的自驱、学习、跨团队沟通能力，责任心强，主动跟进长程评测专项迭代，持续跟进领域前沿研究。
 ----------------------------------------------------------------------------------------
 
-【50】公司：广联达
+【59】公司：广联达
 岗位：AI 智能体搭建实习生（建筑行业方向）
 城市：北京 ｜ 薪资：150-200/天
 来源链接：https://www.shixiseng.com/intern/inn_puuu7fz6dojc?pcm=pc_SearchList
@@ -1132,7 +1349,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 对 AI 产品、智能体、Agent、RAG、工作流有强烈兴趣。
 ----------------------------------------------------------------------------------------
 
-【51】公司：美团
+【60】公司：美团
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_xkvil7p8vhn5?pcm=pc_SearchList
@@ -1153,7 +1370,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【52】公司：飞书
+【61】公司：飞书
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_r3alow5s9css?pcm=pc_SearchList
@@ -1174,7 +1391,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【53】公司：长擎软件
+【62】公司：长擎软件
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_xgyywdl9wymv?pcm=pc_SearchList
@@ -1195,7 +1412,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【54】公司：洞悉网络
+【63】公司：洞悉网络
 岗位：大模型算法
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_qugs3vw6go3s?pcm=pc_SearchList
@@ -1216,7 +1433,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【55】公司：百度
+【64】公司：百度
 岗位：大模型算法策略实习生
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_kapwghxlnjs1?pcm=pc_SearchList
@@ -1242,7 +1459,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 优秀实习生可获得转正机会；
 ----------------------------------------------------------------------------------------
 
-【56】公司：百度
+【65】公司：百度
 岗位：大模型算法工程师(J106089)
 城市：北京 ｜ 薪资：250-500/天
 来源链接：https://www.shixiseng.com/intern/inn_rxxphvirjrex?pcm=pc_SearchList
@@ -1262,7 +1479,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 5.责任心强，有良好的沟通能力和团队合作能力。
 ----------------------------------------------------------------------------------------
 
-【57】公司：字节跳动
+【66】公司：字节跳动
 岗位：产品内容营销（AI Agent方向）实习生-飞书
 城市：上海 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_k0bauzahedke?pcm=pc_SearchList
@@ -1293,7 +1510,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 3、有爆款内容案例（短视频、图文笔记、自媒体账号等），能提供数据佐证。
 ----------------------------------------------------------------------------------------
 
-【58】公司：国金证券
+【67】公司：国金证券
 岗位：公司直属-金融创新部-AI 智能体开发（期权方向）(J16734)
 城市：上海 ｜ 薪资：100-120/天
 来源链接：https://www.shixiseng.com/intern/inn_ddkfkid1dnh8?pcm=pc_SearchList
@@ -1319,7 +1536,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 - 熟悉 TypeScript、Linux、至少一种关系型或向量数据库。
 ----------------------------------------------------------------------------------------
 
-【59】公司：美的集团（上海）有限公司
+【68】公司：美的集团（上海）有限公司
 岗位：具身智能( 机器人操作)实习生
 城市：上海 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_ulbsznwoeiqh?pcm=pc_SearchList
@@ -1352,7 +1569,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 面向工业场景的机器人抓取与操作研究，涉及视觉感知、仿真数据生成、操作策略学习、系统集成几个环节。有真实机械臂平台，成果要在真机上跑通并不断优化，不是只出论文和 demo 视频。
 ----------------------------------------------------------------------------------------
 
-【60】公司：阿里巴巴
+【69】公司：阿里巴巴
 岗位：大模型算法
 城市：上海 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_ytlhhguzg5ti?pcm=pc_SearchList
@@ -1373,7 +1590,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【61】公司：数知梦科技
+【70】公司：数知梦科技
 岗位：大模型算法
 城市：上海 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_0alhnbivfjm2?pcm=pc_SearchList
@@ -1394,7 +1611,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【62】公司：小荷医学
+【71】公司：小荷医学
 岗位：甲基化DNA大模型研发实习生(A07339)
 城市：上海 ｜ 薪资：400/天
 来源链接：https://www.shixiseng.com/intern/inn_ibaldogupfm4?pcm=pc_SearchList
@@ -1422,7 +1639,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 4、有大规模训练、LoRA / PEFT、开源项目或生信竞赛经验。
 ----------------------------------------------------------------------------------------
 
-【63】公司：浙江华为
+【72】公司：浙江华为
 岗位：大模型算法
 城市：杭州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_tvoz5wdbashv?pcm=pc_SearchList
@@ -1443,7 +1660,41 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【64】公司：信投智联科技
+【73】公司：花姐伴你
+岗位：后端开发
+城市：广州 ｜ 薪资：100-180/天
+来源链接：https://www.shixiseng.com/intern/inn_zui4rxqyfui4?pcm=pc_SearchList
+发布时间：2026-09-21
+----------------------------------------------------------------------------------------
+【职位描述】
+后端开发实习生 职位描述： 后端开发实习生： 职责： 1.平台后台系统开发和相关技术攻关 要求： 1.熟悉JAVA、Python、C/C++等后端技术 2.熟悉虚拟机的原理，并有一定的基于虚拟机的相关开发与调试经验； 3.熟悉操作系统的相关原理，具备多线程/进程的相关开发经验，熟练应用IPC等相关机制； 4.熟悉数据库的相关原理，具备一种或者几种常见数据库的相关开发经验，比如mysql、PostgreSQL、MongoDB、Cassandra、Redis等 5.具备良好的设计模式、代码规范、团队合作能力，对新技术或问题能独立学习，思考解决问题 6.计算机、软件相关专业，有一定的项目经验者优先。
+----------------------------------------------------------------------------------------
+
+【74】公司：花姐伴你
+岗位：PHP后端开发工程师实习生
+城市：广州 ｜ 薪资：150-200/天
+来源链接：https://www.shixiseng.com/intern/inn_cwhvnvtcimth?pcm=pc_SearchList
+发布时间：2026-09-21
+----------------------------------------------------------------------------------------
+【岗位职责】
+1、 负责商城前后端管理系统的设计和开发； 2、 完成移动端数据接口的对接以及数据分析工作；
+
+3. 负责公司官网、小程序、微信活动的维护开发。
+
+4. 参与后端基础服务的架构、实现。
+
+5、 负责管理系统的维护和二次开发；
+
+6、 懂微信接口设计、开发和维护优先考虑。
+
+二、任职资格： 1、有PHP开发经验，熟悉PHP开发, 熟悉TP、Yii、或Lavarel中至少1-2种框架； 2、有高负载、大并发的系统结构、调试、排错、优化、部署等方面经验优先;熟练掌握Apache+Mysql数据库安装; 3、熟悉Linux/unix操作系统更优；有开源系统二次开发经验优先； 4、熟悉HTML,DIV+CSS等web前端技术，能解决一些常见的浏览器兼容性问题；
+
+5、了解LNMP架构，Redis以及其他常见数据库或缓存技术
+
+6、 英语通过6级考试者可优先考虑。
+----------------------------------------------------------------------------------------
+
+【75】公司：信投智联科技
 岗位：大模型算法
 城市：广州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_jyewe5uie18z?pcm=pc_SearchList
@@ -1464,7 +1715,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【65】公司：FOSHO
+【76】公司：FOSHO
 岗位：AI大模型开发实习生
 城市：深圳 ｜ 薪资：150-250/天
 来源链接：https://www.shixiseng.com/intern/inn_1wtj31m7famb?pcm=pc_SearchList
@@ -1491,7 +1742,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 7. 对人工智能技术有浓厚兴趣，具备较强的自驱力和问题解决能力。
 ----------------------------------------------------------------------------------------
 
-【66】公司：百度
+【77】公司：百度
 岗位：Aigc多模态智能体算法工程师(J106090)
 城市：北京 ｜ 薪资：250-500/天
 来源链接：https://www.shixiseng.com/intern/inn_cpzuifnxvdll?pcm=pc_SearchList
@@ -1514,7 +1765,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 8. 具备较强的学习能力、创新意识和技术探索精神，能够快速跟进AIGC领域前沿技术。
 ----------------------------------------------------------------------------------------
 
-【67】公司：快手
+【78】公司：快手
 岗位：商家智能体产品实习生-【生活服务】（北京）
 城市：北京 ｜ 薪资：181-272/天
 来源链接：https://www.shixiseng.com/intern/inn_zzwxheiurcxi?pcm=pc_SearchList
@@ -1535,7 +1786,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 5. 能实习6个月及以上，一周至少4天，全勤到岗优先。
 ----------------------------------------------------------------------------------------
 
-【68】公司：联想
+【79】公司：联想
 岗位：商业化运营 · AI 智能体搭建实习生
 城市：北京 ｜ 薪资：150-200/天
 来源链接：https://www.shixiseng.com/intern/inn_sjx95cpwpgv8?pcm=pc_SearchList
@@ -1556,7 +1807,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 6. 到岗要求：每周可到岗 5 天，实习期连续 ≥ 5 个月。
 ----------------------------------------------------------------------------------------
 
-【69】公司：字节跳动
+【80】公司：字节跳动
 岗位：数据产品实习生（投放与智能归因方向） - 抖音
 城市：北京 ｜ 薪资：350-500/天
 来源链接：https://www.shixiseng.com/intern/inn_bx9fdtm2y79h?pcm=pc_SearchList
@@ -1578,7 +1829,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 3、有VideCoding作品优先。
 ----------------------------------------------------------------------------------------
 
-【70】公司：字节跳动
+【81】公司：字节跳动
 岗位：大模型算法实习生-抖音
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_md0jjsjmrspj?pcm=pc_SearchList
@@ -1600,7 +1851,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 4、在顶级会议发表论文，或ACM/机器学习/各学科奥林匹克等竞赛获奖者优先。
 ----------------------------------------------------------------------------------------
 
-【71】公司：博世中国
+【82】公司：博世中国
 岗位：AI agent开发实习生_C
 城市：上海 ｜ 薪资：150-180/天
 来源链接：https://www.shixiseng.com/intern/inn_naqiot8ugyxn?pcm=pc_SearchList
@@ -1654,7 +1905,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 协议地址：请通过访问博世中国官方主页，博世在中国＆gt;加入博世＆gt;工作机会，在网上招聘数据隐私声明；
 ----------------------------------------------------------------------------------------
 
-【72】公司：瞬知智能
+【83】公司：瞬知智能
 岗位：需要金融行业专家｜AI Agent测评任务设计
 城市：上海 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_5ji7nkidbcqd?pcm=pc_SearchList
@@ -1685,7 +1936,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 报名请提供：专业方向、从业经历、熟悉的工具，以及1—3项可转化为任务的真实工作案例。
 ----------------------------------------------------------------------------------------
 
-【73】公司：淘课
+【84】公司：淘课
 岗位：AI智能体开发
 城市：上海 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_kkvd61f2oeph?pcm=pc_SearchList
@@ -1708,7 +1959,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 4、沟通能力强，期待产品开发+产品设计的复合型能力提升。
 ----------------------------------------------------------------------------------------
 
-【74】公司：小红书
+【85】公司：小红书
 岗位：Agent平台全栈研发工程师（练习生）
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_7c3lam749tq6?pcm=pc_SearchList
@@ -1733,7 +1984,7 @@ TikTok ADSO（AI Data Service and Operations）团队负责支撑AI 模型训练
 3. 曾利用 AI 工具独立设计并交付完整 Web / AI 应用，有真实用户、开源项目、技术博客或作品展示。
 ----------------------------------------------------------------------------------------
 
-【75】公司：喵吉托游戏
+【86】公司：喵吉托游戏
 岗位：游戏Agent（长期招募）
 城市：上海 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_4igduj18tp2h?pcm=pc_SearchList
@@ -1763,7 +2014,7 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 极客氛围与尊重： 拒绝无效加班，结果导向，技术氛围纯粹，鼓励一切疯狂的脑洞与尝试。
 ----------------------------------------------------------------------------------------
 
-【76】公司：NIO蔚来
+【87】公司：NIO蔚来
 岗位：agent开发实习生(A32338)
 城市：上海 ｜ 薪资：300/天
 来源链接：https://www.shixiseng.com/intern/inn_pvqxooatjzqg?pcm=pc_SearchList
@@ -1793,7 +2044,7 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 8. 有 AI Agent 在工业、供应链或物流等场景的落地经验优先。
 ----------------------------------------------------------------------------------------
 
-【77】公司：小红书
+【88】公司：小红书
 岗位：Agent平台全栈研发工程师（练习生）
 城市：上海 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_smbwafzc9nea?pcm=pc_SearchList
@@ -1818,7 +2069,7 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 3. 曾利用 AI 工具独立设计并交付完整 Web / AI 应用，有真实用户、开源项目、技术博客或作品展示。
 ----------------------------------------------------------------------------------------
 
-【78】公司：NIO蔚来
+【89】公司：NIO蔚来
 岗位：智能预警算法实习生(A19009)
 城市：上海 ｜ 薪资：300/天
 来源链接：https://www.shixiseng.com/intern/inn_dohm3nuutl6w?pcm=pc_SearchList
@@ -1848,7 +2099,102 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 了解前后端开发,掌握html、css、js、flask等技术。
 ----------------------------------------------------------------------------------------
 
-【79】公司：信投智联科技
+【90】公司：小律同学
+岗位：AI应用开发实习生（法律科技方向）
+城市：广州 ｜ 薪资：薪资面议
+来源链接：https://www.shixiseng.com/intern/inn_ztqeixo1j38k?pcm=pc_SearchList
+发布时间：2026-09-18
+----------------------------------------------------------------------------------------
+【岗位职责】
+1.协助设计并开发基于 LLM 大模型的应用、服务与工作流，使用 Python 参与 Agent 智能体编排、工具插件调用开发。
+2.协助运用上下文工程、MCP 调用、Skills 插件、RAG 检索增强等手段，通过 Python 脚本优化大模型输出质量、稳定性与可控性。
+3.基于 Python 的 FastAPI/Flask 框架协助开发、封装接口，集成主流大模型服务商 API；协助完成吞吐、延迟、成本、可扩展性相关测试验证，保障服务基础 SLA。
+4.使用 Python 编写评测脚本，参与评测体系、回归测试机制搭建；协助完成离线评测、简单在线 A/B 实验；搭建基础可观测与监控告警（质量、延迟、成本、失败率等）。
+5.配合产品、业务团队，落地 AI 相关功能，对接业务需求，验证 AI 能力业务效果。
+6.编写接口文档、技术说明文档，沉淀开发过程中的工程实践。
+7.跟进生成式 AI 领域新技术（Agent、RAG、Prompt 工程等），使用 Python 完成技术调研与简易 Demo 验证。
+
+【任职要求】
+1.计算机、人工智能、软件工程等相关专业在读研究生；了解大模型、RAG、Agent 基础概念。
+2.熟练掌握 Python 基础编程，能够独立编写业务脚本；至少接触过 FastAPI 或 Flask 其中一种 Web 框架，具备基础接口开发能力，理解 HTTP API 调用流程。
+3.了解大模型相关基础技术，对提示词工程、向量库、工具调用有实际接触者优先。
+4.具备基础问题排查能力，细心严谨，愿意跟进业务侧问题；有个人项目、Demo 作品优先。
+5.良好沟通协作能力，能够和团队对齐需求，输出文档。
+----------------------------------------------------------------------------------------
+
+【91】公司：友邦资讯科技
+岗位：后端开发实习生
+城市：广州 ｜ 薪资：180-200/天
+来源链接：https://www.shixiseng.com/intern/inn_rvdzmgduv2rf?pcm=pc_SearchList
+发布时间：2026-09-18
+----------------------------------------------------------------------------------------
+【任职要求】
+1. 本科及以上学历，计算机相关专业；
+2. 专业技术基础扎实，学习能力强，有项目开发经验优先;
+3. 英语能力良好，通过CET-6优先,
+4. 每周出勤4天或以上，能稳定实习。
+
+关于这个岗位，你将：
+1. 支持友邦核心保险系统的项目开发工作；
+2. 接触Cobol，RPG，AS400，SQL command；
+3. 负责项目对接，日常与业务人员讨论确认需求；
+4. 参与项目的设计、编码、测试等，编写相关的技术文档、系统实施；
+5. 与同事合作以实现整体项目目标。
+
+加入我们，你将在这里得到收获与成长：
+1.友邦保险位列世界500强企业，友邦资讯作为其全资子公司提供软件开发与技术服务，为你提供一个优质稳定的发展平台；
+2. 你将接触国际化的项目资源，和技术大牛一起做项目，与海外伙伴一起共事；
+3. 扁平沟通，高效协作，你将在一个年轻、包容的氛围中工作。
+----------------------------------------------------------------------------------------
+
+【92】公司：友邦资讯科技
+岗位：Java开发实习生
+城市：广州 ｜ 薪资：180-200/天
+来源链接：https://www.shixiseng.com/intern/inn_nggmuwasswfw?pcm=pc_SearchList
+发布时间：2026-09-18
+----------------------------------------------------------------------------------------
+【任职要求】
+1. 本科及以上学历，计算机相关专业；
+2. 专业技术基础扎实，学习能力强，有校/企Java开发实践经验优先;
+3. 英语读写能力良好，通过CET-6优先；
+4. 每周出勤4天或以上，能稳定实习。
+
+【岗位职责】
+1. Java基础知识的实际应用，面向对象编程思想；
+2. SQL ServerDB，简单存储过程和比较复杂的SP；
+3. SpringMvc，Springboot，mybatis等开源框架;
+4. 前沿的技术领域，如AI、云平台。
+
+你将获得：
+1. 友邦保险位列世界500强企业，友邦资讯作为其全资子公司提供软件开发与技术服务，为你提供一个优质稳定的发展平台；
+2.你将接触国际化的项目资源，和技术大咖一起做项目，与海外伙伴一起共事；
+3. 此岗位有转正机会，我们会提供丰富多彩的学习机会与全面赋能的培养计划，助你顺利转正;
+4. 扁平沟通，高效协作，你将在一个年轻、包容的氛围中工作。
+----------------------------------------------------------------------------------------
+
+【93】公司：创梦天地
+岗位：3d模型实习生
+城市：深圳 ｜ 薪资：150-180/天
+来源链接：https://www.shixiseng.com/intern/inn_fkmt4m1yp7ca?pcm=pc_SearchList
+发布时间：2026-09-18
+----------------------------------------------------------------------------------------
+【职位描述】
+简历上请附上可实习的时间，至少可全职实习6个月，以及请附上作品链接。
+岗位为纯实习，没有转正机会。
+
+【岗位职责】
+1、负责休闲游戏3D角色、场景、道具、小物件等模型贴图制作，准确理解原画设定，沟通并制作出高低精度模型贴图（会手绘贴图优先）；
+2、对不同游戏的风格转换适应能力强，能高度还原不同游戏风格之间的原画效果。
+
+【任职要求】
+1、热爱3D游戏制作，对3D制作有着较强的学习能力；
+2、有良好的美术基础，熟练maya、potoshop等软件的基本操作；
+3、对各类美术风格的3D制作有较强的适应能力，对美术风格转换有着学习的态度；
+4、有较好执行力和学习能力，善于沟通者优先，良好的团队合作意识；
+5、本科及以上学历，大二、大三、研一、研二在校生，至少可全职实习6个月。
+----------------------------------------------------------------------------------------
+
+【94】公司：信投智联科技
 岗位：大模型算法
 城市：广州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_pztab1vmuoqq?pcm=pc_SearchList
@@ -1869,7 +2215,7 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
 ----------------------------------------------------------------------------------------
 
-【80】公司：信投智联科技
+【95】公司：信投智联科技
 岗位：Ai应用开发
 城市：广州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_yzuwjonf8ggo?pcm=pc_SearchList
@@ -1888,7 +2234,7 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 5，工作认真负责，有耐心，具备基本的逻辑思维能力和问题解决能力，愿意主动学习新工具、新技术。
 ----------------------------------------------------------------------------------------
 
-【81】公司：百度
+【96】公司：百度
 岗位：金融投研实习生-AI Agent方向
 城市：北京 ｜ 薪资：150-300/天
 来源链接：https://www.shixiseng.com/intern/inn_pzys4r2dmjsp?pcm=pc_SearchList
@@ -1916,7 +2262,7 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 工作地点
 ----------------------------------------------------------------------------------------
 
-【82】公司：哔哩哔哩
+【97】公司：哔哩哔哩
 岗位：数据平台 agent产品实习生
 城市：上海 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_hqbg22fpb64d?pcm=pc_SearchList
@@ -1935,7 +2281,7 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 2. 对Agent应用有浓厚兴趣和基础认知，了解Agent基本工作原理，有相关实习或项目经验者优先。
 ----------------------------------------------------------------------------------------
 
-【83】公司：瞬知智能
+【98】公司：瞬知智能
 岗位：金融Agent评测与任务设计专家
 城市：上海 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_cw0hculfsr3u?pcm=pc_SearchList
@@ -1997,7 +2343,7 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 欢迎善于钻研、对AI发展感兴趣且具备相关经验的专家加入！
 ----------------------------------------------------------------------------------------
 
-【84】公司：NIO蔚来
+【99】公司：NIO蔚来
 岗位：工业AI算法与Agent应用实习生(A226235)
 城市：上海 ｜ 薪资：300/天
 来源链接：https://www.shixiseng.com/intern/inn_vdgahxoybhca?pcm=pc_SearchList
@@ -2029,7 +2375,7 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 6. 擅长撰写技术文档、测试报告；
 ----------------------------------------------------------------------------------------
 
-【85】公司：哔哩哔哩
+【100】公司：哔哩哔哩
 岗位：音视频基模Agent Harness 工程师
 城市：上海 ｜ 薪资：250-300/天
 来源链接：https://www.shixiseng.com/intern/inn_3sfsvtsynt5b?pcm=pc_SearchList
@@ -2062,7 +2408,7 @@ AI 热情与算法基础： 对 AI 技术（LLM/Multi-Agent/多模态等）抱�
 4. 有客户端开发及性能优化经验。
 ----------------------------------------------------------------------------------------
 
-【86】公司：博世中国
+【101】公司：博世中国
 岗位：AI Agent developer-TAN Kangkang
 城市：上海 ｜ 薪资：200-300/天
 来源链接：https://www.shixiseng.com/intern/inn_arigo0axyngk?pcm=pc_SearchList
@@ -2128,7 +2474,7 @@ Internship Availability
 协议地址：请通过访问博世中国官方主页，博世在中国＆gt;加入博世＆gt;工作机会，在网上招聘数据隐私声明；
 ----------------------------------------------------------------------------------------
 
-【87】公司：得物App
+【102】公司：得物App
 岗位：商业智能数据分析实习生
 城市：上海 ｜ 薪资：200/天
 来源链接：https://www.shixiseng.com/intern/inn_nes9sfjwlbaa?pcm=pc_SearchList
@@ -2155,7 +2501,103 @@ AI 创新项目：参与社区 AI 赋能方向的创新探索，重点包括风�
 与算法、运营、产品多团队协作的完整项目经验，覆盖指标体系、实验、风险治理与 AI 落地多条线
 ----------------------------------------------------------------------------------------
 
-【88】公司：科大讯飞
+【103】公司：虹科
+岗位：仿真测试实习生（广州、上海、成都、苏州等）
+城市：广州 ｜ 薪资：250-300/天
+来源链接：https://www.shixiseng.com/intern/inn_kd6cwbdinq7e?pcm=pc_SearchList
+发布时间：2026-09-17
+----------------------------------------------------------------------------------------
+【岗位职责】
+1. 负责智能驾驶场景的构建与泛化，基于aiSim、VTD、Carla等专业仿真软件，开发符合OpenX系列标准的仿真用例。
+2. 参与自动驾驶算法模型的接入、参数配置与接口适配工作，支撑基础仿真模型的开发与验证。
+3. 协助搭建仿真测试平台，执行自动化仿真测试任务，并完成测试数据的分析与归档。
+4. 负责仿真脚本、数据处理工具及简单接口代码的编写与维护，提升仿真验证效率。
+5. 支持售前阶段的DEMO演示与基础技术答疑，并配合团队完成客户现场的系统交付与调试。
+
+【任职要求】
+1. 本科及以上学历在读学生，车辆工程、人工智能、计算机、控制工程、载运工具运用工程等理工科相关专业。
+2. 了解自动驾驶系统的基本原理，熟悉至少一种主流仿真工具（如aiSim、VTD、Carla、Prescan、dSPACE等）。
+3. 具备良好的编程基础，熟练掌握C++或Python，有Linux环境下的开发或课程项目经验。
+4. 学习能力强，能够阅读英文技术文档，具备独立排查问题的能力，对新技术有强烈好奇心。
+5. 了解TCP/IP、ROS2、Git等基础开发工具链，知晓ASAM OpenDrive/OpenScenario标准者优先。
+工作地点可选广州、成都、上海、苏州等。广州虹科电子科技有限公司在当地的办公处。
+----------------------------------------------------------------------------------------
+
+【104】公司：友邦资讯科技
+岗位：Java开发实习生
+城市：广州 ｜ 薪资：180-250/天
+来源链接：https://www.shixiseng.com/intern/inn_kibdqpw9ba65?pcm=pc_SearchList
+发布时间：2026-09-17
+----------------------------------------------------------------------------------------
+【职位描述】
+Roles and Responsibilities:
+•We are looking for a Java Developer Intern to join us to support the development of AIA insurance systems and AI enabled digital applications.
+•This role offers hands on experience in Java backend development, distributed systems, system integration, and AI related application development, working closely with senior engineers, architects, product managers, and AI/data teams.
+•Assist in the development, and maintenance of Java based backend services for insurance technology platforms
+•Participate in the development of RESTful APIs and backend services using Java and Spring/Spring Boot
+•Support integration with internal systems and external services, including AI platforms and data services
+•Write clean, maintainable, and well documented code following team standards
+•Assist with unit testing, system testing, bug fixing, and performance optimization
+•Collaborate with product managers, business analysts, QA, and AI/data teams throughout the software development lifecycle.
+
+Job Requirements:
+• Bachelor’s student currently enrolled in Computer Science, Software Engineering, Information Systems, Artificial Intelligence, and other IT related majors.
+• Familiarity with Spring / Spring Boot or similar Java frameworks
+• Basic understanding of relational databases and SQL (e.g. SQL Server)
+• Knowledge of Web fundamentals (HTTP, RESTful APIs)
+• Strong learning ability and sense of responsibility
+• Able to work effectively as part of a team and under minimal supervision
+
+Preferred Qualifications (Nice to Have):
+• Internship or project experience in Java backend development
+• Experience participating in AI related projects or coursework.
+• Familiarity with microservice architecture and related concepts
+• Understanding of Git, and common CI/CD concepts
+----------------------------------------------------------------------------------------
+
+【105】公司：度小满
+岗位：大模型算法
+城市：广州 ｜ 薪资：300-500/天
+来源链接：https://www.nowcoder.com/jobs/detail/468229
+发布时间：2026-09-17
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【106】公司：滴滴
+岗位：大模型算法工程师
+城市：广州 ｜ 薪资：300-500/天
+来源链接：https://www.nowcoder.com/jobs/detail/468249
+发布时间：2026-09-17
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【107】公司：科大讯飞
 岗位：产品运营实习生（AI 平台方向）
 城市：广州 ｜ 薪资：150-250/天
 来源链接：https://www.shixiseng.com/intern/inn_bvmuxglatdbv?pcm=pc_SearchList
@@ -2178,7 +2620,7 @@ AI 创新项目：参与社区 AI 赋能方向的创新探索，重点包括风�
 6. 逻辑清晰，具备良好的沟通、文档表达和跨团队协作能力，愿意主动学习并动手解决问题
 ----------------------------------------------------------------------------------------
 
-【89】公司：现实回环科技有限公司
+【108】公司：现实回环科技有限公司
 岗位：AI Agent 工程实习生
 城市：深圳 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_bab3kia7hkzr?pcm=pc_SearchList
@@ -2220,7 +2662,7 @@ AI Agent 是当下最具想象力的技术方向之一。在现实回环，你�
 补贴完善：提供住房补贴、工作日餐补；每月组织不定期团队聚餐。
 ----------------------------------------------------------------------------------------
 
-【90】公司：小米
+【109】公司：小米
 岗位：Agent算法实习生-2027届(A47971)
 城市：北京 ｜ 薪资：250-400/天
 来源链接：https://www.shixiseng.com/intern/inn_v1qzlm1jiprb?pcm=pc_SearchList
@@ -2236,7 +2678,7 @@ AI Agent 是当下最具想象力的技术方向之一。在现实回环，你�
 3、保持对 AI 技术爆发的原始冲动，对通用人工智能（AGI） 具备长期坚定的信念，能够敏锐洞察并积极拥抱技术新范式，具备独立探索前沿思路的自主性。
 ----------------------------------------------------------------------------------------
 
-【91】公司：小红书
+【110】公司：小红书
 岗位：Agent 算法实习生｜创新业务
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_vhpx10vzqwnw?pcm=pc_SearchList
@@ -2262,7 +2704,7 @@ Evaluation & Data： 参与 Agent 评测集和数据建设，分析真实用户 
 学历要求： 本科及以上在读
 ----------------------------------------------------------------------------------------
 
-【92】公司：小红书
+【111】公司：小红书
 岗位：大模型应用算法实习-国际化业务
 城市：上海 ｜ 薪资：500-550/天
 来源链接：https://www.shixiseng.com/intern/inn_kdueiz3ob35r?pcm=pc_SearchList
@@ -2280,7 +2722,7 @@ Evaluation & Data： 参与 Agent 评测集和数据建设，分析真实用户 
 5、优秀的分析、解决问题能力，对新技术充满好奇，敢于挑战高难度，善于提出解决方案并快速验证。
 ----------------------------------------------------------------------------------------
 
-【93】公司：字节跳动
+【112】公司：字节跳动
 岗位：语音大模型算法实习生-Data语音
 城市：上海 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_uxs8djifwi5c?pcm=pc_SearchList
@@ -2307,7 +2749,7 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 4、沟通能力好，主人翁意识强，有组织协调能力，乐观自省。
 ----------------------------------------------------------------------------------------
 
-【94】公司：字节跳动
+【113】公司：字节跳动
 岗位：语音大模型AI平台产品实习生 - Data语音
 城市：杭州 ｜ 薪资：500-510/天
 来源链接：https://www.shixiseng.com/intern/inn_kwfuhollmh6o?pcm=pc_SearchList
@@ -2330,7 +2772,91 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 4、会使用AI、Vibe coding，会数据处理，有其他AI公司实习经验者加分。
 ----------------------------------------------------------------------------------------
 
-【95】公司：克诺丰赢
+【114】公司：美团金融
+岗位：大模型算法工程师
+城市：广州 ｜ 薪资：300-530/天
+来源链接：https://www.nowcoder.com/jobs/detail/467829
+发布时间：2026-09-16
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【115】公司：小红书
+岗位：大模型算法
+城市：广州 ｜ 薪资：300-540/天
+来源链接：https://www.nowcoder.com/jobs/detail/467657
+发布时间：2026-09-16
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【116】公司：阿里巴巴集团
+岗位：大模型算法
+城市：广州 ｜ 薪资：300-530/天
+来源链接：https://www.nowcoder.com/jobs/detail/467698
+发布时间：2026-09-16
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【117】公司：小红书
+岗位：大模型算法
+城市：深圳 ｜ 薪资：300-540/天
+来源链接：https://www.nowcoder.com/jobs/detail/467658
+发布时间：2026-09-16
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【118】公司：克诺丰赢
 岗位：AI应用开发
 城市：广州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_m9ujj7drz707?pcm=pc_SearchList
@@ -2354,7 +2880,7 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 能够保证每周至少 4 天的实习时间，实习周期不少于 3 个月，可长期实习者优先
 ----------------------------------------------------------------------------------------
 
-【96】公司：科大讯飞
+【119】公司：科大讯飞
 岗位：智能硬件产品运营实习生
 城市：深圳 ｜ 薪资：150-200/天
 来源链接：https://www.shixiseng.com/intern/inn_puzc3pibcasr?pcm=pc_SearchList
@@ -2374,7 +2900,7 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 如果您对人工智能行业特别感兴趣，又可以合理安排好学习时间，保证有足够时间投入到实习工作中，欢迎投递简历。
 ----------------------------------------------------------------------------------------
 
-【97】公司：百度
+【120】公司：百度
 岗位：大模型产品实习生
 城市：深圳 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_xjrbhiqldedr?pcm=pc_SearchList
@@ -2393,7 +2919,7 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 具备较强的责任心和团队协作意识，工作认真细致、耐心靠谱，能够积极推进任务落地，并具备一定的抗压能力。
 ----------------------------------------------------------------------------------------
 
-【98】公司：OPPO
+【121】公司：OPPO
 岗位：大模型算法实习生
 城市：深圳 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_ylgeay2rhpd4?pcm=pc_SearchList
@@ -2410,7 +2936,7 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 4.有以下经验者优先：Prompt 工程、RAG、Agent、模型微调（LoRA / QLoRA 等）、评测体系建设等。
 ----------------------------------------------------------------------------------------
 
-【99】公司：法雷奥
+【122】公司：法雷奥
 岗位：本地部署多模态大语言模型实习生
 城市：深圳 ｜ 薪资：150-200/天
 来源链接：https://www.shixiseng.com/intern/inn_2xq9vv5swhrc?pcm=pc_SearchList
@@ -2438,7 +2964,7 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 4.有 GPU 服务器部署经验，了解 CUDA、显存优化、量化部署等。
 ----------------------------------------------------------------------------------------
 
-【100】公司：字节跳动
+【123】公司：字节跳动
 岗位：Agent 开发实习生 - 火山方舟
 城市：北京 ｜ 薪资：500-510/天
 来源链接：https://www.shixiseng.com/intern/inn_ixfguth5f9yp?pcm=pc_SearchList
@@ -2467,7 +2993,7 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 5. 有高质量开源项目、技术竞赛或完整工程项目经历；熟悉 Docker / Kubernetes / CI/CD 等工程化实践者优先。
 ----------------------------------------------------------------------------------------
 
-【101】公司：上海创智学院
+【124】公司：上海创智学院
 岗位：Data Agent PM 实习生(A111157)
 城市：上海 ｜ 薪资：150-300/天
 来源链接：https://www.shixiseng.com/intern/inn_ipb2hiwfdg53?pcm=pc_SearchList
@@ -2500,7 +3026,7 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 落地为先的人，关心需求是否真被解决，而不是停留在 PRD 里
 ----------------------------------------------------------------------------------------
 
-【102】公司：雄启新程
+【125】公司：雄启新程
 岗位：[实习转正] AI+应用研发(Agent/Skill/Harness/视频处理)
 城市：上海 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_4ufb9kbjqrdp?pcm=pc_SearchList
@@ -2564,7 +3090,7 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 如果你觉得我们岗位适合你，欢迎申请！祝你好运！
 ----------------------------------------------------------------------------------------
 
-【103】公司：NIO蔚来
+【126】公司：NIO蔚来
 岗位：大模型应用实习生(A130076)
 城市：上海 ｜ 薪资：300/天
 来源链接：https://www.shixiseng.com/intern/inn_7fyitjg9zeni?pcm=pc_SearchList
@@ -2586,7 +3112,7 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 7.具有较强的责任心和团队精神，敬业务实，工作细致认真，有良好的语言表达能力和沟通协调能力。
 ----------------------------------------------------------------------------------------
 
-【104】公司：小红书
+【127】公司：小红书
 岗位：大模型算法实习生-社区治理
 城市：上海 ｜ 薪资：300-350/天
 来源链接：https://www.shixiseng.com/intern/inn_wxkd51lbbivb?pcm=pc_SearchList
@@ -2603,7 +3129,212 @@ ByteIntern：面向2027届毕业生（2026年9月-2027年8月期间毕业），�
 4、优秀的沟通协作、分析问题和解决问题的能力，对解决具有挑战性问题充满激情。
 ----------------------------------------------------------------------------------------
 
-【105】公司：时尚传媒
+【128】公司：Capstone
+岗位：感知算法工程师（机器人方向）
+城市：广州 ｜ 薪资：120/天
+来源链接：https://www.shixiseng.com/intern/inn_y6leoiln83iq?pcm=pc_SearchList
+发布时间：2026-09-15
+----------------------------------------------------------------------------------------
+【岗位职责】
+参与IMU、激光雷达、相机、毫米波雷达等多传感器感知算法开发与融合。
+参与传感器标定、坐标变换、状态估计及多源数据融合。
+参与点云处理、地面分割、障碍物检测、地形建模及局部环境地图构建。
+参与视觉语义信息与三维空间信息融合。
+完成算法在 ROS/ROS 2 系统中的集成、部署和真实设备测试。
+
+【任职要求】
+机器人、自动化、计算机、电子信息等相关专业，本科高年级或研究生在读。
+熟悉 C++ / Python，具备较好的算法实现能力。
+具备线性代数、概率统计和三维几何基础，理解坐标变换、旋转矩阵、四元数、SE(3) 等概念。
+了解概率估计、状态估计、数据拟合、数值优化及鲁棒估计等基本方法。
+有激光雷达点云处理经验，了解点云滤波、分割、聚类、配准及三维环境建图等基本方法。
+熟悉 ROS/ROS 2，以及 OpenCV、PCL、Open3D、Eigen 等常用工具。
+加分项
+有IMU、激光雷达、相机、IMU、毫米波雷达等多传感器融合经验。
+有 CUDA/GPU 加速或实时点云处理经验。
+有真实机器人、无人车、无人机或工程机械上的算法部署与现场调试经验者优先。
+----------------------------------------------------------------------------------------
+
+【129】公司：Capstone
+岗位：规控算法工程师（无人挖掘机方向）
+城市：广州 ｜ 薪资：120/天
+来源链接：https://www.shixiseng.com/intern/inn_3psq2e62uewc?pcm=pc_SearchList
+发布时间：2026-09-15
+----------------------------------------------------------------------------------------
+【岗位职责】
+负责无人挖掘机多自由度机械臂及底盘的运动学、动力学建模，设计并实现运动控制算法，包括轨迹规划、逆运动学求解、力/位混合控制等；
+
+负责挖掘机液压运动控制系统的轨迹控制器开发与优化；
+
+负责无人挖掘机在复杂工况下的路径规划算法设计，制定动态调整策略，确保设备在非结构化环境中的高效、平稳及安全运行；
+
+负责无人化系统的决策规划算法探索与改进，满足复杂场景和任务要求；
+搭建并优化基于ROS2的规控系统架构，完成算法在真机上的部署与闭环验证；
+
+负责VLA（Vision-Language-Action，视觉-语言-动作）模型在无人挖掘机场景中的训练与落地，实现端到端的感知-决策-执行闭环；
+
+参与感知-规划-控制闭环设计，融合激光雷达、视觉、GPS/RTK、IMU等多传感器数据完成高精度状态估计与位姿锁定，为规控算法提供稳定可靠的输入，完成算法在真实挖掘机上的闭环验证与持续迭代。
+
+【任职要求】
+硕士及以上学历，计算机、自动化、机器人学、控制理论、机械电子、人工智能等相关专业；具备较强的现场动手能力、问题定位能力与跨团队协作沟通能力。
+
+扎实的数学基础和数学建模能力，对无人系统有深入理解；
+
+传统规控算法：熟悉运动规划、轨迹规划、运动学/动力学建模，掌握ROS2、MoveIt，熟练Ubuntu/Linux开发环境；
+
+VLA（视觉-语言-动作模型） ：熟悉主流VLA模型架构（如OpenVLA、π0、RDT、Diffusion Policy等），了解VLA模型预训练、微调与部署流程；熟悉模仿学习（IL）与强化学习（RL）理论与实践；
+
+丰富的Linux系统下C/C++编程经验，熟练Python，熟悉PyTorch等深度学习框架；
+
+熟悉机器人仿真平台（如NVIDIA Isaac Sim/Isaac Lab、MuJoCo、Gazebo等），具备Sim-to-Real迁移经验者优先；
+
+有无人挖掘机、工程机械无人化或自动驾驶决策规划项目经验者优先；
+
+有真机开发经验、遥操作数据采集或相关论文/开源项目贡献者优先。
+
+有液压/伺服控制系统开发经验，了解非线性建模、延迟补偿、工况漂移标定等工程问题者优先。
+----------------------------------------------------------------------------------------
+
+【130】公司：筑流科技
+岗位：感知算法工程师｜声音 / 视觉 / 空间感知方向
+城市：广州 ｜ 薪资：200-300/天
+来源链接：https://www.shixiseng.com/intern/inn_vqnuahbywkgm?pcm=pc_SearchList
+发布时间：2026-09-15
+----------------------------------------------------------------------------------------
+【岗位职责】
+我们正在构建面向家居环境的下一代智能空间系统，希望让家庭设备能够更自然地理解“人在家中的位置、状态、行为和意图”，并基于多模态感知实现更智能的交互与自动化。
+该岗位主要参与家居场景下的声音感知、视觉感知、多模态融合与空间感知算法研发，包括但不限于语音唤醒、声源定位、人声检测、人体/手势/物体识别、房间级/区域级空间理解等方向。你将和算法、系统、硬件和产品团队一起，把感知算法从实验环境推进到真实家庭场景中验证和落地。
+工作职责
+参与家居环境下的声音感知算法研发，包括语音活动检测、人声/非人声分类、声源定位、唤醒词测试、噪声场景分析等。
+参与视觉感知算法研发，包括人体检测、姿态估计、手势识别、物体检测、图像/视频理解、场景分割等。
+参与多模态感知系统的数据采集、清洗、标注规范设计与测试集构建，覆盖真实家庭对话、TV 背景音、多人活动、遮挡、弱光、远场语音等复杂场景。
+协助搭建感知算法评测流程，包括准确率、召回率、误唤醒率、漏检率、延迟、鲁棒性等指标设计与实验分析。
+参与算法模型在边缘设备或本地智能中枢上的部署优化，包括模型压缩、推理加速、性能 profiling 等。
+与系统工程师合作，将感知算法接入家庭智能中枢、摄像头、麦克风阵列、毫米波雷达或其他传感器设备，完成端到端 Demo 验证。
+跟踪并复现声音感知、视觉感知、多模态大模型、空间智能、3D grounding 等相关前沿算法。
+
+【任职要求】
+计算机、人工智能、自动化、电子工程、信号处理、机器人、模式识别等相关专业硕士或博士在读。
+熟悉 Python，具备良好的工程实现能力，能够使用 PyTorch / TensorFlow 等常用工具进行算法开发和实验分析，有使用Vibe Coding开发项目经验者优先。
+至少具备以下一个方向的项目经验：
+音频方向：语音识别、语音唤醒、声纹识别、声源定位、语音增强、VAD、音频事件检测等；
+视觉方向：目标检测、图像分割、人体姿态估计、手势识别、行为识别、视觉跟踪、视频理解等；
+多模态方向：音视频融合、多模态大模型、VLM、视频语言模型、场景理解等；
+空间方向：SLAM、RGB-D、3D 重建、点云处理、空间定位、传感器融合、机器人感知等。
+具备基本的机器学习 / 深度学习基础，理解常见模型训练、验证、过拟合、数据增强、指标评估等概念。
+对真实世界复杂场景有兴趣，愿意处理噪声、遮挡、光照变化、多人交互、设备差异等工程问题。
+有家居、机器人、智能音箱、安防摄像头、扫地机器人、AR/VR、车载座舱等真实场景感知项目经验者优先。
+有较强的动手能力和问题定位能力，能够独立完成实验设计、结果分析和迭代优化。
+----------------------------------------------------------------------------------------
+
+【131】公司：筑流科技
+岗位：音频算法实习生
+城市：广州 ｜ 薪资：250-400/天
+来源链接：https://www.shixiseng.com/intern/inn_6xbozk2bgeys?pcm=pc_SearchList
+发布时间：2026-09-15
+----------------------------------------------------------------------------------------
+【岗位职责】
+1、负责各类家庭用音箱/家电及关联设备音频前/后处理算法的研究与开发；
+2、负责各算法在嵌入式设备端的落地与调优；
+3、撰写相关论文，专利。
+
+【任职要求】
+1、本科以上学历，硕士优先；声学/信号处理/机器学习及其相关专业；
+2、熟练使用C/C++编程，熟练使用Matlab / Python / Shell等语言进行算法研究, 有使用Vibe Coding开发项目经验者优先；
+3、对音频降噪/回声消除/声音定位及分离/语音增强/声音特效/空间音频回放/音频编解码及其他各种音频算法技术有一定的研究和了解，有相关项目经验优先；
+4、有基于阵列的声源定位、跟踪、分离，多说话人分离，人声增强等领域相关研究经验者优先
+5、有多项专利或高质量期刊/会议论文者优先。
+----------------------------------------------------------------------------------------
+
+【132】公司：克诺丰赢
+岗位：后端开发（实习）
+城市：广州 ｜ 薪资：300-400/天
+来源链接：https://www.shixiseng.com/intern/inn_zu7qft2wpye1?pcm=pc_SearchList
+发布时间：2026-09-15
+----------------------------------------------------------------------------------------
+【岗位职责】
+1.参与后端系统的开发与维护，协助完成接口设计与功能实现：
+2.配合团队进行基础模块编码、性能优化及问题排查：
+3.与产品、前端等协作方沟通，推进开发任务按时交付；
+4.学习并理解现有业务逻辑和技术架构，持续提升开发能力；
+
+【任职要求】
+1.本科及以上学历；
+2.熟悉至少一种主流后端编程语言(Java、Go、C++、Python其中一种)，具备基本的开发能力：
+3.了解常用数据库和中间件的基本使用：
+4.具备良好的学习能力和团队协作意识：
+5.能够在指导下完成分配的任务并及时反馈进展；
+----------------------------------------------------------------------------------------
+
+【133】公司：Capstone
+岗位：前后端开发工程师实习生（Web方向，可转正）
+城市：广州 ｜ 薪资：120/天
+来源链接：https://www.shixiseng.com/intern/inn_eztspw3e6py6?pcm=pc_SearchList
+发布时间：2026-09-15
+----------------------------------------------------------------------------------------
+【岗位职责】
+1. 负责三维数字孪生平台的Web端开发（Vue 3 / React）
+2. 基于Three.js / Cesium实现点云、倾斜摄影、高斯泼溅场景的加载与交互
+3. 优化大场景渲染性能（LOD、纹理压缩、内存管理）
+4. 参与RESTful API / WebSocket 后端接口设计与开发
+5. 负责三维数据（点云/模型/高斯泼溅）的存储与流式传输
+6. 配合产品经理与算法工程师完成数据联调与交付
+
+【任职要求】
+- 学历 本科及以上，计算机/软件/GIS/数字媒体等相关专业
+- 实习时间 每周≥4天，≥3个月，长期优先
+- 前端基础 扎实的HTML/CSS/JS基础，熟悉Vue 3或React
+- 后端基础 熟悉Java/Python/Node.js/Go之一，有项目经验
+- 其他 熟悉Git、Linux，具备良好沟通与逻辑能力
+加分项
+了解安卓客户端开发；有Three.js/Cesium经验；了解高斯泼溅；参与过数字孪生项目；有GitHub/技术博客。
+----------------------------------------------------------------------------------------
+
+【134】公司：Capstone
+岗位：嵌入式开发实习生（STM32/Linux）
+城市：广州 ｜ 薪资：120/天
+来源链接：https://www.shixiseng.com/intern/inn_r0imiqhd1jxj?pcm=pc_SearchList
+发布时间：2026-09-15
+----------------------------------------------------------------------------------------
+【职位描述】
+公司描述：
+
+我们是一家由香港研发中心孵化出来的科技企业，专注于智能工程装备（如挖掘机等）的具身智能解决方案。依托香港前沿研发资源与内地产业落地优势，为实习生提供广阔的技术视野与成长通道。
+
+实习亮点：
+
+1.接触真实工业场景（4G通信、视频推流、真实工程机械现场调试）。
+2.无论是否为港校生，实习结束后均有机会转正至香港研发中心
+3.港校生可直接与香港研发中心签订实习合同，薪资待遇更高
+
+【岗位职责】
+1.负责挖掘机无人驾驶的STM32 相关嵌入式软件开发及调试；
+2.参与无人机软件设计和开发；
+3.参与摄像头相关嵌入式开发；
+4.参与挖掘机等工程设备的现场调试（Debug）及问题定位。
+
+【任职要求】
+1.电子、通信、计算机、自动化等相关专业，本科及以上在读；
+2.熟悉 STM32 开发，掌握常用外设（UART、SPI、I2C、TIM、ADC 等）；
+3.熟悉视频流媒体协议（RTSP/RTMP 任一）及推流流程；
+
+加分项（非必需）：
+
+1.有无人机相关开发项目；
+2.具备较强的动手能力和独立解决问题能力。
+3.有海思、国科微、星宸科技等SoC处理器的开发经验。
+4.港校（本科/硕士）在读。
+
+我们提供：
+
+1.工程师一对一指导，深入嵌入式+视频+通信综合项目；
+2.有竞争力的实习津贴；
+3.港校生可申请与香港研发中心直接签约，薪资水平高于内地实习生标准；
+4.所有实习生（无论港校与否），表现优异者均有机会在实习期满后获得香港研发中心正式职位 offer（工作地点可内地/香港可选）。
+5.广州实习可提供住宿。
+----------------------------------------------------------------------------------------
+
+【135】公司：时尚传媒
 岗位：AI 赋能新媒体增长助理（时尚-媒体-传媒）
 城市：广州 ｜ 薪资：150-300/天
 来源链接：https://www.shixiseng.com/intern/inn_dg9an8bxp0cr?pcm=pc_SearchList
@@ -2665,7 +3396,7 @@ Prompt 实践入门： 学习如何优化对 Gemini、GPT 等大模型的提问�
 附：所有面试通知将以“时尚广州”名义的电子邮件形式发送，请注意查收邮件，有时会被运营商分类的广告或垃圾箱，敬请注意。
 ----------------------------------------------------------------------------------------
 
-【106】公司：跨赴科技
+【136】公司：跨赴科技
 岗位：Agent开发实习生
 城市：北京 ｜ 薪资：180-250/天
 来源链接：https://www.shixiseng.com/intern/inn_dkigifanttmo?pcm=pc_SearchList
@@ -2686,7 +3417,7 @@ Prompt 实践入门： 学习如何优化对 Gemini、GPT 等大模型的提问�
 3. 对AI、LLM、Agent有强烈兴趣并真正动手做过，愿意在不确定中探索和验证
 ----------------------------------------------------------------------------------------
 
-【107】公司：视界引擎
+【137】公司：视界引擎
 岗位：AI Agent 运营增长实习生
 城市：北京 ｜ 薪资：200/天
 来源链接：https://www.shixiseng.com/intern/inn_ugln6kckjxwu?pcm=pc_SearchList
@@ -2709,7 +3440,7 @@ Prompt 实践入门： 学习如何优化对 Gemini、GPT 等大模型的提问�
 6. 每周工作时间不低于4天，实习期不低于3个月
 ----------------------------------------------------------------------------------------
 
-【108】公司：快手
+【138】公司：快手
 岗位：大模型应用算法工程师
 城市：北京 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_5ehaouo8ewmh?pcm=pc_SearchList
@@ -2740,7 +3471,7 @@ Prompt 实践入门： 学习如何优化对 Gemini、GPT 等大模型的提问�
 5. 学术成果：在 NLP、CV、ML 领域（NeurIPS/ACL/EMNLP/CVPR/ICCV/ECCV/AAAI 等）有论文发表；国际知名竞赛（Kaggle 等）获前三名次。
 ----------------------------------------------------------------------------------------
 
-【109】公司：携程集团
+【139】公司：携程集团
 岗位：营销大模型算法
 城市：上海 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_txcow06syodd?pcm=pc_SearchList
@@ -2762,7 +3493,42 @@ Prompt 实践入门： 学习如何优化对 Gemini、GPT 等大模型的提问�
 7、熟悉大规模数据挖掘场景，熟悉Hadoop/Spark/Hive技术优先。
 ----------------------------------------------------------------------------------------
 
-【110】公司：字节跳动
+【140】公司：广电运通
+岗位：算法开发实习生
+城市：广州 ｜ 薪资：200-250/天
+来源链接：https://www.shixiseng.com/intern/inn_fv7ppnbj6r2a?pcm=pc_SearchList
+发布时间：2026-09-14
+----------------------------------------------------------------------------------------
+【岗位职责】
+前沿技术追踪与分析
+
+1、跟踪NeurIPS、ICML、CVPR等顶会及arXiv预印本，聚焦生物特征识别、文档识别分析、多模态融合、模型压缩等前沿方向，输出技术简报
+
+2、对关键技术进行深度拆解，包括算法原理、创新点、落地可行性分析，形成可视化调研报告
+
+技术复现与验证
+
+3、在导师指导下复现顶会论文核心算法，搭建实验环境并完成性能对比测试
+
+4、参与内部技术预研项目，评估前沿技术在公司业务场景中的适配性，输出技术选型建议知识沉淀与分享
+
+5、参与内部技术知识库建设，整理前沿技术文档、代码实现及实验数据
+
+6、每月组织1次技术分享会，向团队汇报最新研究成果与行业动态
+
+【任职要求】
+1、计算机、电子、信息与信号处理、人工智能、数学等相关专业；
+
+2、熟练掌握Python，熟悉PyTorch/TensorFlow等深度学习框架,具备扎实的机器学习、深度学习理论基础，了解Transformer、Diffusion Model等主流架构有NLP、CV、强化学习或具身智能项目经验者优先
+
+3、有高水平论文发表或参与高水平竞赛获奖者更具竞争力
+
+4、具备良好的英文文献阅读能力，能独立研读英文顶会论文
+
+5、逻辑清晰，善于总结归纳，有良好的书面表达与汇报能力
+----------------------------------------------------------------------------------------
+
+【141】公司：字节跳动
 岗位：大模型PMO实习生 - Data AML
 城市：深圳 ｜ 薪资：350-360/天
 来源链接：https://www.shixiseng.com/intern/inn_7cpzyysob9bp?pcm=pc_SearchList
@@ -2787,7 +3553,7 @@ Prompt 实践入门： 学习如何优化对 Gemini、GPT 等大模型的提问�
 6、能保证一周至少4-5天实习，持续六个月以上。
 ----------------------------------------------------------------------------------------
 
-【111】公司：晶远芯
+【142】公司：晶远芯
 岗位：FDE前线部署工程师实习生（AI智能体/私有化交付方向）
 城市：上海 ｜ 薪资：150-300/天
 来源链接：https://www.shixiseng.com/intern/inn_ejwkhr57j38o?pcm=pc_SearchList
@@ -2845,7 +3611,7 @@ AI 行业核心落地岗，聚焦 AI 智能体、大模型私有化部署、一�
 4.积累可写入简历的FDE 交付项目经验（当前 AI 高薪稀缺岗位）。
 ----------------------------------------------------------------------------------------
 
-【112】公司：晶远芯
+【143】公司：晶远芯
 岗位：产品规划&市场分析实习生（AI智能体/大模型方向）
 城市：上海 ｜ 薪资：150-300/天
 来源链接：https://www.shixiseng.com/intern/inn_gccbyutjfjgu?pcm=pc_SearchList
@@ -2899,7 +3665,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 积累可写入简历的完整报告、项目、复盘成果
 ----------------------------------------------------------------------------------------
 
-【113】公司：字节跳动
+【144】公司：字节跳动
 岗位：大模型PMO实习生-火山方舟MaaS
 城市：上海 ｜ 薪资：350-360/天
 来源链接：https://www.shixiseng.com/intern/inn_3ebn6vt4y5ow?pcm=pc_SearchList
@@ -2924,7 +3690,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 6、责任心强，能快速适应变化，具备持续学习能力。
 ----------------------------------------------------------------------------------------
 
-【114】公司：字节跳动
+【145】公司：字节跳动
 岗位：平台运营（Agent Plan/模型众测方向）实习生-火山方舟
 城市：杭州 ｜ 薪资：350-360/天
 来源链接：https://www.shixiseng.com/intern/inn_z2zw8x1k8mfh?pcm=pc_SearchList
@@ -2947,7 +3713,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 6、熟练使用AI工具优先。
 ----------------------------------------------------------------------------------------
 
-【115】公司：字节跳动
+【146】公司：字节跳动
 岗位：豆包AI大模型FDE实习生 - 火山方舟
 城市：杭州 ｜ 薪资：350-360/天
 来源链接：https://www.shixiseng.com/intern/inn_nkaytcscku5c?pcm=pc_SearchList
@@ -2969,7 +3735,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 4、熟悉大模型相关产品API调用，掌握LangChain、AutoGPT等主流框架的原理与应用，熟悉RAG、Agent、Workflow等AI应用架构模式，能够设计并实施复杂的多Agent协作方案。
 ----------------------------------------------------------------------------------------
 
-【116】公司：字节跳动
+【147】公司：字节跳动
 岗位：豆包AI大模型产品实习生 - 火山方舟
 城市：杭州 ｜ 薪资：500-510/天
 来源链接：https://www.shixiseng.com/intern/inn_umvticymfdaa?pcm=pc_SearchList
@@ -2994,7 +3760,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 5、实习6个月以上，位于杭州。
 ----------------------------------------------------------------------------------------
 
-【117】公司：晶远芯
+【148】公司：晶远芯
 岗位：AI Agent工程师（大模型 / Agent方向）
 城市：上海 ｜ 薪资：150-300/天
 来源链接：https://www.shixiseng.com/intern/inn_lkad3qwwhc42?pcm=pc_SearchList
@@ -3017,7 +3783,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 6、 对 AI Agent、多智能体、AI Workflow 等方向有兴趣；学习能力强，对 AI 新技术有持续探索热情。
 ----------------------------------------------------------------------------------------
 
-【118】公司：YouWare
+【149】公司：YouWare
 岗位：GTM实习生（海外市场 · AI Agent 方向）
 城市：深圳 ｜ 薪资：200-300/天
 来源链接：https://www.shixiseng.com/intern/inn_xicydtppbi3f?pcm=pc_SearchList
@@ -3040,7 +3806,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 7、对日本或韩国市场及当地用户文化有较深了解者优先。
 ----------------------------------------------------------------------------------------
 
-【119】公司：今日宜休
+【150】公司：今日宜休
 岗位：大模型算法实习生
 城市：北京 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_mv3elb3tqldz?pcm=pc_SearchList
@@ -3064,7 +3830,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 - 学习能力强、主动性高，能抗压、踏实靠谱，可长期实习优先。
 ----------------------------------------------------------------------------------------
 
-【120】公司：哈啰
+【151】公司：哈啰
 岗位：AI Agent 算法实习生-两轮(J21732)
 城市：上海 ｜ 薪资：250-300/天
 来源链接：https://www.shixiseng.com/intern/inn_8warfzvnynia?pcm=pc_SearchList
@@ -3101,7 +3867,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 ● 习惯拿到明确指令再动手，不太适应自己定义问题边界
 ----------------------------------------------------------------------------------------
 
-【121】公司：Cookiiy AI
+【152】公司：Cookiiy AI
 岗位：LLM Evals 评估研究员-实习生（心理/社会/统计方向博士）
 城市：北京 ｜ 薪资：400-800/天
 来源链接：https://www.shixiseng.com/intern/inn_d99rv5epdshv?pcm=pc_SearchList
@@ -3135,7 +3901,58 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 【形式】实习，建议每周 4–5 天、持续 3 个月以上；北京望京办公，可部分远程；表现突出可长期合作。
 ----------------------------------------------------------------------------------------
 
-【122】公司：妙客莱音
+【153】公司：红石创想
+岗位：Python游戏开发实习生（双休/包餐）
+城市：广州 ｜ 薪资：150-200/天
+来源链接：https://www.shixiseng.com/intern/inn_upygnmejcgj5?pcm=pc_SearchList
+发布时间：2026-09-11
+----------------------------------------------------------------------------------------
+【职位描述】
+我们是自研、自研、自研！！！
+
+【职位待遇】
+1、150元/天，周末双休
+2、提供免费工作午餐和晚餐
+3、有实习生加班补贴
+4、下午茶、聚餐、团建等
+
+【职位描述】
+1、负责《我的世界》模组游戏、网络游戏开发
+2、负责基础模块脚本开发
+3、负责功能模块日常维护和优化
+4、本岗位提供专业培训，有一线游戏大厂老司机做导师，公司提供免费工作餐，双休，法定节假日正常放假
+
+【职位要求】
+1、2027年应届毕业生，本科及以上学历，可全勤实习6个月以上
+2、计算机、软件及通信等相关专业，拥有游戏开发经验更佳
+3、熟悉Python开发语言，熟悉常用数据结构及算法
+4、良好的编程能力和编程习惯
+5、良好的沟通能力、团队意识，能承受一定的工作强度
+
+【公司介绍】
+广州红石创想科技有限公司是一家专注于国内/海外游戏平台PGC产品研发和销售的创新型游戏公司。公司已通过广东省高新技术企业、创新型中小企业等官方评定，骨干来自一线游戏大厂，经过几年努力已成为赛道绝对头部企业，盈利和增长十分可观，发展潜力巨大！我们国内运营的品牌“比特萝卜”全网拥有500万粉丝，多个产品达到千万下载量，市场影响力巨大。公司制度健全，工作氛围轻松，福利丰富（免费工作餐、下午茶、大小团建等等），目前公司正在开辟出海赛道，诚招有识之士加入！
+----------------------------------------------------------------------------------------
+
+【154】公司：广州星程智能科技有限公司
+岗位：决策规划算法工程师【实习】
+城市：广州 ｜ 薪资：180-250/天
+来源链接：https://www.nowcoder.com/jobs/detail/467190
+发布时间：2026-09-11
+----------------------------------------------------------------------------------------
+1、负责规划算法的设计和实现
+2、负责自动驾驶决策规划系统的研发、调试、和测试工作
+3、设计核心驾驶场景处理决策，完成相关算法研发和效果验证
+4、通过分析实时数据，解决无人驾驶车辆在实际路况中遇到的挑战
+
+1、相关专业（计算机、电子、自动化、控制等） 硕士及以上学历
+2、熟悉ROS系统或Apollo平台，及常用的规划控制算法
+3、具备扎实的数学基础，熟悉常用的算法和数据结构，具备良好的算法设计和实现能力
+4、熟悉常见的基于图搜索，状态栅格和优化的路径规划/速度规划/联合规划的算法，熟悉不同算法的不同应用场景下的设计取舍
+5、熟悉数值优化原理及常用方法，有OSQP等开源优化库使用经验优先
+6、有较强的自学能力和钻研精神，具有良好的沟通能力和团队合作能力
+----------------------------------------------------------------------------------------
+
+【155】公司：妙客莱音
 岗位：AI Agent开发（可转正）
 城市：广州 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_78xqcaa6aktp?pcm=pc_SearchList
@@ -3154,7 +3971,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 4.深入掌握LangChain、LangGraph、Llamalndex等主流智能体开发框架，有实际项目落地经验优先;
 ----------------------------------------------------------------------------------------
 
-【123】公司：妙客莱音
+【156】公司：妙客莱音
 岗位：大模型算法（可转正）
 城市：广州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_jscyp2dtcasf?pcm=pc_SearchList
@@ -3173,7 +3990,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 4.深入掌握LangChain、LangGraph、Llamalndex等主流智能体开发框架，有实际项目落地经验优先;
 ----------------------------------------------------------------------------------------
 
-【124】公司：妙客莱音
+【157】公司：妙客莱音
 岗位：AI大模型应用开发（可转正）
 城市：广州 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_bdazbwqk5o3v?pcm=pc_SearchList
@@ -3192,7 +4009,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 4.深入掌握LangChain、LangGraph、Llamalndex等主流智能体开发框架，有实际项目落地经验优先;
 ----------------------------------------------------------------------------------------
 
-【125】公司：妙客莱音
+【158】公司：妙客莱音
 岗位：AI应用开发（可转正）
 城市：广州 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_lchtn5riy4jx?pcm=pc_SearchList
@@ -3213,7 +4030,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 6.具备良好的学习能力，能够不断改进工作方法；
 ----------------------------------------------------------------------------------------
 
-【126】公司：墨泊可士
+【159】公司：墨泊可士
 岗位：AI Agent开发（可转正）
 城市：深圳 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_klgzsaaxr4st?pcm=pc_SearchList
@@ -3232,7 +4049,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 4.深入掌握LangChain、LangGraph、Llamalndex等主流智能体开发框架，有实际项目落地经验优先;
 ----------------------------------------------------------------------------------------
 
-【127】公司：墨泊可士
+【160】公司：墨泊可士
 岗位：大模型算法（可转正）
 城市：深圳 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_uyt85ybtsla2?pcm=pc_SearchList
@@ -3253,7 +4070,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 5.优秀的产品和业务感知能力，责任心强，积极主动，有良好的沟通能力和团队合作能力，能够完成有挑战的目标。
 ----------------------------------------------------------------------------------------
 
-【128】公司：墨泊可士
+【161】公司：墨泊可士
 岗位：AI大模型应用开发（可转正）
 城市：深圳 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_2z7z4cqz99wk?pcm=pc_SearchList
@@ -3271,7 +4088,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 4.具备项目中和业务人员的基本沟通能力，能够通过不断沟通了解业务落地中的关键点;
 ----------------------------------------------------------------------------------------
 
-【129】公司：小米
+【162】公司：小米
 岗位：AI agent 运营(A73098)
 城市：北京 ｜ 薪资：150-250/天
 来源链接：https://www.shixiseng.com/intern/inn_0fb42ljc8caw?pcm=pc_SearchList
@@ -3292,7 +4109,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 5.自驱力强，执行力到位，有互联网公司实习经验者优先。
 ----------------------------------------------------------------------------------------
 
-【130】公司：得物App
+【163】公司：得物App
 岗位：商业智能数据分析实习生
 城市：上海 ｜ 薪资：200/天
 来源链接：https://www.shixiseng.com/intern/inn_tmgcegg36oxa?pcm=pc_SearchList
@@ -3320,7 +4137,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 与算法、运营、产品多团队协作的完整项目经验，覆盖指标体系、实验、风险治理与 AI 落地多条线
 ----------------------------------------------------------------------------------------
 
-【131】公司：盛续
+【164】公司：盛续
 岗位：AI技术助理（大模型应用）
 城市：上海 ｜ 薪资：150-250/天
 来源链接：https://www.shixiseng.com/intern/inn_aatn55vazicx?pcm=pc_SearchList
@@ -3340,7 +4157,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 * 创业孵化特权（核心福利）： 我们不希望你只是来打工。 如果你有极具潜力的AI项目创意，我们将为你提供优先于普通创业项目的全套孵化服务。利用我们成熟的商业流程、资源与经验，帮助你完成从0到1的公司初创。
 ----------------------------------------------------------------------------------------
 
-【132】公司：艾思克瑞
+【165】公司：艾思克瑞
 岗位：AI Agent开发（可转正）
 城市：杭州 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_qjpe8un21so5?pcm=pc_SearchList
@@ -3359,7 +4176,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 4.深入掌握LangChain、LangGraph、Llamalndex等主流智能体开发框架，有实际项目落地经验优先;
 ----------------------------------------------------------------------------------------
 
-【133】公司：艾思克瑞
+【166】公司：艾思克瑞
 岗位：大模型算法（可转正）
 城市：杭州 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_yvg6kgrqf3zq?pcm=pc_SearchList
@@ -3380,7 +4197,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 5.优秀的产品和业务感知能力，责任心强，积极主动，有良好的沟通能力和团队合作能力，能够完成有挑战的目标。
 ----------------------------------------------------------------------------------------
 
-【134】公司：快手
+【167】公司：快手
 岗位：图像/大模型算法实习生-【电商】
 城市：杭州 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_xtrjgw6b53ni?pcm=pc_SearchList
@@ -3398,7 +4215,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 5、有论文和竞赛名次优先。
 ----------------------------------------------------------------------------------------
 
-【135】公司：艾思克瑞
+【168】公司：艾思克瑞
 岗位：大模型应用开发（可转正）
 城市：杭州 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_hywms0x086qs?pcm=pc_SearchList
@@ -3416,7 +4233,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 4.具备项目中和业务人员的基本沟通能力，能够通过不断沟通了解业务落地中的关键点;
 ----------------------------------------------------------------------------------------
 
-【136】公司：百度
+【169】公司：百度
 岗位：图像/视频生成算法实习生
 城市：北京 ｜ 薪资：250-400/天
 来源链接：https://www.shixiseng.com/intern/inn_jk4ghzfqjftl?pcm=pc_SearchList
@@ -3436,7 +4253,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 能独立推进研究课题，对攻克具有挑战性的科研问题充满热情，具备良好的钻研精神与协作意识
 ----------------------------------------------------------------------------------------
 
-【137】公司：东集文业
+【170】公司：东集文业
 岗位：AI视觉生成师
 城市：广州 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_cosdmmphz0xj?pcm=pc_SearchList
@@ -3463,7 +4280,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 · 了解Blender或C4D等三维软件，能辅助生成复杂场景深度图
 ----------------------------------------------------------------------------------------
 
-【138】公司：小鹏汽车
+【171】公司：小鹏汽车
 岗位：AI安全实习生(A80708)
 城市：广州 ｜ 薪资：100-150/天
 来源链接：https://www.shixiseng.com/intern/inn_jdkjmpyqvuvi?pcm=pc_SearchList
@@ -3481,7 +4298,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 5、了解Agentic的10大风险(模型/MCP/Skill/Agent权限/Prompt攻击等)，了解AI风险的应对策略和方案；
 ----------------------------------------------------------------------------------------
 
-【139】公司：同道猎聘集团
+【172】公司：同道猎聘集团
 岗位：大模型算法实习生
 城市：北京 ｜ 薪资：300-500/天
 来源链接：https://www.shixiseng.com/intern/inn_qakjmyao1ys4?pcm=pc_SearchList
@@ -3505,7 +4322,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 6. 学习能力强，能主动沟通并解决问题。
 ----------------------------------------------------------------------------------------
 
-【140】公司：北京赛博
+【173】公司：北京赛博
 岗位：大模型算法实习生
 城市：北京 ｜ 薪资：250-300/天
 来源链接：https://www.shixiseng.com/intern/inn_zqgy7dozbdhb?pcm=pc_SearchList
@@ -3543,7 +4360,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 9）开放的技术选型权（鼓励轻量化创新）
 ----------------------------------------------------------------------------------------
 
-【141】公司：字节跳动
+【174】公司：字节跳动
 岗位：大模型产品实习生-TikTok
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_jyt51ng12fym?pcm=pc_SearchList
@@ -3566,7 +4383,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 5、每周实习4天及以上，稳定实习3个月以上。
 ----------------------------------------------------------------------------------------
 
-【142】公司：美的集团（上海）有限公司
+【175】公司：美的集团（上海）有限公司
 岗位：具身智能数据处理实习生
 城市：上海 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_wwbbnmeru9dk?pcm=pc_SearchList
@@ -3576,7 +4393,36 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 我们是一支聚焦"具身智能 + Agentic 系统"落地的算法团队,目标是让通用机器人在真实居家与工业场景中完成开放式任务。当前关注三条主线: 3D 语言场景图构建 (Scene Graph)，让机器人理解 3D 世界 - 基于多视图 RGB-D / 点云 / 3DGS 等输入,构建可被 VLM 推理的 3D scene graph - 探索语义 / 几何 / affordance 的统一表示与开放词汇 grounding - 用 VLM/MLLM 做空间关系推理 (on / inside / reachable / behind...) ,为下游策略提供可解释的场景表征 - 实验主线:Habitat / Isaac Sim 中构建 benchmark + 真机验证 空间运动规划与场景内策略适配，让机器人在场景里完成精细任务 - 基于 scene graph / occupancy / BEV 做长时序导航与可达性规划 - 语言驱动的物体导航 (Object-Goal Navigation / VLN-CE) 与闭环 manipulation 高保真虚拟场景 + Agentic OS，通过高保真仿真加速能力迭代与验证 - 基于 Isaac Sim / Isaac Lab / Habitat / Gazebo 搭建可参数化的家居 / 工业场景 - 打通 ROS 2 <--> Sim <--> Real 全链路,支持本体在仿真里 24h 不间断运行评测 任职要求： 硕士以上学历，可实习4个月以上； 有具身智能或自动驾驶的多模态（视觉 力触觉 交互 运动等）数据采集、清洗、标注与增强的经验； 有具身智能或自动驾驶的多模态数据格式、数据存储、数据工程化的相关经验； 有具身智能或自动驾驶的端侧和云端数据的采集、回传、存储、回放、预处理、标注、评测的相关经验； 有具身智能或自动驾驶的数据挖掘、标注、训练、评测、部署的相关经验； 有具身智能或自动驾驶的端侧数据采集平台或云端数据平台开发、部署的相关经验； - 在读硕士或博士; CS / AI / 自动化 / 机械 等相关专业 - Python + PyTorch 扎实,能独立读懂顶会论文并复现 - 至少在以下技术栈里有一项跑通过的、可演示的经验: - 3D 视觉:3DGS / NeRF / COLMAP / SLAM / 点云语义分割 - 仿真平台:Isaac Sim / Isaac Lab / Habitat / MuJoCo / Gazebo / SAPIEN - 具身策略:ROS 2 / MoveIt / Diffusion Policy / ACT / OpenVLA / π 系列 - 大模型:VLM / VLA / SFT / DPO / GRPO / LangGraph / MCP / RAG 加分项： - 在 Isaac Sim/Lab 或 Habitat 上跑通过端到端 Sim2Real 闭环 - 用 LeRobot / OpenVLA / π0/π0.5 / RDT / GR00T 等开源 VLA 框架做过真机部署 - 真机经验:Unitree / Franka / xArm / 松灵 PiPER / 灵巧手 / 移动底盘 - 在 MCP 协议、Apple VisionPro 遥操作、Talk2DINO、Gaussian Splatting 实时渲染上有 hands-on
 ----------------------------------------------------------------------------------------
 
-【143】公司：美团
+【176】公司：广州天纵游戏
+岗位：美术实习生（动作/模型方向）
+城市：广州 ｜ 薪资：150-180/天
+来源链接：https://www.shixiseng.com/intern/inn_a03zov3lx7qw?pcm=pc_SearchList
+发布时间：2026-09-09
+----------------------------------------------------------------------------------------
+【职位描述】
+整体招聘流程
+1、简历投递后，HR完成初步筛选，将测试邀约发送至简历预留邮箱，请务必填写准确常用邮箱，投递后1‑2天留意查收笔试邮件。
+2、提交测试作品+个人作品集评审；
+3、测试评审通过，安排面试；
+4、面试评估通过，确认实习录用，9-10月安排入职。
+
+【岗位职责】
+1、协助完成游戏 3D 模型或动作制作，负责角色、道具建模、UV 拆分、贴图绘制或角色动画、技能动作、循环动画等基础美术产出。
+2、根据项目规范完成模型搭建、动作调试与资源校验，输出引擎可用美术资源。
+3、配合团队对接评审需求，迭代优化模型与动画效果，规范归档工程文件及素材。
+4、配合完成团队日常美术辅助工作。
+
+【任职要求】
+1、大专及以上学历，动画、数字媒体、三维美术等相关专业；可全职实习3个月以上，不接受短期实习。
+2、熟练掌握3D软件，如3DMAX、Maya；了解Unity引擎，具备基础模型制作、骨骼绑定或动画制作能力。
+3、具备基础美术审美，熟练使用AI辅助工具可加分；执行力强，善于沟通，能够接受稿件迭代修改，具备良好团队协作意识。
+实习福利
+1、实习补贴，资深美术一对一项目带教；
+2、开具实习证明，表现优秀可获得转正机会；
+3、团队内部美术分享，接触真实商业游戏项目。
+----------------------------------------------------------------------------------------
+
+【177】公司：美团
 岗位：Keeta技术服务端研发实习生（智能客服方向）
 城市：深圳 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_ga7es8xvas6y?pcm=pc_SearchList
@@ -3599,7 +4445,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 3. 了解和探索海外业务的机会，了解多元文化下的协作。
 ----------------------------------------------------------------------------------------
 
-【144】公司：原力金智
+【178】公司：原力金智
 岗位：Agent算法实习生
 城市：北京 ｜ 薪资：300/天
 来源链接：https://www.shixiseng.com/intern/inn_ygi7wwkuyegc?pcm=pc_SearchList
@@ -3624,7 +4470,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 8、实习期至少六个月，每周到岗至少四天。
 ----------------------------------------------------------------------------------------
 
-【145】公司：快手
+【179】公司：快手
 岗位：AI Agent 开发实习生
 城市：北京 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_aj9gzkvukrub?pcm=pc_SearchList
@@ -3648,7 +4494,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 3. 深度使用过 Claude Code、Cursor 等 AI Coding Agent
 ----------------------------------------------------------------------------------------
 
-【146】公司：美团
+【180】公司：美团
 岗位：酒旅AI Agent产品实习生
 城市：北京 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_i4jvx2rhdhzr?pcm=pc_SearchList
@@ -3676,7 +4522,7 @@ AI 科技赛道产品 + 市场双向分析岗，偏向 B 端企业级 AI、智�
 • 具备文科、商科、理工科复合背景者优先考虑。
 ----------------------------------------------------------------------------------------
 
-【147】公司：奥迪
+【181】公司：奥迪
 岗位：Intern,Agent & Software Develop
 城市：北京 ｜ 薪资：150-180/天
 来源链接：https://www.shixiseng.com/intern/inn_rxqvxff7eo2a?pcm=pc_SearchList
@@ -3704,7 +4550,7 @@ Language Skills:
 Fluent in Chinese and English.
 ----------------------------------------------------------------------------------------
 
-【148】公司：美团
+【182】公司：美团
 岗位：AI产品经理实习生（智能学习方向）
 城市：北京 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_pn6tuuzjseu3?pcm=pc_SearchList
@@ -3748,7 +4594,7 @@ Fluent in Chinese and English.
 2. 增长运营思维：具备良好的数据敏感度和逻辑分析能力。了解AARRR等经典增长模型，有互联网产品运营、用户增长、活动策划相关实习经验者加分。
 ----------------------------------------------------------------------------------------
 
-【149】公司：NIO蔚来
+【183】公司：NIO蔚来
 岗位：AI Agent开发工程师（工业场景）(A200763)
 城市：上海 ｜ 薪资：200/天
 来源链接：https://www.shixiseng.com/intern/inn_yoxssclgpf4s?pcm=pc_SearchList
@@ -3776,7 +4622,7 @@ Fluent in Chinese and English.
 8. 参与过国家级科研课题、产学研项目者优先。
 ----------------------------------------------------------------------------------------
 
-【150】公司：LHH FESCO
+【184】公司：LHH FESCO
 岗位：智能招聘实习生
 城市：上海 ｜ 薪资：150-180/天
 来源链接：https://www.shixiseng.com/intern/inn_vtony8stcpax?pcm=pc_SearchList
@@ -3801,7 +4647,7 @@ Fluent in Chinese and English.
 实习证明，表现优异可推校招/转正。
 ----------------------------------------------------------------------------------------
 
-【151】公司：爱奇艺
+【185】公司：爱奇艺
 岗位：智能创作产品实习生（Muse）(A233964)
 城市：上海 ｜ 薪资：180-250/天
 来源链接：https://www.shixiseng.com/intern/inn_diybjovyusv3?pcm=pc_SearchList
@@ -3821,7 +4667,7 @@ Fluent in Chinese and English.
 注：本岗位招聘将包含一轮内容为AI工具使用及视频剪辑思路的笔试。
 ----------------------------------------------------------------------------------------
 
-【152】公司：小红书
+【186】公司：小红书
 岗位：审核策略大模型运营实习生
 城市：上海 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_qgjjiku9hi7s?pcm=pc_SearchList
@@ -3845,7 +4691,7 @@ Fluent in Chinese and English.
 4、小红书忠实用户，对内容安全等方向感兴趣。
 ----------------------------------------------------------------------------------------
 
-【153】公司：影溯智能科技
+【187】公司：影溯智能科技
 岗位：重建仿真融合算法实习生（Simulation-Ready 场景生成）
 城市：杭州 ｜ 薪资：250-300/天
 来源链接：https://www.shixiseng.com/intern/inn_p4el0rk5tvrl?pcm=pc_SearchList
@@ -3864,7 +4710,7 @@ Fluent in Chinese and English.
 实习安排：可远程办公，稳定实习3个月及以上，可长期实习者优先。
 ----------------------------------------------------------------------------------------
 
-【154】公司：快手
+【188】公司：快手
 岗位：算法实习生（大模型）-【主站】
 城市：北京 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_vipquwhiob5r?pcm=pc_SearchList
@@ -3881,7 +4727,195 @@ Fluent in Chinese and English.
 4、对学术前沿有浓厚兴趣，时刻跟进技术前沿，并善于利用各类技术解决复杂的实际问题，有良好的沟通表达能力。
 ----------------------------------------------------------------------------------------
 
-【155】公司：小红书
+【189】公司：哔哩哔哩
+岗位：大模型算法工程师
+城市：广州 ｜ 薪资：300-520/天
+来源链接：https://www.nowcoder.com/jobs/detail/466427
+发布时间：2026-09-08
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【190】公司：小红书
+岗位：大模型算法工程师
+城市：广州 ｜ 薪资：300-500/天
+来源链接：https://www.nowcoder.com/jobs/detail/466334
+发布时间：2026-09-08
+----------------------------------------------------------------------------------------
+1.负责LLM模型的训练和调优，以满足特定业务场景需求；
+2.负责大模型相关的数据处理，包括数据爬取、数据增强、数据清洗、数据标注及后处理等；
+3.与其他团队成员紧密合作，完成模型集成及部署，保障模型稳定运行及持续优化；
+4.研究和应用*新的NLP技术和趋势，深入理解底层算法原理，以支持业务创新和发展。
+
+岗位要求：
+1.计算机、数学、统计等相关专业本科及以上学历，有机器学习、LLM模型相关经验；
+2.扎实的机器学习、深度学习和自然语言处理理论基础，具备优秀的工程开发能力，有LLM模型训练和调优经验；
+3.熟悉PyTorch,TensorFlow等深度学习平台，熟练掌握Python/C++编程语言；
+4.能够对领域前沿技术保持持续关注和学习，愿意持续投入研究和解决挑战性问题；
+5.较强的问题分析和解决能力，良好的团队协作能力。
+6.实践动手能力强，在高水平技术评测或竞赛中获得To成绩、在开源组织有贡献或影响力者优先。有高水平论文者优先。
+----------------------------------------------------------------------------------------
+
+【191】公司：京东
+岗位：大模型算法（实习）
+城市：广州 ｜ 薪资：200-500/月
+来源链接：https://www.nowcoder.com/jobs/detail/466437
+发布时间：2026-09-08
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【192】公司：快手
+岗位：大模型算法
+城市：广州 ｜ 薪资：300-520/天
+来源链接：https://www.nowcoder.com/jobs/detail/466364
+发布时间：2026-09-08
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【193】公司：快手
+岗位：大模型算法
+城市：深圳 ｜ 薪资：300-520/天
+来源链接：https://www.nowcoder.com/jobs/detail/466365
+发布时间：2026-09-08
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【194】公司：京东
+岗位：大模型算法（实习）
+城市：深圳 ｜ 薪资：200-500/月
+来源链接：https://www.nowcoder.com/jobs/detail/466438
+发布时间：2026-09-08
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【195】公司：滴滴
+岗位：大模型算法工程师
+城市：深圳 ｜ 薪资：300-550/天
+来源链接：https://www.nowcoder.com/jobs/detail/466402
+发布时间：2026-09-08
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【196】公司：京东
+岗位：大模型算法（实习）
+城市：上海 ｜ 薪资：200-500/月
+来源链接：https://www.nowcoder.com/jobs/detail/466436
+发布时间：2026-09-08
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【197】公司：哔哩哔哩
+岗位：大模型算法工程师
+城市：上海 ｜ 薪资：300-520/天
+来源链接：https://www.nowcoder.com/jobs/detail/466426
+发布时间：2026-09-08
+----------------------------------------------------------------------------------------
+工作职责
+1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。
+2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。
+3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。
+
+任职要求
+1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。
+2.有人工智能或Python软件开发相关工作经验。
+3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。
+4.具备良好的沟通能力与英语语言能力。（必须)
+5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。
+6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。
+7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。
+----------------------------------------------------------------------------------------
+
+【198】公司：小红书
 岗位：多模态大模型应用算法实习生
 城市：深圳 ｜ 薪资：400-500/天
 来源链接：https://www.shixiseng.com/intern/inn_ouba9tbtflso?pcm=pc_SearchList
@@ -3900,7 +4934,7 @@ Fluent in Chinese and English.
 6、熟悉以下研究方向优先：多模态理解，搜索，文生图， Omni ，工具调用 ，skills，harness，数据清洗，强化学习； base 深圳优先
 ----------------------------------------------------------------------------------------
 
-【156】公司：小红书
+【199】公司：小红书
 岗位：Agent/大模型算法实习生- 国际化TnS算法
 城市：北京 ｜ 薪资：300-350/天
 来源链接：https://www.shixiseng.com/intern/inn_yb7lxyxnfovb?pcm=pc_SearchList
@@ -3919,7 +4953,7 @@ Fluent in Chinese and English.
 4. 有较强研究能力，复现过业内领先工作；有 CVPR/ICCV/NeurIPS/ICLR/ACL/EMNLP/KDD 等顶会论文发表经历更佳
 ----------------------------------------------------------------------------------------
 
-【157】公司：网易有道
+【200】公司：网易有道
 岗位：大模型算法实习生
 城市：北京 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_bzn4z74tljyl?pcm=pc_SearchList
@@ -3939,7 +4973,7 @@ Fluent in Chinese and English.
 5、有大模型相关比赛经验或发表相关论文者加分
 ----------------------------------------------------------------------------------------
 
-【158】公司：上海扶芳科技有限公司
+【201】公司：上海扶芳科技有限公司
 岗位：AI销售增长实习生（AI Agent方向）
 城市：上海 ｜ 薪资：80-100/天
 来源链接：https://www.shixiseng.com/intern/inn_xqyolth2ze8o?pcm=pc_SearchList
@@ -3994,7 +5028,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 如果你也对这个问题着迷，欢迎加入我们一起实践。
 ----------------------------------------------------------------------------------------
 
-【159】公司：IAV
+【202】公司：IAV
 岗位：AI Agent开发实习生-全球法规智能平台建设
 城市：上海 ｜ 薪资：150-200/天
 来源链接：https://www.shixiseng.com/intern/inn_nzosressiyep?pcm=pc_SearchList
@@ -4022,7 +5056,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 • 了解向量数据库、知识库构建或数据标注相关工作。
 ----------------------------------------------------------------------------------------
 
-【160】公司：SWS
+【203】公司：SWS
 岗位：智能研究组实习生
 城市：上海 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_zxtuoan2wrse?pcm=pc_SearchList
@@ -4050,7 +5084,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 4. 工作时间安排灵活。
 ----------------------------------------------------------------------------------------
 
-【161】公司：小红书
+【204】公司：小红书
 岗位：AI智能客服产品实习生
 城市：上海 ｜ 薪资：260-310/天
 来源链接：https://www.shixiseng.com/intern/inn_x8vzlekp8qtv?pcm=pc_SearchList
@@ -4068,7 +5102,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 - 27年及以后毕业，每周可到岗5天，能全勤者优先。
 ----------------------------------------------------------------------------------------
 
-【162】公司：字节跳动
+【205】公司：字节跳动
 岗位：游戏多模态Agent算法实习生-AIGC
 城市：杭州 ｜ 薪资：400/天
 来源链接：https://www.shixiseng.com/intern/inn_iawdqtus79zq?pcm=pc_SearchList
@@ -4099,7 +5133,33 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 5、在相关方向发表过论文，或有高质量开源项目和可复现实验结果。
 ----------------------------------------------------------------------------------------
 
-【163】公司：平安科技
+【206】公司：奇之
+岗位：全栈工程师
+城市：广州 ｜ 薪资：150-200/天
+来源链接：https://www.shixiseng.com/intern/inn_g0fxmywsrjix?pcm=pc_SearchList
+发布时间：2026-09-07
+----------------------------------------------------------------------------------------
+【岗位职责】
+1、参与软件系统详细设计， 参与项目前后端整体开发，涵盖页面搭建、接口开发、数据库设计与优化；
+2、完成自测及 Bug 修复，保障项目稳定开发与上线运行；
+3、运用 Vue、JavaScript等技术栈开发前端应用，维护功能新增，响应速度等，应用python，django等后台框架进行API设计；
+4、负责 Web 应用开发与部署，维护线上项目，处理日常迭代、功能更新及故障排查；
+5、输出技术文档、开发文档，规范项目交付。
+
+【任职要求】
+1、本科及以上学历，计算机相关专业，有志于全栈方向发展；有前端 / 全栈开发经验者优先；
+2、应届毕业生优先
+
+技术栈要求：
+1、前端：熟练使用 HTML/JavaScript/CSS，精通 Vue3.0 及相关 UI 组件库，能开发桌面 / 移动端项目，了解 uni-app 小程序 / 小游戏开发优先；
+2、后端：熟练掌握python，django 。熟悉 爬虫、ES搜索引擎、NLP、大模型部署者加分；
+3、数据库：熟悉关系型数据库，熟悉向量数据库；
+4、掌握docker、NginX、newapi、爱马仕等，具备 Web 应用开发与部署能力（Linux/Windows 环境）；
+5、具备完整项目实战经验，可独立对接需求、完成全流程开发，代码规范、产出质量高；
+6、逻辑思维清晰，沟通协作顺畅，责任心强，能踏实跟进项目迭代与问题解决。
+----------------------------------------------------------------------------------------
+
+【207】公司：平安科技
 岗位：大模型应用算法实习生
 城市：深圳 ｜ 薪资：200-300/天
 来源链接：https://www.shixiseng.com/intern/inn_wmcezk0oinhe?pcm=pc_SearchList
@@ -4127,7 +5187,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 • 能于 2026 年 9 月或 10 月到岗；一周出勤四天以上，实习 4 个月以上最佳。
 ----------------------------------------------------------------------------------------
 
-【164】公司：网易有道
+【208】公司：网易有道
 岗位：Agent测试实习生
 城市：北京 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_vl8o4lazzdpx?pcm=pc_SearchList
@@ -4152,7 +5212,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 3、有 Prompt 调优、模型评测、RAG 评测、工具调用评测或自动化测试用例生成实践。
 ----------------------------------------------------------------------------------------
 
-【165】公司：小鹏汽车
+【209】公司：小鹏汽车
 岗位：VLA大模型算法实习生(A198111)
 城市：广州 ｜ 薪资：250-500/天
 来源链接：https://www.shixiseng.com/intern/inn_wk3jsvktapjz?pcm=pc_SearchList
@@ -4175,7 +5235,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 6、有自动驾驶世界模型（预测或生成方向）研发经验优先。
 ----------------------------------------------------------------------------------------
 
-【166】公司：屿智同行
+【210】公司：屿智同行
 岗位：Agent开发实习生
 城市：深圳 ｜ 薪资：250-500/天
 来源链接：https://www.shixiseng.com/intern/inn_sto9ogs3qzgi?pcm=pc_SearchList
@@ -4208,7 +5268,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 5. 了解A2A多智能体协同、任务调度、自动化交易场景者优先。
 ----------------------------------------------------------------------------------------
 
-【167】公司：爱奇艺
+【211】公司：爱奇艺
 岗位：Agent开发实习生(A11471)
 城市：北京 ｜ 薪资：200-300/天
 来源链接：https://www.shixiseng.com/intern/inn_dybolbgacrq1?pcm=pc_SearchList
@@ -4226,7 +5286,41 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 -熟悉 Git，了解基本的工程协作流程。
 ----------------------------------------------------------------------------------------
 
-【168】公司：百度
+【212】公司：筑流科技
+岗位：睡眠实验实习生
+城市：广州 ｜ 薪资：180-250/天
+来源链接：https://www.shixiseng.com/intern/inn_xhu9ueg2fc7f?pcm=pc_SearchList
+发布时间：2026-09-03
+----------------------------------------------------------------------------------------
+【职位描述】
+职位简介
+我们正在开展基于毫米波雷达与脑电（EEG）的前沿睡眠科学研究。现寻找一名细心、严谨的实验管理助理，负责睡眠实验的现场执行与管理。你将直接参与真实睡眠实验的全流程，确保实验数据采集的规范性与高质量。
+
+【岗位职责】
+1. 协助开展睡眠实验的全程设计与执行，包括实验方案制定、受试者招募、实验流程管理及数据采集
+2. 负责睡眠监测设备的操作与维护（如多导睡眠仪PSG、脑电EEG、肌电EMG、心电ECG等），确保数据质量
+3. 参与睡眠分期标注、生理信号预处理与特征提取，协助完成数据分析与可视化
+4. 配合团队进行睡眠干预实验的实施与效果评估，记录实验现象并撰写实验报告
+5. 协助进行文献调研、实验方案优化及科研项目推进
+
+【任职要求】
+1. 本科、硕士或在读，生物医学工程、神经科学、心理学、医学、统计学、计算机、电子信息、自动化等相关专业
+2. 具有睡眠实验、心理学实验或临床科研相关经历者优先
+3. 了解常见生理信号（EEG/EMG/ECG等）的基本原理，有信号处理或数据分析经验者优先
+4. 工作细致耐心，具备良好的沟通协调能力，能够与受试者建立良好互动
+加分项
+- 熟练使用Python或MATLAB进行数据处理与可视化，熟悉NumPy、SciPy、Pandas等工具
+- 有睡眠医学、认知神经科学或人因工程相关背景
+- 熟悉睡眠分期标准（如AASM标准）
+
+工作福利
+- 无需熬夜：实验均在正常作息时段进行，无需值夜班
+- 提供宿舍：公司为实习生提供免费宿舍，解决住宿问题
+- 地点：广州
+- 实习时长：每周5天，实习期3个月
+----------------------------------------------------------------------------------------
+
+【213】公司：百度
 岗位：Ai Agent后端实习生
 城市：北京 ｜ 薪资：150-300/天
 来源链接：https://www.shixiseng.com/intern/inn_ayrmhzkekdgr?pcm=pc_SearchList
@@ -4248,7 +5342,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 6. 优先条件：参与过开源项目（特别是 Go / AI 工程化方向）；
 ----------------------------------------------------------------------------------------
 
-【169】公司：小米
+【214】公司：小米
 岗位：AI Agent 产品运营(A132507)
 城市：北京 ｜ 薪资：150-250/天
 来源链接：https://www.shixiseng.com/intern/inn_hwwjepln4nq0?pcm=pc_SearchList
@@ -4268,7 +5362,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 5.自驱力强，执行力到位，有互联网公司运营/产品实习经验者优先。
 ----------------------------------------------------------------------------------------
 
-【170】公司：小米
+【215】公司：小米
 岗位：大模型应用实习生(A09799)
 城市：上海 ｜ 薪资：250-400/天
 来源链接：https://www.shixiseng.com/intern/inn_7rautqb2ndzv?pcm=pc_SearchList
@@ -4287,7 +5381,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 4. 理解 Agent 的基本运行机制，对 Agent Runtime、skill 体系、任务编排或执行链路有一定认识，有相关项目经验者优先；
 ----------------------------------------------------------------------------------------
 
-【171】公司：小红书
+【216】公司：小红书
 岗位：【27届】广告基础模型算法实习生
 城市：杭州 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_nv9nyftinepu?pcm=pc_SearchList
@@ -4310,7 +5404,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 6. 良好的沟通能力和逻辑思维能力，善于发现和推理不同事物之间的关系和影响。
 ----------------------------------------------------------------------------------------
 
-【172】公司：因诺资产
+【217】公司：因诺资产
 岗位：大模型应用开发实习生
 城市：北京 ｜ 薪资：400-500/天
 来源链接：https://www.shixiseng.com/intern/inn_lzxhl4ptbldt?pcm=pc_SearchList
@@ -4345,7 +5439,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 注：当前岗位接受日常实习，若实习表现优秀，也可以申请实习留用。
 ----------------------------------------------------------------------------------------
 
-【173】公司：得物App
+【218】公司：得物App
 岗位：Agent产品开发实习生
 城市：上海 ｜ 薪资：200/天
 来源链接：https://www.shixiseng.com/intern/inn_qwwrrxscnw1d?pcm=pc_SearchList
@@ -4375,7 +5469,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 3. 了解大语言模型基本原理，有相关技术探索或实践经历
 ----------------------------------------------------------------------------------------
 
-【174】公司：小红书
+【219】公司：小红书
 岗位：研究型实习生-广告大模型算法工程师（创意生成）
 城市：杭州 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_q1q5goevbuit?pcm=pc_SearchList
@@ -4402,7 +5496,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 5.自驱力强、沟通清晰，对真实商业场景中的生成式 AI 问题有兴趣。
 ----------------------------------------------------------------------------------------
 
-【175】公司：小红书
+【220】公司：小红书
 岗位：研究型实习生-广告大模型算法工程师（创意生成）
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_e0w9frux0fem?pcm=pc_SearchList
@@ -4429,7 +5523,43 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 5.自驱力强、沟通清晰，对真实商业场景中的生成式 AI 问题有兴趣。
 ----------------------------------------------------------------------------------------
 
-【176】公司：滴滴
+【221】公司：蜀俊博凌
+岗位：大模型算法工程师（可转正）
+城市：广州 ｜ 薪资：200-600/天
+来源链接：https://www.nowcoder.com/jobs/detail/464740
+发布时间：2026-09-01
+----------------------------------------------------------------------------------------
+1.负责LLM模型的训练和调优，以满足特定业务场景需求；
+2.负责大模型相关的数据处理，包括数据爬取、数据增强、数据清洗、数据标注及后处理等；
+3.与其他团队成员紧密合作，完成模型集成及部署，保障模型稳定运行及持续优化；
+4.研究和应用新的NLP技术和趋势，深入理解底层算法原理，以支持业务创新和发展；
+
+1.本科及以上学历；
+2.扎实的机器学习、深度学习和自然语言处理理论基础，具备优秀的工程开发能力，有LLM模型训练和调优经验；
+3.熟悉PyTorch,TensorFlow等深度学习平台，熟练掌握Python/Java/Go/C++其中一门编程语言；
+4.能够对领域前沿技术保持持续关注和学习，愿意持续投入研究和解决挑战性问题；
+5.较强的问题分析和解决能力，良好的团队协作能力；
+----------------------------------------------------------------------------------------
+
+【222】公司：蜀俊博凌
+岗位：大模型算法工程师（可转正）
+城市：深圳 ｜ 薪资：200-600/天
+来源链接：https://www.nowcoder.com/jobs/detail/464741
+发布时间：2026-09-01
+----------------------------------------------------------------------------------------
+1.负责LLM模型的训练和调优，以满足特定业务场景需求；
+2.负责大模型相关的数据处理，包括数据爬取、数据增强、数据清洗、数据标注及后处理等；
+3.与其他团队成员紧密合作，完成模型集成及部署，保障模型稳定运行及持续优化；
+4.研究和应用新的NLP技术和趋势，深入理解底层算法原理，以支持业务创新和发展；
+
+1.本科及以上学历；
+2.扎实的机器学习、深度学习和自然语言处理理论基础，具备优秀的工程开发能力，有LLM模型训练和调优经验；
+3.熟悉PyTorch,TensorFlow等深度学习平台，熟练掌握Python/Java/Go/C++其中一门编程语言；
+4.能够对领域前沿技术保持持续关注和学习，愿意持续投入研究和解决挑战性问题；
+5.较强的问题分析和解决能力，良好的团队协作能力；
+----------------------------------------------------------------------------------------
+
+【223】公司：滴滴
 岗位：国际事业群IBG-AI Agent产品实习生
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_fwjzgj41eqqk?pcm=pc_SearchList
@@ -4460,7 +5590,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 5. 能通过英文进行工作沟通，熟练读写；
 ----------------------------------------------------------------------------------------
 
-【177】公司：货拉拉
+【224】公司：货拉拉
 岗位：大数据工程师实习（可留用）
 城市：深圳 ｜ 薪资：150-300/天
 来源链接：https://www.shixiseng.com/intern/inn_humgcrmkcyiy?pcm=pc_SearchList
@@ -4498,7 +5628,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 主动思考、表达力强，愿意学习新技术与业务。
 ----------------------------------------------------------------------------------------
 
-【178】公司：小米
+【225】公司：小米
 岗位：多智能体（Multi-Agent）算法实习生(A234951A)
 城市：北京 ｜ 薪资：250-400/天
 来源链接：https://www.shixiseng.com/intern/inn_5ozomc2fqpy1?pcm=pc_SearchList
@@ -4536,7 +5666,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 6. 具备扎实的工程能力，有大型Python项目开发、系统架构设计经验。
 ----------------------------------------------------------------------------------------
 
-【179】公司：小米
+【226】公司：小米
 岗位：全双工语音智能体（Voice Agent）算法实习生(A61530)
 城市：北京 ｜ 薪资：250-400/天
 来源链接：https://www.shixiseng.com/intern/inn_lqwkcrrrooy2?pcm=pc_SearchList
@@ -4565,7 +5695,7 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 5. GitHub有相关项目、个人技术博客有相关技术输出者优先。
 ----------------------------------------------------------------------------------------
 
-【180】公司：哔哩哔哩
+【227】公司：哔哩哔哩
 岗位：AI Agent 研发实习生（视频创作方向）
 城市：上海 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_zogh8tzvu3gz?pcm=pc_SearchList
@@ -4598,7 +5728,26 @@ AI究竟能不能让一个普通人的工作能力发生数量级的改变？
 4. 有视频平台创作经验（Bilibili / 小红书 / 抖音等），或对视频制作流程（脚本、剪辑、内容结构）有理解。
 ----------------------------------------------------------------------------------------
 
-【181】公司：EasyLink
+【228】公司：字节跳动
+岗位：字节跳动｜大模型 / Agent 算法实习生｜日常实习
+城市：上海 ｜ 薪资：400-500/天
+来源链接：https://www.nowcoder.com/jobs/detail/464031
+发布时间：2026-08-28
+----------------------------------------------------------------------------------------
+面向28届在校生，为符合岗位要求的同学提供为期3个月及以上的项目实践机会。
+1、数据工程：构建高质量数据的生产流程，其中包括预训练、指令微调等数据，提升业务应用效果；
+2、算法研发：推进Knowledge Injection、SFT、RLHF等模型优化方面的工作，提高模型质量和适应性；
+3、梳理&沉淀算法库：抽象算法接口，最大化提升算法成果和基座模型的复用率，提升大模型落地效率；
+4、业务应用：深入研究并推进相关大模型技术的落地，包括但不限于智能审核、客服、Copilot等应用场景。
+
+1、硕士及以上学位在读，计算机相关专业优先；
+2、具有优秀的代码能力和基础算法功底，熟练使用TensorFlow/PyTorch等机器学习框架和工程框架；
+3、具有扎实的机器学习基础，对传统NLP技术、GPT类技术有深入的理解，数理功底扎实，自学能力强；
+4、具备独立分析问题、定义问题和解决问题的能力，能深入解决大模型落地过程中存在的问题；
+5、主导过大模型领域的大影响力项目或论文者优先，包括但不限于ACL、EMNLP、COLING、WWW、AAAI等。
+----------------------------------------------------------------------------------------
+
+【229】公司：EasyLink
 岗位：Agent Harness 研发/工程方向
 城市：上海 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_duaei6vz52sw?pcm=pc_SearchList
@@ -4631,7 +5780,7 @@ Agent Harness 研发/工程方向
 3. 竞赛/学术：CS 或相关领域含金量较高的比赛奖项或论文发表。
 ----------------------------------------------------------------------------------------
 
-【182】公司：小鹏汽车
+【230】公司：小鹏汽车
 岗位：AI产品实习生（艺术类/设计类/AI类背景优先）(A189470)
 城市：广州 ｜ 薪资：100-150/天
 来源链接：https://www.shixiseng.com/intern/inn_pf9swmd8enz3?pcm=pc_SearchList
@@ -4656,7 +5805,7 @@ Agent Harness 研发/工程方向
 5. 具备较好的信息收集、竞品分析和文档表达和跨团队沟通能力。
 ----------------------------------------------------------------------------------------
 
-【183】公司：小红书
+【231】公司：小红书
 岗位：AI策略产品经理（大模型/Agent方向）
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_zwydqfxem48g?pcm=pc_SearchList
@@ -4676,7 +5825,7 @@ Agent Harness 研发/工程方向
 计算机、人工智能、HCI人机交互、交互设计相关专业优先，兼具技术素养与人文情怀；熟悉AI产品交互设计规范，有AI交互优化、用户体验迭代经验优先；有大模型Agent落地调优项目经验、用户感知敏锐、逻辑清晰，具备良好跨团队推进能力者优先。
 ----------------------------------------------------------------------------------------
 
-【184】公司：小红书
+【232】公司：小红书
 岗位：AI策略产品经理（大模型/Agent方向）实习
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_7zt1uduc8rtj?pcm=pc_SearchList
@@ -4696,7 +5845,7 @@ Agent Harness 研发/工程方向
 计算机、人工智能、HCI人机交互、交互设计相关专业优先，兼具技术素养与人文情怀；熟悉AI产品交互设计规范，有AI交互优化、用户体验迭代经验优先；有大模型Agent落地调优项目经验、用户感知敏锐、逻辑清晰，具备良好跨团队推进能力者优先。
 ----------------------------------------------------------------------------------------
 
-【185】公司：百融智能
+【233】公司：百融智能
 岗位：AI Agent / Harness Engineer 实习生
 城市：北京 ｜ 薪资：250-300/天
 来源链接：https://www.shixiseng.com/intern/inn_xmo7brxrexxv?pcm=pc_SearchList
@@ -4740,7 +5889,7 @@ Agent Harness 研发/工程方向
 * 在 NeurIPS、ICML、ICLR、SOSP、OSDI、NSDI 等高水平会议发表过相关工作。
 ----------------------------------------------------------------------------------------
 
-【186】公司：小红书
+【234】公司：小红书
 岗位：基础模型算法实习生 - LLM Post-training
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_l6j1dlarkksg?pcm=pc_SearchList
@@ -4767,7 +5916,80 @@ Agentic RL 与Agency： 研发面向 Search Agent、Code Agent 和 Tool-use Agen
 有大规模集群调优经验或知名开源 LLM 项目核心贡献者。
 ----------------------------------------------------------------------------------------
 
-【187】公司：雨舟Flova.ai
+【235】公司：虎牙
+岗位：(2027届秋招)大模型算法工程师
+城市：广州 ｜ 薪资：400-550/天
+来源链接：https://www.nowcoder.com/jobs/detail/463662
+发布时间：2026-08-26
+----------------------------------------------------------------------------------------
+岗位职责：
+
+1、参与大语言模型的后训练工作，包括CPT、SFT、RL等训练环节，提升模型在垂直场景（如内容生产、多轮对话、角色扮演、知识问答等）下的效果；
+
+2、参与大模型训练数据的挖掘、清洗、合成与质量优化，设计数据策略及评估体系，持续提升模型效果；
+
+3、参与大语言模型在直播、游戏、陪伴等场景下的创新应用探索，推动技术落地。
+
+1、2027届硕士及以上学历，计算机科学、人工智能、通信工程、电子信息、自动化、统计学、数学等相关专业；
+
+2、具备扎实的深度学习基础，熟悉Transformer架构，理解大语言模型的基本原理；
+
+3、熟练掌握Python，熟悉PyTorch等主流深度学习框架，了解LlamaFactory、ms-swift、verl、vLLM等大模型训练、推理框架者优先；
+
+4、对大语言模型有浓厚兴趣，了解预训练、SFT、强化学习、RAG、推理等相关技术中的一种或多种；
+
+5、具备良好的学习能力、问题分析能力和自驱力，愿意持续关注并实践大模型领域的新技术；
+
+6、有大厂或头部科技公司实习经历者优先，有大语言模型产品落地经验者优先。
+----------------------------------------------------------------------------------------
+
+【236】公司：杭州华为企业通信技术有限公司
+岗位：大模型AI Infra工程师（实习）
+城市：深圳 ｜ 薪资：200-500/月
+来源链接：https://www.nowcoder.com/jobs/detail/463621
+发布时间：2026-08-26
+----------------------------------------------------------------------------------------
+实习/校招
+华为2012中央软件院
+base 北上杭深
+构建AI/Agent高性能系统，诚邀人才加入！
+
+核心职责
+1. AI训推加速
+   - 设计LLM训推算子，深入NPU亲和优化，加速LLM推理。
+   - 构建LLM推理网关，设计请求智能负载均衡，助力智能体服务加速。
+
+2. Agent技术探索
+   - 定义设计Agent互联能力，使能多智能体生态接入。
+   - 探索 Agent生产应用，设计Agent实现软件开发测试、算子调优、算法优化。
+
+3. 灵衢超节点高性能网络
+----------------------------------------------------------------------------------------
+
+【237】公司：杭州华为企业通信技术有限公司
+岗位：大模型AI Infra工程师（实习）
+城市：北京 ｜ 薪资：200-500/月
+来源链接：https://www.nowcoder.com/jobs/detail/463619
+发布时间：2026-08-26
+----------------------------------------------------------------------------------------
+实习/校招
+华为2012中央软件院
+base 北上杭深
+构建AI/Agent高性能系统，诚邀人才加入！
+
+核心职责
+1. AI训推加速
+   - 设计LLM训推算子，深入NPU亲和优化，加速LLM推理。
+   - 构建LLM推理网关，设计请求智能负载均衡，助力智能体服务加速。
+
+2. Agent技术探索
+   - 定义设计Agent互联能力，使能多智能体生态接入。
+   - 探索 Agent生产应用，设计Agent实现软件开发测试、算子调优、算法优化。
+
+3. 灵衢超节点高性能网络
+----------------------------------------------------------------------------------------
+
+【238】公司：雨舟Flova.ai
 岗位：实习-国内达人营销（AI视频agent）
 城市：深圳 ｜ 薪资：180-200/天
 来源链接：https://www.shixiseng.com/intern/inn_sdwxfaplidyf?pcm=pc_SearchList
@@ -4788,7 +6010,7 @@ Agentic RL 与Agency： 研发面向 Search Agent、Code Agent 和 Tool-use Agen
 3. 有强烈的目标感，沟通能力强，责任心强，擅长沟通协调与执行落地。
 ----------------------------------------------------------------------------------------
 
-【188】公司：百度
+【239】公司：百度
 岗位：Agent策略工程师 J104988
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_qto0lyo8nfhd?pcm=pc_SearchList
@@ -4811,7 +6033,7 @@ Agentic RL 与Agency： 研发面向 Search Agent、Code Agent 和 Tool-use Agen
 4. 具备Harness工程、自进化数据闭环或大规模推理系统工程实践背景；有健康/医疗场景或IR、知识图谱经验者优先。
 ----------------------------------------------------------------------------------------
 
-【189】公司：博世中国
+【240】公司：博世中国
 岗位：机械Agent开发战略实习生 RBCT
 城市：上海 ｜ 薪资：150-250/天
 来源链接：https://www.shixiseng.com/intern/inn_ztnxjxuq4pen?pcm=pc_SearchList
@@ -4854,7 +6076,7 @@ Agentic RL 与Agency： 研发面向 Search Agent、Code Agent 和 Tool-use Agen
 协议地址：请通过访问博世中国官方主页，博世在中国＆gt;加入博世＆gt;工作机会，在网上招聘数据隐私声明；
 ----------------------------------------------------------------------------------------
 
-【190】公司：OPPO
+【241】公司：OPPO
 岗位：Agent算法实习生
 城市：深圳 ｜ 薪资：250-300/天
 来源链接：https://www.shixiseng.com/intern/inn_oqlg2cdgqbpa?pcm=pc_SearchList
@@ -4884,7 +6106,7 @@ Agentic RL 与Agency： 研发面向 Search Agent、Code Agent 和 Tool-use Agen
 7）深度使用 AI Coding / Research 工具，具备 Harness 开发、实验自动化、代码组织与科研协作能力。
 ----------------------------------------------------------------------------------------
 
-【191】公司：慧择网
+【242】公司：慧择网
 岗位：大模型算法/Agent算法实习生
 城市：深圳 ｜ 薪资：250-300/天
 来源链接：https://www.shixiseng.com/intern/inn_h8palnaaec0z?pcm=pc_SearchList
@@ -4919,7 +6141,7 @@ Python开发能力：熟练Python编程，有良好的代码习惯，有一定�
 不提倡加班的工作氛围：看重的是工作质量而非工作时长，优秀的部门领导；
 ----------------------------------------------------------------------------------------
 
-【192】公司：滴滴
+【243】公司：滴滴
 岗位：网约车平台技术-AI Agent开发实习生
 城市：北京 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_mzv2pu8mo7ub?pcm=pc_SearchList
@@ -4947,7 +6169,7 @@ Python开发能力：熟练Python编程，有良好的代码习惯，有一定�
 2. 连续实习3个月以上，每周可以实习至少4天
 ----------------------------------------------------------------------------------------
 
-【193】公司：博世中国
+【244】公司：博世中国
 岗位：AI产品/Agent开发实习生（Agentic AI方向）-ME
 城市：上海 ｜ 薪资：150-180/天
 来源链接：https://www.shixiseng.com/intern/inn_jmpiakdh66tm?pcm=pc_SearchList
@@ -4988,7 +6210,7 @@ Python开发能力：熟练Python编程，有良好的代码习惯，有一定�
 协议地址：请通过访问博世中国官方主页，博世在中国＆gt;加入博世＆gt;工作机会，在网上招聘数据隐私声明；
 ----------------------------------------------------------------------------------------
 
-【194】公司：百度
+【245】公司：百度
 岗位：大模型算法工程师 J99667
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_xkrxewfpujzx?pcm=pc_SearchList
@@ -5011,7 +6233,30 @@ Python开发能力：熟练Python编程，有良好的代码习惯，有一定�
 6、有好奇心，对新技术有热情，善于团队协作，具备创新精神和抗压能力。
 ----------------------------------------------------------------------------------------
 
-【195】公司：雨舟Flova.ai
+【246】公司：360集团
+岗位：广告推荐算法工程师
+城市：北京 ｜ 薪资：200-500/天
+来源链接：https://www.nowcoder.com/jobs/detail/462591
+发布时间：2026-08-21
+----------------------------------------------------------------------------------------
+工作职责
+负责亿级流量场景下，搜索广告算法召回策略研究、设计与实现，参加以下一到多项工作： 
+1.广告召回、排序、CTR 预估算法的研究，流量效率的挖掘与客户体验的提升； 
+2.研究机器学习/数据挖掘前沿技术，并用于解决实际问题；
+3.深入挖掘流量潜在价值，不断完善和优化算法，以技术驱动业务成长；
+任职资格
+1.计算机、数学相关专业硕士以上学位； 
+2.数据结构和算法功底扎实，熟练使用 C/C++，Python；
+3.熟悉常见的机器学习算法以及TensorFlow/pytorch等主流深度学习平台； 
+加分项
+1.熟悉生成式推荐、搜索、推荐、广告系统，在任一方向有召回工作经验；
+2.有大规模文本预训练，LLM微调，全链路一致性优化等工作经验者优先；
+3.有机器学习顶级会议论文发布或者相关性竞赛经验者优先；
+
+可转正，实习不低于 6 个月，每周不低于 4 天
+----------------------------------------------------------------------------------------
+
+【247】公司：雨舟Flova.ai
 岗位：实习-海外社媒运营实习生（AI视频Agent）(A06176)
 城市：深圳 ｜ 薪资：180-200/天
 来源链接：https://www.shixiseng.com/intern/inn_fuggmfgl40a9?pcm=pc_SearchList
@@ -5032,7 +6277,7 @@ Python开发能力：熟练Python编程，有良好的代码习惯，有一定�
 6、有社媒账号运营、内容创作、短视频剪辑、AI 工具使用经验者优先。
 ----------------------------------------------------------------------------------------
 
-【196】公司：百度
+【248】公司：百度
 岗位：Agent算法实习生(J104743)
 城市：北京 ｜ 薪资：250-500/天
 来源链接：https://www.shixiseng.com/intern/inn_fephq9s5ylsm?pcm=pc_SearchList
@@ -5057,7 +6302,7 @@ Python开发能力：熟练Python编程，有良好的代码习惯，有一定�
 -可连续实习 6 个月以上、每周到岗 4 天以上者优先
 ----------------------------------------------------------------------------------------
 
-【197】公司：百融智能
+【249】公司：百融智能
 岗位：智能体测试实习生
 城市：北京 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_4aryam6be4nt?pcm=pc_SearchList
@@ -5067,7 +6312,7 @@ Python开发能力：熟练Python编程，有良好的代码习惯，有一定�
 1. 智能体测试执行 • 依据给定的测试计划与用例，对搭建的智能体进行全面功能测试，涵盖智能体的交互响应、任务执行准确性等关键功能，详细记录测试过程中出现的各类问题。 • 协助设计并执行性能测试，评估智能体在不同负载条件下的运行效率，包括响应时间、吞吐量等指标，生成性能测试报告。 2. 数据收集与分析 • 在测试过程中，收集智能体运行产生的各类数据，如对话记录、决策路径等，并进行初步整理与分类。 • 协助分析测试数据，挖掘数据背后反映的智能体性能瓶颈与潜在问题，为优化方案的制定提供数据支持。 3. 优化方案协助实施 • 参与智能体优化方案的讨论，根据自身测试发现提出合理建议。 • 在指导下，协助开发团队实施优化方案，跟进优化效果，对优化后的智能体进行回归测试，确保问题得到有效解决。 任职要求： 1. 教育背景：在校学生，计算机科学、数学、人工智能等相关专业优先。 2. 专业技能 • 了解常用的测试工具和方法，有测试实践经验者优先。 • 对人工智能、机器学习基本概念有一定认识，了解智能体的基本原理更佳。 3. 能力素质 • 具备较强的逻辑思维能力，能够系统地分析问题和解决问题。 • 工作认真负责，注重细节，有良好的耐心和执行力，能够严格按照测试流程和标准执行任务。 • 具备良好的团队协作精神，能够与不同专业背景的团队成员有效沟通，积极分享测试发现与想法。 • 学习能力强，对新技术充满好奇心，能够快速掌握智能体测试与优化相关的新知识和技能。
 ----------------------------------------------------------------------------------------
 
-【198】公司：斯伦贝谢
+【250】公司：斯伦贝谢
 岗位：AI 实习生（大模型 LLM / 智能 Agent 方向）
 城市：北京 ｜ 薪资：200-400/天
 来源链接：https://www.shixiseng.com/intern/inn_rndcsy7blgfx?pcm=pc_SearchList
@@ -5095,7 +6340,7 @@ Python开发能力：熟练Python编程，有良好的代码习惯，有一定�
 4、优质团队氛围：扁平化国际化年轻团队，氛围轻松包容，聚焦技术成长，提供具备竞争力的实习薪资。
 ----------------------------------------------------------------------------------------
 
-【199】公司：复星医药
+【251】公司：复星医药
 岗位：AI Agent FDE 实习生(J14848)
 城市：上海 ｜ 薪资：200-300/天
 来源链接：https://www.shixiseng.com/intern/inn_lwsc6rytnrse?pcm=pc_SearchList
@@ -5120,7 +6365,7 @@ Python开发能力：熟练Python编程，有良好的代码习惯，有一定�
 有真实业务场景的 AI 应用、Agent、Skill、RAG、MCP Server、企业知识库或工作流自动化项目经验，且能够清晰说明场景背景、个人职责、技术方案、交付结果和实际效果。
 ----------------------------------------------------------------------------------------
 
-【200】公司：IAV
+【252】公司：IAV
 岗位：AI大模型应用开发实习生
 城市：上海 ｜ 薪资：150-200/天
 来源链接：https://www.shixiseng.com/intern/inn_ikdppedgvwqx?pcm=pc_SearchList
@@ -5153,7 +6398,98 @@ o 规则引擎 / 逻辑推理 / Workflow Engine
 • 最好具备车辆领域经验
 ----------------------------------------------------------------------------------------
 
-【201】公司：博世中国
+【253】公司：平安科技
+岗位：算法工程师
+城市：深圳 ｜ 薪资：9999999/天
+来源链接：https://www.nowcoder.com/jobs/detail/461446
+发布时间：2026-08-18
+----------------------------------------------------------------------------------------
+- 协助完成海量文本挖掘或NLP任务：对话质检、对话摘要、关键信息抽取、语义检索、对话生成、策略推荐。
+- 协助催收、客服等场景算法：用户画像、策略推荐、风险预测、意图理解、智能外呼/对话。
+- 基于LLM+Agent构建智能对话，落地Agent系统与跨系统自动化闭环。
+- 跟踪业界研究进展，将前沿NLP、大模型技术应用于场景，并参与模型算法优化。
+
+- 掌握NLP与大模型基础能力，可协助完成文本理解、信息抽取、对话生成等场景落地。
+- 了解大模型基本链路：预训练、SFT/RL、RAG、Prompt工程、上下文工程等。
+- 熟练使用Python，熟悉Linux开发环境，了解vLLM/SGLang推理加速工具，具备基础工程实现能力。
+- 顶会论文、对话/催收场景经验优先。
+- 了解AI Agent工具调用、规划执行、记忆管理、多智能体协同，有OpenClaw、AutoGen等经验优先。
+- 持续阅读文献，对前沿技术保持跟踪。具有较强的自主分析、沟通、学习、解决问题能力。
+----------------------------------------------------------------------------------------
+
+【254】公司：字节跳动
+岗位：ai算法工程师工程师
+城市：广州 ｜ 薪资：600-1000/天
+来源链接：https://www.nowcoder.com/jobs/detail/460796
+发布时间：2026-08-17
+----------------------------------------------------------------------------------------
+岗位职责：
+协助算法团队完成大模型应用侧的基础开发，包括Prompt工程、RAG知识库搭建、基础Agent功能调试
+参与业务场景数据集的清洗、标注与质量校验，搭建基础的数据处理流水线
+配合完成模型的效果测试、指标统计与问题复盘，输出基础的实验报告
+协助工程团队完成算法模块的简单部署与线上问题排查
+
+本科及以上学历，了解机器学习、深度学习基础理论，熟悉至少一种主流深度学习框架
+能熟练使用Python完成常规代码开发，有大模型相关项目、Kaggle入门竞赛经验优先
+具备基础的问题排查能力，愿意主动学习大模型微调、多模态相关技术
+----------------------------------------------------------------------------------------
+
+【255】公司：字节跳动
+岗位：ai算法工程师工程师
+城市：深圳 ｜ 薪资：600-1000/天
+来源链接：https://www.nowcoder.com/jobs/detail/460797
+发布时间：2026-08-17
+----------------------------------------------------------------------------------------
+岗位职责：
+协助算法团队完成大模型应用侧的基础开发，包括Prompt工程、RAG知识库搭建、基础Agent功能调试
+参与业务场景数据集的清洗、标注与质量校验，搭建基础的数据处理流水线
+配合完成模型的效果测试、指标统计与问题复盘，输出基础的实验报告
+协助工程团队完成算法模块的简单部署与线上问题排查
+
+本科及以上学历，了解机器学习、深度学习基础理论，熟悉至少一种主流深度学习框架
+能熟练使用Python完成常规代码开发，有大模型相关项目、Kaggle入门竞赛经验优先
+具备基础的问题排查能力，愿意主动学习大模型微调、多模态相关技术
+----------------------------------------------------------------------------------------
+
+【256】公司：华为云计算技术有限公司
+岗位：算法工程师
+城市：深圳 ｜ 薪资：200-500/天
+来源链接：https://www.nowcoder.com/jobs/detail/460814
+发布时间：2026-08-17
+----------------------------------------------------------------------------------------
+主要招聘27年应届毕业生，也招实习生。
+华为云是通向智能世界的桥梁，基于AI技术，华为云将打造一个开发的、智能的平台，提供更多的面向企业业务场景的服务。目前华为云已经在华为自身、金融、交通、工业、医疗、能源等领域有了广泛的商用。致力于实现普惠AI，让AI用得起，用的好，用的放心！
+本部门主要负责AI基础设施和解决方案构建，主推国产化昇腾的NPU算力。25年9月18日华为全联接大会发布了昇腾芯片到28年的规划，单超节点总算力、内存容量、互联带宽会持续全球领先。部门正处于扩张期，未来成长空间很大。
+岗位：AI平台、算法、大模型、数据库、大数据、K8S、WEB前后端等开发、测试、维护、解决方案
+地址：西安、上海、深圳、北京、杭州
+
+满足如下一项都可以：
+1.至少会一种编程语言：Java、GO、C/C++、web前端、python等语言
+2.有机器学习、深度学习、推理平台、模型训练等经验者优先
+3.有模型、算法基础者优先
+华为大平台，待遇好，机会多，管理流程成熟，晋升通道开放，欢迎有志之士加入！！！
+----------------------------------------------------------------------------------------
+
+【257】公司：华为云计算技术有限公司
+岗位：算法工程师
+城市：北京 ｜ 薪资：200-500/天
+来源链接：https://www.nowcoder.com/jobs/detail/460812
+发布时间：2026-08-17
+----------------------------------------------------------------------------------------
+主要招聘27年应届毕业生，也招实习生。
+华为云是通向智能世界的桥梁，基于AI技术，华为云将打造一个开发的、智能的平台，提供更多的面向企业业务场景的服务。目前华为云已经在华为自身、金融、交通、工业、医疗、能源等领域有了广泛的商用。致力于实现普惠AI，让AI用得起，用的好，用的放心！
+本部门主要负责AI基础设施和解决方案构建，主推国产化昇腾的NPU算力。25年9月18日华为全联接大会发布了昇腾芯片到28年的规划，单超节点总算力、内存容量、互联带宽会持续全球领先。部门正处于扩张期，未来成长空间很大。
+岗位：AI平台、算法、大模型、数据库、大数据、K8S、WEB前后端等开发、测试、维护、解决方案
+地址：西安、上海、深圳、北京、杭州
+
+满足如下一项都可以：
+1.至少会一种编程语言：Java、GO、C/C++、web前端、python等语言
+2.有机器学习、深度学习、推理平台、模型训练等经验者优先
+3.有模型、算法基础者优先
+华为大平台，待遇好，机会多，管理流程成熟，晋升通道开放，欢迎有志之士加入！！！
+----------------------------------------------------------------------------------------
+
+【258】公司：博世中国
 岗位：Agent开发战略实习生 RBCT
 城市：上海 ｜ 薪资：180-250/天
 来源链接：https://www.shixiseng.com/intern/inn_mm8iixte9jvq?pcm=pc_SearchList
@@ -5196,7 +6532,7 @@ o 规则引擎 / 逻辑推理 / Workflow Engine
 协议地址：请通过访问博世中国官方主页，博世在中国＆gt;加入博世＆gt;工作机会，在网上招聘数据隐私声明；
 ----------------------------------------------------------------------------------------
 
-【202】公司：世纪前沿
+【259】公司：世纪前沿
 岗位：大模型后训练研发实习生
 城市：深圳 ｜ 薪资：1000-2000/天
 来源链接：https://www.shixiseng.com/intern/inn_esyv4lsq8lro?pcm=pc_SearchList
@@ -5218,7 +6554,7 @@ o 规则引擎 / 逻辑推理 / Workflow Engine
 - 掌握 DeepSpeed/vLLM 等大模型训练框架，复现过 AI 顶会论文；
 ----------------------------------------------------------------------------------------
 
-【203】公司：快手
+【260】公司：快手
 岗位：移动端智能研发工程师实习生 -【主站】
 城市：北京 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_wrmfbh7arpee?pcm=pc_SearchList
@@ -5237,7 +6573,7 @@ o 规则引擎 / 逻辑推理 / Workflow Engine
 5、具有良好的沟通能力和团队合作精神、优秀的分析问题和解决问题的能力。
 ----------------------------------------------------------------------------------------
 
-【204】公司：快手
+【261】公司：快手
 岗位：移动端智能研发工程师实习生 -【主站】
 城市：北京 ｜ 薪资：300-400/天
 来源链接：https://www.shixiseng.com/intern/inn_c14yw0wbmhpq?pcm=pc_SearchList
@@ -5256,7 +6592,31 @@ o 规则引擎 / 逻辑推理 / Workflow Engine
 5、具有良好的沟通能力和团队合作精神、优秀的分析问题和解决问题的能力。
 ----------------------------------------------------------------------------------------
 
-【205】公司：雨舟Flova.ai
+【262】公司：姚记集团
+岗位：AIGC技术实习生（算法工程师/工程）
+城市：上海 ｜ 薪资：200-300/天
+来源链接：https://www.nowcoder.com/jobs/detail/459269
+发布时间：2026-08-11
+----------------------------------------------------------------------------------------
+1、参与多模态AIGC技术栈（文本、图像、视频、语音、3D建模、代码生成）的研究与工程落地，支撑游戏AI技术开发；
+2、协助为AIGC产品业务提供底层技术支撑，包括模型调用、工作流编排、服务化封装等；
+3、基于业务场景搭建AI能力原型与智能体，验证交互范式与技术能力边界；
+4、参与算法/工程方向课题研究，探索游戏AI后备能力，沉淀可复用技术方案；5、与产品、美术、运营团队紧密协作，将技术方案转化为可落地产品功能。
+
+1、硕士/博士在读（优秀本科生亦可），软件工程、计算机科学与技术、人工智能、深度算法或大数据等相关专业；
+2、扎实的编程基础，熟悉Python、Java等至少一门语言，了解SpringBoot、LangChain等常用技术栈者优先；
+3、理解生成式AI基本原理与多模态内容生成技术边界，对大模型应用有实践或研究兴趣；
+4、具备算法或工程方向动手能力，能独立完成原型搭建、接口联调与基础服务部署；
+5、良好的技术文档与协作能力，能清晰向非技术同学解释技术可行性与限制；
+6、每周可实习4-5天，实习期不少于3个月。
+加分项：
+1、有基于Vibecoding模式使用Python/Java及LangChain/SpringBoot快速构建AI智能体原型经历；
+2、在顶会或竞赛中有AIGC、CV、NLP相关成果或开源贡献；
+3、熟悉Diffusion、Transformer、多模态模型等技术细节；
+4、有AI智能体、RAG、模型微调或游戏AI相关项目/科研经历。
+----------------------------------------------------------------------------------------
+
+【263】公司：雨舟Flova.ai
 岗位：实习 - 国内社媒运营（AI 视频 Agent）(A119979)
 城市：深圳 ｜ 薪资：180-200/天
 来源链接：https://www.shixiseng.com/intern/inn_eavzsqppiex2?pcm=pc_SearchList
@@ -5276,7 +6636,7 @@ o 规则引擎 / 逻辑推理 / Workflow Engine
 6、具备数据分析复盘经验，能解读播放、完播、互动率、涨粉、投流成本等指标，反向优化内容策略。
 ----------------------------------------------------------------------------------------
 
-【206】公司：数理软件
+【264】公司：数理软件
 岗位：长期招聘 软件开发、智能CAD、智能EDA、AI4S实习生
 城市：深圳 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_ji8e3rwvfmpt?pcm=pc_SearchList
@@ -5296,7 +6656,39 @@ o 规则引擎 / 逻辑推理 / Workflow Engine
 2、有其中3项意愿：独立钻研、好学有为、团队协作、成为科研精英、成为技术专家
 ----------------------------------------------------------------------------------------
 
-【207】公司：博世中国
+【265】公司：小米集团
+岗位：算法工程师工程师
+城市：深圳 ｜ 薪资：500-800/天
+来源链接：https://www.nowcoder.com/jobs/detail/459115
+发布时间：2026-08-10
+----------------------------------------------------------------------------------------
+参与电商/文娱/供应链场景下的机器学习、深度学习算法研发，覆盖搜广推、智能调度、多模态内容理解等方向，落地可支撑亿级数据的实用算法方案
+配合业务与工程团队，完成从需求拆解、模型训练调优到线上部署的全流程工作，解决实际业务中的效率优化、体验提升类问题
+跟踪AI领域前沿技术，复现最新论文并结合业务场景做适配创新，参与团队内部技术沉淀与工具优化
+
+扎实的算法基础，熟悉常见机器学习、深度学习模型原理，了解Transformer、CNN等主流网络结构
+熟练使用Python编程，掌握PyTorch/TensorFlow至少一种深度学习框架，能独立完成简单模型的搭建与调优
+有相关课程实验、竞赛项目或开源项目实践经验即可，有NLP、CV、推荐系统等方向落地经验者优先
+具备良好的问题分析能力和团队沟通意识，愿意主动学习新技术，能和跨团队成员协作推进项目
+----------------------------------------------------------------------------------------
+
+【266】公司：小米集团
+岗位：算法工程师工程师
+城市：上海 ｜ 薪资：500-800/天
+来源链接：https://www.nowcoder.com/jobs/detail/459114
+发布时间：2026-08-10
+----------------------------------------------------------------------------------------
+参与电商/文娱/供应链场景下的机器学习、深度学习算法研发，覆盖搜广推、智能调度、多模态内容理解等方向，落地可支撑亿级数据的实用算法方案
+配合业务与工程团队，完成从需求拆解、模型训练调优到线上部署的全流程工作，解决实际业务中的效率优化、体验提升类问题
+跟踪AI领域前沿技术，复现最新论文并结合业务场景做适配创新，参与团队内部技术沉淀与工具优化
+
+扎实的算法基础，熟悉常见机器学习、深度学习模型原理，了解Transformer、CNN等主流网络结构
+熟练使用Python编程，掌握PyTorch/TensorFlow至少一种深度学习框架，能独立完成简单模型的搭建与调优
+有相关课程实验、竞赛项目或开源项目实践经验即可，有NLP、CV、推荐系统等方向落地经验者优先
+具备良好的问题分析能力和团队沟通意识，愿意主动学习新技术，能和跨团队成员协作推进项目
+----------------------------------------------------------------------------------------
+
+【267】公司：博世中国
 岗位：AI产品/Agent开发实习生（Agentic AI方向）-ME
 城市：上海 ｜ 薪资：150-180/天
 来源链接：https://www.shixiseng.com/intern/inn_doartbn90uwe?pcm=pc_SearchList
@@ -5337,7 +6729,7 @@ o 规则引擎 / 逻辑推理 / Workflow Engine
 协议地址：请通过访问博世中国官方主页，博世在中国＆gt;加入博世＆gt;工作机会，在网上招聘数据隐私声明；
 ----------------------------------------------------------------------------------------
 
-【208】公司：北京脑利科技
+【268】公司：北京脑利科技
 岗位：Agent 开发工程师
 城市：北京 ｜ 薪资：800/天
 来源链接：https://www.shixiseng.com/intern/inn_rv4mtayw9ltj?pcm=pc_SearchList
@@ -5352,7 +6744,26 @@ Go / Python / TypeScript 至少一门，能流畅读英文技术文档与论文�
 有异地租房补贴 2000元/月
 ----------------------------------------------------------------------------------------
 
-【209】公司：小红书
+【269】公司：字节跳动
+岗位：大模型算法工程师 - 剪映CapCut（招正式or实习）
+城市：深圳 ｜ 薪资：500-1000/天
+来源链接：https://www.nowcoder.com/jobs/detail/457997
+发布时间：2026-08-05
+----------------------------------------------------------------------------------------
+团队介绍：剪映研发团队，主要支持剪映、CapCut、醒图、Hypic、即梦、Dreamina、小云雀、Pippit等多款国内外产品的研发工作，业务覆盖多元化影像创作场景，并孵化了多款AIGC明星产品，相关产品多次登顶国内外App Store 免费应用榜第一，并继续保持高速增长。加入我们，一起打造全球最受用户欢迎的影像创作和GenAI产品。
+
+1、负责剪映系大模型与Agent的训练及能力建设，覆盖通用视频创作Agent、剪辑Agent、短剧Agent、营销Agent、UGC视频Agent等方向，协同打造专业影视创作工具与AI原生产品；
+2、深耕大模型后训练技术，研究高质量数据挖掘与合成、SFT、AgenticSFT/RL、奖励模型、强化学习算法、OPD蒸馏合版及多目标对齐等技术，持续提升模型的指令遵循、创作质量与复杂任务完成能力；
+3、与产品、研发团队协同优化Agent Harness，通过Skills、Memory、RAG、个性化及工具编排等机制，以及Agent自进化，提升Agent在多轮交互和长流程创作任务中的可控性、稳定性与用户体验。
+
+1、2027届获得硕士及以上学位，人工智能、计算机科学、数学等相关专业优先；
+2、具备出色的编程能力，熟练掌握Python/C++，熟悉PyTorch、VeRL、Llama-Factory等框架；熟悉大模型SFT、RL、模型蒸馏、奖励建模、数据合成与模型评测中的一项或多项；
+3、熟悉Agent技术栈，在任务规划、工具调用、多轮对话、RAG、内容生成、Skills、Memory等方向有相关实践经验者优先；
+4、对大模型、Agent与内容创作有强烈的好奇心，具备良好的研究能力、产品意识和效果判断能力，能够将前沿技术与实际业务场景结合并推动落地；
+5、在ICML、NeurIPS、ACL、CVPR、SIGIR、KDD、ICCV等会议发表过大模型、多模态、AIGC、推荐系统或计算广告相关论文，获得ACM/ICPC、NOI/IOI、Topcoder、Kaggle等比赛奖项，或熟悉视频剪辑、影视叙事、短剧创作、UGC内容及营销创意，对全球化、多语言及跨文化内容生成有相关经验者优先。
+----------------------------------------------------------------------------------------
+
+【270】公司：小红书
 岗位：【27届】智能客服算法实习生
 城市：北京 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_mmgvhdqbvrjw?pcm=pc_SearchList
@@ -5371,7 +6782,7 @@ Go / Python / TypeScript 至少一门，能流畅读英文技术文档与论文�
 5、有机器学习、数据挖掘等相关项目实际经验者，或者知名数据挖掘比赛（例如KDD Cup等）中取得领先名次者优先。
 ----------------------------------------------------------------------------------------
 
-【210】公司：小红书
+【271】公司：小红书
 岗位：【27届】智能客服算法实习生
 城市：上海 ｜ 薪资：薪资面议
 来源链接：https://www.shixiseng.com/intern/inn_cafxx36wdiex?pcm=pc_SearchList
@@ -5390,7 +6801,7 @@ Go / Python / TypeScript 至少一门，能流畅读英文技术文档与论文�
 5、有机器学习、数据挖掘等相关项目实际经验者，或者知名数据挖掘比赛（例如KDD Cup等）中取得领先名次者优先。
 ----------------------------------------------------------------------------------------
 
-【211】公司：阶跃星辰
+【272】公司：阶跃星辰
 岗位：LLM 预训练数据算法工程师（实习）
 城市：北京 ｜ 薪资：500-1000/天
 来源链接：https://www.shixiseng.com/intern/inn_zew9vswurbnc?pcm=pc_SearchList
@@ -5412,7 +6823,7 @@ Go / Python / TypeScript 至少一门，能流畅读英文技术文档与论文�
 - 每周不少于4天到岗，且能实习3个月以上。
 ----------------------------------------------------------------------------------------
 
-【212】公司：TTC
+【273】公司：TTC
 岗位：AI销售猎头实习生
 城市：广州 ｜ 薪资：150-300/天
 来源链接：https://www.shixiseng.com/intern/inn_npt2axvawquj?pcm=pc_SearchList
@@ -5457,7 +6868,7 @@ Go / Python / TypeScript 至少一门，能流畅读英文技术文档与论文�
 （工作地点：佛山/深圳/广州，每周至少到岗3天，持续3个月以上优先）
 ----------------------------------------------------------------------------------------
 
-【213】公司：百融智能
+【274】公司：百融智能
 岗位：AI 产品实习生（Agent 平台方向）
 城市：北京 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_yhgz3ovntnuj?pcm=pc_SearchList
@@ -5479,7 +6890,7 @@ Go / Python / TypeScript 至少一门，能流畅读英文技术文档与论文�
 每周可全职实习，连续实习 6 个月及以上。
 ----------------------------------------------------------------------------------------
 
-【214】公司：美团
+【275】公司：美团
 岗位：大模型评测实习生
 城市：北京 ｜ 薪资：200-250/天
 来源链接：https://www.shixiseng.com/intern/inn_k6qyvux09rpg?pcm=pc_SearchList
@@ -5499,7 +6910,7 @@ Go / Python / TypeScript 至少一门，能流畅读英文技术文档与论文�
 深度参与前沿大模型评测工作，积累AI领域实践经验。
 ----------------------------------------------------------------------------------------
 
-【215】公司：百度
+【276】公司：百度
 岗位：大模型评测实习生 J103760
 城市：北京 ｜ 薪资：250-400/天
 来源链接：https://www.shixiseng.com/intern/inn_fxv1eronnat5?pcm=pc_SearchList
@@ -5525,7 +6936,7 @@ Go / Python / TypeScript 至少一门，能流畅读英文技术文档与论文�
 ④ 英语能力：能够阅读并理解相关的英文技术文献与资料。
 ----------------------------------------------------------------------------------------
 
-【216】公司：滴滴
+【277】公司：滴滴
 岗位：Voyager-大数据研发实习生
 城市：广州 ｜ 薪资：200-300/天
 来源链接：https://www.shixiseng.com/intern/inn_tcbpftyztsi1?pcm=pc_SearchList
