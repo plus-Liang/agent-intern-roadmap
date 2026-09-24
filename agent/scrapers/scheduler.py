@@ -135,10 +135,11 @@ DEFAULT_KEYWORDS = [
 # 向后兼容：老代码/老文档引用的平铺列表，由 DEFAULT_KEYWORDS 推导（顺序、去重都固定）
 FALLBACK_KEYWORDS = [word for group in DEFAULT_KEYWORDS for word in group]
 
-# 默认抓取平台：多平台架构下调度器按这个列表**逐个平台**抓取。
-# 可用环境变量 SCHEDULER_PLATFORMS="shixiseng,nowcoder" 覆盖（见 resolve_config）。
+# 默认抓取平台：多平台架构下调度器按这个列表**逐个平台、顺序执行**抓取。
+# 默认启用 shixiseng（约 16 分钟）+ niuke（约 5 秒），总耗时几乎不变。
+# 可用 --platforms 或环境变量 SCHEDULER_PLATFORMS="shixiseng,nowcoder" 覆盖（见 resolve_config）。
 # 平台名 -> PlatformScraper 子类的注册表见 scraper_registry()。
-DEFAULT_PLATFORMS = ["shixiseng"]
+DEFAULT_PLATFORMS = ["shixiseng", "niuke"]
 
 # 合并落盘：超过这个天数的记录移进归档文件（口径与 cleaner.DEFAULT_STALE_DAYS 一致）
 DEFAULT_STALE_DAYS = int(os.getenv("SCHEDULER_STALE_DAYS", "90"))
@@ -759,6 +760,8 @@ def scrape_multi_platform(
         }
     """
     platforms = [p for p in (platforms or []) if str(p).strip()] or list(DEFAULT_PLATFORMS)
+    if logger:
+        logger.info("本次抓取平台（顺序执行）：%s", " -> ".join(platforms))
     cities = [c for c in (cities or []) if c is None or str(c).strip()] or [None]
     keywords = [k for k in (keywords or []) if str(k).strip()]
 
