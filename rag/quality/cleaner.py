@@ -7,7 +7,8 @@
     platform / job_id / title / company / city / salary / url / publish_date / description
 
 依次应用三道过滤（命中即计数并丢弃，一条只计一次，按下列顺序判定）：
-    a) city      城市：city == 目标城市 或 city == "全国"
+    a) city      城市：宽松匹配——job city 等于目标城市、含目标城市（多城市串）、
+                 去掉"市"后缀后含目标城市，或 job city == "全国"
     b) age       时间：publish_date 距今天 <= max_age_days（publish_date 为空则不参与时间过滤）
     c) length    正文长度：len(description) >= min_desc_len
 
@@ -151,6 +152,45 @@ def _normalize_job(job):
     return normalized
 
 
+def _norm_city(value) -> str:
+    """城市名归一：去首尾空白，并去掉"市"后缀，便于宽松比较。"""
+    return str(value or "").strip().replace("市", "")
+
+
+def city_matches(job_city, target_city) -> bool:
+    """宽松城市匹配。
+
+    抓取结果的 jobCity 常见形态：单城市（"广州"）、带"市"后缀（"广州市"）、
+    多城市串（"广州/北京/上海"、"广州、北京"）、以及不限城市的"全国"。
+    只要目标城市出现在岗位城市里就保留，避免多城市岗位被误杀。
+
+    规则（任一命中即 True）：
+      1) 目标城市为"全国"（本次不限城市）
+      2) 岗位城市为"全国"（不限城市岗位）
+      3) 两者完全相等
+      4) 目标城市是岗位城市的子串（"广州" ⊂ "广州/北京/上海"）
+      5) 去掉"市"后缀后，目标城市仍是岗位城市的子串（"广州" ⊂ "广州市"）
+    """
+    job_city = str(job_city or "").strip()
+    target_city = str(target_city or "").strip()
+    # 岗位城市缺失时不放行；目标城市为空表示不限城市，放行
+    if not job_city:
+        return not target_city
+    if not target_city:
+        return True
+    if target_city == NATIONWIDE or job_city == NATIONWIDE:
+        return True
+    if job_city == target_city:
+        return True
+    if target_city in job_city:
+        return True
+    normalized_job = _norm_city(job_city)
+    normalized_target = _norm_city(target_city)
+    if normalized_target and normalized_target in normalized_job:
+        return True
+    return False
+
+
 def clean_jobs(jobs: list[dict], city: str = "广州",
                max_age_days: int = DEFAULT_MAX_AGE_DAYS,
                min_desc_len: int = DEFAULT_MIN_DESC_LEN,
@@ -160,7 +200,7 @@ def clean_jobs(jobs: list[dict], city: str = "广州",
 
     参数：
         jobs:         原始岗位 dict 列表
-        city:         目标城市（city == 该值，或 city == "全国" 时保留）
+        city:         目标城市（宽松匹配：相等、包含、去"市"后缀包含，或 job city == "全国" 时保留）
         max_age_days: publish_date 距今天最大天数（默认 60）
         min_desc_len: 正文最小长度
         today:        基准日期，默认取系统当天；测试时可显式传入
@@ -191,8 +231,8 @@ def clean_jobs(jobs: list[dict], city: str = "广州",
             removed["relevance"] += 1
             continue
 
-        # b) 城市：目标城市或"全国"
-        if job_city != city and job_city != NATIONWIDE:
+        # b) 城市：宽松匹配（目标城市、"全国"、多城市串、带"市"后缀都算命中）
+        if not city_matches(job_city, city):
             removed["city"] += 1
             continue
 

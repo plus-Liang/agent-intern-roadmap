@@ -435,7 +435,12 @@ def get_stale_combos(platforms, cities, keywords, limit: int = 0) -> list[tuple]
     （越久没抓越靠前），同一年龄的按池内原始顺序（platform → city → keyword）
     稳定排序，保证多轮跑下来可复现、不互相插队。
 
-    limit <= 0 时返回全部组合（不分批）；全池组合 = platforms × cities × keywords。
+    分批口径：先按 (platform, city) 分组，组内按上面的时序排好，再**组间轮询**
+    逐个取（每轮每组取 1 个）直到凑够 limit。这样单个城市即使关键词很多，也不会
+    一口气吃光整批，保证每个 (platform, city) 都能稳定分到名额。
+
+    limit <= 0 时返回全部组合（不分批，顺序同为轮询序）；
+    全池组合 = platforms × cities × keywords。
     """
     pool = [
         _combo_key(platform, city, keyword)
@@ -465,7 +470,21 @@ def get_stale_combos(platforms, cities, keywords, limit: int = 0) -> list[tuple]
         (history.get(combo), index, combo) for index, combo in enumerate(pool)
     ]
     ranked.sort(key=lambda item: (item[0] is not None, item[0] or "", item[1]))
-    combos = [combo for _, _, combo in ranked]
+
+    # 按 (platform, city) 分组：ranked 已按时序排好，dict 保持首次出现顺序，
+    # 于是组间顺序 = 各组「最久未抓」的那条谁更久，组内同样保持时序。
+    groups: dict[tuple[str, str], list[tuple]] = {}
+    for _, _, combo in ranked:
+        groups.setdefault((combo[0], combo[1]), []).append(combo)
+
+    # 组间轮询：第 0 轮每组取 1 个（各组最久未抓的），第 1 轮再每组取第 2 个……
+    # 只要 (platform, city) 组数 <= limit，每个组合都能稳定分到名额。
+    combos: list[tuple] = []
+    for depth in range(max(len(bucket) for bucket in groups.values())):
+        for bucket in groups.values():
+            if depth < len(bucket):
+                combos.append(bucket[depth])
+
     if limit and int(limit) > 0:
         return combos[: int(limit)]
     return combos
