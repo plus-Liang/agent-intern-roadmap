@@ -6,14 +6,15 @@
 字段与 agent/tools/job_search.py 的 Job 对齐：
     platform / job_id / title / company / city / salary / url / publish_date / description
 
-依次应用四道过滤（命中即计数并丢弃，一条只计一次，按下列顺序判定）：
-    a) relevance 相关性：标题或正文含 Agent / LLM / 大模型 / RAG / 智能体 /
-       大语言模型 / 检索增强生成
-       —— 单独出现 "AI" 不作为命中（太宽泛）；
-          只有"标题含 AI"且"正文含上述关键词"才算命中
-    b) city      城市：city == 目标城市 或 city == "全国"
-    c) age       时间：publish_date 距今天 <= max_age_days（publish_date 为空则不参与时间过滤）
-    d) length    正文长度：len(description) >= min_desc_len
+依次应用三道过滤（命中即计数并丢弃，一条只计一次，按下列顺序判定）：
+    a) city      城市：city == 目标城市 或 city == "全国"
+    b) age       时间：publish_date 距今天 <= max_age_days（publish_date 为空则不参与时间过滤）
+    c) length    正文长度：len(description) >= min_desc_len
+
+原 a) relevance 相关性过滤**已停用**：项目定位从"AI 求职助手"扩展为
+"全行业求职助手"后，相关性由抓取端的关键词池（config/scraping.yaml）保证，
+清洗端再按 AI 词过滤会把非 AI 岗位整条丢掉。_is_relevant 恒为 True，
+removed["relevance"] 恒为 0（保留字段只为不改变统计口径）。
 
 保留的岗位按 publish_date 降序排列（最新在前），publish_date 为空的排在最后。
 
@@ -50,24 +51,13 @@ ARCHIVE_FILENAME = "cleaned_jd_archive.json"
 # 正文长度默认值
 DEFAULT_MIN_DESC_LEN = 200
 
-# 相关性关键词。
-# - 中文关键词按原文大小写敏感匹配
-# - 英文关键词用 lower() 做大小写不敏感匹配（"Agent" / "agent" / "AGENT" 都算）
-# - 不收录单独的 "AI"：广州搜索里 "AI原画"、"AI短视频创意"、"AI产品经理" 这类
-#   泛 AI 岗位命中率太高，会让 clean_jobs 失去筛选意义
-# - 也不再收录 "AI Agent" / "AI 大模型" 这类带 "AI" 的中文例外：它们本身就分别包含
-#   "agent" / "大模型"，已经被关键词覆盖，单列出来只会让规则看起来比实际更宽
-#
-# ⚠️ 中文同义词必须与 agent/scrapers/scheduler.py 的 DEFAULT_KEYWORDS **组内容一致**。
-#    原因：scheduler 用中文词去搜（比如"检索增强生成"），搜回来的岗位还要过这里
-#    这道相关性过滤；如果这里不认这个词，岗位会在**入库前**被当"不相关"丢掉，
-#    搜索结果里自然永远是 0 条——抓取端加了同义词、过滤端不认，等于白加。
-#    英文靠子串匹配本来就覆盖得比较宽（"rag" 能命中 "RAG"），中文才是漏得多的那侧：
-#    只写"检索增强生成"而不写 "RAG" 的岗位，之前会被整条丢掉。
+# 相关性关键词（**已停用，仅作历史参考**）。
+# 自"全行业求职助手"改造后 _is_relevant 恒为 True，下面的词与 _hits_keyword
+# 都不再参与过滤；保留它们只为记录旧口径（需要回滚时只改 _is_relevant 即可）。
 RELEVANCE_KEYWORDS_ZH = ("大模型", "智能体", "大语言模型", "检索增强生成")
 RELEVANCE_KEYWORDS_EN = ("agent", "llm", "rag")
 
-# 标题侧标记："标题含 AI" 是识别 AI 类岗位的唯一线索，但必须配合正文关键词才放行
+# 标题侧标记（同样已停用：不再有"标题含 AI"的额外判定）
 AI_TITLE_MARKER = "ai"
 
 # 输出字段顺序 = Job 的字段顺序（不含 tags，抓取结果里也没有 tags）
@@ -95,7 +85,10 @@ def _job_field(job, name):
 
 
 def _hits_keyword(text):
-    """文本是否命中任一相关性关键词（中文大小写敏感，英文忽略大小写）。"""
+    """文本是否命中任一相关性关键词（**已停用，仅作历史参考**）。
+
+    原逻辑：中文大小写敏感、英文忽略大小写。现在不再被 _is_relevant 调用。
+    """
     if not text:
         return False
     for keyword in RELEVANCE_KEYWORDS_ZH:
@@ -109,20 +102,16 @@ def _hits_keyword(text):
 
 
 def _is_relevant(title, description):
-    """相关性判定（收窄后）。
+    """相关性判定：**已停用，恒为 True（全行业口径）**。
 
-    1) 标题或正文命中关键词（Agent / LLM / 大模型 / RAG / 智能体 /
-       大语言模型 / 检索增强生成）→ 保留；
-    2) 标题含 "AI" 且正文命中关键词 → 保留；
-    3) 只是标题或正文出现 "AI"（如 "AI原画" / "AI产品经理"）→ 不算命中。
+    历史：这里原本只认 Agent / LLM / 大模型 / RAG / 智能体 / 大语言模型 /
+    检索增强生成，非 AI 岗位会在**入库前**被整条丢掉。
 
-    说明：规则 2 在逻辑上被规则 1 覆盖（正文一旦命中关键词，规则 1 就已放行），
-    这里显式写出来是为了让"AI 类岗位"的判定条件留下可读的痕迹；
-    它对结果的影响是 0，真正起收窄作用的是删掉 "AI Agent" / "AI 大模型" 例外。
+    现状：项目定位扩展为"全行业求职助手"，相关性由抓取端的全行业关键词池
+    （config/scraping.yaml）保证，清洗端不需要二次过滤，因此直接放行。
+    函数与调用点都保留，只是不再产生任何移除（removed["relevance"] 恒为 0）。
     """
-    if _hits_keyword(title) or _hits_keyword(description):
-        return True
-    return AI_TITLE_MARKER in (title or "").lower() and _hits_keyword(description)
+    return True
 
 
 def _parse_date(value):
@@ -196,7 +185,8 @@ def clean_jobs(jobs: list[dict], city: str = "广州",
         job_city = _job_field(job, "city").strip()
         publish_date = _job_field(job, "publish_date").strip()
 
-        # a) 相关性：标题/正文命中关键词，或"标题含 AI + 正文命中关键词"
+        # a) 相关性：已停用（_is_relevant 恒为 True，全行业口径）；
+        #    保留这一步只为让 removed 的键与历史统计口径保持一致。
         if not _is_relevant(title, description):
             removed["relevance"] += 1
             continue
@@ -254,7 +244,7 @@ def _print_summary(result):
     print("-" * 60)
     print("按过滤原因移除：")
     labels = {
-        "relevance": "相关性（标题/正文无 Agent/LLM/大模型/RAG/智能体/大语言模型/检索增强生成，且非「标题含 AI + 正文命中」）",
+        "relevance": "相关性（已停用：全行业口径，由抓取端关键词池保证，恒为 0）",
         "city": "城市（非目标城市且非全国）",
         "age": "时间（publish_date 超出天数上限）",
         "length": "正文长度（description 太短）",
