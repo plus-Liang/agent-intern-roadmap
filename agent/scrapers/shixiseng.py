@@ -89,7 +89,25 @@ UA = (
 )
 VIEWPORT = {"width": 1440, "height": 900}
 CARD_TIMEOUT_MS = 15_000          # wait_for_selector 等卡片，15 秒
+# 空结果页的等待上限：页面骨架出现后，最多再等这么久还没有卡片就判定"本页无岗位"。
+# 旧逻辑会把 6 个候选选择器各自的 15 秒超时全部等满（≈90 秒/次空搜索）。
+CARD_EMPTY_GRACE_MS = 6_000
+CARD_POLL_INTERVAL_S = 0.4        # 轮询间隔：够快，又不会把 CPU 打满
+# 页面骨架候选：命中任一即认为列表页已经渲染，可以开始找卡片
+PAGE_READY_SELECTORS = [
+    ".intern-wrap",
+    ".intern-item",
+    ".search-result",
+    "#__layout",
+    ".page-container",
+]
+PAGE_READY_TIMEOUT_MS = 4_000
 DETAIL_TIMEOUT_MS = 20_000
+# search_multi 的分块大小：把 N 个「关键词 × 城市」组合切成 N/CHUNK 批依次跑，
+# 每批跑完回调一次进展。为什么需要：整池一次性 gather 时，一批 300+ 组合要跑几小时，
+# 期间调度器日志里**一行都没有**，看起来像卡死（2026-09-25 全量跑 1h42m 无进度）。
+# 分块**不改变并发度**（块内仍是 Semaphore(conc) 并发），只保证「每隔一小批就有日志」。
+MULTI_CHUNK_SIZE = 12
 # 详情页限流：每次请求前随机等待 0.5~1.5 秒，降低被站点限流/风控的概率
 DETAIL_SLEEP_RANGE = (0.5, 1.5)
 
@@ -750,16 +768,42 @@ def _build_search_url(keyword: str, city: Optional[str], page: int) -> str:
 
 
 async def _find_card_selector(page: Any) -> tuple[str, int]:
-    """wait_for_selector 等卡片出现，返回命中的选择器和数量。"""
-    for sel in CARD_SELECTORS:
-        try:
-            await page.wait_for_selector(sel, timeout=CARD_TIMEOUT_MS, state="attached")
-            count = await page.locator(sel).count()
+    """等卡片出现，返回命中的选择器和数量。
+
+    为什么要"限时 + 重试轮询"而不是逐个 wait_for_selector(15s)：
+        一个没有结果的搜索页，6 个候选选择器会**各自干等满 15 秒**才失败，
+        单次搜索因此从 4 秒涨到 90~190 秒（2026-09-25 实测：RAG@广州 98.7 秒、
+        Go@广州 192.6 秒，而同样页面有结果时只要 3.6 秒）。
+    现在的做法：
+        1) 先在 PAGE_READY_SELECTORS 上快速等一次（页面骨架出现就别干等）；
+        2) 再以 0.4 秒间隔轮询一遍所有卡片候选，命中即返回；
+        3) 轮询在 CARD_EMPTY_GRACE_MS 内仍无卡片就判定"本页没有岗位"，
+           交给调用方**立刻**停止翻页——不再把超时当信号。
+    语义与旧实现一致：返回 ("", 0) 表示没找到卡片，调用方行为不变。
+    """
+    deadline = time.monotonic() + CARD_EMPTY_GRACE_MS / 1000.0
+    ready_waited = False
+    while True:
+        if not ready_waited and page is not None:
+            # 骨架出现即可停止等待（失败也无所谓，只是少省一点时间）
+            for sel in PAGE_READY_SELECTORS:
+                try:
+                    await page.wait_for_selector(
+                        sel, timeout=PAGE_READY_TIMEOUT_MS, state="attached")
+                    break
+                except Exception:  # noqa: BLE001 - 骨架没等到就继续轮询
+                    continue
+            ready_waited = True
+        for sel in CARD_SELECTORS:
+            try:
+                count = await page.locator(sel).count()
+            except Exception:  # noqa: BLE001 - 选择器非法/页面已跳转
+                continue
             if count:
                 return sel, count
-        except Exception:  # noqa: BLE001 - 该候选超时/不存在，试下一个
-            continue
-    return "", 0
+        if time.monotonic() >= deadline:
+            return "", 0
+        await asyncio.sleep(CARD_POLL_INTERVAL_S)
 
 
 async def _parse_card(card: Any, index: int) -> Optional[dict[str, Any]]:
@@ -1869,6 +1913,8 @@ class ShixisengScraper(PlatformScraper):
         limit: int = 20,
         concurrency: Optional[int] = None,
         return_groups: bool = False,
+        progress_cb: Optional[Any] = None,
+        chunk_size: Optional[int] = None,
     ) -> list:
         """**并发**抓多组「关键词 + 城市」的列表页（调度器的批量入口）。
 
@@ -1889,6 +1935,12 @@ class ShixisengScraper(PlatformScraper):
                    True 返回与 pairs 等长的
                    [{"keyword", "city", "jobs": [...], "error": ""}, ...]，
                    供调度器保留"哪个组合抓到几条 / 哪个组合失败"的归属。
+            progress_cb: 可选回调 `cb(done, total, label, jobs_count, error, elapsed)`，
+                   每个组合跑完调用一次；异常一律吞掉（回调不该拖垮抓取）。
+            chunk_size: 每批并发跑多少个组合，跑完一批再起下一批。None 用模块常量
+                   MULTI_CHUNK_SIZE（12）；<=0 表示不分块（旧的"整池一次 gather"行为）。
+                   **只影响分段与进度可见性，不影响并发度**（块内并发度仍为
+                   concurrency 路）。
 
         并发与限流（只用 asyncio，不装新依赖）：
             * `asyncio.Semaphore(concurrency)` 限制同时在跑的列表页数；
@@ -1931,6 +1983,29 @@ class ShixisengScraper(PlatformScraper):
         results: list[list[RawJob]] = [[] for _ in combos]
         errors: list[str] = [""] * len(combos)
 
+        # 分块：整池一次 gather 会让日志几小时空白（看起来像卡死）。
+        # 切成 chunk_size 一批，块内并发度不变，但每批结束都能对上报进度。
+        chunk = MULTI_CHUNK_SIZE if chunk_size is None else int(chunk_size)
+        indices = list(range(len(combos)))
+        if chunk <= 0:
+            chunk = len(combos) or 1
+        chunks = [indices[i:i + chunk] for i in range(0, len(indices), chunk)]
+
+        t_start = time.monotonic()
+
+        def _notify(index: int, jobs_count: int, error: str) -> None:
+            """单个组合收尾后回调进展；回调出错只打印，绝不影响抓取。"""
+            if progress_cb is None:
+                return
+            label = combos[index][1] or "不限"
+            try:
+                progress_cb(
+                    index + 1, len(combos), f"{combos[index][0]} @ {label}",
+                    jobs_count, error, time.monotonic() - t_start,
+                )
+            except Exception as exc:          # noqa: BLE001 - 回调不拖垮抓取
+                print(f"[列表并发][警告] progress_cb 抛错（忽略）：{exc}")
+
         async def _one(index: int, keyword: str, city: Optional[str]) -> None:
             async with semaphore:
                 label = city or "不限"
@@ -1955,20 +2030,27 @@ class ShixisengScraper(PlatformScraper):
                     )
                     print(f"[列表并发][警告] ({index + 1}/{len(combos)}) "
                           f"{keyword!r} @ {label} 失败：{errors[index]}")
+                    _notify(index, 0, errors[index])
                     return
                 self._searches += 1
                 results[index] = [self.to_raw_job(job) for job in jobs]
                 print(f"[列表并发] ({index + 1}/{len(combos)}) {keyword!r} @ {label}："
                       f"{len(results[index])} 条（耗时 {_fmt(time.monotonic() - t_one)} 秒）")
+                _notify(index, len(results[index]), "")
 
-        tasks = [asyncio.create_task(_one(i, kw, c))
-                 for i, (kw, c) in enumerate(combos)]
-        try:
-            await asyncio.gather(*tasks, return_exceptions=True)
-        finally:
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
+        for chunk_no, group in enumerate(chunks, start=1):
+            tasks = [asyncio.create_task(_one(i, combos[i][0], combos[i][1]))
+                     for i in group]
+            try:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            finally:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+            done = min(chunk_no * chunk, len(combos))
+            print(f"[列表并发][进度] 第 {chunk_no}/{len(chunks)} 批完成："
+                  f"{done}/{len(combos)} 组合，累计 {_fmt(time.monotonic() - t_start)} 秒"
+                  f"（单组合均 {_fmt((time.monotonic() - t_start) / max(done, 1))} 秒）")
 
         # 全部组合都失败，多半是长驻浏览器 / context 已经死了：丢掉实例，让下次调用重启。
         # 注意**不按单条失败就 teardown**：那样会把其他还在跑的并发组合一起打死。

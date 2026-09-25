@@ -103,4 +103,8 @@ keywords:
 # 环境变量 SCHEDULER_BATCH_SIZE 可覆盖本值。
 schedule:
   batch_size: 60
+  # 抓取进度分块：每抓完这么多「关键词×城市」组合就打一行进度日志
+  # （含已完成数、平均耗时、预计剩余），否则整池几百组合跑几小时日志全空。
+  # 环境变量 SCHEDULER_CHUNK_SIZE 可覆盖本值；0 = 不分块。
+  chunk_size: 12
   max_age_days: 180

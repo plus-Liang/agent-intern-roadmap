@@ -185,6 +185,8 @@ class MockScraper(PlatformScraper):
         limit: int = 20,
         concurrency: Optional[int] = None,
         return_groups: bool = False,
+        progress_cb: Optional[Any] = None,
+        chunk_size: Optional[int] = None,
     ) -> list:
         """按 [(keyword, city), ...] 返回结果。
 
@@ -192,8 +194,12 @@ class MockScraper(PlatformScraper):
         return_groups=True  → 与 pairs 等长的
                               [{"keyword", "city", "jobs": [...], "error": ""}, ...]
         （与 ShixisengScraper.search_multi 的返回形状一致，调度器无需分支）。
+        progress_cb / chunk_size 只为对齐签名（mock 不分块，但照样回调进度）。
         """
         del concurrency          # mock 不并发，参数只为对齐签名
+        del chunk_size           # mock 无长等待，不需要分块
+        import time as _time
+        _t0 = _time.monotonic()
         combos: list[tuple[str, Optional[str]]] = []
         for item in pairs or []:
             if isinstance(item, (list, tuple)):
@@ -214,6 +220,17 @@ class MockScraper(PlatformScraper):
                     "keyword": keyword, "city": city, "jobs": [],
                     "error": f"{type(exc).__name__}: {exc}",
                 })
+            if progress_cb is not None:
+                last = groups[-1]
+                try:
+                    progress_cb(
+                        len(groups), len(combos),
+                        f"{keyword} @ {city or '不限'}",
+                        len(last["jobs"]), last["error"],
+                        _time.monotonic() - _t0,
+                    )
+                except Exception:                        # noqa: BLE001 - 回调不拖垮抓取
+                    pass
 
         if return_groups:
             return groups

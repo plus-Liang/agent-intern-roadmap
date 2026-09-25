@@ -159,6 +159,69 @@ DEFAULT_STALE_DAYS = int(os.getenv("SCHEDULER_STALE_DAYS", "90"))
 DEFAULT_BATCH_SIZE = int(os.getenv("SCHEDULER_BATCH_SIZE", "0") or 0)
 
 
+def _fmt_duration(seconds: float) -> str:
+    """把秒数格式化成中文可读时长（给抓取进度日志用）。"""
+    seconds = int(max(seconds, 0))
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h}小时{m}分"
+    if m:
+        return f"{m}分{s}秒"
+    return f"{s}秒"
+
+
+def _resolve_chunk_size(config: dict = None) -> int:
+    """决定本次的 chunk_size：SCHEDULER_CHUNK_SIZE > config（yaml）> 0。
+
+    <=0 表示不分块（旧行为：整池一次 gather）；非法值退回 0。
+    """
+    raw = os.getenv("SCHEDULER_CHUNK_SIZE")
+    if raw is None or not str(raw).strip():
+        raw = (config or {}).get("chunk_size", 0)
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return 0
+    return max(value, 0)
+
+
+def _make_progress_cb(logger, platform: str, total: int, chunk_size: int,
+                      every: int = 20):
+    """生成抓取进度回调：每 every 个组合（以及最后一个）向调度器日志写一行。
+
+    为什么需要：实习僧列表页单组合要几十秒，整池 300+ 组合一次跑几小时，
+    期间调度器日志一行都没有（2026-09-25 全量跑 1h42m 被误判为卡死）。
+    这个回调让「还要多久」时刻可算。
+    """
+    if not logger or total <= 0:
+        return None
+
+    def _cb(done, all_total, label, jobs_count, error, elapsed):
+        all_total = all_total or total
+        is_last = done >= all_total
+        if not is_last and every > 0 and done % every != 0:
+            return
+        eta = ""
+        if done > 0 and not is_last:
+            avg = elapsed / done
+            eta = f"，预计剩余 {_fmt_duration(avg * (all_total - done))}"
+        if chunk_size:
+            batch = (done - 1) // chunk_size + 1
+            total_batches = (all_total + chunk_size - 1) // chunk_size
+            batch_label = f"[第 {batch}/{total_batches} 批] "
+        else:
+            batch_label = ""
+        logger.info(
+            "[进度][平台 %s] %s%d/%d 组合（%.1f%%，已用 %s%s）｜%s：%d 条%s",
+            platform, batch_label, done, all_total,
+            100.0 * done / max(all_total, 1), _fmt_duration(elapsed), eta,
+            label, jobs_count, f"，失败：{error}" if error else "",
+        )
+
+    return _cb
+
+
 def _resolve_batch_size(config: dict = None) -> int:
     """决定本次的 batch_size：SCHEDULER_BATCH_SIZE > config（yaml/兜底）> 0。
 
@@ -591,6 +654,9 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
         # 分批滚动抓取：来自 config/scraping.yaml 的 schedule.batch_size，
         # 环境变量 SCHEDULER_BATCH_SIZE 可覆盖（见 _resolve_batch_size）。
         "batch_size": _resolve_batch_size(ext_config.get("schedule") or {}),
+        # 抓取进度分块（每批多少个组合打一行进度日志）：schedule.chunk_size，
+        # 环境变量 SCHEDULER_CHUNK_SIZE 可覆盖；0 = 不分块。
+        "chunk_size": _resolve_chunk_size(ext_config.get("schedule") or {}),
     }
     # 快速模式在这里就收敛规模；main() 用命令行参数覆盖之后再收敛一次（幂等）。
     return _apply_fast_mode(config, logger)
@@ -846,6 +912,7 @@ def scrape_multi_platform(
     detail_concurrency=None,
     scraper=None,
     batch_size: int = 0,
+    chunk_size: int = 0,
     logger: logging.Logger = None,
 ) -> dict:
     """遍历 [平台 × 城市 × 关键词] 抓取 → 合并去重。
@@ -921,6 +988,10 @@ def scrape_multi_platform(
     # 注入了假抓取器（离线自测 / 测试替身）时一律不写真实进度表：与
     # "假抓取器不落库" 同一口径，避免假组合污染真实进度。
     batch_size = _resolve_batch_size({"batch_size": batch_size})
+    # 抓取进度分块：显式传了就用传入值；没传（0）则回落到 config/scraping.yaml 的
+    # schedule.chunk_size；再没有就由抓取器用自己的默认分块（ShixisengScraper 默认 12）。
+    chunk_size = chunk_size or _resolve_chunk_size(
+        (_load_scraping_config().get("schedule") or {}))
     batch_db = None
     batch_selected: set[tuple] = set()
     batch_plan = False
@@ -1069,9 +1140,15 @@ def scrape_multi_platform(
                     # 列表页并发：整批交给抓取器，由它用 Semaphore(3) 并发跑列表页
                     # （详情页有自己的并发，按列表并发等比缩小，见抓取器实现）。
                     t_batch = time.monotonic()
+                    # 进度回调：把「跑到第几个组合、还要多久」实时写进调度器日志，
+                    # 免得几小时的抓取在日志里一片空白（看起来像卡死）。
+                    _progress_cb = _make_progress_cb(
+                        logger, platform, len(combos), chunk_size)
                     try:
                         grouped = await multi(
-                            combos, limit=limit_per_keyword, return_groups=True
+                            combos, limit=limit_per_keyword, return_groups=True,
+                            progress_cb=_progress_cb,
+                            chunk_size=(chunk_size or None),
                         )
                     except Exception as exc:   # noqa: BLE001 - 整批失败不拖垮其他平台
                         summary = f"{type(exc).__name__}: {str(exc).splitlines()[0][:160]}"
@@ -1751,6 +1828,7 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                                               DEFAULT_DETAIL_CONCURRENCY),
                 scraper=scraper,
                 batch_size=config.get("batch_size", DEFAULT_BATCH_SIZE),
+                chunk_size=config.get("chunk_size", 0),
                 logger=log,
             )
             jobs = merged_scrape["jobs"]
