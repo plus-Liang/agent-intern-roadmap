@@ -876,6 +876,7 @@ def scrape_multi_platform(
           "per_city":          {城市: 抓到条数},
           "per_keyword":       {关键词: 抓到条数},
           "per_platform_city": {(平台, 城市): 抓到条数},
+          "per_platform_city_kept": {(平台, 城市): 截断后条数},
           "failed":            {"平台/城市/关键词": 错误摘要},
           "raw_total":         去重前总条数,
         }
@@ -906,6 +907,10 @@ def scrape_multi_platform(
     factory = (lambda name: _FunctionScraper(scraper, name, options)) if scraper else None
 
     merged: dict[tuple, dict] = {}
+    # merged 的插入顺序是「平台 → 城市 → 关键词」，但 job 字典里带的是**岗位自身**的
+    # 城市（全国岗位可能是"全国"）。截断要按「抓取时的平台 × 城市」配额分组，
+    # 所以额外记一份 key → (平台, 抓取城市) 的归属表，与 per_platform_city 同口径。
+    merged_origin: dict[tuple, tuple] = {}
 
     # ---- 分批滚动抓取：本次只抓「最久未抓」的 batch_size 个组合 ----
     # 两支独立逻辑，互不干扰：
@@ -1040,7 +1045,8 @@ def scrape_multi_platform(
                         platform,
                         f"{job.get('company')}|{job.get('title')}|{job.get('url')}",
                     )
-                    merged.setdefault(key, job)
+                    if merged.setdefault(key, job) is job:
+                        merged_origin[key] = (platform, label)
 
                 # 分批进度：这个组合本次跑成功了（不分批时是空操作）
                 _record(platform, keyword, city, True)
@@ -1155,30 +1161,37 @@ def scrape_multi_platform(
 
     asyncio.run(_run())
 
-    # 截断按**平台**分配额，而不是全局 [:limit_total]。
-    # 为什么：merged 是按平台顺序插入的（先 shixiseng、后 niuke），全局截断会让
-    # 先跑的平台把配额吃光，后跑的平台一条不剩——niuke 抓到 78 条却在
-    # cleaned_jd.json / jobs.db 里一条都没有，根因就在这里。
-    # 现在 limit_total 的语义是「**每个平台**的上限」，各平台互不挤占。
+    # 截断按 **(平台, 城市)** 分配额：每个「平台 × 城市」组合各自 limit_total 条。
+    # 为什么不是全局、也不是按平台：merged 是按「平台 → 城市 → 关键词」顺序插入的，
+    # 按平台截断时同平台里排在后面的城市（例如杭州、成都）会被前面的城市吃光配额，
+    # 日志显示抓了 47 条、清洗前却一条不剩——这就是「杭州 47 → 清洗 0」的根因。
+    # 现在 limit_total 的语义是「每个平台在每个城市的**独立**上限」，互不挤占。
     jobs: list[dict] = []
-    kept_by_platform: dict[str, int] = {}
-    dropped_by_platform: dict[str, int] = {}
+    kept_by_pc: dict[tuple, int] = {}
+    dropped_by_pc: dict[tuple, int] = {}
     for key, job in merged.items():
         platform_name = (key[0] if isinstance(key, tuple) and key
                          else (job.get("platform") or ""))
-        if limit_total and kept_by_platform.get(platform_name, 0) >= limit_total:
-            dropped_by_platform[platform_name] = (
-                dropped_by_platform.get(platform_name, 0) + 1)
+        origin = merged_origin.get(key)
+        city_label = origin[1] if origin else _normalize_city_label(job.get("city"))
+        pc = (platform_name, city_label)
+        if limit_total and kept_by_pc.get(pc, 0) >= limit_total:
+            dropped_by_pc[pc] = dropped_by_pc.get(pc, 0) + 1
             continue
-        kept_by_platform[platform_name] = kept_by_platform.get(platform_name, 0) + 1
+        kept_by_pc[pc] = kept_by_pc.get(pc, 0) + 1
         jobs.append(job)
-    if dropped_by_platform and logger:
+    if dropped_by_pc and logger:
         logger.info(
-            "[多平台] 已按每平台 limit_total=%d 截断：%s（各平台独立配额，不互相挤占）",
+            "[多平台] 已按每「平台 × 城市」limit_total=%d 截断：%s"
+            "（各城市独立配额，不互相挤占）",
             limit_total,
-            "、".join(f"{pf} 丢弃 {n} 条" for pf, n in dropped_by_platform.items()),
+            "、".join(f"{pf}/{city} 丢弃 {n} 条"
+                      for (pf, city), n in dropped_by_pc.items()),
         )
     result["jobs"] = jobs
+    # 截断后的真实条数（按「平台 × 城市」）：日志用它报「截断后 N 条」，
+    # 免得再拿截断前的 per_platform_city 当清洗输入数，把丢弃的量说成进了清洗。
+    result["per_platform_city_kept"] = dict(kept_by_pc)
     return result
 
 
@@ -1433,6 +1446,18 @@ def _load_cleaner():
     if quality_dir not in sys.path:
         sys.path.insert(0, quality_dir)
     return importlib.import_module("cleaner")
+
+
+def _job_city_text(job) -> str:
+    """取一条岗位的城市文本（dict 与对象两种形态都兼容）。"""
+    if isinstance(job, dict):
+        return str(job.get("city") or "").strip()
+    return str(getattr(job, "city", "") or "").strip()
+
+
+def _city_matches(job_city, city) -> bool:
+    """宽松城市匹配（复用 cleaner.city_matches，不另立一套口径）。"""
+    return bool(_load_cleaner().city_matches(job_city, city))
 
 
 def clean_jobs(jobs: list[dict], city: str = "广州",
@@ -1746,8 +1771,13 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
         if len(cities) > 1 and jobs:
             kept, total_input, removed_sum = [], 0, {r: 0 for r in ("relevance", "city", "age", "length")}
             for city in cities:
+                # 只把**属于该城市**的子集交给 cleaner：以前传全量 jobs，等于每个城市
+                # 都跑一遍全量清洗，城市不符的整批丢——既浪费，又让"输入 N 条"的
+                # 口径对不上。全国岗位（city == "全国"）在 city_matches 下每个城市
+                # 都放行，与 cleaner 内部的宽松匹配保持一致。
+                subset = [j for j in jobs if _city_matches(_job_city_text(j), city)]
                 one = clean_jobs(
-                    jobs,
+                    subset,
                     city=city,
                     max_age_days=config.get("max_age_days", DEFAULT_MAX_AGE_DAYS),
                     min_desc_len=config.get("min_desc_len", DEFAULT_MIN_DESC_LEN),
@@ -1802,7 +1832,9 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
             else:
                 log.info("[落库] 已关闭 SQLite 落库（persist_db=False 或存在注入式假抓取器）")
 
-            # 每个「平台 × 城市」一行：抓到 N 条 → 清洗后 M 条 → 落库 M 条
+            # 每个「平台 × 城市」一行：
+            # 抓到 N 条 → 截断后 K 条 → 清洗后 M 条 → 落库 M 条
+            # 「截断后」取的是截断阶段真实保留的条数，不再拿截断前的抓取量冒充输入。
             cleaned_by_pc = _cleaned_counts_by_platform_city(kept)
             platform_totals: dict[str, int] = {}
             cleaned_by_city: dict[str, int] = {}
@@ -1811,6 +1843,8 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                 cleaned_by_city[city_key] = cleaned_by_city.get(city_key, 0) + count
             for (platform, city), raw_n in (merged_scrape.get("per_platform_city") or {}).items():
                 label = _normalize_city_label(city or "")
+                after_n = (merged_scrape.get("per_platform_city_kept") or {}).get(
+                    (platform, city), raw_n)
                 if not label:
                     # 「不限」城市：清洗后岗位带的是真实城市，只能按平台总量报
                     cleaned_n = platform_totals.get(platform, 0)
@@ -1827,8 +1861,8 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                             "（城市 %s：%d 条；真实平台维度计数为 0 时此值可能虚高）",
                             platform, label, cleaned_n,
                         )
-                log.info("[平台 %s][城市 %s] 抓到 %d 条 → 清洗后 %d 条 → 落库 %d 条",
-                         platform, city, raw_n, cleaned_n,
+                log.info("[平台 %s][城市 %s] 抓到 %d 条 → 截断后 %d 条 → 清洗后 %d 条 → 落库 %d 条",
+                         platform, city, raw_n, after_n, cleaned_n,
                          cleaned_n if should_persist else 0)
 
         # 3) 生成 chunk
