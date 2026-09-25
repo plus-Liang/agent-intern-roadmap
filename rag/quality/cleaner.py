@@ -23,6 +23,7 @@ removed["relevance"] 恒为 0（保留字段只为不改变统计口径）。
 """
 
 import json
+import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -77,6 +78,17 @@ NATIONWIDE = "全国"
 
 # 过滤原因键（removed 字典里始终齐全，未命中为 0）
 REMOVAL_REASONS = ("relevance", "city", "age", "length")
+
+# --- 同城镜像折叠（Round 2 / Round 3）相关常量 -----------------------------
+# Round 3 结论：**不再做任何标题增强归一化**。
+# Round 2 试过「剥括号内容 + 反复剥尾部职位后缀词（工程师/实习生/开发/算法/研发）」，
+# 实测在 613 条上命中 18 组，但其中 16 组的正文彼此不同 —— 折的是**不同岗位**。
+# 根因：剥完后标题只剩「算法」「大模型」「java」「前端」「量化」这类**岗位类别词**，
+# 同公司同城常有多个不同岗位共用同一类别词，于是被错误合并。
+# 典型：百度·北京「大模型算法」把 供应链AI(582字) / 电商搜索LLM(328字) /
+#       Agent系统(416字) 三个不同岗位折成一条。
+# 另外「括号」里装的正是区分信息（(C++)(A193922)(4)/(5)），剥掉等于丢信息。
+# 因此标题只做 _norm_text（空白折叠 + 转小写），并加「正文逐字一致」闸门。
 
 
 def _job_field(job, name):
@@ -370,6 +382,182 @@ def _is_stale(publish_date, today, stale_days) -> bool:
     return abs((today - parsed).days) > stale_days
 
 
+def _norm_text(value) -> str:
+    """文本归一（镜像比对用）：去首尾空白、内部空白折叠成一个、转小写。
+
+    与 agent/scrapers/niuke.py 的 _norm_text 口径一致。此处**不 import 抓取器**：
+    cleaner 属于 rag/quality 数据层，不该反向依赖 agent/scrapers（会把
+    playwright 之类的重依赖拖进清洗链路），因此保留一份等价实现。
+    """
+    return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+
+
+def _norm_mirror_title(value) -> str:
+    """标题的镜像归一：**只做 _norm_text**。
+
+    Round 2 曾在此处再剥括号内容 + 压平分隔符 + 反复剥尾部职位后缀词，
+    Round 3 已全部删除，原因见文件上方 MIRROR 常量处的说明：
+    增强归一化会把标题削成岗位类别词，导致同城不同岗位被折成一条（16/18 组误伤）。
+    """
+    return _norm_text(value)
+
+
+def _normalized_description(job: dict) -> str:
+    """取用于「正文是否逐字一致」比较的归一化正文。
+
+    比较口径：description 先 _norm_text（压空白 + 转小写）再比较。
+    为什么用 strip 后的逐字一致而不是相似度：本轮的判定是「宁可漏折、不可误伤」，
+    只有正文完全相同的才是铁证镜像；差一个字的（如字节豆包组 536/538）
+    一律不折，交给人工或后续规则。
+    """
+    return _norm_text(_job_field(job, "description"))
+
+
+def _job_mirror_key(job: dict) -> tuple:
+    """同城镜像判定键：(公司, 标题, 城市)，全部走现有 _norm_text / _norm_city。
+
+    - 公司：_norm_text（空白折叠 + 转小写）
+    - 标题：_norm_text（**不剥后缀、不剥括号**）
+    - 城市：_norm_city（去「市」后缀）
+
+    **城市刻意保留在键里**：本项目的检索/看板是按城市查岗的
+    （见 agent/tools/job_search.py 与 _norm_city 的存在理由），
+    把跨城投放折成一条会让「搜广州看不到广州岗位」。跨城同岗位
+    因此**不折叠**，只折叠同一城市内的重复投放。
+
+    只做字面归一，不引入语义等价词典——审计结论显示跨平台
+    （实习僧 vs 牛客）的 title 差异是「算法工程师 ⇄ 游戏测试工程师」
+    这种级别，靠规则无法覆盖，强上必然误伤。
+    """
+    return (
+        _norm_text(_job_field(job, "company")),
+        _norm_text(_job_field(job, "title")),
+        _norm_city(_job_field(job, "city")),
+    )
+
+
+def _mirror_sort_key(job: dict):
+    """镜像组内的确定性代表行排序键：数字 id 按数值升序排前，非数字 id 排后。
+
+    与 niuke._sort_key 口径一致。选「原始 id 最小」而不是「正文最长」当代表行，
+    是为了让结果**与抓取顺序无关**：同一份数据跑两次得到同一个 job_id，
+    否则每次重抓都可能换一条记录当代表行。
+    """
+    text = _job_field(job, "job_id")
+    if text.isdigit():
+        return (0, int(text), "")
+    return (1, 0, text)
+
+
+def fold_mirrors(records: list[dict]) -> tuple[list[dict], dict]:
+    """把同 (公司, 标题, 城市) 且**正文逐字一致**的镜像折叠成一条。
+
+    调用位置：merge_jds 里 **job_id 去重之后、排序/写盘之前**。
+    为什么必须晚于 job_id 去重：job_id 是平台内唯一的，跨平台 id 重复
+    （两个平台都用自增数字）会互相覆盖，所以先按「平台+job_id」把真正的
+    job_id 重复吃掉，再在这一步折叠「id 不同但内容同一岗位」的镜像。
+
+    折叠闸门（Round 3 新增，关键）：
+        键命中后还要看组内 description 是否**全部归一化后逐字一致**，
+        一致才折叠；只要有一条不同就整组原样保留。
+        为什么必须加：Round 2 只按 (公司,标题,城市) 折，18 组里 16 组
+        折的是不同岗位（百度·北京「大模型算法」折掉了供应链AI /
+        电商搜索LLM / Agent系统 三个不同岗位）。正文一致才是
+        「同一岗位重复投放」的铁证。
+
+    代表行规则（顺序固定，保证确定性）：
+        1) 排序键 _mirror_sort_key 最小者（原始 id 最小，数字 id 优先）；
+        2) description：取组内最长的那条回填（信息量最大）；
+        3) salary：先取代表行自己的；代表行为空才取组内第一个非空值。
+           **不做跨单位比较**——实习僧多为「/天」、牛客有「500-800/天」，
+           按数字大小取最大值会把单位不同的薪资比错。
+
+    未选中的记录**直接不写入结果**（不是打 mirror_of 标记）。
+
+    参数：
+        records: 已按 job_id 去重后的岗位 dict 列表
+
+    返回：
+        (折叠后的记录列表, stats)
+        stats = {
+          "before":            折叠前条数,
+          "after":             折叠后条数,
+          "folded":            折叠掉的条数,
+          "groups":            实际折叠的组数,
+          "skipped_by_content":正文不一致而跳过的组数（键命中但不敢折）,
+          "removed":           [{"key": 折叠键, "size": 组内条数,
+                                "rep": {代表行的 title/company/city/job_id/platform}}],
+        }
+    """
+    before = len(records)
+
+    groups: dict[tuple, list[dict]] = {}
+    order: list[tuple] = []          # 保持首现顺序，让输出与输入顺序无关但可复现
+    for job in records:
+        key = _job_mirror_key(job)
+        if key not in groups:
+            order.append(key)
+        groups.setdefault(key, []).append(job)
+
+    kept: list[dict] = []
+    removed: list[dict] = []
+    skipped_by_content = 0
+    for key in order:
+        group = groups[key]
+        if len(group) < 2:
+            kept.append(group[0])
+            continue
+
+        # 闸门：正文必须全部归一化后逐字一致，否则整组原样保留
+        # （宁可漏折、不可误伤；Round 2 的教训见 docstring）
+        if len({_normalized_description(j) for j in group}) > 1:
+            skipped_by_content += 1
+            kept.extend(group)
+            continue
+
+        ordered = sorted(group, key=_mirror_sort_key)
+        rep = ordered[0]
+        changes = {}
+
+        # description：取组内最长回填
+        longest = max(ordered, key=lambda j: len(_job_field(j, "description")))
+        if len(_job_field(longest, "description")) > len(_job_field(rep, "description")):
+            changes["description"] = _job_field(longest, "description")
+
+        # salary：代表行为空才回填第一个非空（不做跨单位比较）
+        if not _job_field(rep, "salary"):
+            for job in ordered:
+                if _job_field(job, "salary"):
+                    changes["salary"] = _job_field(job, "salary")
+                    break
+
+        if changes:
+            rep = {**rep, **changes}
+
+        kept.append(rep)
+        removed.append({
+            "key": key,
+            "size": len(group),
+            "rep": {
+                "platform": _job_field(rep, "platform"),
+                "job_id": _job_field(rep, "job_id"),
+                "title": _job_field(rep, "title"),
+                "company": _job_field(rep, "company"),
+                "city": _job_field(rep, "city"),
+            },
+        })
+
+    stats = {
+        "before": before,
+        "after": len(kept),
+        "folded": before - len(kept),
+        "groups": len(removed),
+        "skipped_by_content": skipped_by_content,
+        "removed": removed,
+    }
+    return kept, stats
+
+
 def merge_jds(existing, new, stale_days: int = DEFAULT_STALE_DAYS,
               archive_path=None, today: date | None = None) -> dict:
     """把「库里已有的」和「这次新抓的」按 job_id 去重合并，并归档过期记录。
@@ -399,6 +587,11 @@ def merge_jds(existing, new, stale_days: int = DEFAULT_STALE_DAYS,
                        "duplicates": D, "archived": A, "output": Z-A},
         }
 
+    注意 stats["merged"] 的口径：**同城镜像折叠之前**的条数
+    （= existing 与 new 按平台+job_id 去重后的总数）。折叠掉的条数另记
+    "mirrors_folded"，发生的折叠组数记 "mirror_groups"，这样
+    「merged = output + mirrors_folded + archived」这条账才对得上。
+
     为什么返回 dict 而不是 list：归档必须把过期记录**交出去**，调用方才写得了
     归档文件。只返回 list 的话，"移除"和"静默丢弃"在调用方看来没有区别。
     """
@@ -424,6 +617,10 @@ def merge_jds(existing, new, stale_days: int = DEFAULT_STALE_DAYS,
 
     records = list(merged.values())
 
+    # 1b) 同城镜像折叠：job_id 去重之后、排序写盘之前。
+    #     拦的是「id 不同但同公司同标题同城市」的重复投放（job_id 去重拦不住）。
+    records, mirror_stats = fold_mirrors(records)
+
     # 2) 排序：publish_date 降序，空日期垫底
     records.sort(key=_job_sort_key, reverse=True)
 
@@ -447,8 +644,11 @@ def merge_jds(existing, new, stale_days: int = DEFAULT_STALE_DAYS,
         "stats": {
             "existing": len(existing),
             "new": len(new),
-            "merged": len(records),
+            "merged": mirror_stats["before"],
             "duplicates": duplicates,
+            "mirrors_folded": mirror_stats["folded"],
+            "mirror_groups": mirror_stats["groups"],
+            "mirrors_skipped_by_content": mirror_stats["skipped_by_content"],
             "archived": len(archived),
             "output": len(kept),
         },

@@ -252,26 +252,36 @@ def t_landing_merge():
     written = json.loads((out / "cleaned_jd.json").read_text(encoding="utf-8"))
     if res["stats"]["existing"] != existing:
         _fail(f"应读到 {existing} 条原有数据：{res['stats']}")
-    if len(written) != existing + 3:
-        _fail(f"应 {existing + 3} 条（{existing}+3），实际 {len(written)}：{res['stats']}")
-    return f"原有 {existing} + 本次 3 → 落盘 {len(written)} 条（旧数据未被冲掉）"
+    # 落盘数 = 原有 + 本次新增 − 同城镜像折叠掉的条数。
+    # 不能写死成 existing + 3：真实语料里可能存在同 (公司,标题,城市) 且正文
+    # 逐字一致的镜像，merge_jds 会把它们折成一条（Round 3 的 fold_mirrors）。
+    # 从 stats 取 mirrors_folded，数据再变化这条断言依然成立。
+    folded = res["stats"]["mirrors_folded"]
+    expected = existing + 3 - folded
+    if len(written) != expected:
+        _fail(f"应 {expected} 条（{existing}+3-{folded} 折叠），实际 {len(written)}：{res['stats']}")
+    return (f"原有 {existing} + 本次 3 − 折叠 {folded} → 落盘 {len(written)} 条"
+            f"（旧数据未被冲掉）")
 
 
 def t_txt_full_merged():
     out = WORK / "landing_txt"
     out.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(REAL_JSON, out / "cleaned_jd.json")
-    S.merge_and_write_cleaned([mk("txt_new", 0)], out_dir=out, today=TODAY)
+    res = S.merge_and_write_cleaned([mk("txt_new", 0)], out_dir=out, today=TODAY)
     merged = json.loads((out / "cleaned_jd.json").read_text(encoding="utf-8"))
     S.write_rag_text(merged, out)
     txt = (out / "scraped_jd.txt").read_text(encoding="utf-8")
     blocks = txt.count(S.SEPARATOR) // 2
-    expected = len(REAL_JOBS) + 1                                 # 真实语料 + 本次新增 1 条
+    # 同上：本次 merge 会折掉 mirrors_folded 条镜像，语料块数要相应扣掉，
+    # 从 stats 取而不是写死 len(REAL_JOBS) + 1。
+    folded = res["stats"]["mirrors_folded"]
+    expected = len(REAL_JOBS) + 1 - folded                        # 真实语料 + 本次新增 1 − 折叠
     if blocks != expected:
-        _fail(f"txt 应有 {expected} 个岗位块，实际 {blocks}")
+        _fail(f"txt 应有 {expected} 个岗位块，实际 {blocks}（折叠 {folded}）")
     if "txt_new" not in txt and REAL_JOBS[0]["company"] not in txt:
         _fail("txt 内容不对")
-    return f"txt 为合并后全量：{blocks} 个岗位块"
+    return f"txt 为合并后全量：{blocks} 个岗位块（折叠 {folded}）"
 
 
 check("落盘合并：真实全量数据 + 3 条新抓", t_landing_merge)
