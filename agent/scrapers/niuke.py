@@ -193,7 +193,7 @@ def _parse_ext(ext: Any) -> str:
 def _fmt_date(*timestamps: Any) -> str:
     """毫秒时间戳 -> "YYYY-MM-DD"；拿不到或非法则返回 ""。
 
-    优先用 createTime（发布时间），缺失时回落到 refreshTime。
+    优先用 refreshTime（最近刷新，反映岗位是否还在招），缺失时回落到 createTime。
     """
     for ts in timestamps:
         if not ts:
@@ -392,7 +392,7 @@ class NiukeScraper(PlatformScraper):
             salary=_fmt_salary(data),
             url=DETAIL_URL_TMPL.format(job_id=job_id),
             description=_parse_ext(data.get("ext")),
-            publish_date=_fmt_date(data.get("createTime"), data.get("refreshTime")),
+            publish_date=_fmt_date(data.get("refreshTime"), data.get("createTime")),
         )
 
     # -- 公开：search ------------------------------------------------------
