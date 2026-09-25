@@ -555,9 +555,16 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
 
     优先级（城市与关键词同口径）：
         环境变量（SCHEDULER_KEYWORDS / SCHEDULER_CITY，向后兼容 SCRAPE_*）
+        > **显式传入且非空的 profile.target_keywords**
         > config/scraping.yaml（见 config/loader.py）
-        > user_profile.json（target_keywords / target_cities）
+        > 磁盘 user_profile.json（target_keywords / target_cities）
         > 本文件内置兜底（DEFAULT_KEYWORDS / ["广州"]）
+
+    为什么要单独拎出"显式传入"这一档：磁盘上的 user_profile.json 里
+    target_keywords 很可能为空（实测当前就是空列表），那属于"没配置"，
+    应当让 config/scraping.yaml 的 59 组全行业关键词继续生效；而调用方
+    显式传入非空 target_keywords 时是明确的本次意图，应当压过静态 yaml。
+    只按 profile 内容判断会让"显式传入"和"磁盘空画像"无法区分。
 
     城市池和关键词池外置到 config/scraping.yaml 之后，扩展抓取范围只改那个文件，
     不用改代码；两个 sources 字段记录本次的实际来源，启动时由
@@ -572,22 +579,32 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
     时不打这条告警也不兜底：那次根本不抓网络，提示"用了兜底关键词"只会误导。
     """
     profile = profile if isinstance(profile, dict) else user_profile.load_profile()
+    # 调用方是否**显式传入**了画像（区别于上面从磁盘加载的那份）。
+    # 为什么需要这个区分：磁盘上的 user_profile.json 里 target_keywords 可能是
+    # 空列表（实测当前就是空的），那属于"没配置"，应该让 config/scraping.yaml
+    # 的 59 组关键词继续生效；而调用方**显式传入**非空 target_keywords 时，
+    # 那是明确的本次意图，应当压过静态 yaml。两者不能混为一谈。
+    explicit_profile = profile is not None
+    explicit_kw_groups = (
+        split_keyword_groups(profile.get("target_keywords")) if explicit_profile else []
+    )
     # 外置配置：文件不存在/解析失败时，loader 内部已回退到内置默认值并打 WARN。
     ext_config = _load_scraping_config()
     ext_sources = ext_config.get("sources") or {}
 
-    # 关键词：环境变量 > config/scraping.yaml > user_profile.target_keywords > 兜底。
+    # 关键词：环境变量 > **显式传入的非空 profile** > config/scraping.yaml >
+    #        磁盘画像（读不到就用兜底 DEFAULT_KEYWORDS）。
     env_keywords = os.getenv("SCHEDULER_KEYWORDS") or os.getenv("SCRAPE_KEYWORDS")
     if env_keywords:
         groups = split_keyword_groups(env_keywords)
         keywords_source = "env"
-    elif ext_sources.get("keywords") == "config":
+    elif ext_sources.get("keywords") == "config" and not explicit_kw_groups:
         # yaml 平铺写 keywords 时，loader 已按内置同义词表归好组（新词各自成组）。
         groups = [list(group) for group in (ext_config.get("keyword_groups") or [])]
         keywords_source = "config"
     else:
-        # 没有外置关键词配置：保持改造前的顺序——先读 profile。
-        groups = split_keyword_groups(profile.get("target_keywords"))
+        # 没有外置关键词配置（或调用方显式点名了关键词）：先读 profile。
+        groups = explicit_kw_groups or split_keyword_groups(profile.get("target_keywords"))
         keywords_source = "profile" if groups else "default"
     if not groups:
         keywords_source = "default"
