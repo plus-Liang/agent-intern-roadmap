@@ -11,6 +11,8 @@
                  去掉"市"后缀后含目标城市，或 job city == "全国"
     b) age       时间：publish_date 距今天 <= max_age_days（默认 180；publish_date 为空则不参与时间过滤）
     c) length    正文长度：len(description) >= min_desc_len
+                 （**按平台可覆盖**，见 PLATFORM_MIN_DESC_LEN：
+                  ncss 用 100，未列出的平台用 min_desc_len 的全局值 200）
 
 原 a) relevance 相关性过滤**已停用**：项目定位从"AI 求职助手"扩展为
 "全行业求职助手"后，相关性由抓取端的关键词池（config/scraping.yaml）保证，
@@ -54,8 +56,32 @@ DEFAULT_STALE_DAYS = 90
 # 过期记录的归档文件名（与 cleaned_jd.json 同目录）
 ARCHIVE_FILENAME = "cleaned_jd_archive.json"
 
-# 正文长度默认值
+# 正文长度默认值（全局；未在 PLATFORM_MIN_DESC_LEN 里列出的平台都用它）
 DEFAULT_MIN_DESC_LEN = 200
+
+# 按平台覆盖的正文长度门槛：{平台名: 最小正文字数}。
+#
+# 为什么需要它：ncss（国家大学生就业服务平台）的详情页正文长度分布
+# 与实习僧/牛客**完全不同**。479 条抽样实测：
+#   * 23.8%（114 条）是「标题回显」—— description 与 title 逐字相同、最长 29 字，
+#     说明详情页正文没解析出来（数据缺失），不是"JD 天生短"；
+#   * 76.2%（365 条）有独立正文，中位数 242 字，其中 100-199 字的 85 条是
+#     **真实但精炼的短 JD**（例：审计员 125 字、审计助理 146 字、法务专员 54 字），
+#     title + company + city + 这段正文已足够 RAG 做基础检索。
+# 用全局 200 卡它，落盘率只有 45%（北京 × 3 词端到端更极端：29 条只留 10 条 = 34%），
+# 等于把"多行业覆盖"的目标砍掉一半以上。
+#
+# 为什么取 100：实测「标题回显」那批最长 29 字、100-199 段全是真正文，
+# 100 刚好切在确定的坏数据边界之上，混入的标题回显为 0 条，同时保住了短 JD。
+# 再降到 30/50 只会多收 50-99 那 34 条，里面混着"负责中学语文教学工作。"这类
+# 一句话正文，噪声比收益大。
+#
+# 实习僧 / 牛客**不动（保持 200）**：实习僧原始抓取样本 42 条 min 223 / 中位 444，
+# 库里 502 条全部 ≥200；牛客库里 116 条同样全部 ≥200、中位 578。它们的正文
+# 本就都在 200 以上，放宽对它们零收益、只有引入噪声的风险。
+PLATFORM_MIN_DESC_LEN = {
+    "ncss": 100,
+}
 
 # 相关性关键词（**已停用，仅作历史参考**）。
 # 自"全行业求职助手"改造后 _is_relevant 恒为 True，下面的词与 _hits_keyword
@@ -210,7 +236,8 @@ def city_matches(job_city, target_city) -> bool:
 def clean_jobs(jobs: list[dict], city: str = "广州",
                max_age_days: int = DEFAULT_MAX_AGE_DAYS,
                min_desc_len: int = DEFAULT_MIN_DESC_LEN,
-               today: date | None = None) -> dict:
+               today: date | None = None,
+               platform_min_desc_len: dict | None = None) -> dict:
     """
     清洗岗位列表。
 
@@ -218,8 +245,11 @@ def clean_jobs(jobs: list[dict], city: str = "广州",
         jobs:         原始岗位 dict 列表
         city:         目标城市（宽松匹配：相等、包含、去"市"后缀包含，或 job city == "全国" 时保留）
         max_age_days: publish_date 距今天最大天数（默认 180）
-        min_desc_len: 正文最小长度
+        min_desc_len: 正文最小长度（**全局默认**；被平台覆盖表压过时以表为准）
         today:        基准日期，默认取系统当天；测试时可显式传入
+        platform_min_desc_len: 本次调用额外追加的平台门槛覆盖（可选），
+                     形如 {"ncss": 100}；与 PLATFORM_MIN_DESC_LEN 合并，
+                     同名平台以本参数为准
 
     返回：
         {
@@ -232,6 +262,15 @@ def clean_jobs(jobs: list[dict], city: str = "广州",
     if today is None:
         today = date.today()
 
+    # 正文长度门槛：全局值 + 按平台覆盖（表里没有的平台用全局值）。
+    # 平台名统一小写去空白，避免大小写/空格差异导致覆盖失效，静默退回 200。
+    thresholds = dict(PLATFORM_MIN_DESC_LEN)
+    if platform_min_desc_len:
+        thresholds.update({
+            str(name).strip().lower(): int(value)
+            for name, value in platform_min_desc_len.items()
+        })
+
     removed = {reason: 0 for reason in REMOVAL_REASONS}
     kept = []
 
@@ -240,6 +279,7 @@ def clean_jobs(jobs: list[dict], city: str = "广州",
         description = _job_field(job, "description")
         job_city = _job_field(job, "city").strip()
         publish_date = _job_field(job, "publish_date").strip()
+        platform = _job_field(job, "platform").strip().lower()
 
         # a) 相关性：已停用（_is_relevant 恒为 True，全行业口径）；
         #    保留这一步只为让 removed 的键与历史统计口径保持一致。
@@ -257,8 +297,9 @@ def clean_jobs(jobs: list[dict], city: str = "广州",
             removed["age"] += 1
             continue
 
-        # d) 正文长度
-        if len(description) < min_desc_len:
+        # d) 正文长度：按平台取门槛（ncss 100 / 未列出的平台用 min_desc_len，见
+        #    PLATFORM_MIN_DESC_LEN 里"为什么按平台"的实测依据）
+        if len(description) < thresholds.get(platform, min_desc_len):
             removed["length"] += 1
             continue
 
@@ -303,7 +344,7 @@ def _print_summary(result):
         "relevance": "相关性（已停用：全行业口径，由抓取端关键词池保证，恒为 0）",
         "city": "城市（非目标城市且非全国）",
         "age": "时间（publish_date 超出天数上限）",
-        "length": "正文长度（description 太短）",
+        "length": "正文长度（description 太短；门槛按平台：ncss 100 / 其余 200）",
     }
     for reason in REMOVAL_REASONS:
         print("  %-9s %2d 条  —— %s" % (reason, removed.get(reason, 0), labels[reason]))

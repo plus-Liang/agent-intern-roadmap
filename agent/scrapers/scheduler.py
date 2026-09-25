@@ -143,11 +143,14 @@ DEFAULT_KEYWORDS = [
 # 向后兼容：老代码/老文档引用的平铺列表，由 DEFAULT_KEYWORDS 推导（顺序、去重都固定）
 FALLBACK_KEYWORDS = [word for group in DEFAULT_KEYWORDS for word in group]
 
-# 默认抓取平台：多平台架构下调度器按这个列表**逐个平台、顺序执行**抓取。
-# 默认启用 shixiseng（约 16 分钟）+ niuke（约 5 秒），总耗时几乎不变。
-# 可用 --platforms 或环境变量 SCHEDULER_PLATFORMS="shixiseng,nowcoder" 覆盖（见 resolve_config）。
+# 默认抓取平台：多平台架构下调度器按这个列表抓取。
+# 三个平台**逐个顺序**执行（不是并发）：shixiseng（浏览器，单组合约 14 秒）、
+# niuke（公开 JSON 接口）、ncss（公开 JSON 接口 + 匿名详情页，单组合约 23 秒含正文）。
+# ncss 的 1 req/s 限速在抓取器内部（模块级全局，跨实例生效）；因为平台之间是顺序的，
+# 它不会和其他平台叠加，也不需要调度器额外做并发控制。
+# 可用 --platforms 或环境变量 SCHEDULER_PLATFORMS="shixiseng,niuke,ncss" 覆盖（见 resolve_config）。
 # 平台名 -> PlatformScraper 子类的注册表见 scraper_registry()。
-DEFAULT_PLATFORMS = ["shixiseng", "niuke"]
+DEFAULT_PLATFORMS = ["shixiseng", "niuke", "ncss"]
 
 # 合并落盘：超过这个天数的记录移进归档文件（口径与 cleaner.DEFAULT_STALE_DAYS 一致）
 DEFAULT_STALE_DAYS = int(os.getenv("SCHEDULER_STALE_DAYS", "90"))
@@ -707,6 +710,11 @@ def scraper_registry() -> dict[str, type]:
         from agent.scrapers.niuke import NiukeScraper
 
         SCRAPERS.setdefault("niuke", NiukeScraper)
+        # 国家大学生就业服务平台（ncss.cn，原 24365）走公开 JSON 接口 + 匿名详情页，
+        # 同样只用 requests、不含 playwright；1 req/s 限速在抓取器内部（模块级全局）。
+        from agent.scrapers.ncss import NcssScraper
+
+        SCRAPERS.setdefault("ncss", NcssScraper)
         # mock_scraper 只依赖 base（不含 playwright），离线端到端自测用：
         # SCHEDULER_USE_MOCK=1 时平台被切成 "mock"，几秒钟跑完整条链路。
         from agent.scrapers.mock_scraper import MockScraper

@@ -570,7 +570,12 @@ def t_end_to_end_multi_city():
         CALLS.clear()
         cfg = {"keyword_groups": [["Agent", "智能体"]], "keywords": ["Agent", "智能体"],
                "cities": ["广州", "深圳"], "city": "广州", "max_pages": 1,
-               "limit_per_keyword": 5, "limit_total": 10}
+               "limit_per_keyword": 5, "limit_total": 10,
+               # 平台**显式钉住**：本用例下面的算术（2 平台 × 2 词 × 每城 3 条 = 12）
+               # 只对「shixiseng + niuke」成立。不钉住就会跟着 DEFAULT_PLATFORMS 走，
+               # 而 Step3 把 ncss 加进默认平台后这里会变成 18。本用例验的是多城市
+               # 聚合与落盘，跟默认平台集合无关，故固定住，避免以后平台增减再改它。
+               "platforms": ["shixiseng", "niuke"]}
         result = S.run_daily_job(config=cfg, out_dir=out, state_file=out / "state.json",
                                  logger=S.setup_logger(log_path=out / "job.log", verbose=False),
                                  scraper=fake_scraper)
