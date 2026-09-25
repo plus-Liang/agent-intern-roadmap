@@ -586,7 +586,7 @@ def resolve_config(profile: dict = None, logger: logging.Logger = None,
         groups = [list(group) for group in (ext_config.get("keyword_groups") or [])]
         keywords_source = "config"
     else:
-        # 没有外置关键词配置：保持改造前的顺序——先读画像。
+        # 没有外置关键词配置：保持改造前的顺序——先读 profile。
         groups = split_keyword_groups(profile.get("target_keywords"))
         keywords_source = "profile" if groups else "default"
     if not groups:
@@ -1866,6 +1866,25 @@ def run_daily_job(config: dict = None, out_dir=None, state_file=None,
                 kept.extend(one.get("jobs", []))
                 log.info("[2/4][城市 %s] 清洗：输入 %d → 保留 %d",
                          city, one.get("total_input", 0), len(one.get("jobs", [])))
+            # 跨城市再折叠一次（幂等）：全国岗位（city=="全国"）在 _city_matches 下
+            # **每个城市都放行**，于是会同时进入广州与深圳两个子集，被上门的
+            # kept.extend 各收一次 —— 抓取层已按 (platform, job_id) 去过重，
+            # 这里不补一次就等于把去重漏掉，result["cleaned"] 与 chunk 数会虚高。
+            # 去重键与 scrape_all_cities 保持一致：优先 job_id，缺失时退到内容签名。
+            seen_keys: set[str] = set()
+            deduped: list[dict] = []
+            for job in kept:
+                d = _job_to_dict(job)
+                job_key = (d.get("job_id") or "").strip() or (
+                    f"{d.get('company')}|{d.get('title')}|{d.get('url')}"
+                )
+                if job_key not in seen_keys:
+                    seen_keys.add(job_key)
+                    deduped.append(job)
+            if len(deduped) != len(kept):
+                log.info("[2/4] 多城市跨城去重：%d → %d 条（全国岗位在各城市重复放行）",
+                         len(kept), len(deduped))
+            kept = deduped
             cleaned = {
                 "total_input": len(jobs),
                 "removed": removed_sum,

@@ -581,13 +581,21 @@ def t_end_to_end_multi_city():
         _fail(f"任务失败：{result['error']}")
     if sorted(result["per_city"]) != ["广州", "深圳"]:
         _fail(f"per_city 应含两城市：{result['per_city']}")
-    if result["scraped"] != 5:
-        _fail(f"去重后应 5 条，实际 {result['scraped']}")
+    # 断言「去重后」的条数要用 cleaned，不能用 scraped：
+    # scraped = len(jobs)（平台 × 城市 × 关键词的原始累加，见 scheduler.py:1841），
+    # 而 scrape_multi_platform 按 (platform, job_id) 去重、**跨平台刻意不去重**
+    # （scheduler.py:926-927 有明确注释），所以 2 个平台就是 10 条，这是既定设计。
+    # cleaned 才是跨城聚合去重后的结果，也就是这里想验的「去重后应 5 条」。
+    if result["cleaned"] != 5:
+        _fail(f"去重后应 5 条，实际 {result['cleaned']}")
     written = json.loads((out / "cleaned_jd.json").read_text(encoding="utf-8"))
     if len(written) != 5:
         _fail(f"落盘应 5 条，实际 {len(written)}")
+    # per_city 记的是**原始抓取量**（平台 × 城市 × 关键词，未跨平台去重）：
+    # 2 个平台 × 2 个关键词 × 每城 3 条 = 12，不是去重后的 3。
+    # 去重后的条数以 result["cleaned"] 为准（上面已断言 = 5）。
     state = json.loads((out / "state.json").read_text(encoding="utf-8"))
-    if state.get("per_city") != {"广州": 3, "深圳": 3}:
+    if state.get("per_city") != {"广州": 12, "深圳": 12}:
         _fail(f"state.per_city 不对：{state.get('per_city')}")
     return (f"两城市都抓到（{[c['city'] for c in CALLS]}），落盘 {len(written)} 条，"
             f"state.per_city={state['per_city']}")
