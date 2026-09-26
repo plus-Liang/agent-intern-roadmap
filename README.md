@@ -32,7 +32,7 @@ pinned: false
 ## 环境变量（Space Secrets）
 
 在 Space 的 **Settings → Variables and secrets** 里配置，
-变量名以仓库根目录的 `.env.example` 为准（例如 `OPENAI_API_KEY`）。
+变量名以仓库根目录的 `.env.example` 为准（例如 `ZHIPU_API_KEY`）。
 
 ## 本地验证
 

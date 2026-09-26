@@ -1,0 +1,35 @@
+# 一条命令起服务：cp .env.example .env && docker compose up --build
+# 访问 http://localhost:8000 （/chat 对话、/docs API 文档）
+#
+# 为什么单 worker：四道闸门里的「单用户频率」是进程内令牌桶（shared/limits.py），
+# 多 worker 各持一份桶，限流就失真；要横向扩副本必须先换成 Redis / 落库滑动窗口。
+# 镜像不含 Streamlit Dashboard 与 Playwright（见 Dockerfile / .dockerignore）。
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agent-intern-roadmap:local
+    # 密钥与配置走 .env（.env 本身已被 .gitignore / .dockerignore 排除）
+    env_file:
+      - .env
+    ports:
+      - "8000:7860"
+    volumes:
+      # 数据层落盘：cleaned_jd.json（git 自带）+ jobs.db（运行时生成）
+      - ./rag/data:/app/rag/data
+      # 向量库：不进 git，用命名卷持久化，容器重建不必重新向量化
+      - chroma_db:/app/chroma_db
+    command:
+      ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:7860/docs || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    # 注意：logs/（token_usage.db、feedback.db）未挂卷，容器重建会清空用量/反馈记录
+
+volumes:
+  chroma_db:
