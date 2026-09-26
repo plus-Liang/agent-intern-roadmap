@@ -12,6 +12,7 @@ import time
 import uuid
 from shared.llm_client import chat
 from shared.logger import log_event
+from shared import limits
 from agent.tools_registry import (
     list_tools_description,
     call_tool,
@@ -23,6 +24,17 @@ from agent import reminder
 
 
 MAX_TURNS = 6
+
+# ========== 第 2 道闸门：单次请求的 token 预算熔断 ==========
+#
+# 上限 RUN_TOKEN_BUDGET（默认 30k）。**降级，不拒绝** —— 触顶时停止 ReAct 循环，
+# 用已经跑出来的 steps 收尾，而不是把用户的这一条消息整体拒掉。
+# 累加在 shared/llm_client._record_usage（唯一用量入口）里完成，
+# 这里只负责每轮 chat() 之前判断一次，并记一条 budget_stop 事件。
+BUDGET_STOP_ANSWER = (
+    "本轮消耗已达上限，先给到这里。"
+    "如果需要更完整的结果，可以把问题拆成几步、或换个更具体的问法再问。"
+)
 
 # check_reminders 的 observation 里最多列几条超期记录。
 # 全列出来会把上下文撑满（用户可能投了几十家），反正最久的排最前，
@@ -516,6 +528,11 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
     trace_id = str(uuid.uuid4())[:8]
     log_event(trace_id, "run_start", question=question[:50])
 
+    # 开一次本轮的预算记账（ContextVar，随这次请求生灭）。之后每次 LLM 调用
+    # 的 usage 都会由 llm_client 累加进来，循环里每轮读一次判断是否该收尾。
+    limits.start_run_budget()
+    limits.reset_truncated()
+
     # 多版本简历：调用方没显式给简历时，用「当前使用」的那份
     # （use_resume 设过的 → 否则取默认/最新一份），支持技术岗版 / 产品岗版切换。
     if resume_data is None:
@@ -573,6 +590,27 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
 
     steps = []
     for turn in range(1, MAX_TURNS + 1):
+        # 第 2 道闸门：单次预算熔断。每轮 chat() **之前**查一次本轮累计用量；
+        # 触顶就停止循环、用已有 steps 收尾 —— 降级，不拒绝。
+        budget = limits.run_budget_status()
+        if budget["exceeded"]:
+            log_event(trace_id, "budget_stop", turn=turn,
+                      used=budget["used"], limit=budget["limit"])
+            if verbose:
+                print(f"[预算] 本轮已用 {budget['used']} token（上限 {budget['limit']}），"
+                      "停止循环并降级收尾")
+            return _with_messages({
+                "answer": BUDGET_STOP_ANSWER,
+                "steps": steps + [{
+                    "turn": turn,
+                    "type": "budget_stop",
+                    "thought": (f"本轮 token 已用 {budget['used']}/{budget['limit']}，"
+                                "停止继续调用工具与模型"),
+                    "used_tokens": budget["used"],
+                    "limit_tokens": budget["limit"],
+                }],
+            }, messages, trace_id, return_messages)
+
         if verbose:
             print(f"\n--- 第 {turn} 轮 ---")
 
@@ -587,6 +625,22 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
             )
 
         raw = chat(messages, source="react_agent")
+
+        # 第 1 道闸门：输出触顶（finish_reason=length）。
+        # 被截断的半截 JSON 不是正常答案，也不能任由它落进「解析失败」那条
+        # 通用分支（那样只会看到一句「格式错误」，根本看不出是被 max_tokens 掐的）。
+        # 所以单独识别：如实告诉模型「你被截断了」，让它精简后重出一份完整 JSON。
+        if limits.consume_truncated():
+            log_event(trace_id, "truncated", turn=turn, output_chars=len(raw or ""))
+            if verbose:
+                print("[截断] 输出触顶（max_tokens），本轮按解析失败处理")
+            messages.append({"role": "assistant", "content": raw})
+            messages.append({
+                "role": "user",
+                "content": "你上一次的输出被截断了（超过单次输出长度上限），"
+                           "请精简内容后重新输出一个完整合法的 JSON。",
+            })
+            continue
 
         try:
             decision = _parse_json(raw)

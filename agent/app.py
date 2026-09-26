@@ -9,6 +9,7 @@
    注入回 prompt（`run_agent(..., history=...)`）。Chainlit 的 user_session
    是纯内存的，**没有这一步，进程重启 / 断线重连之后上下文就全丢了**。
 """
+import asyncio
 import json
 import os
 import re
@@ -28,13 +29,18 @@ from agent import user_profile
 from agent.react_agent import run as run_agent
 from agent.tools.job_detail import get_job_detail
 from agent.tools.job_search import search_jobs
+from shared import limits
+from shared import token_tracker
 from shared.llm_client import chat
+from shared.logger import log_event
 from shared.user_context import get_current_user, set_current_user
 
 
 storage.init_db()
 user_feedback.init_db()
 chat_history.init_db()
+# 用量库（token_usage）：日额度闸门要查它，启动先建好表 + 补 user_id 列
+token_tracker.init_token_db()
 
 
 # --------------------------------------------------------------------------
@@ -212,6 +218,97 @@ def _save_interview_snapshot(session):
         )
     except Exception as e:                          # noqa: BLE001
         print(f"[历史] 面试快照保存失败（忽略）：{type(e).__name__}: {e}")
+
+
+# --------------------------------------------------------------------------
+# 限流 + 成本控制（四道闸门）
+#
+# 顺序 **3 → 4 →（进入 Agent）→ 2 → 每轮 1**，先挡最便宜的，再进昂贵的 Agent：
+#   3. 单用户频率：进程内令牌桶（零 IO），放在每个会打 LLM 的入口；
+#   4. 单用户 / 全局日 token：一次 SUM 查询（token_usage 表就是真相源，
+#      不新建计数器 —— 重启不丢、跨进程一致）；
+#   2. 单次请求预算熔断：react_agent 里，**降级不拒绝**；
+#   1. max_tokens：llm_client 每轮兜底，不拒绝，只识别截断。
+#
+# 3 / 4 被拒时：回一句话 + 直接 return，**不落库、不调 Agent**。
+# 总开关 RATE_LIMIT_ENABLED 默认 true；置 false 时这里直接放行，
+# 且 llm_client 不再注入 max_tokens、react_agent 不再熔断 → 与改造前逐字一致。
+# --------------------------------------------------------------------------
+
+_SEMAPHORE = None
+
+
+def _semaphore():
+    """全局并发信号量（懒建：要绑在当前事件循环上）。
+
+    run_agent 是**在事件循环里同步阻塞**的，多用户并发会互相卡住；
+    本轮先用信号量把并发压住（真正的修法是 to_thread，单独一轮做）。
+    """
+    global _SEMAPHORE
+    if _SEMAPHORE is None:
+        _SEMAPHORE = asyncio.Semaphore(max(1, limits.max_concurrency()))
+    return _SEMAPHORE
+
+
+def _quota_warning(scope: str, user_id: str, used: int, limit: int) -> None:
+    """日额度触顶时记一条告警（结构化日志 + 一行控制台输出）。"""
+    log_event("quota", "quota_exceeded", scope=scope, user_id=user_id,
+              used_tokens=used, limit=limit)
+    print(f"[限流] 日额度触顶（{scope}）：user={user_id} {used}/{limit} token")
+
+
+async def _deny_if_throttled(stage: str) -> bool:
+    """入口串第 3、4 道闸门；返回 True 表示**应当拒绝**这条消息。
+
+    只做两件便宜的事：内存桶判断 + 两次 SUM 查询（单用户 / 全局，都有索引）。
+    查询异常一律放行（限流是保护措施，不能因为记账库坏了把人挡在门外）。
+    """
+    if not limits.rate_limit_enabled():
+        return False
+
+    user_id = _user_id()
+
+    # ---- 闸门 3：单用户频率（令牌桶） ----
+    allowed, retry_after = limits.check_rate(user_id)
+    if not allowed:
+        wait = int(retry_after) + 1
+        print(f"[限流] 频率超限：user={user_id} stage={stage} 建议等待 {wait}s")
+        await cl.Message(
+            content=(f"⏳ 请求太频繁了（每分钟 {limits.rate_per_min()} 次、"
+                     f"最多连发 {limits.rate_burst()} 次），请 {wait} 秒后再试。"
+                     "刚才那条没有被处理。")
+        ).send()
+        return True
+
+    # ---- 闸门 4：单用户日 token + 全局日 token ----
+    # 判定与「回话」分开写：查不到额度时异常兜底为放行，但**判定已经得出**的结论
+    # 不能被一次回话失败吞掉（否则本该拒绝的请求会因为发消息报错而放行）。
+    verdict = "ok"
+    used = global_used = 0
+    user_limit = limits.daily_tokens_per_user()
+    global_limit = limits.global_daily_tokens()
+    try:
+        if user_limit > 0 or global_limit > 0:
+            used = token_tracker.usage_today(user_id)
+            global_used = token_tracker.usage_today(None)
+            verdict = limits.quota_verdict(used, user_limit, global_used, global_limit)
+    except Exception as e:                          # noqa: BLE001 - 查不到就放行
+        print(f"[限流] 日额度查询失败（放行）：{type(e).__name__}: {e}")
+        verdict = "ok"
+
+    if verdict == "user":
+        _quota_warning("user", user_id, used, user_limit)
+        await cl.Message(
+            content=(f"📵 今日额度已用完（{used}/{user_limit} token），明天再试。"
+                     "已达上限的请求不会被处理。")
+        ).send()
+        return True
+    if verdict == "global":
+        _quota_warning("global", user_id, global_used, global_limit)
+        await cl.Message(content="📵 今日服务总额度已用完，明天再试。").send()
+        return True
+
+    return False
 
 
 # --------------------------------------------------------------------------
@@ -772,20 +869,31 @@ async def on_message(message: cl.Message):
             _save_interview_snapshot(session)
             await cl.Message(content="已结束模拟面试。想再来一次就发 `/mock-interview 公司 岗位`。").send()
             return
+        # 面试出题 / 点评同样会打 LLM，所以同样要过 3 / 4 道闸门。
+        # stop 分支在上面已经 return，收尾不受影响（本地操作，不打模型）。
+        if await _deny_if_throttled("mock-interview"):
+            return
         await _start_interview(content)
         return
 
     # 面试进行中：这条消息是回答，不走进普通 Agent 流程
     interview = cl.user_session.get("interview")
     if interview and interview.get("active"):
-        async with cl.Step(name="面试官思考中", type="tool") as step:
-            step.output = "正在点评你的回答…"
-            await _handle_interview_message(content, interview)
+        if await _deny_if_throttled("interview"):
+            return
+        async with _semaphore():
+            async with cl.Step(name="面试官思考中", type="tool") as step:
+                step.output = "正在点评你的回答…"
+                await _handle_interview_message(content, interview)
         # 面试状态落库：进程重启后仍能接着面（`/history-clear` 会一并清掉）
         _save_interview_snapshot(interview)
         return
 
     # 正常对话：走 Agent
+    # 入口闸门 3（频率）→ 4（日额度）：被拒就直接返回，不落库、不进 Agent。
+    if await _deny_if_throttled("agent"):
+        return
+
     resume = cl.user_session.get("resume")
     thread_id = cl.user_session.get("thread_id") or _thread_id()
     # 注入落库的历史（最近 HISTORY_TURNS 轮）。
@@ -793,14 +901,15 @@ async def on_message(message: cl.Message):
     # 所以不会出现「同一份简历被注入两次」的重复（见 react_agent._history_to_messages）。
     history = cl.user_session.get("history") or []
 
-    async with cl.Step(name="Agent 工作中", type="tool") as step:
-        step.output = "正在分析..."
-        try:
-            result = run_agent(content, resume_data=resume, verbose=False,
-                               history=history)
-        except Exception as e:
-            await cl.Message(content=f"❌ 出错了：{e}").send()
-            return
+    async with _semaphore():
+        async with cl.Step(name="Agent 工作中", type="tool") as step:
+            step.output = "正在分析..."
+            try:
+                result = run_agent(content, resume_data=resume, verbose=False,
+                                   history=history)
+            except Exception as e:
+                await cl.Message(content=f"❌ 出错了：{e}").send()
+                return
 
     # 展示步骤
     if result.get("steps"):

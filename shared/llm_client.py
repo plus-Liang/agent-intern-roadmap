@@ -7,6 +7,11 @@
 - 云端真正的报错源是 **日志打印**：进程 stdout 编码退化（ascii / latin-1）时，
   `print` 一句带中文的日志就会抛 UnicodeEncodeError，把原始异常整个盖掉。
   所以本模块所有日志都走 _safe_print，异常对象一律先过 _safe_str。
+
+成本控制（第 1 道闸门）：`chat()` / `chat_stream()` 会带上 `max_tokens`
+（默认取 shared.limits.default_max_tokens()，即 LLM_MAX_TOKENS，调用方可覆盖），
+并读取 `choices[0].finish_reason == "length"` 识别「输出被截断」——
+截断不是正常答案，在 shared.limits 里打个标记让 react_agent 按解析失败处理。
 """
 import json
 import os
@@ -16,6 +21,7 @@ import time
 import httpx
 from shared.config import ZHIPU_API_KEY, ZHIPU_BASE_URL, ZHIPU_CHAT_MODEL
 from shared.errors import ConfigError, APIError
+from shared import limits
 from shared import token_tracker
 
 CHAT_URL = f"{ZHIPU_BASE_URL}/chat/completions"
@@ -72,6 +78,29 @@ def _log_proxy_diag() -> None:
                 f"NO_PROXY={bool(os.environ.get('NO_PROXY'))}")
 
 
+def _resolve_max_tokens(max_tokens) -> int:
+    """定出本次调用的 max_tokens：显式参数优先，否则取闸门默认值。
+
+    返回 0（或更小）表示**不注入**该字段 —— 这样总开关关闭时
+    payload 与改造前逐字节一致。
+    """
+    if max_tokens is None:
+        return limits.default_max_tokens()
+    try:
+        return max(0, int(max_tokens))
+    except (TypeError, ValueError):
+        return limits.default_max_tokens()
+
+
+def _build_payload(messages: list, model: str, stream: bool, max_tokens) -> dict:
+    """拼请求体：max_tokens 为 0 时不带这个键（保持旧 payload 形状）。"""
+    payload = {"model": model, "messages": messages, "stream": stream}
+    limit = _resolve_max_tokens(max_tokens)
+    if limit > 0:
+        payload["max_tokens"] = limit
+    return payload
+
+
 def _usage_field(usage, name: str) -> int:
     if usage is None:
         return 0
@@ -82,10 +111,13 @@ def _usage_field(usage, name: str) -> int:
 
 def _record_usage(model: str = "unknown", source: str = "unknown",
                   usage=None, request_id=None) -> None:
-    """把一次调用的 token 用量记进 token_usage 表。
+    """把一次调用的 token 用量记进 token_usage 表，并累加本次请求的预算。
 
     - usage 为 None（流式接口通常不给 usage）时记 0，并给 source 打上
       ":stream_no_usage" 后缀，避免把「没拿到」当成「真的用了 0」；
+    - user_id 不在这里传：token_tracker.record_usage 自己读当前用户上下文；
+    - 单次预算累加放在这里（见 shared/limits.add_run_tokens）：这是**唯一的**
+      用量入口，累加一次就够，react_agent 那边只做判断；
     - 追踪是旁路功能，任何异常都吞掉，绝不能影响正常对话。
     """
     try:
@@ -96,15 +128,22 @@ def _record_usage(model: str = "unknown", source: str = "unknown",
                 request_id,
             )
             return
-        token_tracker.record_usage(
-            model,
-            _usage_field(usage, "prompt_tokens"),
-            _usage_field(usage, "completion_tokens"),
-            source,
-            request_id,
-        )
+        prompt = _usage_field(usage, "prompt_tokens")
+        completion = _usage_field(usage, "completion_tokens")
+        token_tracker.record_usage(model, prompt, completion, source, request_id)
+        limits.add_run_tokens(prompt + completion)
     except Exception as e:                      # noqa: BLE001 - 记账失败不影响主流程
         _safe_print(f"[token] 用量记录失败（忽略）：{_safe_str(e)}")
+
+
+def _note_finish_reason(finish_reason) -> None:
+    """finish_reason == "length" 说明输出被 max_tokens 掐断了。
+
+    只打一行日志 + 打标记：真正的处理（当解析失败重来）在 react_agent。
+    """
+    if finish_reason == "length":
+        limits.mark_truncated()
+        _safe_print("[llm] 输出触顶（finish_reason=length），本轮回答被 max_tokens 截断")
 
 
 def _error_detail(e: Exception) -> str:
@@ -124,14 +163,18 @@ def _log_failure(attempt: int, e: Exception) -> None:
                 + (f" | 响应体: {detail}" if detail else ""))
 
 
-def chat(messages: list, model: str = None, retries: int = 3, source: str = "unknown") -> str:
+def chat(messages: list, model: str = None, retries: int = 3, source: str = "unknown",
+         max_tokens: int = None) -> str:
     """非流式调用，失败重试。
 
     source: 调用方标记（如 "react_agent"），用于 token 用量按来源聚合，默认 "unknown"。
+    max_tokens: 单次输出上限；不传取 LLM_MAX_TOKENS（默认 1024）。
+        输出被截断时 finish_reason 会是 "length"，这里打标记、react_agent 当解析
+        失败处理（截断的 JSON 静默变成「格式错误」非常难排查）。
     """
     model = model or ZHIPU_CHAT_MODEL
     headers = _headers()                    # 顺便校验 Key，缺了直接抛 ConfigError
-    payload = {"model": model, "messages": messages, "stream": False}
+    payload = _build_payload(messages, model, False, max_tokens)
     last_err = None
 
     _log_proxy_diag()
@@ -144,6 +187,8 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
                 resp = client.post(CHAT_URL, json=payload, headers=headers)
             resp.raise_for_status()
             data = resp.json()
+            choices = data.get("choices") or []
+            _note_finish_reason(choices[0].get("finish_reason") if choices else None)
             _record_usage(model=model, source=source,
                           usage=data.get("usage"), request_id=data.get("id"))
             return data["choices"][0]["message"]["content"]
@@ -160,16 +205,18 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
     raise APIError(f"API 调用失败，已重试 {retries} 次：{_safe_str(last_err)}")
 
 
-def chat_stream(messages: list, model: str = None, source: str = "unknown"):
+def chat_stream(messages: list, model: str = None, source: str = "unknown",
+                max_tokens: int = None):
     """流式调用，逐字返回（httpx 按行读 SSE）。
 
     source: 调用方标记，用于 token 用量按来源聚合，默认 "unknown"。
+    max_tokens: 同 chat()，不传取 LLM_MAX_TOKENS。
     网关若在收尾 chunk 里带 usage 就记，没带则记 0 并标记 stream_no_usage。
     记账发生在生成器结束之后，调用方 break / 抛异常同样会落一条。
     """
     model = model or ZHIPU_CHAT_MODEL
     headers = _headers()
-    payload = {"model": model, "messages": messages, "stream": True}
+    payload = _build_payload(messages, model, True, max_tokens)
 
     usage = None
     request_id = None
@@ -201,6 +248,8 @@ def chat_stream(messages: list, model: str = None, source: str = "unknown"):
                     choices = chunk.get("choices") or []
                     if not choices:             # 带 usage 的收尾 chunk 可能没有 choices
                         continue
+                    if choices[0].get("finish_reason"):
+                        _note_finish_reason(choices[0].get("finish_reason"))
                     content = (choices[0].get("delta") or {}).get("content")
                     if content:
                         yield content
