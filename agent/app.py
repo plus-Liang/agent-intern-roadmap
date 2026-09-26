@@ -10,7 +10,9 @@
    是纯内存的，**没有这一步，进程重启 / 断线重连之后上下文就全丢了**。
 """
 import json
+import os
 import re
+import secrets
 import sys
 from pathlib import Path
 
@@ -27,6 +29,7 @@ from agent.react_agent import run as run_agent
 from agent.tools.job_detail import get_job_detail
 from agent.tools.job_search import search_jobs
 from shared.llm_client import chat
+from shared.user_context import get_current_user, set_current_user
 
 
 storage.init_db()
@@ -35,22 +38,124 @@ chat_history.init_db()
 
 
 # --------------------------------------------------------------------------
+# 认证（可选）：CHAT_AUTH_ENABLED=true 才注册，**默认关闭** → 与改造前一字不变。
+#
+# 为什么不用 Chainlit 的 data layer：它在没有 DATABASE_URL 时根本不落用户
+#（server.py 里 create_user 走的是 data_layer），要开还得引 sqlalchemy +
+# aiosqlite + 建表迁移。这里直接用 chat_history 的 chat_users 表，零新依赖。
+# --------------------------------------------------------------------------
+
+AUTH_ENABLED = os.getenv("CHAT_AUTH_ENABLED", "").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+ADMIN_USER = os.getenv("CHAT_ADMIN_USER", "admin").strip() or "admin"
+ADMIN_PASSWORD = os.getenv("CHAT_ADMIN_PASSWORD", "")
+
+
+def _ensure_auth_secret() -> str:
+    """准备 Chainlit 的 JWT secret（开了认证就必须要，否则 mount 阶段直接抛错）。
+
+    环境变量里没有就生成一个并落盘到 agent/data/.chainlit_secret（权限 0600）：
+    每次都重新生成的话，进程一重启所有人的登录态都会失效。
+    """
+    secret = os.getenv("CHAINLIT_AUTH_SECRET", "").strip()
+    if secret:
+        return secret
+
+    secret_file = Path(os.getenv(
+        "CHAT_AUTH_SECRET_FILE",
+        str(Path(__file__).resolve().parent / "data" / ".chainlit_secret"),
+    ))
+    try:
+        if secret_file.is_file():
+            secret = secret_file.read_text(encoding="utf-8").strip()
+        if not secret:
+            secret = secrets.token_urlsafe(48)
+            secret_file.parent.mkdir(parents=True, exist_ok=True)
+            secret_file.write_text(secret, encoding="utf-8")
+            try:
+                os.chmod(secret_file, 0o600)
+            except OSError:
+                pass
+    except OSError as e:                            # 写不了就退回进程内临时密钥
+        print(f"[认证] secret 落盘失败（改用临时密钥，重启需重新登录）：{e}")
+        secret = secrets.token_urlsafe(48)
+
+    os.environ["CHAINLIT_AUTH_SECRET"] = secret
+    return secret
+
+
+if AUTH_ENABLED:
+    if not ADMIN_PASSWORD:
+        # 不给默认密码：默认密码 = 把后台敞开，宁可起不来
+        raise SystemExit(
+            "[认证] CHAT_AUTH_ENABLED=true 但 CHAT_ADMIN_PASSWORD 未设置，拒绝启动。\n"
+            "       请在 .env 里设置 CHAT_ADMIN_PASSWORD（或用 "
+            "python -m agent.chat_history adduser 建号后设 CHAT_AUTH_ENABLED=true）。"
+        )
+
+    _ensure_auth_secret()
+
+    # 幂等：账号已存在就不动它的密码（改密码用 chat_history setpass）
+    chat_history.ensure_user(ADMIN_USER, ADMIN_PASSWORD, display_name=ADMIN_USER)
+    print(f"[认证] 已启用；管理员账号 {ADMIN_USER}（库：{chat_history.DB_PATH}）")
+
+    @cl.password_auth_callback
+    async def _password_auth(username: str, password: str):
+        """用户名 / 密码登录；校验失败返回 None，Chainlit 会提示重试。"""
+        account = chat_history.verify_user(username, password)
+        if not account:
+            return None
+        return cl.User(
+            identifier=account["username"],
+            display_name=account.get("display_name") or account["username"],
+            metadata={"provider": "password"},
+        )
+
+
+# --------------------------------------------------------------------------
 # 对话历史落库：会话标识 + 字段清洗
 # --------------------------------------------------------------------------
 
-# 用户标识：本轮恒为 'local'，接多用户时改成从认证身份取
-# （chat_history 的表结构已经预留 user_id 字段，无需改表）。
+# 用户标识：认证关闭时恒为 'local'，开启后是登录用户名。
+# 取值统一放在 shared.user_context 的 ContextVar 里 —— 工具（子线程）、
+# storage、user_profile、chat_history 都从那儿读，不用一路透传参数。
 _USER_ID_KEY = "user_id"
 
 
-def _user_id() -> str:
-    """当前用户 id。没有登录态的部署下恒为 'local'。"""
+def _session_user_id() -> str:
+    """从 Chainlit 会话里取登录身份；没有登录态时返回空串。"""
     try:
-        uid = cl.user_session.get(_USER_ID_KEY)
+        user = getattr(getattr(cl.context, "session", None), "user", None)
+        identifier = getattr(user, "identifier", None) if user else None
+        if identifier:
+            return str(identifier)
+        return str(cl.user_session.get(_USER_ID_KEY) or "")
     except Exception as e:                          # noqa: BLE001 - 没有 socket 上下文
-        print(f"[历史] 取 user_id 失败（用默认）：{type(e).__name__}: {e}")
-        uid = None
-    return str(uid or chat_history.DEFAULT_USER_ID)
+        print(f"[用户] 取身份失败（按默认用户处理）：{type(e).__name__}: {e}")
+        return ""
+
+
+def _bind_user() -> str:
+    """把当前请求的用户绑到 ContextVar 上（每个回调入口都要调一次）。
+
+    为什么必须在入口调：Chainlit 每条消息是独立 task，task 之间不共享
+    ContextVar。在入口 set 之后，这一轮的所有**同步**调用
+    （run_agent → 工具 → storage / user_profile / chat_history）读到的就是它。
+    工具跑在子线程里，那一段由 tools_registry.call_tool 的 copy_context() 负责。
+    """
+    user_id = _session_user_id() or chat_history.DEFAULT_USER_ID
+    set_current_user(user_id)
+    try:
+        cl.user_session.set(_USER_ID_KEY, user_id)
+    except Exception:                               # noqa: BLE001 - 无 socket 上下文
+        pass
+    return user_id
+
+
+def _user_id() -> str:
+    """当前用户 id（读 ContextVar；没绑定过就是默认用户 'local'）。"""
+    return get_current_user()
 
 
 def _thread_id() -> str:
@@ -155,6 +260,7 @@ async def _send_feedback_prompt(question: str, answer: str, steps: list,
 @cl.action_callback(FEEDBACK_ACTION)
 async def on_feedback(action: cl.Action):
     """用户点了 👍 / 👎：落库 + 收掉按钮 + 回一句确认"""
+    _bind_user()                                   # 回调入口绑定用户
     last_turn = cl.user_session.get("last_turn") or {}
     rating = (action.payload or {}).get("rating", "")
     label = "👍 有帮助" if rating == "up" else "👎 没帮助"
@@ -522,6 +628,7 @@ async def _start_interview(content: str):
 
 @cl.on_chat_start
 async def on_chat_start():
+    _bind_user()                                   # 回调入口绑定用户
     cl.user_session.set("resume", None)
     cl.user_session.set("interview", None)
 
@@ -583,6 +690,7 @@ async def on_chat_start():
 
 @cl.on_message
 async def on_message(message: cl.Message):
+    _bind_user()                                   # 回调入口绑定用户
     content = message.content.strip()
 
     # 命令：清空本会话的对话历史（**原地清轮次**，thread_id 不变 ——

@@ -35,8 +35,11 @@ API：
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
+import secrets
 import sqlite3
 import sys
 from datetime import datetime
@@ -48,6 +51,8 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from shared.config import ROOT_DIR  # noqa: E402
+from shared.user_context import DEFAULT_USER_ID as _CONTEXT_DEFAULT_USER  # noqa: E402
+from shared.user_context import get_current_user  # noqa: E402
 
 # 库路径：<repo_root>/agent/data/chat_history.db
 # 环境变量 CHAT_HISTORY_DB 可覆盖——测试请指向临时目录，别写真实库。
@@ -56,8 +61,9 @@ DB_PATH = Path(os.getenv(
     str(ROOT_DIR / "agent" / "data" / "chat_history.db"),
 ))
 
-# 单用户阶段的所有权标识；多用户改造时由认证身份替换（见计划 §5）
-DEFAULT_USER_ID = "local"
+# 所有权标识：与 shared.user_context 的兜底用户保持同一个值。
+# 没有登录态时它是 'local'，存量数据也归在它名下。
+DEFAULT_USER_ID = _CONTEXT_DEFAULT_USER
 
 # 注入进 prompt 的历史轮数上限。
 # 每轮变成 2 条消息（user + assistant），react_agent 的 MAX_HISTORY 默认 10，
@@ -102,6 +108,17 @@ CREATE TABLE IF NOT EXISTS chat_turns (
 )
 """
 
+_CREATE_USERS = """
+CREATE TABLE IF NOT EXISTS chat_users (
+    username      TEXT PRIMARY KEY,
+    password_hash TEXT NOT NULL,
+    salt          TEXT NOT NULL,
+    display_name  TEXT NOT NULL DEFAULT '',
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL
+)
+"""
+
 _CREATE_INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_threads_user ON chat_threads(user_id, updated_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_turns_thread ON chat_turns(thread_id, turn_index)",
@@ -129,6 +146,7 @@ def init_db() -> None:
     with _get_conn() as conn:
         conn.execute(_CREATE_THREADS)
         conn.execute(_CREATE_TURNS)
+        conn.execute(_CREATE_USERS)
         for statement in _CREATE_INDEXES:
             conn.execute(statement)
 
@@ -195,8 +213,129 @@ def ensure_thread(thread_id: str, user_id: str = DEFAULT_USER_ID,
     return dict(row)
 
 
-def thread_id_for_user(user_id: str = DEFAULT_USER_ID) -> str:
-    """把 user_id 映射成**固定的** thread_id。
+# --------------------------------------------------------------------------
+# 账号（认证用）
+# --------------------------------------------------------------------------
+# 为什么不自己开一个新库：chat_threads.user_id 已经是"谁的数据"，
+# 账号是同一份身份语义，放一起少一个文件、少一处备份口径。
+# 也不用 Chainlit 的 data layer：它在无 DATABASE_URL 时根本不落用户
+# （server.py 里 create_user 走的是 data_layer），开了要引 sqlalchemy。
+
+PBKDF2_ROUNDS = 120_000
+
+
+def hash_password(password: str, salt: str = "") -> tuple:
+    """PBKDF2-HMAC-SHA256，返回 (hash_hex, salt)。salt 留空则随机生成。"""
+    salt = salt or secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", str(password).encode("utf-8"), bytes.fromhex(salt), PBKDF2_ROUNDS
+    )
+    return digest.hex(), salt
+
+
+def _public_user(row: dict) -> dict:
+    """去掉 password_hash / salt，只留能给外部看的字段。"""
+    return {k: row[k] for k in
+            ("username", "display_name", "created_at", "updated_at") if k in row}
+
+
+def create_user(username: str, password: str, display_name: str = "") -> dict:
+    """建账号。用户名重复 / 空用户名 / 空密码都抛 ValueError。"""
+    username = _norm_id(username)
+    if not username:
+        raise ValueError("username 不能为空")
+    if not str(password or ""):
+        raise ValueError("password 不能为空")
+
+    init_db()
+    pwd_hash, salt = hash_password(password)
+    ts = now()
+    with _get_conn() as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM chat_users WHERE username = ?", (username,)
+        ).fetchone()
+        if exists:
+            raise ValueError(f"用户已存在：{username}")
+        conn.execute(
+            "INSERT INTO chat_users"
+            " (username, password_hash, salt, display_name, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (username, pwd_hash, salt, _clip(display_name or username, TITLE_CHARS),
+             ts, ts),
+        )
+        row = conn.execute(
+            "SELECT * FROM chat_users WHERE username = ?", (username,)
+        ).fetchone()
+    return _public_user(dict(row))
+
+
+def ensure_user(username: str, password: str, display_name: str = "") -> dict:
+    """存在就用已有的（**不改密码**），不存在才建。启动时播种管理员用。"""
+    username = _norm_id(username)
+    row = get_user(username)
+    if row is not None:
+        return _public_user(row)
+    return create_user(username, password, display_name)
+
+
+def get_user(username: str) -> dict | None:
+    """取账号（**含 password_hash / salt**，只给 verify_user 这类内部用）。"""
+    username = _norm_id(username)
+    if not username or not DB_PATH.exists():
+        return None
+    init_db()
+    with _get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM chat_users WHERE username = ?", (username,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def verify_user(username: str, password: str) -> dict | None:
+    """校验用户名 / 密码。对就返回账号（已脱敏），错就 None。
+
+    - 用 hmac.compare_digest 定长比较，避免按字符提前返回；
+    - 用户不存在时也跑一次哈希，避免"响应快 = 用户不存在"的枚举侧信道。
+    """
+    row = get_user(username)
+    if row is None:
+        hash_password(password or "", "00" * 16)
+        return None
+    digest, _ = hash_password(password or "", row["salt"])
+    if not hmac.compare_digest(digest, row["password_hash"]):
+        return None
+    return _public_user(row)
+
+
+def set_password(username: str, password: str) -> bool:
+    """改密码；账号不存在返回 False。"""
+    username = _norm_id(username)
+    if not username or not str(password or ""):
+        raise ValueError("username / password 不能为空")
+    if get_user(username) is None:
+        return False
+    pwd_hash, salt = hash_password(password)
+    with _get_conn() as conn:
+        conn.execute(
+            "UPDATE chat_users SET password_hash = ?, salt = ?, updated_at = ?"
+            " WHERE username = ?",
+            (pwd_hash, salt, now(), username),
+        )
+    return True
+
+
+def list_users() -> list:
+    """列出所有账号（已脱敏），按创建时间倒序。"""
+    init_db()
+    with _get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM chat_users ORDER BY created_at DESC, rowid DESC"
+        ).fetchall()
+    return [_public_user(dict(r)) for r in rows]
+
+
+def thread_id_for_user(user_id: str = None) -> str:
+    """把 user_id 映射成**固定的** thread_id（不传就用当前登录用户）。
 
     为什么不用 Chainlit 的 thread_id：它是 `auth.threadId or uuid4()`
     （chainlit 2.12 session.py:149），而无 data layer 时前端既不带 threadId
@@ -206,13 +345,13 @@ def thread_id_for_user(user_id: str = DEFAULT_USER_ID) -> str:
     传真实 user_id 即可，无需改表、无需返工。要开新会话发 `/history-clear`
     （原地清轮次，同样不换 id）。
     """
-    return f"user:{_norm_id(user_id) or DEFAULT_USER_ID}"
+    return f"user:{_norm_id(user_id or get_current_user()) or DEFAULT_USER_ID}"
 
 
-def ensure_user_thread(user_id: str = DEFAULT_USER_ID, title: str = "",
+def ensure_user_thread(user_id: str = None, title: str = "",
                        resume=None) -> dict:
-    """按 user_id 取/建固定会话（刷新、重启后都是同一条）。"""
-    uid = _norm_id(user_id) or DEFAULT_USER_ID
+    """按 user_id 取/建固定会话（不传就用当前登录用户）。"""
+    uid = _norm_id(user_id or get_current_user()) or DEFAULT_USER_ID
     return ensure_thread(thread_id_for_user(uid), user_id=uid, title=title,
                          resume=resume)
 
@@ -469,7 +608,53 @@ def load_interview(thread_id: str) -> dict | None:
     return data if isinstance(data, dict) and data.get("active") else None
 
 
+def _cli(argv: list) -> int:
+    """账号管理命令行：python -m agent.chat_history adduser / setpass / listusers"""
+    usage = (
+        "用法：\n"
+        "  python -m agent.chat_history adduser <用户名> <密码> [显示名]\n"
+        "  python -m agent.chat_history setpass <用户名> <密码>\n"
+        "  python -m agent.chat_history listusers\n"
+        "  python -m agent.chat_history              # 离线自测"
+    )
+    if not argv:
+        return -1
+    command, rest = argv[0], argv[1:]
+    if command == "adduser":
+        if len(rest) < 2:
+            print(usage)
+            return 2
+        try:
+            user = create_user(rest[0], rest[1], rest[2] if len(rest) > 2 else "")
+        except ValueError as e:
+            print(f"✗ {e}")
+            return 1
+        print(f"✓ 已创建用户 {user['username']}（库：{DB_PATH}）")
+        return 0
+    if command == "setpass":
+        if len(rest) < 2:
+            print(usage)
+            return 2
+        if not set_password(rest[0], rest[1]):
+            print(f"✗ 用户不存在：{rest[0]}")
+            return 1
+        print(f"✓ 已更新 {rest[0]} 的密码")
+        return 0
+    if command == "listusers":
+        rows = list_users()
+        if not rows:
+            print("（还没有账号）")
+        for row in rows:
+            print(f"  {row['username']}\t{row.get('display_name', '')}\t{row['created_at']}")
+        return 0
+    print(usage)
+    return 2
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        raise SystemExit(_cli(sys.argv[1:]))
+
     # 自测：跑在临时库上，不碰真实 agent/data/chat_history.db
     import tempfile
 

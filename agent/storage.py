@@ -4,12 +4,15 @@
 - applications: 投递主表
 - events: 状态变更事件
 """
+import re
+import shutil
 import sqlite3
 import json
 import uuid
 from datetime import datetime
 from pathlib import Path
 from shared.config import ROOT_DIR
+from shared.user_context import DEFAULT_USER_ID, get_current_user
 import os
 from pathlib import Path
 
@@ -25,6 +28,18 @@ def _get_conn():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _add_column_if_missing(cursor, table: str, column: str, ddl: str):
+    """给老表补列（SQLite 没有 ADD COLUMN IF NOT EXISTS）"""
+    columns = {row[1] for row in cursor.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+
+def _safe_user(user_id: str) -> str:
+    """user_id → 安全的目录名（只留 [0-9A-Za-z._@-]，其余换成 _）"""
+    return re.sub(r"[^0-9A-Za-z._@-]", "_", str(user_id or "")).strip("._") or "local"
 
 
 def init_db():
@@ -59,6 +74,14 @@ def init_db():
         )
     """)
 
+    # 多用户：applications 补 user_id；存量行由 DEFAULT 归给 'local'
+    _add_column_if_missing(cursor, "applications", "user_id",
+                           f"user_id TEXT NOT NULL DEFAULT '{DEFAULT_USER_ID}'")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_apps_user"
+        " ON applications(user_id, applied_at DESC)"
+    )
+
     conn.commit()
     conn.close()
     init_marks_table()
@@ -81,9 +104,11 @@ def create_application(
     conn = _get_conn()
     conn.execute(
         """INSERT INTO applications
-        (id, company, title, platform, url, applied_at, status, next_follow_up, notes, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (app_id, company, title, platform, url, ts, "applied", "", notes, ts),
+        (id, company, title, platform, url, applied_at, status, next_follow_up,
+         notes, updated_at, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (app_id, company, title, platform, url, ts, "applied", "", notes, ts,
+         get_current_user()),
     )
     conn.execute(
         """INSERT INTO events (application_id, from_status, to_status, note, created_at)
@@ -99,7 +124,8 @@ def update_status(app_id: str, to_status: str, note: str = ""):
     """更新状态，同时记录事件"""
     conn = _get_conn()
     row = conn.execute(
-        "SELECT status FROM applications WHERE id = ?", (app_id,)
+        "SELECT status FROM applications WHERE id = ? AND user_id = ?",
+        (app_id, get_current_user()),
     ).fetchone()
     if not row:
         conn.close()
@@ -108,8 +134,9 @@ def update_status(app_id: str, to_status: str, note: str = ""):
     from_status = row["status"]
     ts = now()
     conn.execute(
-        "UPDATE applications SET status = ?, updated_at = ? WHERE id = ?",
-        (to_status, ts, app_id),
+        "UPDATE applications SET status = ?, updated_at = ?"
+        " WHERE id = ? AND user_id = ?",
+        (to_status, ts, app_id, get_current_user()),
     )
     conn.execute(
         """INSERT INTO events (application_id, from_status, to_status, note, created_at)
@@ -124,8 +151,9 @@ def update_next_follow_up(app_id: str, date_str: str):
     """更新下次跟进日期"""
     conn = _get_conn()
     conn.execute(
-        "UPDATE applications SET next_follow_up = ?, updated_at = ? WHERE id = ?",
-        (date_str, now(), app_id),
+        "UPDATE applications SET next_follow_up = ?, updated_at = ?"
+        " WHERE id = ? AND user_id = ?",
+        (date_str, now(), app_id, get_current_user()),
     )
     conn.commit()
     conn.close()
@@ -135,8 +163,9 @@ def update_notes(app_id: str, notes: str):
     """更新备注"""
     conn = _get_conn()
     conn.execute(
-        "UPDATE applications SET notes = ?, updated_at = ? WHERE id = ?",
-        (notes, now(), app_id),
+        "UPDATE applications SET notes = ?, updated_at = ?"
+        " WHERE id = ? AND user_id = ?",
+        (notes, now(), app_id, get_current_user()),
     )
     conn.commit()
     conn.close()
@@ -146,7 +175,8 @@ def get_application(app_id: str) -> dict:
     """获取单条记录"""
     conn = _get_conn()
     row = conn.execute(
-        "SELECT * FROM applications WHERE id = ?", (app_id,)
+        "SELECT * FROM applications WHERE id = ? AND user_id = ?",
+        (app_id, get_current_user()),
     ).fetchone()
     conn.close()
     if not row:
@@ -169,9 +199,9 @@ def find_application(company: str) -> dict | None:
     conn = _get_conn()
     rows = conn.execute(
         """SELECT * FROM applications
-        WHERE LOWER(company) LIKE ?
+        WHERE LOWER(company) LIKE ? AND user_id = ?
         ORDER BY applied_at DESC, rowid DESC""",
-        (f"%{keyword}%",),
+        (f"%{keyword}%", get_current_user()),
     ).fetchall()
     conn.close()
     return dict(rows[0]) if rows else None
@@ -182,12 +212,14 @@ def list_applications(status: str = None) -> list[dict]:
     conn = _get_conn()
     if status:
         rows = conn.execute(
-            "SELECT * FROM applications WHERE status = ? ORDER BY applied_at DESC",
-            (status,),
+            "SELECT * FROM applications WHERE status = ? AND user_id = ?"
+            " ORDER BY applied_at DESC",
+            (status, get_current_user()),
         ).fetchall()
     else:
         rows = conn.execute(
-            "SELECT * FROM applications ORDER BY applied_at DESC"
+            "SELECT * FROM applications WHERE user_id = ? ORDER BY applied_at DESC",
+            (get_current_user(),),
         ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -197,8 +229,9 @@ def get_events(app_id: str) -> list[dict]:
     """获取某条记录的所有事件"""
     conn = _get_conn()
     rows = conn.execute(
-        "SELECT * FROM events WHERE application_id = ? ORDER BY created_at ASC",
-        (app_id,),
+        "SELECT e.* FROM events e JOIN applications a ON a.id = e.application_id"
+        " WHERE e.application_id = ? AND a.user_id = ? ORDER BY e.created_at ASC",
+        (app_id, get_current_user()),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -207,8 +240,15 @@ def get_events(app_id: str) -> list[dict]:
 def delete_application(app_id: str):
     """删除记录及其事件"""
     conn = _get_conn()
-    conn.execute("DELETE FROM events WHERE application_id = ?", (app_id,))
-    conn.execute("DELETE FROM applications WHERE id = ?", (app_id,))
+    user_id = get_current_user()
+    # 只有自己的投递才能删，事件跟着走（别的用户即使猜到 app_id 也删不动）
+    conn.execute(
+        "DELETE FROM events WHERE application_id IN"
+        " (SELECT id FROM applications WHERE id = ? AND user_id = ?)",
+        (app_id, user_id),
+    )
+    conn.execute("DELETE FROM applications WHERE id = ? AND user_id = ?",
+                 (app_id, user_id))
     conn.commit()
     conn.close()
 
@@ -220,21 +260,43 @@ if __name__ == "__main__":
 
 # ========== 岗位标记功能 ==========
 
+_CREATE_MARKS = """
+    CREATE TABLE IF NOT EXISTS job_marks (
+        job_id TEXT NOT NULL,
+        user_id TEXT NOT NULL DEFAULT 'local',
+        title TEXT NOT NULL,
+        company TEXT NOT NULL,
+        city TEXT,
+        salary TEXT,
+        url TEXT,
+        mark TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, job_id)
+    )
+"""
+
+
 def init_marks_table():
-    """初始化岗位标记表（与主表分开）"""
+    """初始化岗位标记表（与主表分开）。
+
+    多用户：主键从 job_id 改成 (user_id, job_id) —— 两个用户可以对同一个岗位
+    各标各的。老表没有 user_id，就地重建一次，存量行归给 'local'。
+    """
     conn = _get_conn()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS job_marks (
-            job_id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            company TEXT NOT NULL,
-            city TEXT,
-            salary TEXT,
-            url TEXT,
-            mark TEXT NOT NULL,
-            created_at TEXT NOT NULL
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(job_marks)")}
+    if columns and "user_id" not in columns:
+        conn.execute("ALTER TABLE job_marks RENAME TO job_marks_legacy")
+        conn.execute(_CREATE_MARKS)
+        conn.execute(
+            "INSERT OR IGNORE INTO job_marks"
+            " (job_id, user_id, title, company, city, salary, url, mark, created_at)"
+            " SELECT job_id, ?, title, company, city, salary, url, mark, created_at"
+            " FROM job_marks_legacy",
+            (DEFAULT_USER_ID,),
         )
-    """)
+        conn.execute("DROP TABLE job_marks_legacy")
+    else:
+        conn.execute(_CREATE_MARKS)
     conn.commit()
     conn.close()
 
@@ -245,15 +307,18 @@ def mark_job(job: dict, mark: str):
     mark: "want" 想投 / "skip" 不合适 / "untagged" 取消标记
     """
     conn = _get_conn()
+    user_id = get_current_user()
     if mark == "untagged":
-        conn.execute("DELETE FROM job_marks WHERE job_id = ?", (job["job_id"],))
+        conn.execute("DELETE FROM job_marks WHERE job_id = ? AND user_id = ?",
+                     (job["job_id"], user_id))
     else:
         conn.execute("""
             INSERT OR REPLACE INTO job_marks
-            (job_id, title, company, city, salary, url, mark, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (job_id, user_id, title, company, city, salary, url, mark, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             job["job_id"],
+            user_id,
             job.get("title", ""),
             job.get("company", ""),
             job.get("city", ""),
@@ -271,12 +336,14 @@ def get_marked_jobs(mark: str = None) -> list[dict]:
     conn = _get_conn()
     if mark:
         rows = conn.execute(
-            "SELECT * FROM job_marks WHERE mark = ? ORDER BY created_at DESC",
-            (mark,),
+            "SELECT * FROM job_marks WHERE mark = ? AND user_id = ?"
+            " ORDER BY created_at DESC",
+            (mark, get_current_user()),
         ).fetchall()
     else:
         rows = conn.execute(
-            "SELECT * FROM job_marks ORDER BY created_at DESC"
+            "SELECT * FROM job_marks WHERE user_id = ? ORDER BY created_at DESC",
+            (get_current_user(),),
         ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -286,7 +353,8 @@ def get_mark(job_id: str) -> str:
     """获取某个岗位的标记"""
     conn = _get_conn()
     row = conn.execute(
-        "SELECT mark FROM job_marks WHERE job_id = ?", (job_id,)
+        "SELECT mark FROM job_marks WHERE job_id = ? AND user_id = ?",
+        (job_id, get_current_user()),
     ).fetchone()
     conn.close()
     
@@ -303,20 +371,56 @@ def get_mark(job_id: str) -> str:
 # 另有一个 _default.json 记录「默认使用哪一份」（只存 id，不存内容）。
 # 可用环境变量 RESUME_DIR 覆盖目录——测试请指向临时目录。
 
-RESUME_DIR = Path(os.getenv(
-    "RESUME_DIR",
-    str(ROOT_DIR / "agent" / "data" / "resumes"),
+# 简历目录（多用户）：默认 <repo_root>/agent/data/resumes/<user_id>/，
+# 每人的简历互相看不到。
+# 兼容：显式设了 RESUME_DIR（或代码里把 RESUME_DIR 赋成 Path）时走**单目录模式**，
+# 老测试与脚本行为不变。
+# 存量平铺的 agent/data/resumes/*.json 归给 DEFAULT_USER_ID：首次解析时复制过去。
+_ENV_RESUME_DIR = os.getenv("RESUME_DIR", "").strip()
+RESUME_DIR = Path(_ENV_RESUME_DIR) if _ENV_RESUME_DIR else None
+RESUME_ROOT = Path(os.getenv(
+    "RESUME_ROOT", str(ROOT_DIR / "agent" / "data" / "resumes")
 ))
+
+_resumes_migrated = False
+
+
+def _migrate_legacy_resumes() -> None:
+    """一次性迁移：把老的平铺简历复制给 DEFAULT_USER_ID（不删原文件）。"""
+    global _resumes_migrated
+    if _resumes_migrated:
+        return
+    _resumes_migrated = True
+    try:
+        target = RESUME_ROOT / _safe_user(DEFAULT_USER_ID)
+        legacy = [p for p in RESUME_ROOT.glob("*.json") if p.is_file()]
+        if target.exists() or not legacy:
+            return
+        target.mkdir(parents=True, exist_ok=True)
+        for path in legacy:
+            shutil.copy2(path, target / path.name)
+        print(f"[简历] 存量 {len(legacy)} 份简历已归给用户 {DEFAULT_USER_ID}"
+              "（原文件保留，可回滚）")
+    except OSError as e:
+        print(f"[简历] 存量迁移失败（忽略）：{type(e).__name__}: {e}")
+
+
+def resume_dir() -> Path:
+    """当前用户的简历目录。"""
+    if RESUME_DIR is not None:
+        return RESUME_DIR
+    _migrate_legacy_resumes()
+    return RESUME_ROOT / _safe_user(get_current_user())
 
 _DEFAULT_RESUME_FILE = "_default.json"
 
 
 def _ensure_resume_dir():
-    RESUME_DIR.mkdir(parents=True, exist_ok=True)
+    resume_dir().mkdir(parents=True, exist_ok=True)
 
 
 def _resume_path(resume_id: str) -> Path:
-    return RESUME_DIR / f"{resume_id}.json"
+    return resume_dir() / f"{resume_id}.json"
 
 
 def _normalize_resume_content(content):
@@ -376,11 +480,12 @@ def list_resumes() -> list[dict]:
 
     下划线开头的文件是内部文件（_default.json 记录默认简历），不算简历。
     """
-    if not RESUME_DIR.is_dir():
+    directory = resume_dir()
+    if not directory.is_dir():
         return []
 
     items = []
-    for path in RESUME_DIR.glob("*.json"):
+    for path in directory.glob("*.json"):
         if path.name.startswith("_"):
             continue
         data = _read_resume_file(path)
@@ -428,7 +533,7 @@ def delete_resume(resume_id: str) -> bool:
         return False
     if _read_default_resume_id() == str(resume_id).strip():
         try:
-            (RESUME_DIR / _DEFAULT_RESUME_FILE).unlink()
+            (resume_dir() / _DEFAULT_RESUME_FILE).unlink()
         except OSError:
             pass
     return True
@@ -439,13 +544,13 @@ def set_default_resume(resume_id: str) -> bool:
     if get_resume(resume_id) is None:
         return False
     _ensure_resume_dir()
-    with open(RESUME_DIR / _DEFAULT_RESUME_FILE, "w", encoding="utf-8") as f:
+    with open(resume_dir() / _DEFAULT_RESUME_FILE, "w", encoding="utf-8") as f:
         json.dump({"id": str(resume_id).strip()}, f, ensure_ascii=False)
     return True
 
 
 def _read_default_resume_id() -> str | None:
-    path = RESUME_DIR / _DEFAULT_RESUME_FILE
+    path = resume_dir() / _DEFAULT_RESUME_FILE
     data = _read_resume_file(path)
     if not data:
         return None

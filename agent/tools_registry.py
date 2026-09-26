@@ -1,6 +1,7 @@
 """
 工具注册中心。
 """
+import contextvars
 import json
 import os
 import re
@@ -16,6 +17,7 @@ from agent.tools.pdf_export import available_backend, export_resume_pdf, normali
 from agent.tools.resume_match import match_resume_to_jd, Resume
 from agent.resume.tailor import tailor_resume
 from shared.llm_client import chat
+from shared.user_context import get_current_user
 from agent import state_machine
 from agent import storage
 
@@ -323,8 +325,22 @@ def _update_tracking_notes(company, notes):
 # 「当前使用哪份简历」是会话级状态：工具函数拿不到 Chainlit 的 user_session，
 # 所以放在本模块的进程级字典里（同一个 Agent 进程内共享）。
 # 进程重启后回落到 storage.get_default_resume()（默认/最新一份），不会丢功能。
+#
+# 多用户：改成按 user_id 分桶的**二级字典**，而不是 ContextVar。
+# 两个理由：① 状态要跨轮保留（工具在子线程执行，ContextVar 传不进去也留不下）；
+# ② 同一进程里多个用户并发时要各看各的。没有登录态时桶是 DEFAULT_USER_ID。
 
-_SESSION_STATE = {"current_resume_id": None}
+_SESSION_STATE: dict = {}
+
+
+def _session_state() -> dict:
+    """当前用户的状态桶（不存在则建）。"""
+    user_id = get_current_user()
+    state = _SESSION_STATE.get(user_id)
+    if state is None:
+        state = {"current_resume_id": None}
+        _SESSION_STATE[user_id] = state
+    return state
 
 
 def save_resume_tool(name, content):
@@ -343,7 +359,7 @@ def list_resumes_tool():
     items = storage.list_resumes()
     default = storage.get_default_resume()
     default_id = default["id"] if default else None
-    current_id = _SESSION_STATE.get("current_resume_id")
+    current_id = _session_state().get("current_resume_id")
     return [
         {
             "id": r["id"],
@@ -369,7 +385,7 @@ def use_resume(resume_id):
     data = storage.get_resume(resume_id)
     if not data:
         raise ValueError(f"未找到简历：{resume_id}（可用 list_resumes 查看现有版本）")
-    _SESSION_STATE["current_resume_id"] = str(resume_id).strip()
+    _session_state()["current_resume_id"] = str(resume_id).strip()
     return {
         "id": data["id"],
         "name": data.get("name", ""),
@@ -383,12 +399,12 @@ def get_current_resume():
 
     给 react_agent 用：调用方没显式传 resume_data 时，自动挂上当前简历。
     """
-    current_id = _SESSION_STATE.get("current_resume_id")
+    current_id = _session_state().get("current_resume_id")
     if current_id:
         data = storage.get_resume(current_id)
         if data:
             return data
-        _SESSION_STATE["current_resume_id"] = None      # 那份已被删，清理掉
+        _session_state()["current_resume_id"] = None    # 那份已被删，清理掉
     return storage.get_default_resume()
 
 
@@ -1040,7 +1056,10 @@ def call_tool(name: str, args: dict = None, confirmed: bool = False):
     # 4. 超时执行：工具跑在子线程里，主线程最多等 timeout 秒
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"tool-{name}")
     try:
-        future = executor.submit(spec["func"], **safe_args)
+        # 工具跑在子线程里，而子线程**不继承**调用方的 ContextVar ——
+        # 必须显式把当前上下文带过去，否则工具里读到的用户永远是默认值。
+        ctx = contextvars.copy_context()
+        future = executor.submit(ctx.run, spec["func"], **safe_args)
         try:
             result = future.result(timeout=timeout)
         except Exception as exc:

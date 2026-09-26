@@ -25,6 +25,7 @@ import json
 import os
 import re
 import sys
+import shutil
 from pathlib import Path
 
 # 允许 `python agent/user_profile.py` 直接跑自测：把仓库根目录放进 sys.path，
@@ -34,11 +35,58 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from shared.config import ROOT_DIR  # noqa: E402
+from shared.user_context import DEFAULT_USER_ID, get_current_user  # noqa: E402
 
-# 路径：<repo_root>/agent/data/user_profile.json（可用环境变量 USER_PROFILE_PATH 覆盖，方便测试）
-PROFILE_PATH = Path(
-    os.getenv("USER_PROFILE_PATH", str(ROOT_DIR / "agent" / "data" / "user_profile.json"))
-)
+# 画像路径（多用户）：默认 <repo_root>/agent/data/profiles/<user_id>.json，
+# user_id 由 shared.user_context 的当前用户决定（没有登录态时是 'local'）。
+#
+# 兼容：显式设了环境变量 USER_PROFILE_PATH，或代码里直接把 PROFILE_PATH 赋成
+# 一个 Path（老测试的做法）时走**单文件模式**，行为与改造前一字不变。
+#
+# 存量 agent/data/user_profile.json 没有归属信息，统一归给 DEFAULT_USER_ID
+# （'local'）：首次解析路径时复制一份过去，**旧文件保留**，随时可回滚。
+_ENV_PROFILE_PATH = os.getenv("USER_PROFILE_PATH", "").strip()
+PROFILE_PATH = Path(_ENV_PROFILE_PATH) if _ENV_PROFILE_PATH else None
+
+PROFILE_DIR = Path(os.getenv(
+    "USER_PROFILE_DIR", str(ROOT_DIR / "agent" / "data" / "profiles")
+))
+LEGACY_PROFILE_PATH = Path(os.getenv(
+    "USER_PROFILE_LEGACY_PATH", str(ROOT_DIR / "agent" / "data" / "user_profile.json")
+))
+
+_migrated = False
+
+
+def _safe_user(user_id: str) -> str:
+    """user_id → 安全的文件名（只留 [0-9A-Za-z._@-]，其余换成 _）"""
+    return re.sub(r"[^0-9A-Za-z._@-]", "_", str(user_id or "")).strip("._") or "local"
+
+
+def _migrate_legacy() -> None:
+    """一次性迁移：把老的单文件画像复制给 DEFAULT_USER_ID（不删原文件）。"""
+    global _migrated
+    if _migrated:
+        return
+    _migrated = True
+    try:
+        target = PROFILE_DIR / f"{_safe_user(DEFAULT_USER_ID)}.json"
+        if target.exists() or not LEGACY_PROFILE_PATH.is_file():
+            return
+        PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(LEGACY_PROFILE_PATH, target)
+        print(f"[画像] 存量 {LEGACY_PROFILE_PATH.name} 已归给用户 "
+              f"{DEFAULT_USER_ID}（原文件保留，可回滚）")
+    except OSError as e:
+        print(f"[画像] 存量迁移失败（忽略）：{type(e).__name__}: {e}")
+
+
+def profile_path() -> Path:
+    """当前用户的画像文件路径（单文件模式下就是 PROFILE_PATH）。"""
+    if PROFILE_PATH is not None:
+        return PROFILE_PATH
+    _migrate_legacy()
+    return PROFILE_DIR / f"{_safe_user(get_current_user())}.json"
 
 # 顶层字段 → 默认值。preferences 是自由字典，其余三个有固定类型。
 DEFAULT_PROFILE = {
@@ -116,11 +164,12 @@ def load_profile() -> dict:
     文件损坏（JSON 坏了/不是对象）→ 打印警告并返回默认画像，
     绝不因为画像坏了让 Agent 起不来。
     """
-    if not PROFILE_PATH.exists():
+    path = profile_path()
+    if not path.exists():
         return _empty_profile()
 
     try:
-        raw = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+        raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
         print(f"[画像] 读取失败（忽略，按默认画像处理）：{type(e).__name__}: {e}")
         return _empty_profile()
@@ -131,13 +180,14 @@ def load_profile() -> dict:
 def save_profile(profile) -> dict:
     """整份写入画像（父目录不存在就建），返回落盘后的内容"""
     normalized = normalize_profile(profile)
-    PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    path = profile_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
     # 先写临时文件再替换：中途崩了也不会留下半截 JSON 把画像读废
-    tmp_path = PROFILE_PATH.with_name(PROFILE_PATH.name + ".tmp")
+    tmp_path = path.with_name(path.name + ".tmp")
     tmp_path.write_text(
         json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    tmp_path.replace(PROFILE_PATH)
+    tmp_path.replace(path)
     return normalized
 
 
