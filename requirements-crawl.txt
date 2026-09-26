@@ -1,0 +1,6 @@
+# Crawling-only deps. Install these only if you want to refresh the job data:
+#   pip install -r requirements-crawl.txt
+#   python -m playwright install chromium
+# shixiseng uses Playwright/Chromium; niuke and ncss use requests (already in requirements.txt).
+-r requirements.txt
+playwright==1.63.0

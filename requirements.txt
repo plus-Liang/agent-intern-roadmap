@@ -1,3 +1,7 @@
+# Runtime deps: after `pip install -r requirements.txt` the app runs
+# (/chat, dashboard, RAG retrieval). Requires Python 3.12+ (numpy 2.5.3 has no 3.11 wheel).
+# Playwright is only needed if you crawl data yourself: see requirements-crawl.txt.
+# Slim Hugging Face Spaces deps: requirements-hf.txt.
 streamlit==1.63.0
 pandas==3.0.5
 numpy==2.5.3
@@ -8,3 +12,19 @@ jieba==0.42.1
 python-dotenv==1.2.3
 json5==0.15.0
 pypdf==6.18.1
+
+# Web service: /chat = Chainlit, / and /api = FastAPI + uvicorn
+chainlit==2.12.0
+fastapi==0.141.1
+uvicorn==0.52.4
+
+# Imported directly at runtime but previously only listed in full/hf files:
+# httpx talks to the LLM, APScheduler runs the nightly job, PyYAML reads config/scraping.yaml.
+APScheduler==3.11.3
+httpx==0.28.1
+requests==2.34.2
+pydantic==2.13.5
+PyYAML==6.0.3
+
+# Local embedding for semantic RAG (downloads bge-small-zh-v1.5 on first use, no API key)
+fastembed==0.8.0
