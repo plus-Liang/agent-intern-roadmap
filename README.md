@@ -406,7 +406,7 @@ dashboard/    Streamlit 看板（岗位列表、投递追踪、匹配打分、To
 shared/       公共层：配置、LLM 客户端、限流、token 记账、用户上下文
 config/       scraping.yaml：城市池 + 关键词池 + 调度参数
 scripts/      每日抓取的 Windows 任务脚本 + 验证 / 审计脚本
-docs/images/  README 截图（待补）
+docs/images/  README 截图（对话 Agent / Dashboard / API 文档）
 ```
 
 ## License
