@@ -35,7 +35,7 @@ pinned: false
 | Agent 层 | ReAct 循环 + 工具调用：搜岗位 / 看详情 / 简历匹配打分 / 改简历 / 投递跟踪 / 模拟面试 | `agent/react_agent.py`、`agent/tools_registry.py` |
 | 界面层 | Chainlit 对话、FastAPI + Swagger、Streamlit 数据看板 | `main.py`、`dashboard/app.py` |
 
-仓库自带的 `rag/data/cleaned_jd.json` 有 **1164 条** 真实岗位（含六城分布），clone 下来即可检索，
+仓库自带的 `rag/data/cleaned_jd.json` 有 **约 960 条**真实岗位（含六城分布，随每晚抓取持续增长），clone 下来即可检索，
 不需要先跑爬虫。**要跑起来只需要一个智谱 API Key**（对话模型；embedding 是本地模型，不花钱）。
 
 启动后四个入口：
@@ -58,7 +58,7 @@ flowchart TD
         S2["牛客 niuke<br/>requests 接口"]
         S3["ncss 国家大学生就业服务平台<br/>requests 接口 · 1 req/s"]
         CL["清洗 / 去重 / 时效过滤<br/>rag/quality/cleaner.py"]
-        JS["cleaned_jd.json<br/>1164 条 · 进 git"]
+        JS["cleaned_jd.json<br/>约 960 条 · 进 git"]
         DB["jobs.db (SQLite)<br/>city / platform / publish_date 索引"]
         S1 --> CL
         S2 --> CL
@@ -244,8 +244,8 @@ python -m rag.vector_store --rebuild      # 从 jobs.db 全量重建（约几分
 
 | 项 | 现状 |
 |---|---|
-| `rag/data/cleaned_jd.json` | **1164 条**，进 git（约 2MB），clone 即有 |
-| 平台分布 | 实习僧 `shixiseng` 710 / 国家大学生就业服务平台 `ncss` 338 / 牛客 `niuke` 116 |
+| `rag/data/cleaned_jd.json` | **约 960 条**（随抓取增长），进 git（约 2MB），clone 即有 |
+| 平台分布 | 实习僧 `shixiseng` / 国家大学生就业服务平台 `ncss` / 牛客 `niuke` 三平台，比例随抓取轮次变化 |
 | 六城分布 | 上海 / 北京 / 深圳 / 杭州 / 成都 / 广州 六城为主，另有少量「全国」岗位 |
 | 字段 | `platform` `job_id` `title` `company` `city` `salary` `url` `description` `publish_date` |
 | `rag/data/jobs.db` | **不进 git**，首次查询时由 `ensure_db()` 自动从 JSON 建库（幂等） |
@@ -255,8 +255,8 @@ python -m rag.vector_store --rebuild      # 从 jobs.db 全量重建（约几分
 几点口径：
 
 - **权威数据源是 `cleaned_jd.json`**。`jobs.db` 是它的 SQLite 镜像，只增不删；
-  当 JSON 因清洗/去重摘掉记录时，库里可能残留少量旧条目（历史实测 1174 vs 1164）。
-  新 clone 不存在这个问题，从头建库即为 1164 条。
+  两者条数可能略有差异（同步时序、清洗/去重摘掉记录后库里残留旧条目）。
+  新 clone 不存在这个问题，从头建库即为 JSON 里当前的条数。
 - **清洗门槛按平台配置**：`rag/quality/cleaner.py:PLATFORM_MIN_DESC_LEN = {"ncss": 100}`，
   其余平台沿用全局 200 字。原因是 ncss 上有约四分之一岗位的"职位详情"是空壳（只剩标题回显），
   100 字门槛能拦掉空壳、又不误伤 100–199 字的精炼 JD。
