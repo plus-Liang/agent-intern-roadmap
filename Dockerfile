@@ -2,7 +2,7 @@
 # 只跑 FastAPI + Chainlit（main.py，监听 7860）；Streamlit Dashboard 由 Streamlit Cloud 单独托管。
 # 刻意不含 Playwright / torch / sentence-transformers：云端不执行抓取与 Reranker。
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
