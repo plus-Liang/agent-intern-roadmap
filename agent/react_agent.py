@@ -456,9 +456,60 @@ def compact_messages(messages: list, max_history: int = None, verbose: bool = Tr
     return compacted
 
 
-def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
+def _history_to_messages(history: list) -> list:
+    """把落库的历史轮次拼成 messages（供 run() 注入）。
+
+    history 形如 [{"question": ..., "answer": ...}, ...]（见 agent/chat_history.py 的
+    load_history）。这里**只认这两个键**，刻意不接收「【当前状态】」这类快照：
+
+    为什么：动态上下文（用户偏好 / 当前简历 / 当前时间）每轮都由 run() 重新生成一次，
+    如果历史里也塞一份旧快照，模型就会同时看到两份简历、两份偏好时间，
+    轻则以旧为准，重则把旧的当成用户刚说的话。所以状态只走动态上下文这一条路，
+    历史只负责「谁问了什么、答了什么」。
+
+    assistant 那一侧刻意写成 {"final_answer": ...} 的**同构 JSON**，而不是裸文本：
+    让模型看到的历史格式与它自己每一轮的输出格式完全一致，
+    不会误判成「用户说过这些岗位名」。
+    """
+    messages = []
+    for item in (history or []):
+        if not isinstance(item, dict):
+            continue
+        prior_q = str(item.get("question") or "").strip()
+        if not prior_q:
+            continue                                  # 空问句不注入
+        prior_a = str(item.get("answer") or "").strip()
+        messages.append({"role": "user", "content": prior_q})
+        messages.append({
+            "role": "assistant",
+            "content": json.dumps({"final_answer": prior_a}, ensure_ascii=False),
+        })
+    return messages
+
+
+def _with_messages(result: dict, messages: list, trace_id: str,
+                   return_messages: bool) -> dict:
+    """按 return_messages 决定要不要把本轮 messages 附在返回值里。
+
+    默认不开：调用方（eval 脚本 / Dashboard / Chainlit）只读 answer 和 steps，
+    多塞一份完整上下文（含工具 observation，可能几十 KB）纯属浪费。
+    """
+    if return_messages:
+        result = dict(result)
+        result["messages"] = list(messages)
+        result["trace_id"] = trace_id
+    return result
+
+
+def run(question: str, resume_data: dict = None, verbose: bool = True,
+        history: list = None, return_messages: bool = False) -> dict:
     """运行 ReAct 循环
     resume_data: 当前用户的简历（dict），会注入到 system prompt
+    history: 之前几轮的问答（[{"question","answer"}, ...]，时间升序），
+        会被拼成 user/assistant 消息注入到当前问题之前。**默认 None，行为与
+        加这个参数之前逐字节一致**（不注入任何历史）。
+    return_messages: 为 True 时在返回值里带上本轮的完整 messages（排查/调试用），
+        默认 False，返回值结构不变。
     """
     # 每次运行的 Trace ID：把这轮的 run_start / thought / tool_call /
     # observation / run_end 串成一条链，线上排查时按 trace_id 就能捞出全过程。
@@ -500,12 +551,23 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
         profile_text=profile_text, resume_data=resume_data
     )
 
-    # messages 结构：[system=STATIC_PREFIX] + [user=【当前状态】] + 对话历史
+    # messages 结构：[system=STATIC_PREFIX] + [user=【当前状态】] + 历史轮次 + 当前问题
     # compact_messages 保留第 1 条 system 和「当前状态」这条（见该函数内的钉住逻辑），
     # 所以危险操作规则、画像、简历在长对话压缩后都还在。
+    #
+    # 历史的位置：夹在「当前状态」之后、当前问题之前。
+    #   - 放在动态上下文**之后**：状态是"现在"的（本轮刚读的简历/偏好），
+    #     历史是"过去"的，让模型先看到最新状态再回看历史，顺序上不会拿旧状态覆盖新状态；
+    #   - 历史里只有 user 问句 + assistant 的 final_answer（见 _history_to_messages），
+    #     不含任何状态快照，所以与动态上下文不存在重复注入。
+    prior_messages = _history_to_messages(history)
+    if verbose and prior_messages:
+        print(f"[上下文] 注入历史 {len(prior_messages) // 2} 轮"
+              f"（{len(prior_messages)} 条消息）")
     messages = [
         {"role": "system", "content": static_prefix},
         {"role": "user", "content": f"{DYNAMIC_CONTEXT_HEADER}\n{dynamic_context}"},
+    ] + prior_messages + [
         {"role": "user", "content": question},
     ]
 
@@ -546,10 +608,10 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
         if "final_answer" in decision:
             log_event(trace_id, "run_end", total_turns=turn,
                       final_answer_len=len(decision["final_answer"]))
-            return {
+            return _with_messages({
                 "answer": decision["final_answer"],
                 "steps": steps + [{"turn": turn, "type": "final", "thought": thought}],
-            }
+            }, messages, trace_id, return_messages)
 
         action = decision.get("action")
         action_input = decision.get("action_input", {})
@@ -604,10 +666,10 @@ def run(question: str, resume_data: dict = None, verbose: bool = True) -> dict:
     # 轮次耗尽也是 run 的正常收尾路径，run_end 同样要打，否则这条 trace 会断尾
     answer = "抱歉，我没能在限定轮次内完成。请简化问题。"
     log_event(trace_id, "run_end", total_turns=turn, final_answer_len=len(answer))
-    return {
+    return _with_messages({
         "answer": answer,
         "steps": steps,
-    }
+    }, messages, trace_id, return_messages)
 
 if __name__ == "__main__":
     questions = [

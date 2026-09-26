@@ -1,10 +1,13 @@
 """
 求职助手 Agent - Chainlit UI
 
-除了常规对话，这里还挂着两件事：
+除了常规对话，这里还挂着三件事：
 1. 用户反馈（D2）：每条回答下面挂 👍 / 👎，点了就落进 logs/feedback.db；
 2. 模拟面试（D3）：/mock-interview <公司> <岗位> 进入面试官模式，
-   一次问一个问题，答完给一句反馈再问下一个，最后给综合评价。
+   一次问一个问题，答完给一句反馈再问下一个，最后给综合评价；
+3. 对话历史落库：每轮问答写进 agent/data/chat_history.db，下一条消息把它
+   注入回 prompt（`run_agent(..., history=...)`）。Chainlit 的 user_session
+   是纯内存的，**没有这一步，进程重启 / 断线重连之后上下文就全丢了**。
 """
 import json
 import re
@@ -16,6 +19,7 @@ sys.path.insert(0, str(BASE_DIR))
 
 import chainlit as cl
 import json5
+from agent import chat_history
 from agent import storage
 from agent import user_feedback
 from agent import user_profile
@@ -27,6 +31,82 @@ from shared.llm_client import chat
 
 storage.init_db()
 user_feedback.init_db()
+chat_history.init_db()
+
+
+# --------------------------------------------------------------------------
+# 对话历史落库：会话标识 + 字段清洗
+# --------------------------------------------------------------------------
+
+# 用户标识：本轮恒为 'local'，接多用户时改成从认证身份取
+# （chat_history 的表结构已经预留 user_id 字段，无需改表）。
+_USER_ID_KEY = "user_id"
+
+
+def _user_id() -> str:
+    """当前用户 id。没有登录态的部署下恒为 'local'。"""
+    try:
+        uid = cl.user_session.get(_USER_ID_KEY)
+    except Exception as e:                          # noqa: BLE001 - 没有 socket 上下文
+        print(f"[历史] 取 user_id 失败（用默认）：{type(e).__name__}: {e}")
+        uid = None
+    return str(uid or chat_history.DEFAULT_USER_ID)
+
+
+def _thread_id() -> str:
+    """当前用户的**固定** thread_id（= chat_history.thread_id_for_user(user_id)）。
+
+    为什么不用 cl.context.session.thread_id：Chainlit 2.12 里它是
+    `auth.threadId or uuid4()`（session.py:149），而无 data layer 时前端既不带
+    threadId 也不持久化 sessionId —— 实测每刷新一次页面就换一个 thread_id，
+    落库的历史永远读不回来。改成按 user_id 固定后，刷新 / 重启进程都能续上；
+    要开新会话发 `/history-clear`（原地清轮次，同样不换 id）。
+    """
+    return chat_history.thread_id_for_user(_user_id())
+
+
+def _norm_str(value) -> str:
+    """None / 非字符串字段归一成 ''（简历解析出的字段可能是 None，直接 join 会炸）"""
+    return "" if value is None else str(value)
+
+
+def _record_turn(thread_id: str, question: str, answer: str,
+                 steps: list = None) -> int:
+    """把这一轮落库，返回 turn_index（失败返回 None，绝不抛给对话流程）。
+
+    - 只落 user 问句 + assistant 回复，不落工具 observation 原文
+      （量级差两个数量级；需要时由 CHAT_HISTORY_STORE_STEPS 打开）；
+    - `/resume`、`/track`、`/mock-interview` 这些命令**不落库**：
+      它们的产出是状态而不是对话内容，状态另有快照字段承载（见 Q2 的结论）。
+    """
+    try:
+        tool_calls = [
+            {"turn": s.get("turn"), "action": s.get("action"),
+             "action_input": s.get("action_input")}
+            for s in (steps or [])
+            if isinstance(s, dict) and s.get("type") == "action"
+        ]
+        return chat_history.append_turn(
+            thread_id, question, answer,
+            tool_calls=tool_calls, steps=steps,
+        )
+    except Exception as e:                          # noqa: BLE001 - 历史写失败不该让对话失败
+        print(f"[历史] 落库失败（忽略）：{type(e).__name__}: {e}")
+        return None
+
+
+def _save_interview_snapshot(session):
+    """把模拟面试状态写进会话快照（active=False 时由 chat_history 自动清空）。
+
+    面试是独立于 Agent 对话的流程，快照只服务一件事：进程重启后还能接着面。
+    任何异常都只提示，不影响面试本身。
+    """
+    try:
+        chat_history.set_interview(
+            cl.user_session.get("thread_id") or _thread_id(), session
+        )
+    except Exception as e:                          # noqa: BLE001
+        print(f"[历史] 面试快照保存失败（忽略）：{type(e).__name__}: {e}")
 
 
 # --------------------------------------------------------------------------
@@ -46,8 +126,12 @@ def _build_feedback_actions() -> list:
     ]
 
 
-async def _send_feedback_prompt(question: str, answer: str, steps: list):
+async def _send_feedback_prompt(question: str, answer: str, steps: list,
+                                thread_id: str = "", turn_index=None):
     """把「这一轮问了什么、答了什么、用了哪些工具」存进会话，并挂出反馈按钮。
+
+    thread_id / turn_index 是落库那一轮的定位（见 _record_turn），
+    用户点 👍/👎 时靠它们把 rating 回写到 chat_turns 的对应行。
 
     反馈是旁路埋点，任何异常都只提示、不影响对话。
     """
@@ -59,6 +143,8 @@ async def _send_feedback_prompt(question: str, answer: str, steps: list):
         "question": question,
         "answer": answer,
         "tool_sequence": tool_sequence,
+        "thread_id": thread_id,
+        "turn_index": turn_index,
     })
     try:
         await cl.Message(content="这条回答对你有帮助吗？", actions=_build_feedback_actions()).send()
@@ -72,6 +158,17 @@ async def on_feedback(action: cl.Action):
     last_turn = cl.user_session.get("last_turn") or {}
     rating = (action.payload or {}).get("rating", "")
     label = "👍 有帮助" if rating == "up" else "👎 没帮助"
+
+    # 旁路：把评价回写到落库的那一轮（chat_turns.feedback）。
+    # 放在 feedback.db 之前，且单独 try —— 历史库坏了不该影响反馈主流程。
+    try:
+        chat_history.set_feedback(
+            last_turn.get("thread_id") or _thread_id(),
+            last_turn.get("turn_index"),
+            rating,
+        )
+    except Exception as e:                          # noqa: BLE001
+        print(f"[历史] 反馈回写失败（忽略）：{type(e).__name__}: {e}")
 
     try:
         last_turn["tool_sequence"] = _tool_sequence_string(last_turn.get("tool_sequence"))
@@ -362,6 +459,7 @@ async def _handle_interview_message(content: str, session: dict):
             ).send()
         session["active"] = False
         cl.user_session.set("interview", session)
+        _save_interview_snapshot(session)          # active=False → 库里清空
         await cl.Message(content="（面试已结束，继续普通对话即可；想再来一次就发 "
                                  "`/mock-interview 公司 岗位`）").send()
         return
@@ -406,6 +504,7 @@ async def _start_interview(content: str):
         session = _start_interview_session(company, title, resume)
 
     cl.user_session.set("interview", session)
+    _save_interview_snapshot(session)
     await cl.Message(
         content=(
             f"## 🎤 模拟面试开始：{company} · {title}\n\n"
@@ -426,6 +525,26 @@ async def on_chat_start():
     cl.user_session.set("resume", None)
     cl.user_session.set("interview", None)
 
+    # 对话历史落库：按 user_id 取/建**固定**会话，并把历史读进内存。
+    # 新用户是空历史；同一 user_id 刷新 / 重启进程都能读回旧轮次。
+    cl.user_session.set(_USER_ID_KEY, _user_id())
+    thread_id = _thread_id()
+    cl.user_session.set("thread_id", thread_id)
+    try:
+        chat_history.ensure_user_thread(_user_id())
+        history = chat_history.load_history(thread_id, limit=chat_history.HISTORY_TURNS)
+        cl.user_session.set("history", history)
+        # 简历也按会话还原（重启后不用重新 /resume）
+        snapshot = chat_history.load_resume_snapshot(thread_id)
+        if snapshot:
+            cl.user_session.set("resume", snapshot)
+        pending_interview = chat_history.load_interview(thread_id)
+        if pending_interview:
+            cl.user_session.set("interview", pending_interview)
+    except Exception as e:                          # noqa: BLE001 - 历史坏了也要能聊
+        print(f"[历史] 会话初始化失败（忽略）：{type(e).__name__}: {e}")
+        cl.user_session.set("history", [])
+
     profile = user_profile.load_profile()
     profile_hint = ""
     if profile.get("target_cities") or profile.get("preferences"):
@@ -433,6 +552,12 @@ async def on_chat_start():
             "\n**我记住的长期偏好**："
             + json.dumps(profile, ensure_ascii=False)
             + "\n"
+        )
+
+    if cl.user_session.get("history"):
+        profile_hint += (
+            f"\n**已恢复本会话的历史**：{len(cl.user_session.get('history'))} 轮，"
+            "可以直接接着追问；想清空就发 `/history-clear`。\n"
         )
 
     await cl.Message(
@@ -444,11 +569,13 @@ async def on_chat_start():
             "- 简历匹配打分\n"
             "- 添加到投递追踪\n"
             "- 查询追踪状态\n"
-            "- 模拟面试：`/mock-interview 公司 岗位`\n\n"
+            "- 模拟面试：`/mock-interview 公司 岗位`\n"
+            "- 清空本会话历史：`/history-clear`\n\n"
             "**使用建议**：\n"
             "1. 先用 `/resume` 设置你的简历（或粘贴文本）\n"
             "2. 然后直接说需求，我会自动调工具\n"
             "3. 告诉过我一次偏好（如「我只找广州的」），以后我会一直记得\n"
+            "4. 对话历史会落库，进程重启后接着聊也能记得上下文\n"
             f"{profile_hint}"
         )
     ).send()
@@ -457,6 +584,24 @@ async def on_chat_start():
 @cl.on_message
 async def on_message(message: cl.Message):
     content = message.content.strip()
+
+    # 命令：清空本会话的对话历史（**原地清轮次**，thread_id 不变 ——
+    # 这就是"开个新对话"：不变 id 才能保住刷新续接的能力）
+    if content == "/history-clear":
+        thread_id = _thread_id()
+        try:
+            deleted = chat_history.clear_turns(thread_id)
+        except Exception as e:                      # noqa: BLE001 - 清不掉也要给回执
+            await cl.Message(content=f"⚠️ 清空失败：{e}").send()
+            return
+        cl.user_session.set("history", [])
+        cl.user_session.set("last_turn", None)
+        await cl.Message(
+            content=(f"🧹 已清空本会话的对话历史（{deleted} 轮）。"
+                     "从现在起我不再记得之前聊过什么，"
+                     "长期偏好（`/resume` 之外的画像）不受影响。")
+        ).send()
+        return
 
     # 命令：设置简历
     if content.startswith("/resume"):
@@ -470,20 +615,29 @@ async def on_message(message: cl.Message):
         from agent.resume.parser import parse_text
         try:
             resume = parse_text(resume_text)
-            cl.user_session.set("resume", {
-                "name": resume.name,
-                "skills": resume.skills,
-                "experience": resume.experience,
-                "projects": resume.projects,
-                "education": resume.education,
-                "city": resume.city,
-            })
+            resume_data = {
+                "name": _norm_str(resume.name),
+                "skills": list(resume.skills or []),
+                "experience": list(resume.experience or []),
+                "projects": list(resume.projects or []),
+                "education": _norm_str(resume.education),
+                "city": _norm_str(resume.city),
+            }
+            cl.user_session.set("resume", resume_data)
+            # 简历落进会话快照：进程重启后不用重新 /resume
+            try:
+                chat_history.save_resume_snapshot(
+                    cl.user_session.get("thread_id") or _thread_id(), resume_data
+                )
+            except Exception as e:                  # noqa: BLE001 - 快照失败不影响本次设置
+                print(f"[历史] 简历快照保存失败（忽略）：{type(e).__name__}: {e}")
+
             await cl.Message(
                 content=f"✅ 简历已设置\n\n"
-                        f"- 姓名：{resume.name}\n"
-                        f"- 技能：{', '.join(resume.skills[:8])}\n"
-                        f"- 教育：{resume.education}\n"
-                        f"- 城市：{resume.city}"
+                        f"- 姓名：{resume_data['name']}\n"
+                        f"- 技能：{', '.join(resume_data['skills'][:8])}\n"
+                        f"- 教育：{resume_data['education']}\n"
+                        f"- 城市：{resume_data['city']}"
             ).send()
         except Exception as e:
             await cl.Message(content=f"❌ 简历解析失败：{e}").send()
@@ -507,6 +661,7 @@ async def on_message(message: cl.Message):
             session = cl.user_session.get("interview") or {}
             session["active"] = False
             cl.user_session.set("interview", session)
+            _save_interview_snapshot(session)
             await cl.Message(content="已结束模拟面试。想再来一次就发 `/mock-interview 公司 岗位`。").send()
             return
         await _start_interview(content)
@@ -518,15 +673,23 @@ async def on_message(message: cl.Message):
         async with cl.Step(name="面试官思考中", type="tool") as step:
             step.output = "正在点评你的回答…"
             await _handle_interview_message(content, interview)
+        # 面试状态落库：进程重启后仍能接着面（`/history-clear` 会一并清掉）
+        _save_interview_snapshot(interview)
         return
 
     # 正常对话：走 Agent
     resume = cl.user_session.get("resume")
+    thread_id = cl.user_session.get("thread_id") or _thread_id()
+    # 注入落库的历史（最近 HISTORY_TURNS 轮）。
+    # 注意：历史里**没有** resume / interview 快照——那两样只由本轮动态上下文提供，
+    # 所以不会出现「同一份简历被注入两次」的重复（见 react_agent._history_to_messages）。
+    history = cl.user_session.get("history") or []
 
     async with cl.Step(name="Agent 工作中", type="tool") as step:
         step.output = "正在分析..."
         try:
-            result = run_agent(content, resume_data=resume, verbose=False)
+            result = run_agent(content, resume_data=resume, verbose=False,
+                               history=history)
         except Exception as e:
             await cl.Message(content=f"❌ 出错了：{e}").send()
             return
@@ -549,5 +712,19 @@ async def on_message(message: cl.Message):
         await msg.stream_token(token)
     await msg.send()
 
+    # 本轮落库（必须在 msg.send() 之后：落库失败也不能影响用户已经看到的回答），
+    # 然后把内存里的历史同步成"库的样子"，下一轮才带得上这一轮。
+    answer = result.get("answer", "")
+    turn_index = _record_turn(thread_id, content, answer, result.get("steps"))
+    if turn_index is not None:
+        try:
+            cl.user_session.set(
+                "history",
+                chat_history.load_history(thread_id, limit=chat_history.HISTORY_TURNS),
+            )
+        except Exception as e:                      # noqa: BLE001
+            print(f"[历史] 回读历史失败（忽略）：{type(e).__name__}: {e}")
+
     # 回答末尾挂 👍 / 👎（D2 用户反馈）
-    await _send_feedback_prompt(content, result.get("answer", ""), result.get("steps"))
+    await _send_feedback_prompt(content, answer, result.get("steps"),
+                                thread_id=thread_id, turn_index=turn_index)

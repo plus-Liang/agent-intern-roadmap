@@ -25,6 +25,8 @@ agent/data/user_profile.json
 
 # 运行时数据（部署时重建）
 agent/data/applications.db
+agent/data/chat_history.db
+agent/tests/_tmp_chat_history/
 agent/data/exports/
 agent/data/resumes/*.json
 agent/evaluation/failures/
