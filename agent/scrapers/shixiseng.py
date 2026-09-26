@@ -909,6 +909,11 @@ async def _fetch_detail(page: Any, url: str) -> dict[str, Any]:
         out["description_obfuscated"] = desc_obfuscated
     except Exception as exc:  # noqa: BLE001 - 详情页失败不应中断整体
         print(f"[诊断] 详情页失败 {url} -> {type(exc).__name__}: {str(exc).splitlines()[0][:140]}")
+        # 标记"这是浏览器/context 级故障"而不是"这条岗位详情抓丢了"。
+        # 单条岗位抓丢是正常的；但**所有**条目都是浏览器级故障时，
+        # 说明长驻浏览器已经死了（见 _fetch_details_concurrent 的全灭判定）。
+        if _is_browser_gone_error(exc):
+            out["_browser_gone"] = True
     return out
 
 
@@ -962,6 +967,38 @@ def _detail_concurrency_for_list(list_concurrency: int,
     """
     del list_concurrency          # 故意忽略：两个并发数不再联动
     return _resolve_detail_concurrency(detail_concurrency)
+
+
+def _is_browser_gone_error(exc: BaseException) -> bool:
+    """判断异常是否属于「浏览器/context 已经没了」这一类。
+
+    为什么不用 `playwright.async_api.Error` 的 `isinstance` 判断：本模块刻意不在顶层
+    导入 playwright（没装 playwright 时 `--status` / 离线自测仍要能跑），而且
+    TargetClosedError 的判定在 Playwright 各版本间不完全稳定。用**类名 + 消息特征**
+    匹配更稳，且方向是保守的 —— 只有明确像"已关闭"才算，不影响其他异常的处理。
+
+    已知形态：`TargetClosedError: Page.wait_for_timeout: Target page, context or
+    browser has been closed`；浏览器崩掉时 `Browser has been closed`。
+    """
+    name = type(exc).__name__
+    if name in ("TargetClosedError", "BrowserError"):
+        return True
+    text = str(exc).lower()
+    return "has been closed" in text or "browser has been closed" in text
+
+
+# ---------------------------------------------------------------------------
+# 浏览器级故障信号（Round 11）
+# ---------------------------------------------------------------------------
+class BrowserGoneError(RuntimeError):
+    """整批详情页**全军覆没**时抛出，表示长驻浏览器/context 已经死了。
+
+    为什么要单独一个异常类型：以前详情页失败被 `_fetch_detail` 吞成空 dict、
+    再被 `gather(return_exceptions=True)` 吞一层，于是组合层面**看起来是成功的**，
+    `search_multi` 里 `if all(errors)` 的恢复逻辑永远不触发 —— 结果是
+    "一轮抓取跑完、日志全是警告、数据静默归零"（09-25 那次 1 小时 42 分 0 产出
+    就是这个机制）。把它显式抛出来，恢复逻辑才真正生效。
+    """
 
 
 async def _fetch_details_concurrent(
@@ -1065,16 +1102,35 @@ async def _fetch_details_concurrent(
 
     out = []
     failed = 0
+    browser_gone = 0
     for index, (item, res) in enumerate(zip(items, gathered), 1):
         if isinstance(res, BaseException):
             failed += 1
+            if _is_browser_gone_error(res):
+                browser_gone += 1
             print(f"[诊断][详情][警告] ({index}/{total}) 抓取异常，跳过该条："
                   f"{type(res).__name__}: {str(res).splitlines()[0][:140]}")
             out.append({})
         else:
+            if isinstance(res, dict) and res.get("_browser_gone"):
+                browser_gone += 1
             out.append(res if isinstance(res, dict) else {})
     if failed:
         print(f"[诊断][详情][警告] 共 {failed}/{total} 条详情页失败（其余不受影响）。")
+
+    # 全军覆没 = 浏览器/context 级故障，不是"这条岗位详情抓丢了"。
+    # 单条失败是正常的（站点偶发、结构变化），但**所有**条目都因"页面/浏览器已关闭"
+    # 失败时，几乎只可能是长驻浏览器已经死了；此时必须显式上报，让上层的重启逻辑
+    # 生效，否则整轮静默归零（09-25 那次 1 小时 42 分 0 产出就是这个机制）。
+    # 阈值取 2：只有 1 条可抓时不做判断（单独一条失败说明不了浏览器状态），
+    # 交给调用方的重试兜底。
+    if total >= 2 and browser_gone == total:
+        raise BrowserGoneError(
+            f"{total} 条详情页全部因「页面/浏览器已关闭」失败"
+        )
+    # 内部标记用完即摘：下游按"字段缺失"处理，不该看到这个私有键。
+    for entry in out:
+        entry.pop("_browser_gone", None)
     return out
 
 
@@ -1852,6 +1908,40 @@ class ShixisengScraper(PlatformScraper):
             self._playwright = None
         _timing_bump(self.timings, "browser_stop", time.monotonic() - t_stop)
 
+    async def _context_alive(self) -> bool:
+        """轻量探活：能不能在长驻 context 里开出一个 page。
+
+        为什么需要：浏览器/context 一旦死掉，`_ensure_context` 仍会返回那个**死对象**
+        （它只在 `self._context is None` 时才重建），于是后续每一个组合都照常
+        "开 3 个标签页 → 全部失败 → 静默返回 0 条"。有了探活就能在每批开跑前
+        主动发现并重建，而不是一直往上打。
+
+        成本约 50~100ms（一次 new_page + close），相对每组合 12~45 秒可忽略。
+        **任何异常都当"已死"**：探活本身不该抛，判错方向也要偏向重建。
+        """
+        if self._context is None:
+            return False
+        try:
+            page = await self._context.new_page()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[诊断][探活] 浏览器/context 已失效：{type(exc).__name__}: "
+                  f"{str(exc).splitlines()[0][:120]}")
+            return False
+        try:
+            await page.close()
+        except Exception:  # noqa: BLE001 - 关不掉不影响"它还活着"这个判断
+            pass
+        return True
+
+    async def _ensure_healthy_context(self) -> Any:
+        """每批开跑前调用：context 死了就先 teardown，让 _ensure_context 重建。"""
+        if await self._context_alive():
+            return await self._ensure_context()
+        if self._context is not None:
+            print("[诊断][探活] 主动重启长驻浏览器（上一批结束前已失效）。")
+            await self._teardown()
+        return await self._ensure_context()
+
     # -- PlatformScraper 接口 ----------------------------------------------
     async def search(
         self, keyword: str, city: str = None, limit: int = 20
@@ -2006,39 +2096,63 @@ class ShixisengScraper(PlatformScraper):
             except Exception as exc:          # noqa: BLE001 - 回调不拖垮抓取
                 print(f"[列表并发][警告] progress_cb 抛错（忽略）：{exc}")
 
+        async def _run_combo(index: int, keyword: str, city: Optional[str],
+                             context: Any) -> None:
+            """跑一个组合并记账（成功写 results、失败写 errors）。
+
+            抽出来是为了让「重试一次」能复用同一段逻辑：探活/重启只换 context，
+            抓取与记账口径完全一致。
+            """
+            label = city or "不限"
+            t_one = time.monotonic()
+            try:
+                jobs = await search_shixiseng(
+                    keyword,
+                    city=city,
+                    limit=limit,
+                    headless=self.headless,
+                    fetch_detail=self.fetch_detail,
+                    max_pages=self.max_pages,
+                    detail_concurrency=detail_conc,
+                    context=context,
+                    timings=self.timings,
+                )
+            except Exception as exc:  # noqa: BLE001 - 单组合失败不拖垮其他组合
+                errors[index] = (
+                    f"{type(exc).__name__}: {str(exc).splitlines()[0][:160]}"
+                )
+                print(f"[列表并发][警告] ({index + 1}/{len(combos)}) "
+                      f"{keyword!r} @ {label} 失败：{errors[index]}")
+                _notify(index, 0, errors[index])
+                return
+            self._searches += 1
+            results[index] = [self.to_raw_job(job) for job in jobs]
+            errors[index] = ""
+            print(f"[列表并发] ({index + 1}/{len(combos)}) {keyword!r} @ {label}："
+                  f"{len(results[index])} 条（耗时 {_fmt(time.monotonic() - t_one)} 秒）")
+            _notify(index, len(results[index]), "")
+
         async def _one(index: int, keyword: str, city: Optional[str]) -> None:
             async with semaphore:
-                label = city or "不限"
                 # 组合之间的随机延迟：并发但不"齐射"
                 await asyncio.sleep(random.uniform(*DELAY_BETWEEN_LISTS))
-                t_one = time.monotonic()
-                try:
-                    jobs = await search_shixiseng(
-                        keyword,
-                        city=city,
-                        limit=limit,
-                        headless=self.headless,
-                        fetch_detail=self.fetch_detail,
-                        max_pages=self.max_pages,
-                        detail_concurrency=detail_conc,
-                        context=context,
-                        timings=self.timings,
-                    )
-                except Exception as exc:  # noqa: BLE001 - 单组合失败不拖垮其他组合
-                    errors[index] = (
-                        f"{type(exc).__name__}: {str(exc).splitlines()[0][:160]}"
-                    )
-                    print(f"[列表并发][警告] ({index + 1}/{len(combos)}) "
-                          f"{keyword!r} @ {label} 失败：{errors[index]}")
-                    _notify(index, 0, errors[index])
-                    return
-                self._searches += 1
-                results[index] = [self.to_raw_job(job) for job in jobs]
-                print(f"[列表并发] ({index + 1}/{len(combos)}) {keyword!r} @ {label}："
-                      f"{len(results[index])} 条（耗时 {_fmt(time.monotonic() - t_one)} 秒）")
-                _notify(index, len(results[index]), "")
+                await _run_combo(index, keyword, city, context)
+
+        async def _retry_one(index: int) -> None:
+            """重试用：换上新 context，重新走一遍该组合（清掉上一次的错误）。"""
+            keyword, city = combos[index]
+            await asyncio.sleep(random.uniform(*DELAY_BETWEEN_LISTS))
+            await _run_combo(index, keyword, city, context)
+
+        # 每批的收尾统计：这一批里有多少组合失败 / 重试救回多少。
+        # 以前收尾只打一行"完成"，浏览器死了也照样说成功，必须显式记账。
+        batch_failures = 0
+        batch_retried = 0
 
         for chunk_no, group in enumerate(chunks, start=1):
+            # 开跑前探活：上一批可能把浏览器跑死了（长驻对象不会自己发现），
+            # 不探的话这一批会 100% 静默失败。
+            context = await self._ensure_healthy_context()
             tasks = [asyncio.create_task(_one(i, combos[i][0], combos[i][1]))
                      for i in group]
             try:
@@ -2047,6 +2161,29 @@ class ShixisengScraper(PlatformScraper):
                 for task in tasks:
                     if not task.done():
                         task.cancel()
+
+            # 一批全灭 = 几乎可以确定是浏览器/context 死了（不是这一批组合的问题）。
+            # 重启浏览器后把这一批重试**一次**：偶发资源事件不该让整晚数据归零。
+            if group and all(errors[i] for i in group):
+                print(f"[列表并发][警告] 第 {chunk_no}/{len(chunks)} 批全部失败，"
+                      f"重启浏览器后重试一次。")
+                await self._teardown()
+                context = await self._ensure_context()
+                retry_tasks = [
+                    asyncio.create_task(_retry_one(i)) for i in group
+                ]
+                try:
+                    await asyncio.gather(*retry_tasks, return_exceptions=True)
+                finally:
+                    for task in retry_tasks:
+                        if not task.done():
+                            task.cancel()
+                recovered = sum(
+                    1 for i in group if not errors[i]
+                )
+                batch_retried += recovered
+                print(f"[列表并发] 重试结果：救回 {recovered}/{len(group)} 个组合。")
+            batch_failures += sum(1 for i in group if errors[i])
             done = min(chunk_no * chunk, len(combos))
             print(f"[列表并发][进度] 第 {chunk_no}/{len(chunks)} 批完成："
                   f"{done}/{len(combos)} 组合，累计 {_fmt(time.monotonic() - t_start)} 秒"
@@ -2057,6 +2194,15 @@ class ShixisengScraper(PlatformScraper):
         if errors and all(errors):
             print("[列表并发][警告] 全部组合失败，关闭长驻浏览器；下次调用会重新启动。")
             await self._teardown()
+
+        # 收尾必须显式记账：浏览器死过一轮的话，"组合都跑完了"并不等于"数据拿到了"。
+        # 09-25 那次静默归零的教训 —— 日志只打"完成"，没人看得出产出是 0。
+        if batch_failures or batch_retried or self._launches > 1:
+            print(f"[列表并发][汇总] 失败 {batch_failures}/{len(combos)} 个组合，"
+                  f"重试救回 {batch_retried} 个，浏览器共启动 {self._launches} 次。")
+            if batch_failures:
+                print("[列表并发][警告] 仍有组合失败：这些组合本轮没有数据，"
+                      "下轮会按「最久未抓」重新排到。")
 
         if not return_groups:
             flat: list[RawJob] = []
