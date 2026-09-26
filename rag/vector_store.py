@@ -41,10 +41,20 @@ COLLECTION_NAME = "jd_chunks"
 
 # 参与 id 计算的字段：只放「定位这段 chunk 是谁」的稳定信息，**不放正文**。
 # 正文进 id 会导致「正文一改 id 就变」，更新分支永远走不到（见模块 docstring）。
-_IDENTITY_FIELDS = ("company", "title", "chunk_index")
+#
+# 为什么必须带 platform + job_id（Round 10）：
+#   只用 (company, title, chunk_index) 时，**两个平台上的同名同司岗位会算出同一个 id**。
+#   跨平台 (company,title,city) 现在确实 0 撞车，但那是当前数据的巧合，不是约束：
+#   数据层自己的身份口径已经是 `platform|job_id`（见 cleaner._job_identity），
+#   向量层的 id 必须同口径，否则两个平台的岗位会互相覆盖成一条。
+#   代价：旧库里的 chunk id 是按 3 字段算的，换口径后旧 id 成为孤儿 —— 用 `--rebuild`
+#   一次性重建即可（本轮正是这么做的）。
+_IDENTITY_FIELDS = ("platform", "job_id", "company", "title", "chunk_index")
 
-# 写进 metadata 的字段（顺序即建 metadatas 的顺序，便于人肉核对）
-_META_FIELDS = ("company", "title", "city", "chunk_index")
+# 写进 metadata 的字段（顺序即建 metadatas 的顺序，便于人肉核对）。
+# platform / job_id 是 Round 10 新增：有了它，检索命中后能直接反查回 jobs.db 的岗位
+# （不再靠 company/title 模糊匹配），也是上面 id 口径的落库形态。
+_META_FIELDS = ("company", "title", "city", "chunk_index", "job_id", "platform")
 
 
 # ---------------------------------------------------------------------------
@@ -95,14 +105,17 @@ def _chunk_meta(chunk: dict) -> dict:
         "title": str(chunk.get("title") or ""),
         "city": str(chunk.get("city") or ""),
         "chunk_index": str(chunk.get("chunk_index", "") or ""),
+        # Round 10：岗位级身份，用于检索命中后反查 jobs.db（必须落进 metadata）。
+        "job_id": str(chunk.get("job_id") or ""),
+        "platform": str(chunk.get("platform") or ""),
     }
 
 
 def make_chunk_id(chunk: dict, text: str = None, meta: dict = None) -> str:
     """为一条 chunk 生成**稳定 id**：同一条 JD 的同一段，id 永远相同。
 
-    组成：公司 | 岗位 | chunk_index（不含正文，原因见模块 docstring）。
-    这三个字段一起回答「这是哪条 JD 的第几段」；正文变没变由调用方比对 document。
+    组成：platform | job_id | 公司 | 岗位 | chunk_index（不含正文，原因见模块 docstring）。
+    这几个字段一起回答「这是哪条 JD 的第几段」；正文变没变由调用方比对 document。
 
     text 参数保留是为了兼容旧签名，当前不参与计算。
     """
@@ -216,7 +229,7 @@ def _meta_equal(old: dict, new: dict) -> bool:
 def add_chunks_incremental(chunks: list[dict], collection=None) -> dict:
     """增量入库：按 id 判断每条 chunk 是新增 / 更新 / 跳过。
 
-    判定规则（id 由「公司|岗位|chunk_index」决定，见 make_chunk_id）：
+    判定规则（id 由「platform|job_id|公司|岗位|chunk_index」决定，见 make_chunk_id）：
         * id 不存在                         -> 新增（add）
         * id 已存在，正文与元信息都相同       -> 跳过（skipped，**不调用 embedding**）
         * id 已存在，但正文或元信息变了       -> 更新（先 delete 再 add，不留旧副本）
@@ -224,8 +237,12 @@ def add_chunks_incremental(chunks: list[dict], collection=None) -> dict:
     「正文改了」算 updated（同一个位置换了内容），不是新增——
     这正是用户要的语义：改了岗位描述只重新算这一条的向量。
 
+    Round 10：元信息比对范围扩到全部 `_META_FIELDS`（含 **job_id / platform**）——
+    同一个 (公司, 岗位, 段号) 的 chunk 若换了 job_id（岗位被重新发布 / id 修正），
+    必须判成 updated 而不是 skipped，否则 metadata 会停在旧 id 上、反查不到岗位。
+
     参数：
-        chunks:     chunk 列表（company / title / city / chunk_index / text）
+        chunks:     chunk 列表（company / title / city / chunk_index / job_id / platform / text）
         collection: 可选的 Chroma 集合；不传就取当前集合（测试可注入临时集合）
 
     返回：
@@ -358,6 +375,48 @@ def search(query: str, top_k: int = 5) -> list[dict]:
     return hits
 
 
+def _load_chunks_from_db(chunk_size: int = 600, verbose: bool = True):
+    """从 jobs.db 读全部岗位并切成 chunk（带 job_id / platform）；库不可用返回 None。
+
+    Round 10 为什么必须走库：`scraped_jd.txt` 是**纯文本语料**，只有公司/岗位/城市/
+    薪资/链接/发布时间，**没有 job_id 字段** —— 从它切的 chunk 拿不到 job_id，
+    检索命中后就无法反查回岗位。jobs.db 是岗位身份（platform + job_id）的权威来源，
+    所以 `--rebuild` 以库为准；库不可用时才回退文本语料（此时 chunk 无 job_id）。
+    """
+    try:
+        from rag.data import db
+        from agent.scrapers.scheduler import build_chunks
+    except Exception as exc:                # noqa: BLE001 —— 拿不到就走回退路径
+        if verbose:
+            print(f"[rebuild] 无法导入库/chunk 构建器（{type(exc).__name__}: {exc}）")
+        return None
+
+    try:
+        jobs = db.get_all_jobs()
+    except Exception as exc:                # noqa: BLE001
+        if verbose:
+            print(f"[rebuild] 读库失败（{type(exc).__name__}: {exc}）")
+        return None
+
+    if not jobs:
+        if verbose:
+            print("[rebuild] 库为空，回退文本语料")
+        return None
+
+    without_id = sum(1 for j in jobs if not str(j.get("job_id") or "").strip())
+    if without_id:
+        # 有岗位缺 job_id 时不硬编：宁可不带 id，也要让调用方知道覆盖率不完整
+        if verbose:
+            print(f"[rebuild] 警告：{without_id}/{len(jobs)} 条岗位缺 job_id")
+
+    chunks = build_chunks(jobs, chunk_size=chunk_size)
+    if verbose:
+        covered = sum(1 for c in chunks if str(c.get("job_id") or "").strip())
+        print(f"[rebuild] 数据源=jobs.db：{len(jobs)} 条岗位 → {len(chunks)} 个 chunk，"
+              f"job_id 覆盖 {covered}/{len(chunks)}")
+    return chunks
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -370,6 +429,9 @@ def _cli(argv=None, verbose: bool = True) -> int:
         python -m rag.vector_store --incremental --file rag/data/scraped_jd.txt
         python -m rag.vector_store --rebuild        # 先清空向量库，再全量写入
         python -m rag.vector_store --no-search-test # 只入库，不跑检索自测
+
+    数据源（Round 10）：默认**优先读 jobs.db**（chunk 才带得上 job_id），
+    库不可用时回退 `--file` / `scraped_jd.txt` 文本语料（此时无 job_id）。
     """
     import sys
 
@@ -390,13 +452,17 @@ def _cli(argv=None, verbose: bool = True) -> int:
     if "--file" in argv:
         data_path = argv[argv.index("--file") + 1]
 
-    if verbose:
-        print(f"数据文件：{data_path}")
-
-    jds = load_jd_file(data_path)
-    chunks = split_jds(jds)
-    if verbose:
-        print(f"读到 {len(jds)} 条 JD，切成 {len(chunks)} 个 chunk")
+    # 显式给了 --file 就尊重调用方（测试/临时数据源）；否则优先走库
+    chunks = None
+    if "--file" not in argv:
+        chunks = _load_chunks_from_db(verbose=verbose)
+    if chunks is None:
+        if verbose:
+            print(f"数据文件：{data_path}")
+        jds = load_jd_file(data_path)
+        chunks = split_jds(jds)
+        if verbose:
+            print(f"读到 {len(jds)} 条 JD，切成 {len(chunks)} 个 chunk（无 job_id）")
 
     if incremental:
         if rebuild:
@@ -416,7 +482,8 @@ def _cli(argv=None, verbose: bool = True) -> int:
         print(f"\n问题：{q}")
         for r in search(q, top_k=3):
             m = r["metadata"]
-            print(f"  [{r['distance']:.4f}] {m['company']} | {m['title']}")
+            print(f"  [{r['distance']:.4f}] {m['company']} | {m['title']} "
+                  f"| job_id={m.get('job_id', '')}")
     return 0
 
 

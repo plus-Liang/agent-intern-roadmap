@@ -248,11 +248,14 @@ def search_jobs(
     keyword: Optional[str] = None,
     city: Optional[str] = None,
     limit: int = 20,
+    match_any: bool = False,
 ) -> list[dict]:
     """按关键词/城市查询。
 
     * keyword：在 title 或 description 中做 LIKE 匹配（大小写不敏感）；
-      含空格时按多个词处理，要求全部命中。None / "" 表示不限。
+      含空格时按多个词处理，默认**全部命中**（AND）。None / "" 表示不限。
+    * match_any：True 时改为**任一命中**（OR）。给语义检索的候选召回用 ——
+      semantic 模式先放宽召回，再在子集内做语义重排；精确查询保持 False。
     * city：城市匹配，支持「广州」和「广州市」归一化；None / "" 表示不限。
     * limit：>0 截断；<=0 或 None 表示不限。
     * 返回按 publish_date 降序排序（空日期排在最后）的 dict 列表。
@@ -265,13 +268,17 @@ def search_jobs(
     where: list[str] = []
     params: list[Any] = []
 
-    for term in _keyword_terms(keyword):
-        like = f"%{_escape_like(term.lower())}%"
-        where.append(
-            "(LOWER(IFNULL(title, '')) LIKE ? ESCAPE '\\'"
-            " OR LOWER(IFNULL(description, '')) LIKE ? ESCAPE '\\')"
-        )
-        params.extend([like, like])
+    terms = _keyword_terms(keyword)
+    if terms:
+        clauses = []
+        for term in terms:
+            like = f"%{_escape_like(term.lower())}%"
+            clauses.append(
+                "(LOWER(IFNULL(title, '')) LIKE ? ESCAPE '\\'"
+                " OR LOWER(IFNULL(description, '')) LIKE ? ESCAPE '\\')"
+            )
+            params.extend([like, like])
+        where.append("(" + (" OR " if match_any else " AND ").join(clauses) + ")")
 
     normalized_city = _normalize_city(city)
     if normalized_city:
@@ -380,6 +387,68 @@ def get_job(job_id: str) -> Optional[dict]:
 def get_all_jobs() -> list[dict]:
     """取全量岗位（按 publish_date 降序）；库不可用时返回空列表。"""
     return search_jobs(keyword=None, city=None, limit=0)
+
+
+def get_jobs_by_ids(ids) -> list[dict]:
+    """按 job_id 列表批量取岗位（Round 10：语义检索命中后反查回岗位用）。
+
+    语义检索只能给出 chunk 的 job_id（向量库不认识岗位表），拿到 id 后要靠这个函数
+    把岗位补全。返回顺序**按入参顺序**（去重后），查不到的 id 直接跳过（不报错），
+    所以 `len(结果) <= len(入参)`，调用方不要用下标对齐。
+    """
+    wanted = []
+    seen = set()
+    for value in (ids or []):
+        key = _text(value).strip()
+        if key and key not in seen:
+            seen.add(key)
+            wanted.append(key)
+    if not wanted or not DB_PATH.exists():
+        return []
+
+    out: dict[str, dict] = {}
+    # SQLite 的变量上限默认 999，分批查避免 "too many SQL variables"
+    batch = 500
+    try:
+        with _connect() as conn:
+            for start in range(0, len(wanted), batch):
+                part = wanted[start:start + batch]
+                placeholders = ",".join("?" for _ in part)
+                rows = conn.execute(
+                    f"SELECT * FROM {TABLE} WHERE job_id IN ({placeholders})", part
+                ).fetchall()
+                for row in rows:
+                    record = _row_to_dict(row)
+                    out[_text(record.get("job_id"))] = record
+    except sqlite3.Error as exc:
+        _warn(f"按 id 批量查询失败：{exc}")
+        return []
+    return [out[key] for key in wanted if key in out]
+
+
+def get_jobs_by_identity(company: str, title: str) -> list[dict]:
+    """按 (公司, 岗位名) 取岗位（Round 10：语义命中后按身份兜底反查）。
+
+    与 get_jobs_by_ids 的分工：chunk metadata 带 job_id 时优先按 id 反查（精确、O(log n)）；
+    旧库 / 数据缺 job_id 时退到本函数，用归一化后的公司名 + 岗位名定位 ——
+    同一对 (company, title) 可能命中多条（不同平台 / 不同城市），**全部返回**，
+    由调用方自己决定取哪条，不要在这里悄悄只留一条。
+    """
+    company_key = _text(company).strip().lower()
+    title_key = _text(title).strip().lower()
+    if not company_key or not title_key or not DB_PATH.exists():
+        return []
+    try:
+        with _connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM {TABLE} WHERE LOWER(TRIM(IFNULL(company, ''))) = ? "
+                f"AND LOWER(TRIM(IFNULL(title, ''))) = ? ORDER BY publish_date DESC",
+                (company_key, title_key),
+            ).fetchall()
+    except sqlite3.Error as exc:
+        _warn(f"按身份查询失败：{exc}")
+        return []
+    return [_row_to_dict(row) for row in rows]
 
 
 def import_json(json_path: Optional[Path] = None) -> dict:

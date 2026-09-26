@@ -61,22 +61,26 @@ def search_jobs(
     city: Optional[str] = None,
     limit: int = 50,
     platform: str = "mock",
+    match_any: bool = False,
 ) -> list[Job]:
     """
     搜索岗位。
 
     参数：
         keyword: 搜索关键词，如 "Agent 开发"。大小写不敏感；
-                 含空格时按多个词处理，要求全部命中 title 或 description。
+                 含空格时按多个词处理，默认要求**全部命中**（AND）。
         city: 城市过滤，如 "广州"，None/"" 表示不限
         limit: 返回数量上限（默认 50；传 0 表示不限，返回全部命中）
         platform: "mock"（本地真实数据，读不到时回退硬编码 mock）；
                   别名 "agent" 等价于 "mock"；"shixiseng" 为在线抓取（待实现）
+        match_any: True 时多词改为**任一命中**（OR）。给语义检索的候选召回用：
+                  自然语言需求整句 AND 会命中 0 条，先放宽召回再由语义重排排序。
+                  精确查询保持 False（调用方不传即为旧行为）。
 
     返回：Job 列表（无命中返回空列表）
     """
     if platform in ("mock", "agent"):
-        return _mock_search(keyword, city, limit)
+        return _mock_search(keyword, city, limit, match_any=match_any)
     elif platform == "shixiseng":
         return _fetch_from_shixiseng(keyword, city, limit)
     else:
@@ -130,17 +134,24 @@ def _normalize_city(city: Optional[str]) -> str:
     return text
 
 
-def _match_keyword(job: Job, keyword: Optional[str]) -> bool:
+def _match_keyword(job: Job, keyword: Optional[str],
+                   match_any: bool = False) -> bool:
     """关键词匹配：大小写不敏感，命中 title 或 description 即可。
 
-    keyword 含空格时按多词处理（如 "Agent 开发"），要求所有词都命中，
-    这样 "AI Agent开发" 这类没有空格分隔的标题也能被搜到。
+    keyword 含空格时按多词处理（如 "Agent 开发"），默认要求**所有词**都命中，
+    这样 "AI Agent开发" 这类没有空格分隔的标题也能被搜到；
+    match_any=True 时改为**任一命中**（语义召回的放宽模式，见 search_jobs 文档）。
     """
     target = (keyword or "").strip().lower()
     if not target:
         return True
     haystack = f"{job.title}\n{job.description}".lower()
-    return all(term in haystack for term in target.split())
+    terms = target.split()
+    if not terms:
+        return True
+    if match_any:
+        return any(term in haystack for term in terms)
+    return all(term in haystack for term in terms)
 
 
 def _match_city(job: Job, city: Optional[str]) -> bool:
@@ -188,11 +199,12 @@ def _job_from_row(row: dict) -> Job:
     )
 
 
-def _search_via_sqlite(keyword: str, city: Optional[str], limit: int) -> Optional[list[Job]]:
+def _search_via_sqlite(keyword: str, city: Optional[str], limit: int,
+                       match_any: bool = False) -> Optional[list[Job]]:
     """用 SQLite（rag/data/jobs.db）查询；返回 None 表示「库不可用」，调用方回退 JSON。
 
-    过滤下推到 SQL：关键词多词 AND 命中 title/description，城市按归一化匹配，
-    排序/截断也在库里做，不再把全量数据读进内存。
+    过滤下推到 SQL：关键词多词默认 AND 命中 title/description（match_any=True 时改 OR），
+    城市按归一化匹配，排序/截断也在库里做，不再把全量数据读进内存。
     REAL_JD_PATH 被显式改写时（单测 / 临时数据源）直接跳过 DB——谁改了路径就以谁的
     JSON 为准，旧的数据源覆盖行为保持不变。
     """
@@ -202,20 +214,22 @@ def _search_via_sqlite(keyword: str, city: Optional[str], limit: int) -> Optiona
         db = _db_module()
         if not db.ensure_db():
             return None
-        rows = db.search_jobs(keyword=keyword, city=city, limit=limit)
+        rows = db.search_jobs(keyword=keyword, city=city, limit=limit,
+                              match_any=match_any)
     except Exception as exc:  # noqa: BLE001 —— 数据源坏了不该让搜索整体挂掉
         print(f"[job_search] SQLite 不可用，回退 JSON：{exc}", file=sys.stderr)
         return None
     return [_job_from_row(row) for row in rows]
 
 
-def _mock_search(keyword: str, city: Optional[str], limit: int) -> list[Job]:
+def _mock_search(keyword: str, city: Optional[str], limit: int,
+                 match_any: bool = False) -> list[Job]:
     """默认实现：优先 SQLite，其次 cleaned_jd.json，都读不到才回退硬编码 mock。
 
     迁移到 SQLite 之前这里会把整份 JSON 解析后全表过滤；1w+ 条时那是瓶颈，
     所以 DB 是主路径，JSON 只是兜底（旧部署 / 单测改写 REAL_JD_PATH / 建库失败）。
     """
-    db_jobs = _search_via_sqlite(keyword, city, limit)
+    db_jobs = _search_via_sqlite(keyword, city, limit, match_any=match_any)
     if db_jobs is not None:
         return _apply_limit(db_jobs, limit, keyword)
 
@@ -223,7 +237,7 @@ def _mock_search(keyword: str, city: Optional[str], limit: int) -> list[Job]:
     if real_jobs:
         results = [
             j for j in real_jobs
-            if _match_keyword(j, keyword) and _match_city(j, city)
+            if _match_keyword(j, keyword, match_any=match_any) and _match_city(j, city)
         ]
         return _apply_limit(results, limit, keyword)
 

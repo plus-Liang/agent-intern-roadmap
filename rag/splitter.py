@@ -104,6 +104,10 @@ def split_jds(jds: list[dict], chunk_size: int = 600) -> list[dict]:
                 "city": jd["city"],
                 "chunk_index": i,
                 "text": chunk,
+                # Round 10：岗位级身份透传进 chunk（向量库据此反查 jobs.db）。
+                # 用 .get 兜底：老的 loader 产的 jd 没有这两个键，不能因此炸掉。
+                "job_id": str(jd.get("job_id") or ""),
+                "platform": str(jd.get("platform") or ""),
             })
     return all_chunks
 

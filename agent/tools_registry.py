@@ -19,8 +19,137 @@ from shared.llm_client import chat
 from agent import state_machine
 from agent import storage
 
+# 语义重排的候选上限（Round 10，乙方案的修正项之一）：
+# 候选 <= 80 条才启用「子集内语义重排」。超过就只走 SQL 排序 ——
+# 候选多说明关键词本身已经筛得够准（精确查询没有模糊空间），
+# 再跑一次 embedding + BM25 既费时又不会改变排序质量。
+SEMANTIC_MAX_CANDIDATES = 80
 
-def _search(keyword, city=None, limit=20):
+
+def _semantic_probe(keyword: str, max_terms: int = 3) -> str:
+    """把「自然语言需求」收成候选池用的短关键词（semantic 模式的 SQL 预过滤用）。
+
+    为什么需要：`search_jobs` 的关键词过滤是**逐词 AND 的字面 LIKE**
+    （`db.search_jobs` 里每个词都必须出现在 title/description 中）。用户说
+    「想找偏大模型落地、能写工程代码的实习」时，整句当关键词去 LIKE 会**一条都命中不了**
+    —— 候选池为空，后面的语义重排根本没有机会跑（实测就是这样）。
+    这里的作用只是"别把候选池掐死"：抽出信息量大的短词做 OR 召回，
+    真正的排序交给 `_retrieve` 的语义路。
+
+    做法（刻意保守，不引入新依赖）：
+      1) 按标点/空白切片段，丢掉疑问词与「想找/有没有/岗位/实习」这类无区分度的词；
+      2) 中文片段取 2 字滑窗（「落地」「工程」这种），英文/数字词整词保留；
+      3) 全都取不到时退回"去掉停用词的原句"，最后再退回原句。
+    这些词是**用空格拼起来**送进 `db.search_jobs` 的，而它按空格拆词做 AND —— 所以
+    这里额外把拼好的串交给 `_search` 的宽松分支，由那条分支按 OR 召回（见 `_search`）。
+    """
+    import re
+
+    stop_terms = (
+        "想找", "找一", "有没有", "可以", "能够", "最好", "希望", "不要", "适合",
+        "岗位", "实习", "工作", "机会", "什么", "怎么", "帮我", "推荐", "一些",
+        "偏", "的", "和", "与", "或", "还是", "能", "会", "要", "在", "我",
+    )
+    parts = [p for p in re.split(r"[\s,，、。；;：:！!？?（）()【】\[\]\"'“”‘’/\\|]+", keyword) if p]
+    # 只丢"填充字"边界，不丢实义词：让「找偏」「偏大」这种跨词边界的滑窗不出现，
+    # 同时保留「大模」「模型」「落地」「工程」这类真正有区分度的 2 字词。
+    fillers = "的了和与或还是在要会能想找有没有最好希望不要适合什么怎么帮我推荐一些偏每就都太很"
+    terms: list[str] = []
+    for part in parts:
+        if part in stop_terms:
+            continue
+        if re.search(r"[A-Za-z0-9]", part):
+            terms.append(part)
+        # 中文：滑窗取 2 字词，跳过纯停用词片段
+        han = re.sub(r"[^\u4e00-\u9fff]", "", part)
+        if len(han) < 2:
+            continue
+        if han in stop_terms:
+            continue
+        for i in range(len(han) - 1):
+            bigram = han[i:i + 2]
+            if bigram in stop_terms or bigram in terms:
+                continue
+            if bigram[0] in fillers or bigram[1] in fillers:
+                continue
+            terms.append(bigram)
+    if not terms:
+        cleaned = " ".join(t for t in parts if t not in stop_terms)
+        return cleaned or keyword
+    return " ".join(terms[:max_terms])
+
+
+def _retrieve(*args, **kwargs):
+    """懒加载 rag.retriever.retrieve。
+
+    放函数里而不是模块顶层：`rag.retriever` → `rag.embedder` → fastembed/jieba
+    这条链在导入时就有开销；而且 tools_registry 被 dashboard / job_search / rag
+    多处依赖，顶层重依赖会放大启动成本。真正要语义重排时再导入。
+    """
+    from rag.retriever import retrieve
+    return retrieve(*args, **kwargs)
+
+
+def _search(keyword, city=None, limit=20, semantic=False):
+    """工具 search_jobs 的实现。
+
+    Round 10 接入 RAG（乙方案：**SQL 先过滤、子集内语义重排**）：
+      1) 先用 SQL 关键词/城市过滤出候选岗位（精确查询行为完全不变）；
+      2) 只有 `semantic=True` **且** 候选数 <= `SEMANTIC_MAX_CANDIDATES` 时，
+         才在**这个子集内**做一次语义重排（BM25 + 向量 RRF），把更贴近意图的
+         岗位排到前面。
+
+    Round 11 关键修正：semantic 模式下**不能**把整句自然语言当 AND 关键词去 LIKE。
+    实测「想找偏大模型落地、能写工程代码的实习」整句 LIKE 命中 0 条 —— 候选池为空，
+    后面的语义重排一条都跑不到。所以 semantic 分支先用 `_semantic_probe`
+    抽短词做 **OR 召回**（放宽召回、不放松排序），排序仍然交给语义路。
+
+    为什么要卡 80 条：语义重排要跑一次 embedding + BM25，候选太多时
+      ① 成本高、② 收益低（"北京 Python"这种精确查询本身没有模糊空间）。
+      所以大结果集直接返回 SQL 排序，保持可预期。
+    """
+    if semantic:
+        rows = _semantic_rows(keyword, city, limit)
+    else:
+        rows = _rows_from_jobs(search_jobs(keyword, city, limit, platform="mock"))
+
+    if not semantic or not rows or len(rows) > SEMANTIC_MAX_CANDIDATES:
+        return rows
+
+    allowed = [r["job_id"] for r in rows if r.get("job_id")]
+    if not allowed:
+        return rows
+    # 语义查询用「原句」去检索（要的就是整句的语义），候选池由 probe 提供
+    try:
+        hits = _retrieve(keyword, top_k=len(rows), allowed_job_ids=allowed)
+    except Exception as exc:                    # noqa: BLE001 —— 检索坏了就退回 SQL 结果
+        print(f"[search_jobs] 语义重排不可用，退回 SQL 排序：{type(exc).__name__}: {exc}")
+        return rows
+
+    by_id = {r["job_id"]: r for r in rows}
+    reranked = []
+    seen_ids: set = set()
+    # 注意：`retrieve` 返回的是 **chunk** 级命中，同一条 JD 会有多个 chunk 命中。
+    # 这里必须按 job_id 去重（用集合），不能靠 `row in reranked` 比对 —— 每条
+    # 带不同 score 的副本都是不同的 dict，比对会漏掉，导致同一岗位重复出现。
+    for hit in hits:
+        job_id = str((hit.get("metadata") or {}).get("job_id") or "")
+        if job_id in seen_ids:
+            continue
+        row = by_id.get(job_id)
+        if row is None:
+            continue
+        seen_ids.add(job_id)
+        row = dict(row)
+        row["score"] = round(float(hit.get("score") or 0.0), 6)
+        reranked.append(row)
+    # 语义路没覆盖到的候选挂在后面（不能因为重排把岗位弄丢）
+    reranked.extend(r for r in rows if r.get("job_id") not in seen_ids)
+    return reranked
+
+
+def _rows_from_jobs(jobs) -> list[dict]:
+    """Job 列表 -> 工具返回用的瘦身 dict（字段口径保持不变）。"""
     return [
         {
             "job_id": j.job_id,
@@ -30,8 +159,46 @@ def _search(keyword, city=None, limit=20):
             "salary": j.salary,
             "tags": j.tags or [],
         }
-        for j in search_jobs(keyword, city, limit, platform="mock")
+        for j in jobs
     ]
+
+
+def _semantic_rows(keyword: str, city, limit: int) -> list[dict]:
+    """semantic 模式的候选召回：抽短词做 **OR** 召回，而不是整句 AND LIKE。
+
+    分三级放宽，保证候选池不空（语义路才有东西可排）：
+      1) probe 出的短词，逐个 OR（`search_jobs` 的语义分支按 OR 处理多词）；
+      2) 还空 → 用最先出现的 1 个短词（最稳的一次收窄）；
+      3) 还空 → 退到按时间倒序的近期岗位（**上限 `SEMANTIC_MAX_CANDIDATES`**，
+         否则整库都进来，语义重排的代价就失控了）。
+    候选集只影响"可选范围"，最终顺序仍由 `_retrieve` 的 RRF 决定。
+    """
+    from agent.tools.job_search import search_jobs as _raw_search
+
+    probe = _semantic_probe(keyword)
+    per_term = max(int(limit or 20), 20)
+    seen: dict[str, dict] = {}
+
+    def _collect(rows: list[dict]) -> None:
+        for row in rows:
+            if len(seen) >= SEMANTIC_MAX_CANDIDATES:
+                return
+            jid = str(row.get("job_id") or "")
+            if jid and jid not in seen:
+                seen[jid] = row
+
+    if probe:
+        _collect(_rows_from_jobs(_raw_search(probe, city, per_term, platform="mock",
+                                             match_any=True)))
+    terms = [t for t in probe.split() if t]
+    if not seen and terms:
+        _collect(_rows_from_jobs(_raw_search(terms[0], city, per_term, platform="mock")))
+    if not seen:
+        # 最后兜底：近期岗位（跨平台、不限关键词）。用两倍上限召回再截断，
+        # 留一点余量给"截断偏好"。
+        _collect(_rows_from_jobs(_raw_search(
+            "", city, SEMANTIC_MAX_CANDIDATES * 2, platform="mock")))
+    return list(seen.values())[:SEMANTIC_MAX_CANDIDATES]
 
 
 def _detail(job_id):
@@ -631,11 +798,22 @@ def validate_registry() -> None:
 
 TOOLS = {
     "search_jobs": {
-        "description": "搜索实习岗位，返回岗位列表。",
+        "description": (
+            "搜索实习岗位，返回岗位列表。默认走关键词精确匹配（结果可预期、最快）。"
+            "**只有用户的模糊需求才用 semantic**：当用户描述的是「什么样的岗位」"
+            "而不是具体关键词时（如「想找偏大模型落地、能写工程代码的实习」"
+            "「有没有适合我的 AI 岗」），才把 semantic 传 true —— 此时会在候选集内"
+            "做一次语义重排，更贴近意图；候选超过 80 条时自动退回关键词排序。"
+            "关键词/城市这类精确查询（如「北京 Python」）**不要**传 semantic。"
+        ),
         "parameters": {
             "keyword": "搜索关键词",
             "city": "城市（可选）",
             "limit": "数量，默认 20",
+            "semantic": (
+                "是否启用语义重排，默认 false。仅在用户的模糊需求（描述『什么样的岗位』、"
+                "没有明确关键词）时传 true；关键词/城市精确查询保持 false。"
+            ),
         },
         "func": _search,
         "risk_level": "read",

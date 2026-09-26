@@ -1601,11 +1601,14 @@ def _format_job_text(index: int, job: dict) -> str:
 
 
 def jobs_to_jd_records(jobs: list[dict]) -> list[dict]:
-    """清洗后的 Job dict 列表 → [{"company", "title", "city", "content"}]
+    """清洗后的 Job dict 列表 → [{"company", "title", "city", "content", "job_id", "platform"}]
 
     灌进 splitter 之前先补上 loader 会加的头部元信息（公司/岗位/城市/薪资/
     链接/发布时间），这样 chunk 正文里带来源信息、检索命中后能定位到岗位，
     也让 ID 的 company/title 字段有值。
+
+    Round 10 新增 job_id / platform 透传：向量库靠这两个字段把 chunk 反查回
+    jobs.db（见 vector_store._META_FIELDS）。缺失时留空串，不编造。
     """
     records = []
     for index, job in enumerate(jobs or [], start=1):
@@ -1616,6 +1619,8 @@ def jobs_to_jd_records(jobs: list[dict]) -> list[dict]:
             "title": (job.get("title") or "").strip() or "未知",
             "city": (job.get("city") or "").strip() or "未知",
             "content": _format_job_text(index, job),
+            "job_id": str(job.get("job_id") or "").strip(),
+            "platform": str(job.get("platform") or "").strip(),
         })
     return records
 
