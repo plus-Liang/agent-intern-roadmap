@@ -40,6 +40,7 @@ from agent import storage, user_feedback, user_profile
 from agent.react_agent import run as run_agent
 from agent.tools_registry import resolve_job
 from dashboard.shared import inject_styles
+from shared import limits
 from shared.llm_client import chat
 
 st.set_page_config(
@@ -312,9 +313,40 @@ def _parse_interview_reply(raw: str) -> dict:
             "finished": False, "summary": ""}
 
 
+def _interview_budget() -> tuple:
+    """面试每轮 chat() 的 (max_tokens, reasoning_effort)。
+
+    面试每轮要输出「点评 + 下一题」、收尾轮还要整段综合评价，是长输出轮；
+    模型是思考模型，默认 1024 会被 reasoning 吃光（finish_reason=length、
+    正文为空）。这里对齐 agent/app.py 与 ReAct 的长输出档：8192 + 低思考档。
+    限额总闸门关闭时返回 (0, "")，与改造前行为一致。
+    """
+    if not limits.rate_limit_enabled():
+        return 0, ""
+    return limits.react_long_max_tokens(), limits.react_reasoning_effort()
+
+
 def _ask_interviewer(session: dict) -> dict:
     """让面试官出下一题 / 给评价（同步 LLM 调用）"""
-    raw = chat(_interview_messages(session), source=INTERVIEW_SOURCE)
+    messages = _interview_messages(session)
+    max_tokens, effort = _interview_budget()
+    limits.reset_truncated()
+    raw = chat(messages, source=INTERVIEW_SOURCE,
+               max_tokens=max_tokens, reasoning_effort=effort)
+    if limits.consume_truncated():
+        # 半截 JSON 解析不出题 → 面试卡住，所以单独重试一次：告诉模型被截断，要求精简后重出。
+        print(f"[面试] 输出触顶（max_tokens={max_tokens}），要求精简后重出一份完整 JSON")
+        raw = chat(
+            messages + [
+                {"role": "assistant", "content": raw or ""},
+                {"role": "user",
+                 "content": "你上一次的输出被截断了（超过单次输出长度上限）。"
+                            "请把 feedback / summary 压缩到两三句，"
+                            "重新输出一个完整合法的单行 JSON。"},
+            ],
+            source=INTERVIEW_SOURCE, max_tokens=max_tokens, reasoning_effort=effort,
+        )
+        limits.consume_truncated()
     return _parse_interview_reply(raw)
 
 

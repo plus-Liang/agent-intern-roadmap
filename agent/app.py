@@ -545,6 +545,10 @@ INTERVIEW_PROMPT = """你是一位资深面试官，正在对候选人做一场�
 4. 问满 {min_q} 题后（最多 {max_q} 题）就收尾：给一段综合评价，
    包含「整体表现 / 亮点 / 待改进 / 与岗位的匹配度 / 下一步建议」。
 5. 绝对不要编造候选人简历里没有的经历。
+6. 只围绕【岗位】里的公司 / 岗位名出题。JD 节选只用来理解业务方向：
+   绝不要提 JD 里出现的其它公司名、产品或项目（例如别家的行业系统）；
+   如果 JD 和【岗位】对不上（公司或岗位名不一致），一律以【岗位】为准，
+   宁可只按岗位名称和简历出题。
 
 【已经问过的问题】
 {asked}
@@ -585,13 +589,40 @@ def _format_resume(resume) -> str:
     return "\n".join(lines) or "（简历内容为空）"
 
 
+def _norm_company(name: str) -> str:
+    """公司名归一化：去空白/括号/标点 + 去掉常见后缀 + 小写（「字节」也能命中「字节跳动」）"""
+    text = re.sub(r"[\s（）()【】\[\]·、，,]+", "", str(name or ""))
+    for suffix in ("股份有限公司", "有限责任公司", "有限公司", "集团", "公司", "中国"):
+        if text.endswith(suffix) and len(text) > len(suffix):
+            text = text[: -len(suffix)]
+    return text.lower()
+
+
+def _company_matches(company: str, job_company: str) -> bool:
+    """岗位所属公司和用户指定的公司是不是同一家（互相包含即算，容忍简称与后缀）"""
+    want, got = _norm_company(company), _norm_company(job_company)
+    if not want or not got:
+        return False
+    return want == got or want in got or got in want
+
+
+def _norm_title(title: str) -> str:
+    """岗位名归一化：去空白/标点，缓解「Agent 开发实习生」与「Agent开发实习生」的写法差异"""
+    return re.sub(r"[\s（）()【】\[\]·、，,/\-—_]+", "", str(title or "")).lower()
+
+
 def _resolve_job(company: str, title: str) -> tuple:
     """尽力拿到岗位 JD：多组关键词各搜一遍，再按公司/岗位名挑最像的一条。
 
     为什么要退化成多轮搜索：搜索是「所有关键词都要命中」，直接拿
     「公司 + 岗位」一起搜往往一条都搜不到（mock 库里公司和岗位名拼在一个词里
     就匹配不上）。所以这里从小到大试：完整串 → 岗位名去掉「实习生」等后缀
-    → 岗位名里的长词 → 公司名 + 短词。
+    → 岗位名里的长词 → 全词组合 → 公司名 + 短词。
+
+    **公司是硬约束**：只接受公司命中的候选，宁可一条不给（交回「按岗位名出题」），
+    也不把别家公司的同岗位 JD 当成本岗位 —— 用户报的「面字节却被聊自动驾驶
+    数据产线」就是这个 bug（搜索只匹配标题+描述、不匹配 company，公司名搜不到，
+    于是岗位名词只捞到别家的同名词岗位并胜出）。
     返回 (job_id 或 "", JD 文本)；拿不到也照样能面，只是题目更泛。
     """
     keywords = []
@@ -602,6 +633,14 @@ def _resolve_job(company: str, title: str) -> tuple:
             keywords.append(text)
 
     short_title = re.sub(r"[（(].*?[)）]", "", title or "").strip()
+    # 中英文之间补空格：「Agent开发实习生」这种连写，搜索侧按空格切词后一个字也匹配不上
+    # （mock 库里岗位名是「Agent 开发实习生 - 火山方舟」），结果只有一条描述里恰好
+    # 连写的无关岗位命中并胜出 —— 这正是「面字节的 Agent 岗却给了端智能算法岗」的根因。
+    short_title = re.sub(
+        r"(?<=[A-Za-z0-9])(?=[\u4e00-\u9fff])|(?<=[\u4e00-\u9fff])(?=[A-Za-z0-9])",
+        " ",
+        short_title,
+    )
     title_words = [w for w in re.split(r"[\s/、，,]+", short_title) if len(w) >= 2]
     title_words.sort(key=len, reverse=True)
 
@@ -609,6 +648,9 @@ def _resolve_job(company: str, title: str) -> tuple:
     add(short_title)
     for word in title_words[:2]:
         add(word)
+    # 全词组合（AND）：「Agent 开发实习生（带空格）」用整串搜不到，拆成词组才捞得到，
+    # 少一条候选就可能退化成别家公司的同岗位。
+    add(" ".join(title_words))
     add(f"{company} {title_words[0]}" if title_words else company)
     add(company)
 
@@ -618,20 +660,24 @@ def _resolve_job(company: str, title: str) -> tuple:
         if not keyword:
             continue
         try:
-            jobs = search_jobs(keyword, None, 20, platform="mock")
+            # 每个关键词多取一些候选：目标岗位可能排在第 13~42 位，之前只取 20 条会被截掉。
+            jobs = search_jobs(keyword, None, 50, platform="mock")
         except Exception as e:                      # noqa: BLE001 - 搜不到就往下退
             print(f"[面试] 搜索失败（忽略）：{type(e).__name__}: {e}")
             continue
 
         for job in jobs:
-            score = 0
             job_company = str(getattr(job, "company", "") or "")
+            # 公司是硬约束（见 docstring）：公司对不上的候选直接丢，分数再高也不要。
+            if company and not _company_matches(company, job_company):
+                continue
+
+            score = 2.0                             # 到这里公司已确认命中
             job_title = str(getattr(job, "title", "") or "")
-            if company and (company in job_company or job_company in company):
-                score += 2
-            if short_title and (short_title in job_title or job_title in short_title):
-                score += 2
-            elif any(word in job_title for word in title_words):
+            want, got = _norm_title(short_title), _norm_title(job_title)
+            if want and (want in got or got in want):
+                score += 3                          # 岗位名对得上（忽略空格/标点差异）
+            elif any(word.lower() in job_title.lower() for word in title_words):
                 score += 1
             score -= jobs.index(job) * 0.01         # 同分取搜索结果靠前的
             if score > best_score:
@@ -727,9 +773,44 @@ def _clean(text) -> str:
     return " ".join(str(text or "").split())
 
 
+def _interview_budget() -> tuple:
+    """面试每轮 chat() 的 (max_tokens, reasoning_effort)。
+
+    为什么单独给：面试每轮要输出「点评 + 下一题」，收尾轮还要整段综合评价，
+    属于长输出轮；而模型是思考模型，max_tokens 同时卡住 reasoning 与正文 ——
+    默认 1024 会被思考吃光（finish_reason=length、content 为空），前端就卡在
+    「面试官思考中」。所以这里直接对齐 ReAct 的长输出档：
+    REACT_LLM_LONG_MAX_TOKENS（8192）+ 低思考档（实测 8192 + low 才出正文）。
+    额度只是上限，说完就停，给足不额外花 token。
+    限额总闸门关闭时返回 (0, "")，与改造前行为一致。
+    """
+    if not limits.rate_limit_enabled():
+        return 0, ""
+    return limits.react_long_max_tokens(), limits.react_reasoning_effort()
+
+
 def _ask_interviewer(session: dict) -> dict:
     """让面试官出下一题 / 给评价（同步 LLM 调用，在线程里跑）"""
-    raw = chat(_interview_messages(session), source=INTERVIEW_SOURCE)
+    messages = _interview_messages(session)
+    max_tokens, effort = _interview_budget()
+    limits.reset_truncated()
+    raw = chat(messages, source=INTERVIEW_SOURCE,
+               max_tokens=max_tokens, reasoning_effort=effort)
+    if limits.consume_truncated():
+        # 半截 JSON 解析不出题 → 面试就停在「面试官思考中」，所以单独重试一次：
+        # 明确告诉模型被截断、要求精简后重出完整 JSON（额度保持长输出档）。
+        print(f"[面试] 输出触顶（max_tokens={max_tokens}），要求精简后重出一份完整 JSON")
+        raw = chat(
+            messages + [
+                {"role": "assistant", "content": raw or ""},
+                {"role": "user",
+                 "content": "你上一次的输出被截断了（超过单次输出长度上限）。"
+                            "请把 feedback / summary 压缩到两三句，"
+                            "重新输出一个完整合法的单行 JSON。"},
+            ],
+            source=INTERVIEW_SOURCE, max_tokens=max_tokens, reasoning_effort=effort,
+        )
+        limits.consume_truncated()
     return _parse_interview_reply(raw)
 
 
