@@ -428,12 +428,27 @@ def t_default_50():
 
 
 def t_zero_unlimited():
-    n50 = len(search_jobs("Agent", city="广州", limit=50))
+    """limit=0/None 表示不限。
+
+    ⚠️ 这里**不能**拿 limit=50 当"不限"的参照：真实语料条数会随夜间抓取增长，
+    广州「Agent」命中 51 条的那一刻，limit=50 会正常截断成 50 而 limit=0 给 51，
+    断言就假红（2026-09-27 实测 51 条，正是这样挂的）。
+    改用"远超数据量"的极大 limit 做参照 —— 参照值本身由数据决定，不写死任何条数。
+    """
+    BIG = 10_000_000
+    n_big = len(search_jobs("Agent", city="广州", limit=BIG))
     n0 = len(search_jobs("Agent", city="广州", limit=0))
     n_none = len(search_jobs("Agent", city="广州", limit=None))
-    if n0 != n50 or n_none != n50:
-        _fail(f"limit=0/None 应等于不限：{n0}/{n_none} != {n50}")
-    return f"真实数据 limit=50 → {n50} 条；limit=0/None → {n0}/{n_none} 条（不限）"
+    if n_big == 0:
+        _fail("参照集为空：广州「Agent」一条未命中，本用例失去意义")
+    if n0 != n_big or n_none != n_big:
+        _fail(f"limit=0/None 应等于不限：{n0}/{n_none} != {n_big}（limit={BIG}）")
+    # 顺带把截断语义钉住：limit=50 必须恰好等于 min(50, 不限条数)
+    n50 = len(search_jobs("Agent", city="广州", limit=50))
+    if n50 != min(50, n_big):
+        _fail(f"limit=50 应等于 min(50, {n_big})，实际 {n50}")
+    return (f"不限（limit=0/None/{BIG}）均 {n_big} 条；"
+            f"limit=50 → {n50} 条（= min(50, {n_big})）")
 
 
 def t_mechanism_more():
@@ -459,13 +474,24 @@ def t_mechanism_more():
 
 
 def t_real_data_baseline():
-    """如实记录真实语料的命中上限（不预设立场，只为说明 limit=50 的效果）。"""
+    """如实记录真实语料的命中情况（只记录、不断言，说明 limit=50 的实际效果）。
+
+    注：命中数随夜间抓取增长，**任何写死的条数都是缺陷**，
+    所以这里的结语由实测值推出来，不是固定文案。
+    """
     rows = []
+    truncated = []
     for kw in ["Agent", "大模型", "RAG", "Python"]:
         n10 = len(search_jobs(kw, city="广州", limit=10))
         n50 = len(search_jobs(kw, city="广州", limit=50))
         rows.append(f"{kw}:10→{n10}/50→{n50}")
-    return " / ".join(rows) + "（真实语料命中 ≤9 条，故 50 与 10 无差）"
+        if n50 > n10:
+            truncated.append(kw)
+    if truncated:
+        note = f"（limit=50 已在 {'/'.join(truncated)} 上生效，超过 10 条）"
+    else:
+        note = "（真实语料命中 ≤10 条，故 50 与 10 无差）"
+    return " / ".join(rows) + note
 
 
 def t_limit5_no_regression():
