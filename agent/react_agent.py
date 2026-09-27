@@ -36,6 +36,22 @@ BUDGET_STOP_ANSWER = (
     "如果需要更完整的结果，可以把问题拆成几步、或换个更具体的问法再问。"
 )
 
+# ========== 第 1 道闸门的「长输出轮」判据（见 _long_output_turn） ==========
+#
+# 为什么需要：`glm-5.3-flash` 是思考模型，`max_tokens` 同时卡住思考
+# （`reasoning_content`）与正文。默认 1024 下，工具调用轮实测 176 token 就收尾
+# （够用），但「查看我的完整简历」这类要复述长内容的轮次会被思考吃光额度
+# → finish_reason=length、正文为空。命中判据的轮次换用更大的额度。
+#
+# 工具返回超过这个长度就算「模型可能要把读进去的东西再写出来」。实测一份
+# 结构化简历 dict 约 1.5k~5k 字符，故取 800（描述/项目多的简历都会命中）。
+LONG_OBSERVATION_CHARS = 800
+
+# 问题里出现这些词，说明用户明确在要一份**长文本**（而不是一句话结论）。
+# 命中就预先进长输出档：`max_tokens` 只是上限、模型说完就停，猜错不花 token，
+# 但猜漏要多付一次「被截断的 1024 轮」。
+LONG_OUTPUT_HINTS = ("完整", "全部", "列全", "逐条", "全文", "详细", "原样", "JD")
+
 # check_reminders 的 observation 里最多列几条超期记录。
 # 全列出来会把上下文撑满（用户可能投了几十家），反正最久的排最前，
 # 截断后另外给一句「共 N 条」的说明，需要完整列表时用户可以再问。
@@ -513,6 +529,49 @@ def _with_messages(result: dict, messages: list, trace_id: str,
     return result
 
 
+def _long_output_turn(question: str, steps: list, retry_after_truncation: bool) -> bool:
+    """本轮要不要走「长输出档」（更大的 max_tokens + 更低的思考档）。
+
+    ReAct 每轮输出的 JSON 形状固定，但**长度差别很大**：工具调用轮只有几十个
+    字（实测 176 token 就收尾），而「查看我的完整简历」「把 20 条岗位列全」这种
+    轮次要复述一长段内容，默认 1024 的额度会被思考（reasoning_content）吃光
+    → finish_reason=length、正文为空（本轮真复现的现象）。
+
+    三条判据都指向「这轮会写长文本」：
+      - 上一轮刚被截断：同样的额度必然再被截断（重试必须提额，否则白等一轮）；
+      - 上一轮工具返回很大：模型要把这段读进去再复述出来（简历 / 长列表）；
+      - 问题本身在要一份长内容（完整简历、全部列表、完整 JD）。
+    判据偏保守：`max_tokens` 只是上限，模型说完就停，猜错（其实很短）不会多花
+    token —— 只有猜漏（其实很长）才会再吃一次截断。
+    """
+    if retry_after_truncation:
+        return True
+    for step in reversed(steps or []):
+        if step.get("type") == "action":
+            if len(str(step.get("observation") or "")) >= LONG_OBSERVATION_CHARS:
+                return True
+            break                        # 只看紧邻的上一个工具结果，再往前的无关
+    for token in LONG_OUTPUT_HINTS:
+        if token in (question or ""):
+            return True
+    return False
+
+
+def _turn_budget(question: str, steps: list,
+                 retry_after_truncation: bool = False) -> tuple:
+    """定出本轮 chat() 的 (max_tokens, reasoning_effort)。
+
+    两档（理由见 limits.react_long_max_tokens / react_reasoning_effort）：
+      - 日常轮：LLM_MAX_TOKENS（1024）+ 低思考档，工具调用轮够用（176 token 实测）；
+      - 长输出轮：REACT_LLM_LONG_MAX_TOKENS（8192）+ 低思考档。
+    只回一个标量不够用：llm_client 的 _resolve_max_tokens 把「显式传 None」
+    当成「用全局默认」，所以这里必须**同时**返回额度与档位。
+    """
+    if _long_output_turn(question, steps, retry_after_truncation):
+        return limits.react_long_max_tokens(), limits.react_reasoning_effort()
+    return limits.default_max_tokens(), limits.react_reasoning_effort()
+
+
 def run(question: str, resume_data: dict = None, verbose: bool = True,
         history: list = None, return_messages: bool = False) -> dict:
     """运行 ReAct 循环
@@ -589,6 +648,7 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
     ]
 
     steps = []
+    truncated_retry = False          # 上一轮是否因输出触顶而重来（见 _turn_budget）
     for turn in range(1, MAX_TURNS + 1):
         # 第 2 道闸门：单次预算熔断。每轮 chat() **之前**查一次本轮累计用量；
         # 触顶就停止循环、用已有 steps 收尾 —— 降级，不拒绝。
@@ -624,7 +684,16 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
                 f"len={len(static_prefix)}"
             )
 
-        raw = chat(messages, source="react_agent")
+        # 额度按档位走：日常轮 1024（工具调用够用、不浪费），长输出轮给足
+        # （否则思考吃光额度 → 正文为空）。上一轮被截断时也必须进长输出档：
+        # 同样的额度再试一次必然再截断，白等一轮。
+        turn_max_tokens, turn_effort = _turn_budget(
+            question, steps, retry_after_truncation=truncated_retry)
+        if verbose:
+            print(f"[额度] max_tokens={turn_max_tokens} "
+                  f"reasoning_effort={turn_effort or '(默认)'}")
+        raw = chat(messages, source="react_agent",
+                   max_tokens=turn_max_tokens, reasoning_effort=turn_effort)
 
         # 第 1 道闸门：输出触顶（finish_reason=length）。
         # 被截断的半截 JSON 不是正常答案，也不能任由它落进「解析失败」那条
@@ -633,7 +702,11 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
         if limits.consume_truncated():
             log_event(trace_id, "truncated", turn=turn, output_chars=len(raw or ""))
             if verbose:
-                print("[截断] 输出触顶（max_tokens），本轮按解析失败处理")
+                print("[截断] 输出触顶（max_tokens），本轮按解析失败处理；"
+                      "下一轮改用长输出档（更大额度 + 低思考档）")
+            # 重试必须提额并降思考档：额度不变的话同样的思考会再次吃光额度
+            # （上一轮简历解析已实测「只把 1024 调到 4096、思考档不动」治不了）。
+            truncated_retry = True
             messages.append({"role": "assistant", "content": raw})
             messages.append({
                 "role": "user",

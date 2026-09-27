@@ -210,7 +210,11 @@ python -m rag.vector_store --rebuild      # 从 jobs.db 全量重建（约几分
 | `RATE_LIMIT_ENABLED` | 四道闸门的总开关，默认 `true`；置 `false` 时**四道全关**（含 `max_tokens` 与单次预算） |
 | `RATE_PER_MIN` | 闸门 3 单用户频率：每分钟补充的请求数，默认 6 |
 | `RATE_BURST` | 闸门 3 令牌桶容量（允许连发几次），默认 3 |
-| `LLM_MAX_TOKENS` | 闸门 1 单次输出上限，默认 1024，`0` = 不限 |
+| `LLM_MAX_TOKENS` | 闸门 1 单次输出上限，默认 1024，`0` = 不限；ReAct **日常工具调用轮**用它 |
+| `RESUME_LLM_MAX_TOKENS` | 简历解析单次输出上限，默认 4096（思考模型会先吃额度，1024 不够） |
+| `RESUME_LLM_REASONING_EFFORT` | 简历解析思考档位，默认 `low`，空 = 不注入 |
+| `REACT_LLM_LONG_MAX_TOKENS` | ReAct **长输出轮**（完整简历 / 长列表）单次输出上限，默认 8192 |
+| `REACT_LLM_REASONING_EFFORT` | ReAct 思考档位，默认 `low`，空 = 不注入 |
 | `RUN_TOKEN_BUDGET` | 闸门 2 单次请求累计 token 上限，默认 30000，触顶**降级收尾不拒绝请求** |
 | `DAILY_TOKENS_PER_USER` | 闸门 4 单用户日额度，默认 200000，`0` = 不限 |
 | `GLOBAL_DAILY_TOKENS` | 闸门 4 全局日额度，默认 2000000，`0` = 不限 |

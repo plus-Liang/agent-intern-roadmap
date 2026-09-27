@@ -677,6 +677,140 @@ check("入口闸门：全局日 token 超限被拒", _gate_global_rejects)
 check("入口闸门：开关关闭时全放行", _gate_disabled_allows)
 
 # ---------------------------------------------------------------------------
+section("9. react_agent 两档额度：日常轮 1024 / 长输出轮给足")
+# ---------------------------------------------------------------------------
+
+
+def _fake_resume():
+    """带超长描述字段的简历：读出来后 observation > LONG_OBSERVATION_CHARS。"""
+    long_desc = "负责后端服务的设计、开发与线上稳定性，" * 60
+    return {
+        "name": "张三",
+        "city": "杭州",
+        "email": "zhangsan@example.com",
+        "phone": "13800000000",
+        "education": "本科",
+        "skills": ["Python", "FastAPI", "PostgreSQL"],
+        "experience": [{"company": "某科技", "role": "后端工程师",
+                        "months": 24, "description": long_desc}],
+        "projects": [{"name": "订单系统", "tech": ["Python"],
+                      "desc": long_desc}],
+    }
+
+
+def _agent_turn_budget_rule():
+    """短工具轮走 base，长输出轮（长 observation / 问题要完整内容）走 long tier。"""
+    os.environ["RATE_LIMIT_ENABLED"] = "true"
+    os.environ.pop("REACT_LLM_LONG_MAX_TOKENS", None)
+    os.environ.pop("REACT_LLM_REASONING_EFFORT", None)
+    long_budget = L.react_long_max_tokens()
+    if long_budget < 4096:
+        _fail(f"长输出额度太小：{long_budget}")
+    if L.react_reasoning_effort() != "low":
+        _fail(f"ReAct 思考档默认不是 low：{L.react_reasoning_effort()!r}")
+
+    if RA._turn_budget("你好", []) != (1024, "low"):
+        _fail(f"短问题该走 base：{RA._turn_budget('你好', [])}")
+    small = [{"turn": 1, "type": "action", "action": "x", "observation": "{}"}]
+    if RA._turn_budget("帮我找岗位", small) != (1024, "low"):
+        _fail(f"短 observation 该走 base：{RA._turn_budget('帮我找岗位', small)}")
+    big = [{"turn": 1, "type": "action", "action": "x",
+            "observation": "x" * (RA.LONG_OBSERVATION_CHARS + 1)}]
+    if RA._turn_budget("继续", big) != (long_budget, "low"):
+        _fail(f"长 observation 该走 long：{RA._turn_budget('继续', big)}")
+    if RA._turn_budget("查看我的完整简历", []) != (long_budget, "low"):
+        _fail("要求完整内容的问题该走 long")
+    if RA._turn_budget("你好", [], retry_after_truncation=True) != (long_budget, "low"):
+        _fail("上一轮被截断时必须提额，否则重试必然再截断")
+    return f"base=1024 / long={long_budget}，思考档=low"
+
+
+def _agent_chat_gets_budget():
+    """额度真的接到 chat() 上：无工具结果走 base，被截断后重试走长档。"""
+    os.environ["RUN_TOKEN_BUDGET"] = "0"
+    long_budget = L.react_long_max_tokens()
+    real = RA.chat
+    calls = []
+
+    def fake(messages, **kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return json.dumps({"thought": "建档", "action": "get_resume",
+                               "action_input": {}}, ensure_ascii=False)
+        return json.dumps({"thought": "ok", "final_answer": "你好呀"}, ensure_ascii=False)
+
+    RA.chat = fake
+    try:
+        result = RA.run("你好", resume_data=_fake_resume(), verbose=False)
+    finally:
+        RA.chat = real
+        os.environ["RUN_TOKEN_BUDGET"] = "30000"
+
+    if result["answer"] != "你好呀":
+        _fail(f"答案不对：{result['answer']!r}")
+    if len(calls) != 2:
+        _fail(f"该调 2 次 chat，实际 {len(calls)}")
+    if calls[0].get("max_tokens") != 1024:
+        _fail(f"第 1 轮（尚无工具结果）该走 base：{calls[0]}")
+    if calls[1].get("max_tokens") != 1024:
+        _fail(f"短工具结果后仍该走 base：{calls[1]}")
+    if calls[0].get("reasoning_effort") != "low":
+        _fail(f"没带低思考档：{calls[0]}")
+
+
+def _agent_truncation_escalates():
+    """截断重试必须提额 + 降思考档（不变量：重试的额度严格大于被截断那轮）。
+
+    这是「长输出轮」最确定的一条判据：上一轮被截断说明 1024 不够，重试若还
+    1024 就是白等一轮（上一轮简历解析已实测：只提额、不动思考档也治不了）。
+    """
+    os.environ["RUN_TOKEN_BUDGET"] = "0"
+    long_budget = L.react_long_max_tokens()
+    real = RA.chat
+    seen = []
+
+    def fake(messages, **kwargs):
+        seen.append(kwargs)
+        if len(seen) == 1:
+            L.mark_truncated()
+            return '{"thought":"t","final_answer":"半截"}'
+        return '{"thought":"t","final_answer":"完整答案"}'
+
+    RA.chat = fake
+    try:
+        result = RA.run("再试一次", resume_data=_fake_resume(), verbose=False)
+    finally:
+        RA.chat = real
+        os.environ["RUN_TOKEN_BUDGET"] = "30000"
+        L.reset_truncated()
+
+    if result["answer"] != "完整答案":
+        _fail(f"截断后没重来：{result['answer']!r}")
+    if len(seen) != 2:
+        _fail(f"该调 2 次 chat，实际 {len(seen)}")
+    if seen[0].get("max_tokens") != 1024:
+        _fail(f"被截断的那轮该走 base(1024)：{seen[0]}")
+    if seen[1].get("max_tokens") != long_budget:
+        _fail(f"重试没提额：{seen[1]} vs {long_budget}")
+    if seen[1].get("reasoning_effort") != "low":
+        _fail(f"重试没降思考档：{seen[1]}")
+
+
+def _short_reply_not_inflated():
+    """短回复不浪费：全局默认额度没被改大，短问题仍走 1024。"""
+    if L.llm_max_tokens() != 1024:
+        _fail(f"全局默认被改大了：{L.llm_max_tokens()}")
+    if RA._turn_budget("你好", [])[0] != 1024:
+        _fail("「你好」不该预先进长输出档")
+    return "LLM_MAX_TOKENS 仍 1024，「你好」走 1024"
+
+
+check("长输出轮判据：base / long 两档", _agent_turn_budget_rule)
+check("额度真的传给 chat()", _agent_chat_gets_budget)
+check("截断重试提额（不再白等一轮）", _agent_truncation_escalates)
+check("短回复不浪费 token", _short_reply_not_inflated)
+
+# ---------------------------------------------------------------------------
 print()
 print("=" * 74)
 print(f"结果：{len(PASS)} 通过 / {len(FAIL)} 失败")

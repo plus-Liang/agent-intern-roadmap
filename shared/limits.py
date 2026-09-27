@@ -101,6 +101,34 @@ def resume_reasoning_effort() -> str:
     return str(raw).strip().lower()
 
 
+def react_long_max_tokens() -> int:
+    """ReAct 循环里**可能输出长文本**的那一轮的单次输出上限，默认 8192。
+
+    为什么单独一档：`glm-5.3-flash` 是思考模型，`max_tokens` 同时卡住思考
+    （`reasoning_content`）与正文 —— 默认 1024 下「查看我的完整简历」这类
+    要复述整份简历的轮次会被思考吃光额度（finish_reason=length、正文为空）。
+
+    为什么不是全局提高：`max_tokens` 只是**上限**，模型说完就停（finish=stop），
+    上限本身不花 token —— 真正花 token 的是生成出来的内容。所以这里给足
+    （8192 这一档在上一轮简历解析里实测够用），日常短工具调用轮仍走 1024 那一档。
+    总开关关闭时为 0（不注入），与改造前行为一致。
+    """
+    return _env_int("REACT_LLM_LONG_MAX_TOKENS", 8192, 0) if rate_limit_enabled() else 0
+
+
+def react_reasoning_effort() -> str:
+    """ReAct 每轮的思考档位（low / high / max；空串 = 不注入）。
+
+    默认 `low`：与简历解析同一档 —— 实测把思考从 3.1k 字符压到 ~100 字符，
+    抽取/复述类任务质量不降。ReAct 每轮输出的是固定形状的 JSON，长思考的
+    边际收益小，却会把 1024 的额度吃光、把正文挤没（本轮的根因）。
+    """
+    if not rate_limit_enabled():
+        return ""
+    raw = os.getenv("REACT_LLM_REASONING_EFFORT", "low")
+    return str(raw).strip().lower()
+
+
 def run_token_budget() -> int:
     """单次请求（一轮对话）累计 token 上限；0 = 不熔断。"""
     return _env_int("RUN_TOKEN_BUDGET", 30000, 0)
