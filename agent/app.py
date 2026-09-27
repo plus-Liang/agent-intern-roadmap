@@ -216,17 +216,82 @@ def _resume_success_text(resume_data: dict) -> str:
     )
 
 
+# 附件诊断日志开关：默认开（只打一行摘要 + 每个附件一行，量小但能一眼看出
+# "elements 到底有没有附件 / 路径在不在 / 容器里读不读到"）。
+# 排查完把 CHAT_DEBUG_ATTACHMENTS 设成 0 即可静音。
+_ATTACH_DEBUG = os.getenv("CHAT_DEBUG_ATTACHMENTS", "1").strip().lower() not in (
+    "0", "false", "no", "off",
+)
+
+
+def _describe_attachment(element) -> str:
+    """一行描述一个 element：本地/容器路径差异全靠这行看出来。"""
+    path = getattr(element, "path", None)
+    name = getattr(element, "name", None)
+    mime = getattr(element, "mime", None)
+    parts = [
+        f"type={getattr(element, 'type', None)!r}",
+        f"name={name!r}",
+        f"mime={mime!r}",
+        f"path={path!r}",
+    ]
+    if path:
+        p = Path(str(path))
+        try:
+            parts.append(f"exists={p.exists()}")
+            parts.append(f"size={p.stat().st_size if p.is_file() else '-'}")
+        except OSError as e:                            # noqa: BLE001 - 只诊断
+            parts.append(f"stat_err={type(e).__name__}:{e}")
+    try:
+        return " ".join(parts)
+    except Exception as e:                              # noqa: BLE001 - 诊断不能炸
+        return f"<element 描述失败：{type(e).__name__}: {e}>"
+
+
+def _log_message_elements(message) -> None:
+    """把 message.elements 的真实结构打进日志（默认开，见 _ATTACH_DEBUG）。"""
+    if not _ATTACH_DEBUG:
+        return
+    elements = list(getattr(message, "elements", None) or [])
+    print(f"[附件] cwd={os.getcwd()} len(elements)={len(elements)} "
+          f"content_len={len((message.content or '').strip())}")
+    for index, element in enumerate(elements):
+        print(f"[附件]   #{index} {_describe_attachment(element)}")
+
+
 def _resume_attachments(message) -> list:
     """取出 message.elements 里的真附件（有本地路径的）。
 
     Chainlit 把上传文件落在 `.files/<session>/<uuid>.<ext>`，并在
     element.path 上给出真实路径；没有 path 的元素（外链图片等）直接跳过。
+
+    **Docker 兜底**：如果 element.path 是相对路径（或指向的文件不在），
+    再按 FILES_DIRECTORY 与 cwd 拼一次绝对路径 —— 容器里 cwd 与上传时的
+    APP_ROOT 可能不一致，光看 `Path(element.path).exists()` 会误判成"没附件"。
     """
+    from chainlit.config import FILES_DIRECTORY
+
     found = []
     for element in (getattr(message, "elements", None) or []):
         path = getattr(element, "path", None)
-        if path:
+        if not path:
+            continue
+        candidate = Path(str(path))
+        if candidate.exists():
             found.append(element)
+            continue
+        for base in (FILES_DIRECTORY, Path.cwd()):
+            alternative = Path(base) / candidate
+            if alternative.exists():
+                print(f"[附件] 路径不在，已按基线改写：{candidate} → {alternative}")
+                try:
+                    element.path = str(alternative)
+                except Exception:                       # noqa: BLE001 - 改不了就用原值
+                    pass
+                found.append(element)
+                break
+        else:
+            print(f"[附件] 跳过：路径不存在 {candidate}")
     return found
 
 
@@ -845,6 +910,7 @@ async def on_chat_start():
 @cl.on_message
 async def on_message(message: cl.Message):
     _bind_user()                                   # 回调入口绑定用户
+    _log_message_elements(message)                 # 附件诊断（CHAT_DEBUG_ATTACHMENTS=0 静音）
     content = message.content.strip()
 
     # 命令：清空本会话的对话历史（**原地清轮次**，thread_id 不变 ——

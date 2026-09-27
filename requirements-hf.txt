@@ -13,6 +13,9 @@ jieba==0.42.1
 python-dotenv==1.2.3
 json5==0.15.0
 pypdf==6.18.1
+# /chat 上传 Word 简历（.docx）时解析要用；Dockerfile 装的正是本文件，
+# 漏了它容器里 .docx 一律 ModuleNotFoundError → “附件解析失败”
+python-docx==1.2.0
 pandas==3.0.5
 numpy==2.5.3
 
