@@ -124,6 +124,7 @@ docker compose up --build     # 访问 http://localhost:8000
 - 只跑 FastAPI + Chainlit，**不含 Streamlit Dashboard 与 Playwright**，所以首页的看板卡片在容器里点不开。
 - 基础镜像与运行环境统一在 **Python 3.12**：`Dockerfile` 用 `python:3.12-slim`，
   `runtime.txt` 写 `python-3.12`，与 `numpy==2.5.3`（没有 3.11 wheel）的要求一致。
+- 代码更新后重新构建：`docker compose up --build`；日常启动不需要 `--build`：`docker compose up`。
 
 ### 方式 B：本地 pip（两步）
 
