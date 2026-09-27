@@ -1,6 +1,50 @@
 [
   {
     "platform": "shixiseng",
+    "job_id": "inn_vstr8t8cxayz",
+    "title": "Agent效果运营实习生 - 抖音社交与互动",
+    "company": "字节跳动",
+    "city": "深圳",
+    "salary": "350/天",
+    "url": "https://www.shixiseng.com/intern/inn_vstr8t8cxayz?pcm=pc_SearchList",
+    "description": "【岗位职责】\n团队介绍：抖音社交与互动团队服务于抖音连接人与人的愿景，希望为用户提供更好的社交、创作体验，以拓宽抖音的使用场景，成为更多人打开和使用抖音的新理由，提升抖音的用户规模。我们是一支有朝气、背景多元的团队，致力为用户提供最佳的产品体验，热衷听取用户声音和反馈，也运用科学严谨的分析方法，仔细衡量我们的工作成果。抖音社交与互动欢迎你的加入，和我们一起做有挑战的事情。\n\n日常实习：面向全体在校生，为符合岗位要求的同学提供为期3个月及以上的项目实践机会。\n\n1、负责多闪仔仔Agent评测体系搭建，包括对话相关测评集、制定测评标准与标准化SOP；\n2、负责日常评测工作，精准发现、梳理并深度分析Agent运行及能力问题，形成有效结论；\n3、联动算法团队输出问题清单与优化建议，持续反哺算法迭代与模型调优；\n4、跟进Agent能力迭代效果，复盘测评数据，动态优化测评规则与流程。\n\n【任职要求】\n1、本科及以上学历在读；\n2、有AI产品运营的相关经验，对AI和社交有热情，具备行业的认知和思考；了解AI Agent基本架构与工作逻辑，有大模型、AI Agent评测经验；\n3、有优秀的沟通能力、自驱力，善于跨部门沟通，有较强的责任心，敢于担当；\n4、有较强的自我驱动和学习能力。",
+    "publish_date": "2026-09-28"
+  },
+  {
+    "platform": "shixiseng",
+    "job_id": "inn_ugln6kckjxwu",
+    "title": "AI Agent 运营增长实习生",
+    "company": "视界引擎",
+    "city": "北京",
+    "salary": "200/天",
+    "url": "https://www.shixiseng.com/intern/inn_ugln6kckjxwu?pcm=pc_SearchList",
+    "description": "【职位描述】\n【工作内容】\n1. 参与种子用户社群搭建和运营，进行社群的维护、指导用户使用产品、社群答疑等，增加社群活跃度，建设良好互动社群氛围\n2. 通过社群运营持续挖掘用户痛点，协助开展数据统计，为产品迭代整理重点用户案例，定义产品需求\n3. 参与策划和执行运营活动，包括用户裂变、挑战赛、创意玩法等，提升社群活跃度和用户创作意愿\n4. 安排并参与用户深度访谈、市场调研、竞品调研等，协助团队收集和总结重要用户洞察\n5. 增长相关工作，深度参与包括投放、内容运营、达人运营等工作，调研海外内容生态并生产爆款内容\n\n【职位要求】\n1. Base北京，本科硕士均可\n2. 有较多AI产品使用经验，对AI行业有一定认知和理解\n3. 沟通能力强，逻辑清晰、执行力强，具备快速学习能力与抗压能力\n4. 有基础宣传素材制作能力，会使用capcut/midjourney等制作宣传素材\n5. 具备出色的分析和问题解决能力，能将复杂问题拆解为可执行的排查步骤\n6. 每周工作时间不低于4天，实习期不低于3个月",
+    "publish_date": "2026-09-28"
+  },
+  {
+    "platform": "shixiseng",
+    "job_id": "inn_qzb4a52ou8rz",
+    "title": "计算机视觉算法实习生",
+    "company": "力维智联",
+    "city": "深圳",
+    "salary": "120-150/天",
+    "url": "https://www.shixiseng.com/intern/inn_qzb4a52ou8rz?pcm=pc_SearchList",
+    "description": "【岗位职责】\n参与门店智能场站视觉AI系统的算法研发、训练、调优与部署落地。系统覆盖进门、预检区、接待区、客休区、机电&钣喷工位、EDS车间、洗车/充电区、行车及消防通道等全场景，需实现车品牌识别、车牌识别、工服识别、预检三件套识别、环车检查动作识别、物品摆放整齐识别、操作规范识别、维修动作识别、5S清扫识别、烟火识别、抽烟识别、车辆维修开工/中止/完工识别等数十种视觉AI能力。实习生将深度参与真实业务场景，接触小模型与多模态大模型协同的先进技术架构。\n【岗位职责】\n1.参与门店真实场景数据的采集方案设计、数据清洗与标注规范制定，针对低光照、密集遮挡、异形角度等长尾难题进行数据增强与质量验收\n2.基于PyTorch框架，负责目标检测（YOLO系列）、图像分类、OCR识别等算法的训练、调优与超参数搜索\n3.负责小模型与多模态大模型的协同设计与落地，针对门店场景（如低光照、密集目标等）进行模型优化\n4.参与基于百度一见平台的算法训练、调优与部署工作，实现“开箱即用”的模型效果\n5.将多模态大模型技术应用于视频理解、图文生成等核心场景，解决实际业务中的复杂问题，推动技术落地并产生商业价值\n6.负责模型测试与评估，搭建测试集，进行精度、性能、延迟、误报漏报等问题的分析与优化\n【任职要求】\n1.学历专业：计算机、模式识别、人工智能、自动化、数学等相关专业硕士在读，2027届及以后毕业生\n2.算法能力：\n-扎实的深度学习基础，精通Transformer、ViT、CLIP、多模态对齐、指令微调等主流技术栈\n-深刻理解目标检测（YOLOv5/v8/v9）、图像分类（ResNet/ViT）等经典算法原理，熟悉OCR识别者优先\n-熟悉多模态大模型（VLM）、大语言模型（LLM）相关的算法技术，在相关领域有良好的项目经验或研究经验\n3.编程能力：熟练掌握Python，熟练使用PyTorch或TensorFlow深度学习框架\n4.实习时长：每周至少实习4天，可连续实习3个月及以上\n**加分项**\n•有工业视觉、安防监控、智慧门店等相关项目经验或实习经历\n•有边缘端实际部署经验\n•熟悉模型量化、剪枝、蒸馏等轻量化技术，了解ONNX、TensorRT等推理加速框架\n•熟悉百度一见平台或有类似视觉AI平台使用经验\n•熟悉RTSP视频流处理、FFmpeg或GStreamer基础\n•在Kaggle、天池等算法竞赛中取得优异成绩，或发表过CV相关论文（CCF B类及以上）\n•对多模态大模型（VLM）在工业场景的落地有强烈好奇心与初步实践经验",
+    "publish_date": "2026-09-28"
+  },
+  {
+    "platform": "shixiseng",
+    "job_id": "inn_rem1woxlu4ea",
+    "title": "数据工程实习生（开发方向）",
+    "company": "PANDAEU",
+    "city": "成都",
+    "salary": "150-200/天",
+    "url": "https://www.shixiseng.com/intern/inn_rem1woxlu4ea?pcm=pc_SearchList",
+    "description": "【职位描述】\n【岗位职责】\n1.参与公司项目开发，承担前端及/或后端模块的开发工作，并按照需求完成交付。\n2.根据项目要求，参与代码测试工作，包括功能验证及基础问题排查。\n3.参与项目相关会议（如需求评审、技术评审、站会等），理解业务需求并同步开发进展。\n\n【任职要求】\n1.计算机等相关专业，本科大三、大四或研究生在读；\n2.计算机基础扎实，熟悉数据结构与算法；熟悉JavaScript，了解至少一种前端框架（React/Vue）及Node.js后端框架（Express/NestJS），具备全栈开发的基础能力；\n3.对 AI 技术（如代码生成工具）有兴趣，可合理利用 AI 作为开发辅助工具；重视代码基础，具备独立编码、问题排查能力，能主动探索新技术，具备较强的技术调研与快速学习能力；\n4.有团队精神，心态乐观，热爱软件工程；\n5.可提供6个月及以上实习周期，每周确保至少4天到岗。\n\n【工作时间】\n周一至周五：上午：8：50—11：50 下午：13：30—18：00\n午休时间：11：40-13：30 周末双休\n\n【薪资福利】\n1.实习薪资：150-200 /天\n2.有转正名额，实习期间表现优秀者可申请转正。\n\n【补充说明】\n1.本岗位不安排线上面试，需到公司参加线下面试。无法参与线下面试的候选人请勿投递，感谢理解；\n2.面试环节会同步确认您的到岗时间及实习周期，请确保能够满足6个月以上的实习承诺。",
+    "publish_date": "2026-09-28"
+  },
+  {
+    "platform": "shixiseng",
     "job_id": "inn_ckfvcvy9hsxl",
     "title": "Ai应用开发",
     "company": "信投智联科技",
@@ -231,6 +275,699 @@
     "publish_date": "2026-09-27"
   },
   {
+    "platform": "niuke",
+    "job_id": "468736",
+    "title": "具身vla（抓取）算法工程师实习生",
+    "company": "美团",
+    "city": "深圳",
+    "salary": "300-350/天",
+    "url": "https://www.nowcoder.com/jobs/detail/468736",
+    "description": "负责基于视觉-语言-动作大模型（VLA）的抓取策略研发，实现自然语言指令驱动的开放场景抓取操作，推动泛化抓取能力在配送领域的落地；\n\n负责端到端感知-规划算法研发，探索基于大模型的端到端规划方法（如VLM/VLN驱动的行为决策与轨迹生成），评估前沿算法在实际配送场景的应用可行性并推动落地；\n\n负责数据的自动化标注、数据闭环体系建设，持续积累场景数据并驱动模型迭代；\n\n跟进行业最新AI算法动态（多模态大模型、世界模型、具身智能等），复现和优化前沿算法，保持算法在工业界和学术界的领先性；\n\n计算机科学、人工智能、自动化、电子信息、机器人等相关专业，硕士及以上学历；\n\n具备扎实的C/C++和Python编程功底，熟悉Linux开发环境，熟悉ROS/ROS2下机器人系统开发；\n\n熟练掌握PyTorch/TensorFlow等至少一种深度学习框架，具备扎实的深度学习与计算机视觉基础；\n\n熟悉目标检测、跟踪、语义分割、3D点云感知等视觉/激光感知任务，有实际项目落地经验；\n\n熟悉多模态大模型（VLM/VLA）、具身智能、端到端规划等前沿方向，有相关复现或研究经验者优先；\n\n熟练使用AI编程工具（如CodeX、Claude Code等）进行算法开发与代码生成，具备AI辅助编程的工程化实践能力，提升研发效率；\n\n具有良好的沟通能力、团队合作精神和高度的责任心。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "shixiseng",
+    "job_id": "inn_qa5talgymf0o",
+    "title": "具身智能算法实习生",
+    "company": "湃安智能",
+    "city": "杭州",
+    "salary": "薪资面议",
+    "url": "https://www.shixiseng.com/intern/inn_qa5talgymf0o?pcm=pc_SearchList",
+    "description": "【职位描述】\n湃安格物正在开展机器人测评基础设施建设，为机器人系统的研发、测试与评估提供软件工具和技术支持。我们重视扎实的工程能力、清晰的问题分析以及可靠的技术交付。湃安格物由浙江大学教授成立，在 Physical AI 与具身安全等领域有深厚基础。公司位于初创高速发展阶段，实习的学生除了有机会参与核心项目外，也可参与或主导学术科研，发表顶级会议论文。\n\n【岗位职责】\n1. 参与 VLA、机器人策略模型等具身智能算法的研究、复现与实验。\n2. 基于 Isaac Sim / Isaac Lab 等平台，搭建机器人仿真场景与自动化测评 Pipeline，开展具身智能算法的性能、安全与鲁棒性评测。\n3. 参与仿真与真机实验，包括数据采集、算法部署、测试及问题分析。\n\n【任职要求】\n1. 计算机、人工智能、自动化、机器人等相关专业本科/硕士/博士在读。\n2. 熟练使用 Python，熟悉 PyTorch 等深度学习框架。\n3. 了解 VLA、多模态模型、模仿学习、强化学习等具身智能相关技术。\n4. 熟悉 Isaac Sim / Isaac Lab / MuJoCo 等至少一种机器人仿真平台。\n5. 具备较好的算法实现和工程能力，能够独立完成算法复现、实验与问题排查。\n加分项\n1. 有 VLA、具身大模型、机器人学习相关项目或研究经历。\n2. 有 Isaac Sim / Isaac Lab、ROS / ROS2 或机器人真机调试经验。\n3. 有具身智能相关论文、开源项目或 Benchmark 开发经验。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "464743",
+    "title": "大模型算法工程师（可转正）",
+    "company": "蜀俊博凌",
+    "city": "成都",
+    "salary": "200-600/天",
+    "url": "https://www.nowcoder.com/jobs/detail/464743",
+    "description": "1.负责LLM模型的训练和调优，以满足特定业务场景需求；\n2.负责大模型相关的数据处理，包括数据爬取、数据增强、数据清洗、数据标注及后处理等；\n3.与其他团队成员紧密合作，完成模型集成及部署，保障模型稳定运行及持续优化；\n4.研究和应用新的NLP技术和趋势，深入理解底层算法原理，以支持业务创新和发展；\n\n1.本科及以上学历；\n2.扎实的机器学习、深度学习和自然语言处理理论基础，具备优秀的工程开发能力，有LLM模型训练和调优经验；\n3.熟悉PyTorch,TensorFlow等深度学习平台，熟练掌握Python/Java/Go/C++其中一门编程语言；\n4.能够对领域前沿技术保持持续关注和学习，愿意持续投入研究和解决挑战性问题；\n5.较强的问题分析和解决能力，良好的团队协作能力；",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "UXYqtmSYNxV64rYSgkcrS6",
+    "title": "算法工程师/医学信号处理方向",
+    "company": "深圳市理邦精密仪器股份有限公司",
+    "city": "深圳",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/UXYqtmSYNxV64rYSgkcrS6.html",
+    "description": "1、完成博士后在站研究课题，可选的有：\n1）基于多模态生理参数联合分析的算法研究；\n2）基于ECG和PPG的无创连续心排估计算法研究；\n3）前沿心电算法研究；\n4）基于ECG和PPG的无创连续血压估计算法研究。\n2、开展前沿算法预研，做好技术储备；\n3、负责相关领域算法开发、测试与工程化，保障在研、量产项目推进。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "WWSERsQNzRZHeitgdjH3QH",
+    "title": "算法工程师/大模型AI方向",
+    "company": "深圳市理邦精密仪器股份有限公司",
+    "city": "深圳",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/WWSERsQNzRZHeitgdjH3QH.html",
+    "description": "1、负责医疗边缘智能场景的AI算法研发，聚焦多模态/端侧大模型部署与优化，多模态人机交互系统（包括手势、语音、姿态等识别任务）、边缘智能计算在资源受限设备上的落地应用；\n2、参与从数据采集、模型训练到端侧部署的完整AI产品开发，深入底层进行模型压缩（剪枝/量化/蒸馏）、异构计算（NPU/GPU/CPU协同）、推理加速，确保算法在临床或真实环境下的实时性、稳定性与低延迟；\n3、负责端侧AI算法的性能分析与系统级优化，包括算子适配、内存复用、多线程调度、功耗控制等，提升算法在边缘设备上的运行效率；\n4、遵循医疗器械AI软件开发相关法规与标准，参与算法验证、风险管理、技术文档撰写及产品注册支持。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "2vo1XEVNKDeyrV4puaLMvT",
+    "title": "AI agent软件工程师",
+    "company": "北京深朴智能科技有限公司",
+    "city": "北京",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/2vo1XEVNKDeyrV4puaLMvT.html",
+    "description": "岗位职责：\n1、核心算法研发与优化：\n○ 负责AI Agent的核心算法设计，重点突破任务规划、推理决策、多工具调用等能力，提升智能体在复杂场景下的自主性与适应性；\n○ 集成大语言模型与Agent框架，优化提示工程、思维链推理等关键技术，确保智能体高效执行用户指令。\n2、智能体系统构建与部署：\n○ 开发高可用、可扩展的Agent运行时系统，支持多智能体协作、状态管理与错误恢复；\n○ 设计并实现Agent后端服务，构建低延迟、高并发的智能交互平台。\n3、技术追踪与创新：\n○ 跟踪Agent领域前沿技术（如长上下文记忆优化等)，推动技术在实际场景中的快速落地。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "C2cBZZd7j47QDTWyqxDGcp",
+    "title": "算法工程师",
+    "company": "深圳市江波龙电子股份有限公司",
+    "city": "上海",
+    "salary": "15-20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/C2cBZZd7j47QDTWyqxDGcp.html",
+    "description": "工作职责： 1、 负责LDPC/BCH等ECC算法设计与性能评估，新型NAND ECC算法的研究； 2、 KV Cache压缩算法、透明压缩、智能预取算法、智能内存管理算法、端侧AI算法、加解密算法等技术研究； 3、 研究不同NAND颗粒特性及可靠性，设计NAND存储产品的Error Handle Flow 、Read Recovery Flow 、闪存管理算法等相关技术，提升NAND存储产品的性能和可靠性； 4、 研究开发闪存算法， 优化Retry Read算法、自动搜索Best Read技术、优化Soft Decode算法等, 提升产品的可靠性；",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "E26yCHnncLEERk6icwSdhh",
+    "title": "算法工程师（全栈发展）-珠海/广州",
+    "company": "珠海金山办公软件有限公司",
+    "city": "广州",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/E26yCHnncLEERk6icwSdhh.html",
+    "description": "投递网址：join.wps.cn或微信搜索公众号：金山办公招聘-校园招聘\n工作职责：\n1. 负责各业务领域需求的大模型算法研发与应用落地，包括但不限于如AI文本生成、AI代码生成、文生图、办公智能体等大量切实的应用场景；\n2. 探索LLM大模型和多模态大模型在办公场景下的应用潜力， 完成PE / RAG / Agent等垂类能力的业务实现；\n3. 负责深度学习算法在文档图像识别与理解上的研究和落地，追踪领域相关的前沿技术进展与落地进度；\n4. 参与公司自研大模型的全链路研发，参与LLM的基座预训练、微调、量化、推理上线等环节；\n5. 与产品、工程、业务团队紧密协作，沉淀通用化的 AI 能力组件与工具链。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "Eu3RibcT8yKJjU3e85ZpHY",
+    "title": "软件开发工程师（C/C++/Java/C#/Python）",
+    "company": "卡斯柯信号有限公司",
+    "city": "上海",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/Eu3RibcT8yKJjU3e85ZpHY.html",
+    "description": "岗位职责：\n1)负责铁路、地铁核心信号系统软件的研发工作；\n2)负责信号系统软件的需求、设计、编码、调试及文档编制工作；\n3)参与软件研发全生命周期管理；\n4)参与相关系统和软件方案的技术评审；\n5)参与软件测试、现场实施的技术支持，对各铁路、地铁项目开通上线及稳定运行提供技术保障。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "5YMqMm6ezEAwW5Bn9WQTdJ",
+    "title": "精英算法研发工程师（全栈发展）--珠海/广州",
+    "company": "珠海金山办公软件有限公司",
+    "city": "广州",
+    "salary": "15-99.9千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/5YMqMm6ezEAwW5Bn9WQTdJ.html",
+    "description": "投递网址：join.wps.cn或微信搜索公众号：金山办公招聘-校园招聘\n职位描述：\n1.负责各业务领域需求的大模型算法研发与应用落地;\n2.探索LLM大模型和多模态大模型在办公场景下的应用潜力;\n3. 负责深度学习算法在文档图像识别与理解上的研究和落地;\n4.将业务需求转化为技术方案，与产品、工程、业务团队紧密协作，推动 AI 能力稳定落地。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "4eyKm6MzZ94Wgs5LG5sDT9",
+    "title": "C++研发工程师（全栈发展）-珠海/广州",
+    "company": "珠海金山办公软件有限公司",
+    "city": "广州",
+    "salary": "20.8千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/4eyKm6MzZ94Wgs5LG5sDT9.html",
+    "description": "投递网址：join.wps.cn或微信搜索公众号：金山办公招聘-校园招聘\n岗位职责：\n1. 负责客户端核心模块的设计与开发；\n2. 通过技术手段持续优化客户端性能、稳定性与用户体验；\n3. 参与客户端工程化建设与工具链优化，支撑 AI 能力在客户端侧的集成与落地；\n4. 关注新技术发展，推动客户端在 AI 场景（如 WPS AI）的创新应用。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "E2u3PhfJjpceCf6wBrAxs4",
+    "title": "算法工程师",
+    "company": "唯导（上海）科技有限公司",
+    "city": "上海",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/E2u3PhfJjpceCf6wBrAxs4.html",
+    "description": "1. 基于SPAD-TCSPC光子计数直方图，设计深度学习模型（1D-CNN/Transformer等）实现峰值检测、低SNR深度解算与多径抑制；\n2. 构建dToF端到端深度估计hybrid pipeline，融合传统直方图拟合与数据驱动方法；\n3. 搭建蒙特卡洛光子传输仿真数据链，结合实测数据完成模型训练与评测；\n4. 与相关团队协同，参与算法-硬件联合优化及端侧轻量化部署；\n5. 跟踪CVPR/ICCV/NeurIPS/Optica等前沿进展，支持论文与专利产出。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "4WJoabfdtyV8sD8qw8v88t",
+    "title": "AI全栈开发工程师",
+    "company": "上海之江生物科技股份有限公司",
+    "city": "上海",
+    "salary": "10-12千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/4WJoabfdtyV8sD8qw8v88t.html",
+    "description": "岗位职责：\n1.负责AI应用的全栈开发与落地，包括智能问答、内容生成、Agent工作流等核心功能，并与业务系统深度集成。\n2.基于LangGraph、Dify、LangChain等框架，开发可复用的AI服务API与专用Agent，支持多Agent协作与复杂任务编排。\n3.开展RAG数据的清洗、标注及特征工程建设，设计并优化Embedding检索 大模型生成链路，持续提升检索精度与生成效果。\n4.借助AI编码工具高效完成前后端开发：后端使用Python/Java构建高性能服务，前端基于Vue3/React及HTML/CSS/JS实现交互界面。\n5.深入业务场景，将AI技术嵌入业务流程，设计并落地AI驱动的智能化方案，提升业务效率与智能化水平。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "77JuZKf9q2hmAVswCuBA1E",
+    "title": "CAE求解器算法工程师（多物理场耦合）",
+    "company": "英特工程仿真技术（大连）有限公司",
+    "city": "北京",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/77JuZKf9q2hmAVswCuBA1E.html",
+    "description": "岗位职责：\n1.开发多物理场耦合框架，实现流体-结构、热-结构、流体-热、电磁-热、电磁-结构等典型耦合场景仿真；\n2.研究耦合技术体系，包括耦合控制技术、求解器间通信与数据传递技术、收敛技术等；\n3.对接CAE软件完成通用耦合接口接入；\n4.编写耦合产品相关技术文档、产品说明材料。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "2rWJ6apWRagB1Xrmvby63s",
+    "title": "全栈开发工程师-27届校招（北京、广州、昆明、西安）",
+    "company": "卓望数码技术(深圳)有限公司",
+    "city": "北京",
+    "salary": "15-20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/2rWJ6apWRagB1Xrmvby63s.html",
+    "description": "工作职责：\n1.负责业务系统的整体功能开发，独立完成需求拆解、技术方案设计、编码实现与自测，交付端到端可用的完整功能；\n2.参与业务系统的整体设计与开发，运用 Vue、Java 等前后端技术栈完成功能实现与联调，构建高可用应用；\n3.负责接口设计、数据库设计与服务集成，完成前后端联调与性能优化，保障系统数据流与业务逻辑的一致性、稳定性；\n4.负责通用组件、工具库与基础能力的沉淀与复用，参与代码评审与技术规范建设，持续提升团队研发效率与代码质量；\n5.参与系统的安全防护与问题定位，配合进行现网问题的分析、排查与修复，持续打磨产品质量与用户体验。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "5NgjVywgKDcTGuSmPNGRmh",
+    "title": "校招大模型应用开发工程师",
+    "company": "因诺（上海）资产管理有限公司",
+    "city": "北京",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/5NgjVywgKDcTGuSmPNGRmh.html",
+    "description": "【工作职责】\n1、负责大模型能力在量化研究与策略开发场景中的工程化落地；\n2、开发大模型相关工具和服务，包括模型接口封装、研究资料检索、流程自动化、代码辅助等；\n3、推动大模型能力与公司现有数据系统、研究平台、交易系统集成；\n4、与量化研究员、策略开发、数据开发协作，将研究方案转化为可用的技术模块；\n5、参与面向研究与开发场景的Agent/工作流能力建设，将常见任务模式、工具调用链路和内部系统接口沉淀为可复用的工程模块；\n6、持续优化应用效果与系统可用性，提升研发效率。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "23Q4rWZpuHs5oyfZFTVeBp",
+    "title": "大模型推理框架及优化工程师",
+    "company": "黑芝麻智能科技有限公司",
+    "city": "上海",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/23Q4rWZpuHs5oyfZFTVeBp.html",
+    "description": "\"1. 参与端侧大模型推理框架开发与优化，支持 LLM/VLM 在嵌入式、车载 NPU 平台部署落地。\n2. 参与推理框架核心模块开发，包括模型解析、计算图优化、算子适配、内存管理、推理调度等。\n3. 针对 Transformer 类大模型开展性能优化，提升推理速度、降低时延与内存占用。\n4. 参与大模型量化、轻量化及推理优化技术落地，推动端侧大模型高效运行。\n5. 搭建模型性能评测体系，协助完成精度、性能和稳定性分析。\"",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "3qqPcoY8jg13DexH9q819a",
+    "title": "JAVA 后端开发工程师（集中交付）",
+    "company": "上海汉得信息技术股份有限公司",
+    "city": "北京",
+    "salary": "8-10千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/3qqPcoY8jg13DexH9q819a.html",
+    "description": "\"职位描述:\n- 根据业务需求及产品功能完成应用系统技术方解决案设计和对应后端功能的技术设计及开发实现，包括设计应用系统相\n关集成架构，部署架构，数据结构，代码逻辑结构，业务逻辑功能开发实现及相关开发文档的撰写和维护；\n- 该岗位主要人员 base 以北京、上海为主。\n\"",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "22iz1xhM1HWL4C2SxVVpgy",
+    "title": "JAVA 后端研发工程师",
+    "company": "上海汉得信息技术股份有限公司",
+    "city": "上海",
+    "salary": "8-10千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/22iz1xhM1HWL4C2SxVVpgy.html",
+    "description": "\"职位描述:\n- 根据业务需求及产品功能完成应用系统技术方解决案设计和对应后端功能的技术设计及开发实现，包括设计应用系统相\n关集成架构，部署架构，数据结构，代码逻辑结构，业务逻辑功能开发实现及相关开发文档的撰写和维护；\n- base 地为上海。\"",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "23rBeHTqxsmzNYMqgF6knN",
+    "title": "Agent 算法工程师",
+    "company": "智象未来（合肥）信息技术有限公司",
+    "city": "北京",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/23rBeHTqxsmzNYMqgF6knN.html",
+    "description": "深度参与AIGC场景下的智能体系统搭建与落地。\n负责多模态Agent系统研发、业务Skill设计、算法自动化评测的完整技术链路，推动Agent技术在图像、视频生成场景的深度应用与商业化落地。\n工作职责；\n1、负责AIGC场景进行智能体的效果优化，包括LLM Reasoning、Tool Calling、Skills、Context、Memory等核心功能。\n2、负责面向Agent场景的数据集构建与LLM Post-trainning。\n3、负责业务Skill的设计与优化，并根据业务数据反馈持续提升skill在业务场景的生产效果。\n负责构建面向AIGC场景的自动化评测体系，通过数据驱动的方式构建4、Agent自迭代闭环，持续优化Agent效果表现。跟进业界和学术界Al Agent以及大模型的最新进展。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "4G7b56ZCcGc8EbpoUnDJ3y",
+    "title": "AI Infra 大模型推理服务工程师 （集群部署方向）",
+    "company": "合肥中科类脑智能技术有限公司",
+    "city": "北京",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/4G7b56ZCcGc8EbpoUnDJ3y.html",
+    "description": "1.负责大模型集群推理架构设计与性能优化；\n2.负责多机多卡分布式推理及并行策略优化；\n3.负责推理服务调度、Batching、KV Cache、PD分离等核心技术研发；\n4.负责推理系统监控与可观测性建设。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "DL8MfCsVttrg5H4Tufu4or",
+    "title": "多模态大模型算法研究员",
+    "company": "智象未来（合肥）信息技术有限公司",
+    "city": "北京",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/DL8MfCsVttrg5H4Tufu4or.html",
+    "description": "1、基础模型研发：\n参与多模态生成式基础模型的架构设计与核心算法研发，参与图像生成和编辑、视频生成与编辑、3D生成或世界模型的技术攻坚。\n2、模型训练与优化：\n参与百亿级参数规模多模态生成模型的预训练或后训练相关工作，提升模型在复杂场景下的泛化能力与生成效果。\n【任职要求】",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "CYU7srSRVAgvuN94JkRpxE",
+    "title": "AI infra 算法工程师",
+    "company": "智象未来（合肥）信息技术有限公司",
+    "city": "北京",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/CYU7srSRVAgvuN94JkRpxE.html",
+    "description": "1. 负责语言、图片、视频等生成模型推理系统建设与性能优化，支撑在线服务与离线推理场景\n2. 设计高性能推理架构，实现动态批处理、KV Cache管理、并行推理、弹性扩缩容等优化手段\n3. 优化模型推理性能，包括算子融合、Kernel优化、显存管理、异步调度与资源调度等关键技术\n4. 推进量化、压缩与推理加速技术落地，在保证模型效果的前提下提升吞吐并降低推理成本\n5. 构建高可用推理服务体系，实现监控告警、容量规划、故障恢复与稳定性保障\n6. 跟踪业界最新推理技术，推动新方案在业务场景中的落地与应用",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "3uRPmLD8oYpni91FsrcTYj",
+    "title": "Java开发工程师",
+    "company": "苏州科达科技股份有限公司",
+    "city": "上海",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/3uRPmLD8oYpni91FsrcTYj.html",
+    "description": "1、协助设计和实现后端服务和API接口；\n2、参与数据库设计，优化数据存储方案；\n3、协助进行系统性能优化和问题排查；\n4、编写技术文档，协助团队成员理解和使用后端服务；\n5、跟踪后端技术的最新发展，探索和实施新技术以提升系统性能。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "3dsb4iabHRtmtWhAzqqKSy",
+    "title": "Agent开发实习生（27届可转正）",
+    "company": "上海仙工智能科技股份有限公司",
+    "city": "上海",
+    "salary": "99.9千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/3dsb4iabHRtmtWhAzqqKSy.html",
+    "description": "岗位职责\n1. 参与 Agent OS 核心能力的研发，包括 Agent 运行时、任务调度、工具调用、上下文管理、状态持久化及可观测性等模块。\n2. 使用 Rust 开发高性能、高可靠的后端服务和基础组件，编写结构清晰、可维护、可测试的代码。\n3. 参与大模型应用与 Agent 工作流的工程化落地，协助接入模型服务、MCP/工具协议、消息队列、数据库等基础设施。\n4. 参与系统接口设计、单元测试、集成测试、性能分析和问题排查，持续提升服务稳定性与资源利用率。\n5. 与产品、算法和平台工程师协作，将业务需求拆解为可实施的技术方案，并完成文档和交付物沉淀。\n6. 跟踪 Rust、AI Agent 和云原生技术的发展，在指导下完成技术验证与能力迭代。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "3zMzuvjfXkC11zzbbJLoW4",
+    "title": "大模型推理测试开发工程师",
+    "company": "清昴智能科技（北京）有限公司",
+    "city": "北京",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/3zMzuvjfXkC11zzbbJLoW4.html",
+    "description": "1.测试策略与方案设计\n-负责大模型推理集群的全链路质量保障，制定功能、性能、稳定性、安全等维度的测试策略与计划。\n-深入理解推理引擎(如vLLM、TensorRT- LLM、TGI等)、调度系统与GPU集群架构，设计高覆盖、可复用的测试方案。\n2.功能与精度验证\n-验证模型推理结果的正确性与数值精度(如与训练框架对齐、不同量化精度对比)，确保多模型、多版本、多硬件环境下的输出一致性。\n-构造覆盖正常、边界、异常、对抗性的测试用例，评估提示词鲁棒性、多轮对话记忆、长上下文等特性。\n3.性能与压力测试\n-设计并执行延迟、吞吐、首token时间、并发用户数等关键指标的压测方案，建立性能基线。\n-分析GPU利用率、显存占用、网络带宽、调度延迟等瓶颈，配合研发团队进行性能调优与回归验证。\n4.稳定性与混沌工程\n-开展长时间稳定性测试，验证内存泄漏、显存碎片、资源回收、故障自愈等能力。\n-引入故障注入(节点宕机、网络分区、GPU错误、Etcd异常等)，检验集群高可用与容错机制。\n5.自动化测试与工具链建设\n-搭建持续集成/持续测试流水线，开发自动化测试框架与工具沉淀测试数据集",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "niyjBfd1uK729Djp6z64M",
+    "title": "精英C++开发工程师（全栈发展）--珠海/广州",
+    "company": "珠海金山办公软件有限公司",
+    "city": "广州",
+    "salary": "15-99.9千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/niyjBfd1uK729Djp6z64M.html",
+    "description": "投递网址：join.wps.cn或微信搜索公众号：金山办公招聘-校园招聘\n职位描述：\n1.负责参与金山办公客户端软件的设计、研发;\n2.共同打造出色的客户端产品，为用户提供卓越的使用体验;\n3.具备 AI 客户端应用落地能力，能将大模型、OCR、语音等 AI 能力集成到客户端产品中。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "R9UKZEogUJemiUsSJK2R2c",
+    "title": "算法工程师（大模型AI方向-西研所）",
+    "company": "深圳市理邦精密仪器股份有限公司",
+    "city": "深圳",
+    "salary": "15-20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/R9UKZEogUJemiUsSJK2R2c.html",
+    "description": "1、负责医疗边缘智能场景的AI算法研发，聚焦多模态/端侧大模型部署与优化，多模态人机交互系统（包括手势、语音、姿态等识别任务）、边缘智能计算在资源受限设备上的落地应用；\n2、参与从数据采集、模型训练到端侧部署的完整AI产品开发，深入底层进行模型压缩（剪枝/量化/蒸馏）、异构计算（NPU/GPU/CPU协同）、推理加速，确保算法在临床或真实环境下的实时性、稳定性与低延迟；\n3、负责端侧AI算法的性能分析与系统级优化，包括算子适配、内存复用、多线程调度、功耗控制等，提升算法在边缘设备上的运行效率；\n4、遵循医疗器械AI软件开发相关法规与标准，参与算法验证、风险管理、技术文档撰写及产品注册支持；\n5、领导交代的其他工作任务。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "C422CM35LLd2R4Pt5gxRJF",
+    "title": "多媒体及雷视融合算法工程师",
+    "company": "深圳市有为信息技术发展有限公司",
+    "city": "深圳",
+    "salary": "13千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/C422CM35LLd2R4Pt5gxRJF.html",
+    "description": "岗位职责\n1、负责相机与毫米波雷达/LiDAR 的时间同步与外参标定算法研发，处理多传感器数据对齐与坐标转换；2、负责前/中/后融合感知算法研发（如 BEVFusion、TransFusion、EKF/匈牙利匹配等），解决雨雾、遮挡、鬼影等长尾问题；\n3、开发 3D 目标检测、速度与航向角估计算法，优化多目标跟踪性能；\n4、负责融合模型量化、剪枝与推理加速（TensorRT、SNPE 等），适配 Orin、TDA4 等嵌入式平台；\n5、构建融合感知评测体系，基于量产数据完成难例挖掘与模型迭代。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "HLMNbTtbFxkUqmJ2TosXi1",
+    "title": "规控算法工程师",
+    "company": "深圳市有为信息技术发展有限公司",
+    "city": "深圳",
+    "salary": "13-23千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/HLMNbTtbFxkUqmJ2TosXi1.html",
+    "description": "岗位职责\n1、负责全局路径规划与局部轨迹规划算法研发，处理避障、换道、泊车等复杂场景；\n2、负责横纵向运动控制算法研发，解决高速稳定性、低速平顺性等工程难题；\n3、基于 fsm / 行为树 / 强化学习设计行为决策逻辑；\n在 Carla 等仿真环境中完成算法验证与调优，参与实车调试，分析 bag 数据，闭环 corner case；\n4、负责算法 C++ 重构与加速，满足嵌入式平台实时性要求，编写技术文档与测试代码。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "PAaih75mCwwV1V665HsSKX",
+    "title": "电控算法工程师",
+    "company": "深圳市睿研智能控制有限公司",
+    "city": "深圳",
+    "salary": "20-35千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/PAaih75mCwwV1V665HsSKX.html",
+    "description": "1.负责电机控制器整体方案设计，包括建模仿真、控制算法设计与优化、软件实现及调试。\n2.伺服驱动器固件开发，设计软硬件接口，提升系统集成度与稳定性。\n3.负责推动伺服驱动性能优化工作，如三环频响提升、机械特性分析等。\n4.协同完成系统集成与调试，提升产品功能、性能与可靠性。\n5.针对现场应用中出现的性能问题，提出解决方案并进行仿真验证与编码实现。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "AYMsm2QiM7MyUrGy2xCR6s",
+    "title": "超声医学信号处理算法工程师",
+    "company": "深圳开立生物医疗科技股份有限公司",
+    "city": "深圳",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/AYMsm2QiM7MyUrGy2xCR6s.html",
+    "description": "工作职责（下述至少三项或多项）：\n1、负责超声波束合成、信号处理算法仿真、多普勒成像、声功率和温升模型等工作的研究及开发工作；\n2、参与超声系统各成像模式信号处理参数优化及改进，持续提高各成像模式图像质量以满足客户需求；\n3、负责与软硬件团队一起进行超声前端系统调试，提升系统技术规格，改善系统整体图像性能；\n4、参与彩超系统全生命周期工作，负责相关业务方向从产品策划到上市的全流程跟踪，参与评估临床反馈需求或应用并制定对应技术解决方案，成为业务方向专家；\n5、负责组织超声信号处理处理技术或高级功能预",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "GLo1UkL6S5bZUWRXE4RTDu",
+    "title": "算法工程师",
+    "company": "深圳成谷科技有限公司",
+    "city": "深圳",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/GLo1UkL6S5bZUWRXE4RTDu.html",
+    "description": "1.负责一般算法的研究、仿真，为预研和产品演进服务；\n2.研究标准/规范/知识产权，并提交标准提案，申请专利；\n3.负责解决算法研究和仿真中发现的问题；\n4.评审及指导：\nA 评审上游岗位的工作产品，以提高输入到本岗位的工作产品的质量；\nB 评审下游岗位的工作产品并指导，以保证下游岗位实现了本岗位工作产品的要求；\nC 评审本岗位的其它工作产品，以保证接口的匹配性。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "EPEjSuHLRAU6yh1RuMX63T",
+    "title": "算法工程师",
+    "company": "深圳市亿道数码技术有限公司",
+    "city": "深圳",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/EPEjSuHLRAU6yh1RuMX63T.html",
+    "description": "1. 参与机器?导航算法的研究、开发与优化，包括但不限于路径规划、定位、避障等核?算法。\n2. 基于SLAM（即时定位与地图构建）技术，实现机器?的?主导航与精准定位。\n3. 与团队合作，完成机器?导航系统的集成、测试与调试，确保算法在实际应?中的稳定性和可靠性。\n4. 跟踪最新的机器?导航技术动态，持续优化算法性能，提升机器?的导航效率与准确性。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "2XP5dJoG68WvNGPnAsSQLr",
+    "title": "人工智能算法工程师",
+    "company": "深圳开立生物医疗科技股份有限公司",
+    "city": "深圳",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/2XP5dJoG68WvNGPnAsSQLr.html",
+    "description": "工作职责：\n1、技术领域：专注深度学习算法、视觉大模型、多模态大模型前沿技术；\n2、科研：参与/主导超声、内镜、外科等相关产学研科研、横向课题；\n3、2D影像：基于超声、内镜、外科等影像数据进行病灶分割与检测、分型分析、多任务；\n4、医疗图像质量提升及重建：增强、去噪、超分、配准、3D场景重建、3",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "G8GypbnVz6CsXhheFrpbzJ",
+    "title": "电机控制算法工程师",
+    "company": "深圳大漠大智控技术有限公司",
+    "city": "深圳",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/G8GypbnVz6CsXhheFrpbzJ.html",
+    "description": "工作职责\n1. 负责电机控制器的方案设计、建模仿真、算法设计与优化、软件实现与调试：\n2. 与硬件、嵌入式和测试团队合作，集成并优化系统，提升产品功能、性能及稳定性；\n3. 解决在产品测试、生产、售后中反馈的各种问题，并进行总结和改进；\n4. 组织开展对重大风险点和技术难题的攻关，确保业务按时、保质交付；\n5. 对所辖领域技术发展趋势进行追踪和分析，完成前沿新兴算法的预研方案，推动方案验证并最终落地。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "HNzKBaiBjRm3FwtC5wF73P",
+    "title": "信号处理算法工程师（博士）",
+    "company": "深圳市鼎阳科技股份有限公司",
+    "city": "深圳",
+    "salary": "15-20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/HNzKBaiBjRm3FwtC5wF73P.html",
+    "description": "1、负责无线电信号识别与检测方向研究；\n2、负责无线电信号识别与检测相关算法的设计、仿真、验证、分析和优化，及相关文档撰写；\n3、配合软硬件开发团队完成产品已有算法的实现，并参与系统的联调和问题分析。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "8Aa3sWYARWp2yMrQsZyCq9",
+    "title": "超声医学图像处理算法工程师",
+    "company": "深圳开立生物医疗科技股份有限公司",
+    "city": "深圳",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/8Aa3sWYARWp2yMrQsZyCq9.html",
+    "description": "工作职责（下述至少三项或多项）：\n1、超声图像增强处理算法研究、开发及临床参数优化；\n2、超声图像分割、识别、自动测量等算法开发及临床参数验证；\n3、超声三维图像重建算法、渲染等研究、开发及临床参数优化；\n4、参与彩超系统全生命周期工作，负责相关业务方向从产品策划到上市的全流程跟踪，参与评估临床反馈需求或应用并制定对应技术解决方案，成为业务方向专家；\n5、负责组织超声前沿图像处理技术或高级功能预研及工程化，参与产品线的技术规划及探索新的技术方向；\n6、参与国内外高端医院和研究机构合作及相关课题申报，共同推进创新需求及创新应用，提升产品核心竞争力。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "7vmMz39byPS3KGtu5xbnRB",
+    "title": "三维重建算法工程师",
+    "company": "深圳大漠大智控技术有限公司",
+    "city": "深圳",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/7vmMz39byPS3KGtu5xbnRB.html",
+    "description": "工作职责：\n1.参与三维重建核心算法模块的设计、研发、优化与维护；\n2.负责图像，点云数据处理、相机位姿估计、表面重建、纹理映射等相关算法的研究与实现；\n3.参与传统多视图三维重建、视觉SLAM及3D Gaussian Splatting等技术方案的研发；\n4.针对实际业务场景，对算法的精度、效率、鲁棒性及资源占用进行分析和优化；\n5.跟踪三维视觉、神经渲染和三维生成等方向的前沿论文与技术趋势，完成算法复现、效果评估及方案验证；\n6.与产品及工程团队协作，推动算法模块集成、测试和业务落地；\n7.参与算法相关技术文档、实验报告及测试规范的编写。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "3dbvtyzgSJcNeQ2Gm6RpJ8",
+    "title": "slam算法工程师",
+    "company": "深圳大漠大智控技术有限公司",
+    "city": "深圳",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/3dbvtyzgSJcNeQ2Gm6RpJ8.html",
+    "description": "工作职责：\n1）负责无人机IMU、Camera、LiDAR、GNSS多传感器融合定位与SLAM算法的设计、开发及优化\n2）负责算法在ARM平台上的部署、性能优化及真实无人机环境验证\n3）建设和完善定位算法数据闭环体系，参与数据采集、数据管理、自动化评测、问题归因、算法验证及回归测试\n4）跟踪SLAM、多传感器融合、三维视觉等领域前沿技术，完成相关算法的调研、复现、验证及工程化迁移\n5）与上下游团队协同，完成算法与整机系统的联调及问题解决",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "XHN8v3D4ptVYeBvh4SGYZj",
+    "title": "算法工程师（图像处理方向）",
+    "company": "深圳市理邦精密仪器股份有限公司",
+    "city": "深圳",
+    "salary": "15-20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/XHN8v3D4ptVYeBvh4SGYZj.html",
+    "description": "岗位职责：\n1、负责超声图像处理算法研发，包括基础成像模式（B、Color、PW、CW等）的图像处理，以及高级成像模式（3D/4D）的算法开发、参数优化与产品化支持；\n2、跟踪前沿算法技术，完成文献算法的复现、评估与改进优化；\n3、输出算法相关文档与代码，支持算法在产品中的实现与优化；\n4、领导交代的其他工作任务。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "PmJWz4NsPSaEgA7gfGfYCS",
+    "title": "算法工程师（图像处理AI方向）",
+    "company": "深圳市理邦精密仪器股份有限公司",
+    "city": "深圳",
+    "salary": "15-20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/PmJWz4NsPSaEgA7gfGfYCS.html",
+    "description": "1、负责医疗影像产品AI算法的需求分析、算法开发、性能验证及临床评价工作；\n2、根据需求完成算法方案设计、代码实现及问题修改；\n3、负责日常代码走查、设计评审等工作，完成算法技术文档编写；\n4、领导交代的其他工作任务。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "QtdNVFFpfE6Kikpu2pEjuw",
+    "title": "大模型后训练工程师",
+    "company": "北极雄芯信息科技（西安）有限公司",
+    "city": "北京",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/QtdNVFFpfE6Kikpu2pEjuw.html",
+    "description": "岗位职责：\n1、领域模型后训练：负责垂直领域大模型的 SFT、偏好对齐（DPO / GRPO / RLVR 等）与蒸馏，设计数据配比、训练策略等；\n2、QAT 研究与落地：结合公司芯片特性，研究量化感知训练算法，包括 QAT 蒸馏联合训练、旋转 / 平滑类变换（Hadamard、SmoothQuant 系）、权重与激活的混合精度分配、KV Cache 与 attention 低比特化；\n3、精度归因与评测：搭建领域评测集与量化退化归因工具链，定位到 layer / channel / token 粒度的误差来源，形成可复用的诊断方法；\n4、软硬协同：与推理侧（vLLM / SGLang / TensorRT-LLM）和硬件侧算子团队合作，在真实 kernel 支持的格式约束下做精度—吞吐—显存的权衡设计；\n5、前沿跟踪与产出：跟踪后训练与模型压缩前沿工作，推动内部方法沉淀，鼓励顶会论文与开源贡献。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "Bu8Tx1m63tQ9N2b9shrcCf",
+    "title": "AI 算子开发工程师（大模型推理方向）",
+    "company": "北极雄芯信息科技（西安）有限公司",
+    "city": "北京",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/Bu8Tx1m63tQ9N2b9shrcCf.html",
+    "description": "岗位职责：\n1、负责大模型推理框架（如 SGLang、vLLM）的底层核心算子开发、移植与性能优化；\n2、配合框架与编译器团队，将自研高性能算子无缝接入 SGLang、vLLM 等推理引擎，提升大模型推理的整体性能；\n3、跟踪大模型推理、高性能计算及 AI 算子优化领域的前沿技术，推动相关技术的工程化落地。；\n4、编写高质量的技术文档与算子使用规范，协助解决推理框架在算子层面的复杂调试与精度对齐问题。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "WcmDh4YoJrAzLBRg9npgYn",
+    "title": "音视频算法工程师",
+    "company": "上海久尺网络科技有限公司",
+    "city": "北京",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/WcmDh4YoJrAzLBRg9npgYn.html",
+    "description": "1、负责各平台视频采集、编码、解码、渲染适配及性能优化，提升音视频处理的效率与质量；\n2、研究网络传输优化算法，包括拥塞控制、pacer、jitter buffer、fec等, 提升弱网环境下的音视频传输质量和体验；\n3、参与远程控制等业务场景的音视频架构优化，持续优化端到端的用户体验；\n4、跟进处理线上用户的音视频体验问题，进行数据分析、问题排查和优化；\n5、关注前沿音视频技术发展，探索新型编解码、传输优化、渲染技术的落地应用。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "6kWF2PjWjHMrmD6Vzte3v9",
+    "title": "AI算法工程师",
+    "company": "上海久尺网络科技有限公司",
+    "city": "北京",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/6kWF2PjWjHMrmD6Vzte3v9.html",
+    "description": "我们在做什么\n我们在教 AI 像人一样操作电脑——看懂屏幕、点击、输入、跨软件完成一个完整任务。这是当下大模型最前沿也最难啃的方向之一:模型很聪明,但让它稳定地\"动手干活\"仍是没被解决的问题。规划、多模态感知、错误恢复、长任务记忆,每一块都是开放难题。\n你不会来跑现成的训练脚本。你会直接面对\"为什么 Agent 在第 7 步卡住了\"\"怎么让它从失败里自己爬起来\"这类真问题,而且你的改动会进真实产品、被真实用户用到。\n你会做的事\n- 参与 GUI / computer-use Agent 的核心链路:多模态界面理解、任务规划、动作执行与纠错;\n- 基于 Qwen-VL 等模型做针对性优化(微调 / 推理加速 / 后训练),让它在真实场景里真的能用;\n- 搭建 Agent 的评测体系——当模型会\"操作\"之后,\"怎么知道它做对了\"本身就是硬核难题,这块你会深度参与;\n- 构建和清洗训练/评测数据,很多时候数据质量直接决定 Agent 的上限。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "435545",
+    "title": "大模型算法实习生",
+    "company": "拼多多集团-PDD",
+    "city": "上海",
+    "salary": "400-800/天",
+    "url": "https://www.nowcoder.com/jobs/detail/435545",
+    "description": "大模型基座研发与优化：参与多语言、多模态、AIGC 等基座大模型的训练和优化，深入数据处理、Pre-training（预训练）、Post-training（后训练）等各个关键环节。\n\n前沿技术探索：持续跟踪并攻关大模型领域的前沿方向，通过算法创新持续提升模型的准确性、泛化性与性能。\n\n电商场景赋能：将先进的模型能力与电商业务场景结合，转化为实际生产力。\n\n教育背景：计算机科学、人工智能、数学、物理等相关专业优先。\n\n技术根基：\n\n具备扎实的大模型算法基础（例如熟悉 Transformer）、出色的数据敏感度和优秀的编程能力。\n\n熟悉大模型训练流程（Pre-training / SFT / RL 等）或生成式模型（图片生成、视频生成、语音生成、文本生成）者优先。\n\n创新能力：具备极强的学习能力、主动性和创新思维，能够独立分析和解决复杂技术问题，对将前沿研究应用于实际挑战充满热情。\n\n成果导向（满足以下条件之一者优先）：\n\n在 CCF-A 类会议/期刊（如 NeurIPS, ICML, CVPR, ACL 等）发表过论文；\n\n在 ACM 编程竞赛、Kaggle 等知名算法竞赛中获奖；\n\n主导或深度参与过有较大技术影响力的大模型相关项目。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "HKnquLjY2syd7UNuoZKxQK",
+    "title": "控制算法工程师",
+    "company": "深圳欣锐科技股份有限公司",
+    "city": "上海",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/HKnquLjY2syd7UNuoZKxQK.html",
+    "description": "?岗位职责：\n1、OBC、DCDC的控制软件设计、开发和调试，配合硬件工程师验证硬件电路设计方案；\n2、进行控制算法仿真，输出电源控制参数的性能指标分析；\n3.、控制策略和调试测试结果总结，输出对应文档。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "Wzy7GrBPDy48ek8my47849",
+    "title": "算法工程师",
+    "company": "砺星工业科技（上海）有限公司",
+    "city": "上海",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/Wzy7GrBPDy48ek8my47849.html",
+    "description": "工作使命Job Mission:\n● 负责 2D/3D 图像处理、机器人视觉与机械臂控制算法 的前沿技术研究与开发，推动智能装配系统的创新与落地应用。\n主要工作任务Main Tasks：\n工作任务包括但不限于：\n● 开发视觉检测算法：包括图像预处理、特征提取、几何匹配、三维重建与点云分析。\n● 负责相机标定与系统校准，确保高精度成像与测量。\n● 应用深度学习技术解决复杂缺陷检测与智能识别问题。\n● 研究机器人视觉与操作：实现目标检测、定位、姿态估计及多源数据融合。\n● 设计并实现机械臂控制算法：运动学建模、轨迹规划、力控与柔顺控制。\n● 完成算法在跨平台的部署与优化。\n● 深入客户现场，分析并解决成像与控制问题，确保系统稳定运行。\n● 编写技术文档（设计方案、测试报告、参数说明）。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "9o9KGGPmz64X3AhcbKT7bx",
+    "title": "机器人算法工程师",
+    "company": "上海柏楚电子科技股份有限公司",
+    "city": "上海",
+    "salary": "10-15千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/9o9KGGPmz64X3AhcbKT7bx.html",
+    "description": "——方向一：\n1.负责CAM软件中刀具姿态生成核心算法的开发与优化，研究并实现空移路径算法开发和优化；包括机床、机械臂刀具路径规划、路径平滑；\n2.设计并实现加工任务排序与调度算法，解决单（多）个机器人的加工顺序优化问题（如TSP、多机器人任务规划和调度）；\n3.参与机器人离线编程平台开发，将三维模型加工路径提取并规划为机器人可执行的加工轨迹；\n4.结合现场机器人加工工艺，与现场工程师协作优化路径生成，优化整体加工效率与平稳性，迭代现有产品并开发新功能。\n——方向二：\n1. 多厂商机械臂快速适配：对接并维护主流机械臂/控制器（多型号、多协议），完成驱动、指令集映射、状态机、告警与异常恢复，保障稳定交付。\n2. 基于 ROS 2 的中间件开发：设计实现节点/话题/服务/动作接口，完善生命周期管理、通信可靠性、多线程并发与性能优化。\n3. 机器人能力生态扩展：引入仿真/虚拟调试、视觉/点云、示教与标定等能力，打造可复用“能力包”和工具链。\n4. 平台化接入与标准化组件输出：将机械臂能力接入公司体系，形成标准组件，支撑业务规模化复制。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "ExQkFKDdLjNYNBd8wJeDnD",
+    "title": "感知算法工程师",
+    "company": "上海柏楚电子科技股份有限公司",
+    "city": "上海",
+    "salary": "10-15千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/ExQkFKDdLjNYNBd8wJeDnD.html",
+    "description": "工作职责\n1.根据感知需求，负责传感器的选型；\n2.参与图像处理、点云处理算法的设计和开发工作；\n3.开发拥有工业级稳定性的客户端和服务端软件；\n4.熟悉感知解决方案的工作原理、流程，能够进行设计，开发，测试，调试，问题排查等。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "HrqcaYxW396uYEmZAJXXou",
+    "title": "算法工程师",
+    "company": "上海柏楚电子科技股份有限公司",
+    "city": "上海",
+    "salary": "10-15千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/HrqcaYxW396uYEmZAJXXou.html",
+    "description": "【工作职责】\n1.算法开发：设计、开发和优化高效的计算几何算法，用于处理复杂的几何模型，如曲线、曲面和三维实体，解决与几何相关的实际工程问题，如CAD建模、模拟仿真、路径规划和组合优化等。\n2.数学建模：挑战复杂的技术问题，将实际问题抽象为数学问题，并提出有效的创新性解决方案，分析和验证算法的数学正确性，保证在各种情况下的稳定性和可靠性。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "iz8VwAkKonMY58BGeKFi7",
+    "title": "几何算法工程师",
+    "company": "上海柏楚电子科技股份有限公司",
+    "city": "上海",
+    "salary": "10-15千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/iz8VwAkKonMY58BGeKFi7.html",
+    "description": "1. 研究并实现几何算法：偏置(offset)、求交、裁剪、特征识别、布尔运算，支撑刀路生成与工艺计算\n2. 实现并维护切割工艺策略：刀路引线、桥接、共边排样、桥接切割等\n3. 结合材料、设备，与现场协作优化工艺参数和算法\n4. 调研工艺需求，撰写工艺算法技术文档，迭代现有工艺模型",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "8DCxec64Lsb1iEi4sFiP7o",
+    "title": "L4自动驾驶算法工程师（新能源重卡）",
+    "company": "江苏零一汽车科技有限公司",
+    "city": "上海",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/8DCxec64Lsb1iEi4sFiP7o.html",
+    "description": "立即投递：https://zeron.jobs.feishu.cn/campus\n高级智能驾驶算法工程师 - 多模态大模型/VLM/VLA 上海 5\n高级智能驾驶算法工程师 - 强化学习(RL) 上海 4\n自动驾驶感知算法高级工程师 上海 3\n自动驾驶规划控制算法工程师 上海 2\n自动驾驶数据工程师 上海 5\nAI Infra研发工程师 上海 5\n端到端自动驾驶仿真算法工程师(3DGS/AIGC) 上海 5\n大模型部署和加速工程师 上海 3",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "8nD4VNbtUF6ThqvTavRUhf",
+    "title": "L4自动驾驶算法工程师",
+    "company": "江苏零一汽车科技有限公司",
+    "city": "上海",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/8nD4VNbtUF6ThqvTavRUhf.html",
+    "description": "职位描述\n-研发基于多模态大模型（VLM/MLLM/VLA/WM）的端到端自动驾驶算法。进行模型设计, 实现, 训练与验证。\n-开发基于端到端系统与大语言模型的的数据闭环工具链(自动标注/QA生成/长尾场景挖掘等)。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "4NYeuGR6f2LejZ55WS1bHd",
+    "title": "运动控制算法工程师",
+    "company": "上海爱仕达人形机器人有限公司",
+    "city": "上海",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/4NYeuGR6f2LejZ55WS1bHd.html",
+    "description": "负责人形机器人全身运动控制算法的设计与实现，包括步态规划、平衡控制、姿态稳定等\n建立并优化机器人运动学/动力学模型，开发基于 MPC、WBC 等算法的全身控制策略\n与硬件团队协作，完成 sim-to-real 迁移，在实机上验证和迭代控制算法\n参与机器人运动性能 benchmark 设计，持续提升运动稳定性与鲁棒性",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "AJYqHGzA853nFHeUGpc2GF",
+    "title": "算法工程师（智慧水务）",
+    "company": "浙江中控信息产业股份有限公司",
+    "city": "杭州",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/AJYqHGzA853nFHeUGpc2GF.html",
+    "description": "\"岗位职责：\n1、探索智慧水厂、水务等行业的算法，进行算法的可行性分析、原型开发、编写代码、性能优化等；\n2、直面业务的真实需求，帮助算法的产品化设计、现场效果调试，推进算法落地；\n3、与大佬们一起承担算法技术成果的整理工作，包括算法文档的维护，以及专利、论文等知识产权的输出；\n4、持续关注国内外最新技术的发展，开展算法需求和行业现状调研，进行算法技术难点攻关。\"",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "7MqfMjhALhrwegnc1ffaip",
+    "title": "后端开发工程师、前端开发工程师、算法工程师、测试技术开发工程师、运维研发工程师",
+    "company": "招银网络科技（杭州）有限公司",
+    "city": "杭州",
+    "salary": "15-20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/7MqfMjhALhrwegnc1ffaip.html",
+    "description": "（一）学历专业\n本科及以上学历，STEM类专业（科学、技术、工程、数学）。\n（二）毕业时间\n境内院校：2026年11月1日-2027年7月31日毕业，取得毕业证及学位证；\n境外院校：2026年8月1日-2027年7月31日毕业，取得学历（学位）证，且须在2027年8月底前取得国家教育部的学历（学位）认证。\n（三）工作地点\n深圳市、杭州市、成都市。",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "SE5VWxgySrNdoA2hH1CUx",
+    "title": "视觉算法工程师",
+    "company": "易思维（杭州）科技股份有限公司",
+    "city": "杭州",
+    "salary": "20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/SE5VWxgySrNdoA2hH1CUx.html",
+    "description": "【方向涵盖深度学习、缺陷检测、2D/2.5D/3D视觉、结构光、高精度三维测量等】\n1.参与机器视觉类产品开发项目，负责图像算法的设计、开发、测试、验证与优化工作；\n2.参与机器视觉类产品开发的全流程工作，支撑项目落地实施与持续技术支持；",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "A9TE4YcjbLeKxGNqvmbhJd",
+    "title": "机器人算法工程师（运动控制方向）",
+    "company": "浙江中控信息产业股份有限公司",
+    "city": "杭州",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/A9TE4YcjbLeKxGNqvmbhJd.html",
+    "description": "\"1、负责机器人系统（如机械臂、足式、轮臂等）的底层控制控制算法研发、调试和测试；\n2、负责机器人控制相关SDK的开发、调试和测试；\n3、根据项目场景，完成机器人测试、生产用程序的编写，确保产品质量和稳定性；\n4、负责相关技术文档的编写；\n5、负责跟进算法的最新发展及在产品中的应用。\"",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "ASCP5Er6CmyrE9gDpKhog",
+    "title": "AI算法工程师（基座模型方向）",
+    "company": "浙江中控信息产业股份有限公司",
+    "city": "杭州",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/ASCP5Er6CmyrE9gDpKhog.html",
+    "description": "\"1、负责多模态感知与理解，包括但不限于算法方案设计、后训练微调、性能优化、部署迭代等；\n2、负责Agent应用研发、优化与落地，包括但不限于RAG、工具调用、工作流编排等业务场景下的优化策略；\n3、参与数据集的构建、清洗、标注与评估，制定数据迭代策略，持续提升模型效果与泛化能力；\n4、跟踪多模态学习及大模型应用前沿技术，结合业务需求进行技术预研和创新，推动AI大模型在产品中落地的业务价值。\"",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "13wpt6Yvcqy95kVQU5mhpm",
+    "title": "机器人算法工程师（视觉伺服/导航/VLM方向）",
+    "company": "浙江中控信息产业股份有限公司",
+    "city": "杭州",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/13wpt6Yvcqy95kVQU5mhpm.html",
+    "description": "\"1、参与机器人算法研发、测试、优化及工程落地，方向包括机器人多传感器与导航定位方向、视觉伺服机械臂控制方向、VLA/VLM等具身智能方向；\n2、参与相机、激光雷达、IMU、GNSS、机械臂等机器人软硬件系统集成，以及数据采集、传感器标定、实验分析和真机测试；\n3、使用 Gazebo、MuJoCo、Isaac Sim 等仿真环境开展算法验证，跟踪机器人、具身智能等领域技术进展，完成算法复现与优化；\"",
+    "publish_date": "2026-09-27"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "HtdF7dM3sTXDQDG9Mi7PQJ",
+    "title": "导航算法工程师-27届",
+    "company": "成都国星通信有限公司",
+    "city": "成都",
+    "salary": "15-20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/HtdF7dM3sTXDQDG9Mi7PQJ.html",
+    "description": "岗位职责\n1.负责对接核心导航算法模块需求。\n2.负责开展核心导航算法模块专题设计。\n3.负责进行核心导航算法专题研发。\n4.负责完成核心导航算法模块开发成果验证。\n5.负责配合项目进行联调/集成。\n6.负责技术文档搜集、编制、整理和归档。\n7.协助解决产品相关专题问题。\n8.协助市场对接客户需求，解决客户需求。\n9.获取新技术、新算法、行业最新动态的相关信息并参与专业领域建设、技术提升等相关技术发展工作。",
+    "publish_date": "2026-09-27"
+  },
+  {
     "platform": "shixiseng",
     "job_id": "inn_zui4rxqyfui4",
     "title": "后端开发",
@@ -331,17 +1068,6 @@
   },
   {
     "platform": "niuke",
-    "job_id": "468736",
-    "title": "具身vla（抓取）算法工程师实习生",
-    "company": "美团",
-    "city": "深圳",
-    "salary": "300-350/天",
-    "url": "https://www.nowcoder.com/jobs/detail/468736",
-    "description": "负责基于视觉-语言-动作大模型（VLA）的抓取策略研发，实现自然语言指令驱动的开放场景抓取操作，推动泛化抓取能力在配送领域的落地；\n\n负责端到端感知-规划算法研发，探索基于大模型的端到端规划方法（如VLM/VLN驱动的行为决策与轨迹生成），评估前沿算法在实际配送场景的应用可行性并推动落地；\n\n负责数据的自动化标注、数据闭环体系建设，持续积累场景数据并驱动模型迭代；\n\n跟进行业最新AI算法动态（多模态大模型、世界模型、具身智能等），复现和优化前沿算法，保持算法在工业界和学术界的领先性；\n\n计算机科学、人工智能、自动化、电子信息、机器人等相关专业，硕士及以上学历；\n\n具备扎实的C/C++和Python编程功底，熟悉Linux开发环境，熟悉ROS/ROS2下机器人系统开发；\n\n熟练掌握PyTorch/TensorFlow等至少一种深度学习框架，具备扎实的深度学习与计算机视觉基础；\n\n熟悉目标检测、跟踪、语义分割、3D点云感知等视觉/激光感知任务，有实际项目落地经验；\n\n熟悉多模态大模型（VLM/VLA）、具身智能、端到端规划等前沿方向，有相关复现或研究经验者优先；\n\n熟练使用AI编程工具（如CodeX、Claude Code等）进行算法开发与代码生成，具备AI辅助编程的工程化实践能力，提升研发效率；\n\n具有良好的沟通能力、团队合作精神和高度的责任心。",
-    "publish_date": "2026-09-25"
-  },
-  {
-    "platform": "niuke",
     "job_id": "398550",
     "title": "多模态大模型评测和训练",
     "company": "上海人工智能实验室",
@@ -418,17 +1144,6 @@
     "publish_date": "2026-09-25"
   },
   {
-    "platform": "shixiseng",
-    "job_id": "inn_qa5talgymf0o",
-    "title": "具身智能算法实习生",
-    "company": "湃安智能",
-    "city": "杭州",
-    "salary": "薪资面议",
-    "url": "https://www.shixiseng.com/intern/inn_qa5talgymf0o?pcm=pc_SearchList",
-    "description": "【职位描述】\n湃安格物正在开展机器人测评基础设施建设，为机器人系统的研发、测试与评估提供软件工具和技术支持。我们重视扎实的工程能力、清晰的问题分析以及可靠的技术交付。湃安格物由浙江大学教授成立，在 Physical AI 与具身安全等领域有深厚基础。公司位于初创高速发展阶段，实习的学生除了有机会参与核心项目外，也可参与或主导学术科研，发表顶级会议论文。\n\n【岗位职责】\n1. 参与 VLA、机器人策略模型等具身智能算法的研究、复现与实验。\n2. 基于 Isaac Sim / Isaac Lab 等平台，搭建机器人仿真场景与自动化测评 Pipeline，开展具身智能算法的性能、安全与鲁棒性评测。\n3. 参与仿真与真机实验，包括数据采集、算法部署、测试及问题分析。\n\n【任职要求】\n1. 计算机、人工智能、自动化、机器人等相关专业本科/硕士/博士在读。\n2. 熟练使用 Python，熟悉 PyTorch 等深度学习框架。\n3. 了解 VLA、多模态模型、模仿学习、强化学习等具身智能相关技术。\n4. 熟悉 Isaac Sim / Isaac Lab / MuJoCo 等至少一种机器人仿真平台。\n5. 具备较好的算法实现和工程能力，能够独立完成算法复现、实验与问题排查。\n加分项\n1. 有 VLA、具身大模型、机器人学习相关项目或研究经历。\n2. 有 Isaac Sim / Isaac Lab、ROS / ROS2 或机器人真机调试经验。\n3. 有具身智能相关论文、开源项目或 Benchmark 开发经验。",
-    "publish_date": "2026-09-25"
-  },
-  {
     "platform": "niuke",
     "job_id": "447182",
     "title": "大模型算法工程师【2027届云弧计划】",
@@ -458,6 +1173,17 @@
     "city": "杭州",
     "salary": "400-500/天",
     "url": "https://www.nowcoder.com/jobs/detail/429176",
+    "description": "项目简介：\n近年来，AI多模态大模型在智能问答、图像生成、视频理解、医工交叉等领域表现出惊人的能力。多模态模型通过融合文本、图像、视频等多元数据，大大提升了AI的理解及生成能力。多模态大模型的训练通常经历预训练、中训练、后训练等阶段，其中中训练承上启下，承担跨模态对齐、长上下文扩展以及通用能力阶梯式增强等关键任务，是衔接预训练基础能力与后训练任务对齐、决定模型上限与下游表现的重要环节。随着应用场景的迅速扩展，多模态模型的数据收集、通用数据及评测体系建设、以中训练为核心的模型训练和自动评测成为模型研发迭代的基础环节。当前行业面临的挑战包括：1）高质量、多样化的多模态数据收集；2）标准化的数据标注体系建设；3）衔接预训练与后训练的高效多模态中训练与优化方法；4）科学、自动化的多模态模型评测技术。因此，本项目聚焦多模态大模型关键技术链路，以中训练为核心研究环节，系统开展数据收集、体系建设、中训练方法、表现评测等环节研究，推动多模态大模型的技术进步及落地应用。\n\n-目前正在攻读计算机科学或相关STEM领域的学士，硕士或博士学位\n-具有上述研究领域的相关经验，包括行业经验或作为参与实验室研究\n-熟练掌握python等编程语言，具备较强的动手能力，可以独立进行数据处理、模型训练，具备较强的问题排查解决能力\n-在国际会议上或核心期刊发表一份或多份出版物或论文的候选人优先\n-至少3个月的实习时间，有6个月以上实习时间的候选人优先",
+    "publish_date": "2026-09-25"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "434663",
+    "title": "多模态大模型算法实习生",
+    "company": "蚂蚁集团",
+    "city": "北京",
+    "salary": "400-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/434663",
     "description": "项目简介：\n近年来，AI多模态大模型在智能问答、图像生成、视频理解、医工交叉等领域表现出惊人的能力。多模态模型通过融合文本、图像、视频等多元数据，大大提升了AI的理解及生成能力。多模态大模型的训练通常经历预训练、中训练、后训练等阶段，其中中训练承上启下，承担跨模态对齐、长上下文扩展以及通用能力阶梯式增强等关键任务，是衔接预训练基础能力与后训练任务对齐、决定模型上限与下游表现的重要环节。随着应用场景的迅速扩展，多模态模型的数据收集、通用数据及评测体系建设、以中训练为核心的模型训练和自动评测成为模型研发迭代的基础环节。当前行业面临的挑战包括：1）高质量、多样化的多模态数据收集；2）标准化的数据标注体系建设；3）衔接预训练与后训练的高效多模态中训练与优化方法；4）科学、自动化的多模态模型评测技术。因此，本项目聚焦多模态大模型关键技术链路，以中训练为核心研究环节，系统开展数据收集、体系建设、中训练方法、表现评测等环节研究，推动多模态大模型的技术进步及落地应用。\n\n-目前正在攻读计算机科学或相关STEM领域的学士，硕士或博士学位\n-具有上述研究领域的相关经验，包括行业经验或作为参与实验室研究\n-熟练掌握python等编程语言，具备较强的动手能力，可以独立进行数据处理、模型训练，具备较强的问题排查解决能力\n-在国际会议上或核心期刊发表一份或多份出版物或论文的候选人优先\n-至少3个月的实习时间，有6个月以上实习时间的候选人优先",
     "publish_date": "2026-09-25"
   },
@@ -580,17 +1306,6 @@
     "salary": "300-400/天",
     "url": "https://www.shixiseng.com/intern/inn_frxbl2mj1hxu?pcm=pc_SearchList",
     "description": "【职位描述】\n走之是一家正在全面向 AI 驱动转型的旅行公司。\n\n我们借助 AI 分析和定制化开发，对外打通系统接口，对内推动数据流动，把繁重、重复的人力工作交给智能工具，用 Vibe Coding 重塑业务环节。\n\n如果你想亲身体验前沿 AI 在真实行业中的务实落地，看到 AI 给传统模式带来的真实改变，欢迎加入我们的 FDE 项目。与其围观 AI，不如亲手把它用进真实业务。\n\n【岗位职责】\n1.市场信息收集与分析，体系化爬取数据并监控热度，用 AI 把有价值的分析逻辑方法落地。\n2.分析游客对话与浏览行为，基于 LangGraph 搭建流程并查询信息，挖掘游客意愿，解答潜在疑问。\n3.逐步替代传统计调，打通各项成本数据流，自动获取报价变化，完成核算与动态定价，并合理分配资源。\n4.优化财务部门逻辑，从源头彻底重构财务流程，实现发票、报销、对账等全链路 AI 自动化。\n5.结构化分析走之及竞品的路线行程、景点、住宿和用车，定量分析行业产品趋势。\n6.全栈 AI 定制开发软件，如 GPS 车辆定位、图库素材分类检索、内部品牌创意点评等。\n\n【任职要求】\n1.本科及以上学历（985 优先），计算机、软件等相关专业，27/28 届，能完整实习至少 3 个月。\n2.具备扎实的软件开发基础，在服务器、数据库、接口调用等方面有丰富实践经验。\n3.是 Agent 及大模型产品的重度付费用户，完成过多个相关项目，熟练使用 LangGraph 等框架。\n4.具备 FDE 岗位需要的全栈落地能力，能做需求分析、关键节点把控，技术栈有广度，也能洞察潜在问题。\n\n薪资待遇：\n\n1.实习待遇：300 元/天（前 3 个月）- 400 元/天（3 个月之后）\n2.工作时间：周一至周五 9:00-18:00，每天 8 小时，每周 5 天，周末双休\n3.公司地点：成都地铁 19 号线牧华路站，金发科技国际科创中心\n4.面试流程：笔试答题 - 视频面试 - 线下面试",
-    "publish_date": "2026-09-24"
-  },
-  {
-    "platform": "niuke",
-    "job_id": "464743",
-    "title": "大模型算法工程师（可转正）",
-    "company": "蜀俊博凌",
-    "city": "成都",
-    "salary": "200-600/天",
-    "url": "https://www.nowcoder.com/jobs/detail/464743",
-    "description": "1.负责LLM模型的训练和调优，以满足特定业务场景需求；\n2.负责大模型相关的数据处理，包括数据爬取、数据增强、数据清洗、数据标注及后处理等；\n3.与其他团队成员紧密合作，完成模型集成及部署，保障模型稳定运行及持续优化；\n4.研究和应用新的NLP技术和趋势，深入理解底层算法原理，以支持业务创新和发展；\n\n1.本科及以上学历；\n2.扎实的机器学习、深度学习和自然语言处理理论基础，具备优秀的工程开发能力，有LLM模型训练和调优经验；\n3.熟悉PyTorch,TensorFlow等深度学习平台，熟练掌握Python/Java/Go/C++其中一门编程语言；\n4.能够对领域前沿技术保持持续关注和学习，愿意持续投入研究和解决挑战性问题；\n5.较强的问题分析和解决能力，良好的团队协作能力；",
     "publish_date": "2026-09-24"
   },
   {
@@ -1375,6 +2090,61 @@
     "publish_date": "2026-09-24"
   },
   {
+    "platform": "ncss",
+    "job_id": "2jMd4XQfef263JAwWxAyVC",
+    "title": "AI全栈工程师-27届(J10441)",
+    "company": "杭州天谷信息科技有限公司",
+    "city": "杭州",
+    "salary": "4-5千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/2jMd4XQfef263JAwWxAyVC.html",
+    "description": "岗位简介：本岗位参与企业内部数字化 AI 应用从 0‑1 规划搭建，以及 1‑N 产品迭代与业务赋能，深度参与 AI Agent、内部智能应用建设，面向公司内部业务场景落地大模型能力，驱动内部数字化转型。\n核心职责\n1. AI 应用全链路规划与建设\n参与企业内部数字化场景 AI 应用规划，协同业务方完成需求挖掘与分析；结合前沿 AI 技术完成方案设计，参与 AI Agent 以及 Skill 能力建设。深度理解各业务部门痛点，结合技术可行性协助输出产品路线图。将 AI Coding 工具融入研发流程，提升交付效率，落地可解决真实业务痛点的 AI 应用，赋能企业数字化转型。\n2. 产品运营与数据迭代\n参与 AI 应用上线后的运营工作，协助搭建应用效果评估、线上监控体系；基于真实使用数据、业务用户反馈，配合团队完成 AI 应用持续迭代优化。\n岗位要求：\n1. 学历与项目经历\n- 学历：统招本科及以上学历，计算机、人工智能、数学、自动化等相关专业优先，27 届应届毕业生。\n- 背景：具备产品思维同时拥有基础研发能力；实习、课程项目、个人开源项目均可替代全职工作经验。\n- 项目成果：**拥有至少 1 个完整可演示的 AI 应用实践项目**（智能问答、RAG 知识库、办公自动化 Agent 等，课程 / 竞赛 / 实习 / 个人开源均可），面试需要讲解项目案例；完整参与端到端项目交付者优先。\n2. 技术能力\n- 全栈开发：熟练掌握 Python / Java 其中一门后端语言；了解 React / Vue 至少一种前端框架，能够独立完成简单工具系统前后端原型开发。\n- AI 技术栈：理解大模型基础原理；了解 LangChain、LangGraph 等 Agent 开发框架；掌握 Prompt 工程基础实践；了解 RAG 完整流程，接触过 Milvus 等向量数据库优先。\n- 工程化能力：了解 MySQL、Redis 基础使用；了解 Linux 基础命令、Docker 基础部署流程；有服务调优实践经历为加分。",
+    "publish_date": "2026-09-24"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "DegwG1iDy4KdBweTdjGDA2",
+    "title": "AI全栈工程师",
+    "company": "无线生活（杭州）信息科技有限公司",
+    "city": "杭州",
+    "salary": "25千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/DegwG1iDy4KdBweTdjGDA2.html",
+    "description": "{\"gwzz\":\"岗位职责：\\n1.深度运用AI工具进行日常开发工作；\\n2.探索和优化AI辅助开发的最佳实践和标准化流程；\\n3.参与建设团队内部的AI开发工具链和知识体系；\\n4.基于AI能力重构传统开发流程，提升团队整体研发效能。\\n任职要求： \\n1.2026届本科以上学历，具有很强的学习和独立分析能力、工作责任心、良好的沟通能力和团体合作精神；\\n2.扎实的编程基础，熟练掌握Java/C++/Python等至少一门语言，具备良好的代码设计能力；\\n3.熟悉常用开发工具和协作流程；\\n4.有实际使用AI编程工具的经验优先，擅长与AI协作，能够有效提出需求、评估结果、迭代优化。\",\"rzzg\":\"专业需求：计算机技术、软件工程、人工智能等\",\"xzfl\":\"面议\"}",
+    "publish_date": "2026-09-24"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "W24WChekjVPQUxrtgyEdih",
+    "title": "全栈开发实习生",
+    "company": "咸亨国际科技股份有限公司",
+    "city": "杭州",
+    "salary": "3.5-4.5千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/W24WChekjVPQUxrtgyEdih.html",
+    "description": "岗位职责：1. Vue3+TS开发展厅大屏页面、复用组件，按固定分辨率还原设计，非响应式2. 用CSS/Sass/UnoCSS/SVG/Canvas实现页面动效，处理音视频多媒体展示3. 整合数据可视化：ECharts、地图、Three.js三维、全景组件（入职可学）4. 大屏性能调优，管理定时器、渲染、三维资源、组件生命周期5. 开发多屏联动，处理postMessage、WebSocket、iframe跨窗口通信6. 新旧版本共存维护，外部对接联调7. 参与构建发布，区分前后端问题，准确协同对接8. 使用AI辅助编码，校验生成代码质量，补充测试文档必备能力：1. 扎实HTML/CSS/JS，懂布局、动画、浏览器原理2. Vue3+Composition API，会TS写类型代码3. 高保真还原UI，可实现固定分辨率大屏布局4. CSS/SVG/Canvas至少一种实现交互动效5. 懂前端性能优化、组件生命周期6. 了解HTTP、WebSocket，会抓包定位问题，无需后端能力7. 会浏览器调试、Git协作8. 会使用AI编程，能提供有效上下文，校验修改AI产出代码",
+    "publish_date": "2026-09-24"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "SnEhLteGiqAvBvXMcnZ8fC",
+    "title": "全栈开发工程师-CR-0012",
+    "company": "每日互动（个推）",
+    "city": "杭州",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/SnEhLteGiqAvBvXMcnZ8fC.html",
+    "description": "岗位职责： 1、参与公司AI Agent平台的功能开发与日常维护，逐步熟悉平台基础能力；\n2、参与智能体Skills、Tools等能力组件的开发与调试，协助优化工具调用流程；\n3、结合业务场景开发简单的RPA自动化流程，体验业务流程智能化的落地过程； 4、参与业务智能体的功能实现与迭代，在实践中提升对大模型应用的理解。 岗位要求：\n1、2027届本科及以上毕业生，计算机、软件工程等相关专业，985&211&QS100院校优先； 2、对AI\nAgent、大模型应用开发有浓厚兴趣，了解Agent基本概念（ReAct、Planning、Tool\nUse等）或主流框架（LangChain、Dify、AutoGPT等）；\n3、至少扎实掌握一门主流编程语言（Python/Java/Go/Java script均可），有课程项目或自学项目经验，了解大模型基本调用方式或有Prompt编写经验者优先；\n4、具备良好的逻辑思维、代码规范意识和团队协作精神，对AI技术有热情，愿意主动学习前沿技术、敢于尝试新工具。",
+    "publish_date": "2026-09-24"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "TC7ZXjaT4bb55Ju16xbHMC",
+    "title": "全栈开发工程师-CR-0016",
+    "company": "每日互动（个推）",
+    "city": "杭州",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/TC7ZXjaT4bb55Ju16xbHMC.html",
+    "description": "岗位职责： 1、负责企业级软件系统的前后端功能开发、模块设计及高质量交付，保障代码的可维护性与可扩展性；\n2、参与产品需求分析、需求评审及技术方案讨论，主导或协助完成系统架构设计、技术选型及核心模块开发；\n3、与产品、测试及运维团队紧密协作，完成系统集成、前后端联调、部署上线及稳定性保障；\n4、持续开展系统性能分析与技术优化，提升系统响应速度、稳定性与用户体验，参与项目全生命周期管理。 岗位要求：\n1、2027届本科及以上学历，计算机或相关专业，有全栈或相关开发实习经验者优先、985&211&QS100毕业院校优先；\n2、熟练掌握Java script、HTML、CSS及Vue等主流前端框架，具备独立完成前端功能开发及前后端联调能力； 3、熟练掌握Java及Spring\nBoot、Spring Cloud、MyBatis等主流后端框架，熟悉MySQL及Redis、Kafka、RabbitMQ等常用中间件；\n4、熟悉Agent、智能体平台、RAG或大模型应用开发者优先，具备良好的代码规范意识、逻辑思维与沟通协作能力。",
+    "publish_date": "2026-09-24"
+  },
+  {
     "platform": "shixiseng",
     "job_id": "inn_rgzpvant1can",
     "title": "数据分析实习生-爬虫方向",
@@ -1438,17 +2208,6 @@
     "salary": "150-250/天",
     "url": "https://www.shixiseng.com/intern/inn_rqaxno945chy?pcm=pc_SearchList",
     "description": "【职位描述】\n我们是一家致力于将前沿AI技术与时尚美学融合的科技公司，正在打造首个由Agent驱动的时尚智能硬件产品。团队核心成员来自字节、微软等大厂，毕业于哈佛、杜克、哥大、北理工等国内外顶尖院校，且发布多篇国际顶会论文。在这里，你将作为 AI 的“审美导师”，从数据源头和评测端参与打造全球首个最懂时尚穿搭的Agent智能体\n\n你的舞台：\n1. 建立时尚知识图谱：参与搭建衣柜品类、面料、版型及流行趋势的标签体系，让 AI 更好地“看懂”用户的衣橱；将真实的搭配师案例、场景穿搭规范及色彩/体型修饰规则拆解，转化为结构化规则和数据\n2. Agent 时尚能力测评：建立时尚领域的 AI 推荐能力测评集，对 AI 输出的搭配方案、推荐逻辑和交互语气进行多维度打分与校准；针对生成结果中的“糟糕品味”或逻辑错误进行 Bad case 分析，持续优化算法\n3. 海外穿搭趋势与样本采集：关注欧美Fashion Icon、买手店及社媒爆款案例，收集并整理适合海外场景的真实人像与搭配素材\n4. 与算法团队协同：作为时尚与算法部门的“桥梁”，将时尚判断转化为算法需求、标签和评测标准，参与视觉识别与推荐 Agent 的迭代测试\n\n我们期望你：\n1. 专业与行业背景（符合以下任一均可）：\n- 服装设计/时尚管理/造型相关专业背景（欢迎Parsons、LCF、FIT、北服、东华、武纺、国美、央美等国内外顶尖艺术/时尚院校毕业生或在校生）\n- 有线下高端品牌/买手店导购、个人形象搭配师、时尚博主/红人、品牌买手等从业经验\n2. 审美极佳，逻辑清晰：不仅自己会穿、审美好，还要能说清楚“为什么这么搭才好看”，能把感性体验转化为可理解的规则\n3. AI科技敏感度：对 AI 工具充满好奇，愿意探索科技与时尚结合的无限可能；有时尚领域数据采集、标注、RLHF 评测或大模型提示词（Prompt Engineering）经验者优先\n4. 加分项：有北美/海外生活经历，熟悉欧美女性的穿搭习惯和审美偏好；英语可作为工作语言者优先",
-    "publish_date": "2026-09-23"
-  },
-  {
-    "platform": "shixiseng",
-    "job_id": "inn_vstr8t8cxayz",
-    "title": "Agent效果运营实习生 - 抖音社交与互动",
-    "company": "字节跳动",
-    "city": "深圳",
-    "salary": "350/天",
-    "url": "https://www.shixiseng.com/intern/inn_vstr8t8cxayz?pcm=pc_SearchList",
-    "description": "【岗位职责】\n团队介绍：抖音社交与互动团队服务于抖音连接人与人的愿景，希望为用户提供更好的社交、创作体验，以拓宽抖音的使用场景，成为更多人打开和使用抖音的新理由，提升抖音的用户规模。我们是一支有朝气、背景多元的团队，致力为用户提供最佳的产品体验，热衷听取用户声音和反馈，也运用科学严谨的分析方法，仔细衡量我们的工作成果。抖音社交与互动欢迎你的加入，和我们一起做有挑战的事情。\n\n日常实习：面向全体在校生，为符合岗位要求的同学提供为期3个月及以上的项目实践机会。\n\n1、负责多闪仔仔Agent评测体系搭建，包括对话相关测评集、制定测评标准与标准化SOP；\n2、负责日常评测工作，精准发现、梳理并深度分析Agent运行及能力问题，形成有效结论；\n3、联动算法团队输出问题清单与优化建议，持续反哺算法迭代与模型调优；\n4、跟进Agent能力迭代效果，复盘测评数据，动态优化测评规则与流程。\n\n【任职要求】\n1、本科及以上学历在读；\n2、有AI产品运营的相关经验，对AI和社交有热情，具备行业的认知和思考；了解AI Agent基本架构与工作逻辑，有大模型、AI Agent评测经验；\n3、有优秀的沟通能力、自驱力，善于跨部门沟通，有较强的责任心，敢于担当；\n4、有较强的自我驱动和学习能力。",
     "publish_date": "2026-09-23"
   },
   {
@@ -2164,6 +2923,61 @@
     "salary": "350-500/天",
     "url": "https://www.nowcoder.com/jobs/detail/164846",
     "description": "职责：计算机视觉（包括多模态大模型）的研发和应用落地\n详细：基于业界领先的自研视觉AI算法或开源大模型，用大规模的实际业务数据对视觉算法、大模型进行训练并应用落地，应用方向主要是对监控视频的人/物/场/车/事件进行智能理解和识别。业务落地方向包括：零售实体（商超、商场、物业、学校、品牌门店等）的防盗损、实体场空间的智慧客流和智慧巡检&风险管控等，已有大量的大品牌客户（如沃尔玛、大润发、吉利汽车集团、龙湖地产）在实际应用中，利用大模型来进一步提升包括但不限于以下行为识别效果：取放货品、扫码动作、试穿试戴、导购接待、抽烟、玩手机、吃东西、打架、物业巡检、安全事件、安防等，产出主要是算法模型/agent、专利或CCF-A论文。\n\n1.扎实的计算机视觉/多模态算法基础，熟悉以下相关方向技术：大模型、视频理解、动作识别、目标检测识别等。\n2.硕士或博士在读研究生，学校要求为著名211及以上院校，已有CCF-A类期刊或会议一作论文发表者优先\n3.可以在银泰商业集团-深象智能公司（杭州 或北京）实习至少5个月，每周不少于3天",
+    "publish_date": "2026-09-23"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "466425",
+    "title": "大模型算法工程师",
+    "company": "哔哩哔哩",
+    "city": "北京",
+    "salary": "300-520/天",
+    "url": "https://www.nowcoder.com/jobs/detail/466425",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-23"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "164845",
+    "title": "【阿里基因-深象智能实习生】视觉&多模态算法工程师",
+    "company": "阿里巴巴集团",
+    "city": "北京",
+    "salary": "350-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/164845",
+    "description": "职责：计算机视觉（包括多模态大模型）的研发和应用落地\n详细：基于业界领先的自研视觉AI算法或开源大模型，用大规模的实际业务数据对视觉算法、大模型进行训练并应用落地，应用方向主要是对监控视频的人/物/场/车/事件进行智能理解和识别。业务落地方向包括：零售实体（商超、商场、物业、学校、品牌门店等）的防盗损、实体场空间的智慧客流和智慧巡检&风险管控等，已有大量的大品牌客户（如沃尔玛、大润发、吉利汽车集团、龙湖地产）在实际应用中，利用大模型来进一步提升包括但不限于以下行为识别效果：取放货品、扫码动作、试穿试戴、导购接待、抽烟、玩手机、吃东西、打架、物业巡检、安全事件、安防等，产出主要是算法模型/agent、专利或CCF-A论文。\n\n1.扎实的计算机视觉/多模态算法基础，熟悉以下相关方向技术：大模型、视频理解、动作识别、目标检测识别等。\n2.硕士或博士在读研究生，学校要求为著名211及以上院校，已有CCF-A类期刊或会议一作论文发表者优先\n3.可以在银泰商业集团-深象智能公司（杭州 或北京）实习至少5个月，每周不少于3天",
+    "publish_date": "2026-09-23"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "466333",
+    "title": "大模型算法工程师",
+    "company": "小红书",
+    "city": "上海",
+    "salary": "300-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/466333",
+    "description": "1.负责LLM模型的训练和调优，以满足特定业务场景需求；\n2.负责大模型相关的数据处理，包括数据爬取、数据增强、数据清洗、数据标注及后处理等；\n3.与其他团队成员紧密合作，完成模型集成及部署，保障模型稳定运行及持续优化；\n4.研究和应用*新的NLP技术和趋势，深入理解底层算法原理，以支持业务创新和发展。\n\n岗位要求：\n1.计算机、数学、统计等相关专业本科及以上学历，有机器学习、LLM模型相关经验；\n2.扎实的机器学习、深度学习和自然语言处理理论基础，具备优秀的工程开发能力，有LLM模型训练和调优经验；\n3.熟悉PyTorch,TensorFlow等深度学习平台，熟练掌握Python/C++编程语言；\n4.能够对领域前沿技术保持持续关注和学习，愿意持续投入研究和解决挑战性问题；\n5.较强的问题分析和解决能力，良好的团队协作能力。\n6.实践动手能力强，在高水平技术评测或竞赛中获得To成绩、在开源组织有贡献或影响力者优先。有高水平论文者优先。",
+    "publish_date": "2026-09-23"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "466363",
+    "title": "大模型算法",
+    "company": "快手",
+    "city": "上海",
+    "salary": "300-520/天",
+    "url": "https://www.nowcoder.com/jobs/detail/466363",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-23"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "466336",
+    "title": "大模型算法工程师",
+    "company": "小红书",
+    "city": "杭州",
+    "salary": "300-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/466336",
+    "description": "1.负责LLM模型的训练和调优，以满足特定业务场景需求；\n2.负责大模型相关的数据处理，包括数据爬取、数据增强、数据清洗、数据标注及后处理等；\n3.与其他团队成员紧密合作，完成模型集成及部署，保障模型稳定运行及持续优化；\n4.研究和应用*新的NLP技术和趋势，深入理解底层算法原理，以支持业务创新和发展。\n\n岗位要求：\n1.计算机、数学、统计等相关专业本科及以上学历，有机器学习、LLM模型相关经验；\n2.扎实的机器学习、深度学习和自然语言处理理论基础，具备优秀的工程开发能力，有LLM模型训练和调优经验；\n3.熟悉PyTorch,TensorFlow等深度学习平台，熟练掌握Python/C++编程语言；\n4.能够对领域前沿技术保持持续关注和学习，愿意持续投入研究和解决挑战性问题；\n5.较强的问题分析和解决能力，良好的团队协作能力。\n6.实践动手能力强，在高水平技术评测或竞赛中获得To成绩、在开源组织有贡献或影响力者优先。有高水平论文者优先。",
     "publish_date": "2026-09-23"
   },
   {
@@ -3246,17 +4060,6 @@
   },
   {
     "platform": "ncss",
-    "job_id": "FiY7ZSeeEYtFzAc6s7GLJd",
-    "title": "AI agent软件工程师",
-    "company": "北京深朴智能科技有限公司",
-    "city": "北京",
-    "salary": "",
-    "url": "https://www.ncss.cn/student/jobs/detail/FiY7ZSeeEYtFzAc6s7GLJd.html",
-    "description": "岗位职责：\n1、核心算法研发与优化：\n○ 负责AI Agent的核心算法设计，重点突破任务规划、推理决策、多工具调用等能力，提升智能体在复杂场景下的自主性与适应性；\n○ 集成大语言模型与Agent框架，优化提示工程、思维链推理等关键技术，确保智能体高效执行用户指令。\n2、智能体系统构建与部署：\n○ 开发高可用、可扩展的Agent运行时系统，支持多智能体协作、状态管理与错误恢复；\n○ 设计并实现Agent后端服务，构建低延迟、高并发的智能交互平台。\n3、技术追踪与创新：\n○ 跟踪Agent领域前沿技术（如长上下文记忆优化等)，推动技术在实际场景中的快速落地。",
-    "publish_date": "2026-09-22"
-  },
-  {
-    "platform": "ncss",
     "job_id": "21W6LC9zFV2kEVxPPRw5aJ",
     "title": "具身大模型infra研究员/工程师",
     "company": "北京深朴智能科技有限公司",
@@ -3510,17 +4313,6 @@
   },
   {
     "platform": "niuke",
-    "job_id": "466747",
-    "title": "大模型算法工程师",
-    "company": "哔哩哔哩",
-    "city": "北京",
-    "salary": "300-500/天",
-    "url": "https://www.nowcoder.com/jobs/detail/466747",
-    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
-    "publish_date": "2026-09-22"
-  },
-  {
-    "platform": "niuke",
     "job_id": "468980",
     "title": "算法工程师",
     "company": "北京飞书网络技术有限公司",
@@ -3582,6 +4374,138 @@
     "city": "杭州",
     "salary": "330-530/天",
     "url": "https://www.nowcoder.com/jobs/detail/469354",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "467769",
+    "title": "大模型算法工程师",
+    "company": "洽客科技",
+    "city": "广州",
+    "salary": "300-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/467769",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "469393",
+    "title": "算法工程师",
+    "company": "金点数据",
+    "city": "广州",
+    "salary": "300-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/469393",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "469111",
+    "title": "算法工程师",
+    "company": "北京正生科技集团有限公司",
+    "city": "广州",
+    "salary": "300-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/469111",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "454986",
+    "title": "大模型算法工程师",
+    "company": "上海趋视信息科技有限公司",
+    "city": "深圳",
+    "salary": "300-570/天",
+    "url": "https://www.nowcoder.com/jobs/detail/454986",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "469373",
+    "title": "算法工程师",
+    "company": "顶辉数字",
+    "city": "深圳",
+    "salary": "320-540/天",
+    "url": "https://www.nowcoder.com/jobs/detail/469373",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "469303",
+    "title": "算法工程师",
+    "company": "商汤科技",
+    "city": "深圳",
+    "salary": "300-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/469303",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "468248",
+    "title": "大模型算法工程师",
+    "company": "滴滴",
+    "city": "上海",
+    "salary": "300-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/468248",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "469392",
+    "title": "算法工程师",
+    "company": "金点数据",
+    "city": "上海",
+    "salary": "300-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/469392",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "250410",
+    "title": "算法工程师（实习/正式均再招）",
+    "company": "华为HUAWEI",
+    "city": "上海",
+    "salary": "500-1000/天",
+    "url": "https://www.nowcoder.com/jobs/detail/250410",
+    "description": "工作地点：全国八大地域北京、上海、东莞、南京、西安、长沙、成都、济南可选；\n细分方向：通信算法、媒体算法。仿真算法、软件算法等多个细分方向；\n招聘范围：本硕博应届生\n2026.1.1-2027.12.31海内外应届博士生\n2026.1.1-2027.12.31海外本硕留学生\n2027.1.1-2027.12.30国内本硕应届生\n岗位职责\n从事泛通信领域新技术研究、系统分析设计，算法设计、仿真评估和标准提案、专利撰写等相关工作，支撑技术方案研究、产品特性开发、标准制定等：覆盖无线通信，光通信，卫星通信，电力线PLC，量子通信，通信感知一体化，介质记录等方向。\n1、负责PHY算法研究与实现，进行系统分析、仿真建模、参数标定、光传输信号处理、MIMO收发机、编码调制、人工智能技术等算法的开发，仿真验证及工程实现。\n2、负责PHY领域、HighLayer领域或未来网络部署运维架构、算法和关键技术总体方案设计，结合垂直行业的应用提出新思路和想法。\n3、负责MAC/RRM算法设计和仿真分析验证，包括业务调度优化，资源分配管理、干扰协同调度算法设计和仿真分析，验证和交付。\n4、负责移动网络、光网络等通信系统中的人工智能、大数据挖掘算法和解决方案的研究、设计、验证和交付。\n5、负责介质信道处理算法研究与设计，包括信道布局、磁信号检测、ECC编码、调制编码等算法的洞察、设计、验证和交付。\n\n岗位要求\n1、电子、通信、信号处理、物理、光学、模式识别、安全/密码、理论物理/高能物理、数学、计算机、AI/人工智能等相关专业；\n2、具备以下一项技能或者项目经验： \n1）了解通信原理，熟悉PHY/MAC/RRM基本算法原理和流程，熟悉3GPP协议，对数字信号处理/MIMO收发机/调度策略/资源管理等算法有深入理解者优先；\n2) 熟练掌握 PyTorch/TensorFlow 等其中一种主流深度学习框架，具备AI与通信跨领域背景优先\n3）有深厚的数学算法功底，熟悉计算机、数据库、Internet系统原理及相关协议，并有一定的软件开发能力； \n4）有良好的移动通信知识，熟悉计算机原理/软件开发，懂得IP网络/TCP/IP协议； \n5）熟练掌握至少一种编程工具（如 C/C++、Julia、Python、MATLAB ，NS2,CPLEX等），具备较强的编程开发通信算法能力。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "455069",
+    "title": "算法工程师",
+    "company": "上海得物信息集团有限公司",
+    "city": "上海",
+    "salary": "300-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/455069",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "467700",
+    "title": "大模型算法",
+    "company": "阿里巴巴集团",
+    "city": "杭州",
+    "salary": "300-530/天",
+    "url": "https://www.nowcoder.com/jobs/detail/467700",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-22"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "455676",
+    "title": "算法工程师",
+    "company": "4399游戏",
+    "city": "杭州",
+    "salary": "300-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/455676",
     "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
     "publish_date": "2026-09-22"
   },
@@ -4566,6 +5490,39 @@
   },
   {
     "platform": "niuke",
+    "job_id": "375768",
+    "title": "大模型算法工程师-27届华为秋招",
+    "company": "华为HUAWEI",
+    "city": "深圳",
+    "salary": "300-550/天",
+    "url": "https://www.nowcoder.com/jobs/detail/375768",
+    "description": "1 参与AI能力建设，参与解决方案的设计，系统架构设计，核心模块开发，算法预研试算等；\n2 解决AI企业落地中，安全，稳定，高效，可信问题，打造华为AI基础服务，构建华为企业AI底座；\n3 参与LLM模型的优化开发，如加速/吞吐量提升/昇腾适配；\n4 参与前沿AI技术的洞察与落地，如视频生成/多模态理解等。\n\n1 硕士及以上学历，计算机，计算神经科学，统计学，软件工程，信号处理，数据挖掘，应用数学，人工智能等专业优先考虑\n2 面向中国地区高校2027届毕业生，海外院校毕业时间在2026-2027年可投递；博士毕业时间为2026-2027年的可投递\n3 至少精通一门主流编程语言，如Python，C++等，熟悉深度学习算法及相关框架平台PyTorch，vLLM，DeepSpeed等；\n4 具备良好团队合作精神和沟通能力\n5 有AI算法/大模型实践相关经验优先\n6 有专利或国际会议论文发表经验者优先。 \n\n公司AI 战略部门，面向集团内部各业务领域， 做好业界各类优秀大模型引入、适配加速，解决如何让华为20w+员工用好大模型。目前已在小微助手、会议、客服等领域提供卓越的商业方案与服务，具备极高的竞争力。\n\n技术领域：涵盖大模型技术、多模态模型、机器学习、强化学习等领域，致力于打造华为“企业AI基础模型服务”\n\n部门具有积极、开放、支持、信任的团队氛围，工作方向是大模型的能力增强，包括但不限于特定能力微调、计算性能提升、复合任务编排等，侧重于技术和研究创新，更贴近业务，此刻即未来，加入我们共创智能化华为！在这里你可以获取到大模型业界最先进的技术，学习到大模型应用相关的解决方案。",
+    "publish_date": "2026-09-21"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "X7nJakjMy5uyRCNDfdyyC3",
+    "title": "后端开发工程师",
+    "company": "深圳乐动机器人股份有限公司（A03）",
+    "city": "深圳",
+    "salary": "25-40千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/X7nJakjMy5uyRCNDfdyyC3.html",
+    "description": "【岗位职责】\n1. 负责后台数据分析体系建设，建设智能割草机设备全生命周期分析能力。\n2. 建设受控数据访问层，为 BI、自助分析、AI Agent、MCP tools 等提供安全、稳定、可审计的数据查询能力。\n3. 设计并实现 AI Agent 应用，例如设备问题诊断助手、质量分析助手、售后排查助手、运营数据问答助手等。\n4. 协助开发割草机后端日常需求。\n【任职要求】\n1、本科及以上学历，计算机、软件工程、自动化、电子信息、机器人等相关专业，2026-2027届应届毕业生。\n2、扎实掌握C++/Python任意一种主力开发语言，熟悉常用数据结构与算法，具备规范的代码开发与调试能力。\n3、熟悉Linux/ROS开发环境，了解机器人软件架构、状态机设计、多线程/多进程开发基础，具备业务逻辑开发思维。\n4、了解机器人感知、定位、规控基础原理，能够理解底层算法输出结果，可独立完成上层业务功能适配与联调。\n5、具备良好的逻辑思维、问题分析与排查能力，能快速跟进需求迭代，适配产品快速更新的研发节奏。\n6、工作严谨负责，具备良好的团队协作与沟通能力，愿意深耕机器人上层应用开发，有较强的学习能力和抗压能力。\n【专业要求】无",
+    "publish_date": "2026-09-21"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "455593",
+    "title": "算法工程师",
+    "company": "杭州数云信息技术有限公司",
+    "city": "上海",
+    "salary": "300-520/天",
+    "url": "https://www.nowcoder.com/jobs/detail/455593",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-21"
+  },
+  {
+    "platform": "niuke",
     "job_id": "455933",
     "title": "算法工程师",
     "company": "数兴网络",
@@ -4764,17 +5721,6 @@
   },
   {
     "platform": "ncss",
-    "job_id": "KhyiFTbsPdoroQcnDf5xog",
-    "title": "算法工程师",
-    "company": "深圳市江波龙电子股份有限公司",
-    "city": "上海",
-    "salary": "15-20千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/KhyiFTbsPdoroQcnDf5xog.html",
-    "description": "工作职责： 1、 负责LDPC/BCH等ECC算法设计与性能评估，新型NAND ECC算法的研究； 2、 KV Cache压缩算法、透明压缩、智能预取算法、智能内存管理算法、端侧AI算法、加解密算法等技术研究； 3、 研究不同NAND颗粒特性及可靠性，设计NAND存储产品的Error Handle Flow 、Read Recovery Flow 、闪存管理算法等相关技术，提升NAND存储产品的性能和可靠性； 4、 研究开发闪存算法， 优化Retry Read算法、自动搜索Best Read技术、优化Soft Decode算法等, 提升产品的可靠性；",
-    "publish_date": "2026-09-20"
-  },
-  {
-    "platform": "ncss",
     "job_id": "2xspxtYFmNGzm7KjJUFcGn",
     "title": "大模型算法",
     "company": "杭州原创软件有限公司",
@@ -4874,6 +5820,28 @@
   },
   {
     "platform": "ncss",
+    "job_id": "TBXts1Xcf2P1NJCaR2oAnx",
+    "title": "后端开发工程师",
+    "company": "深圳优艾智合机器人科技有限公司",
+    "city": "深圳",
+    "salary": "20-30千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/TBXts1Xcf2P1NJCaR2oAnx.html",
+    "description": "1.参与软件的设计、开发和实施，确保解决方案符合客户需求；\n2.使用Java等编程语言，结合相关开发工具，进行项目开发；\n3.与团队合作，进行软件的详细设计，并负责单元测试；\n4.优化现有系统的性能，提升系统的稳定性和扩展性；\n5.跟踪和研究新技术，以提高产品的竞争力。",
+    "publish_date": "2026-09-20"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "7NkQXTka3yZyVHXcephbxu",
+    "title": "Java后端开发工程师",
+    "company": "深圳绿米联创科技有限公司",
+    "city": "深圳",
+    "salary": "10-15千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/7NkQXTka3yZyVHXcephbxu.html",
+    "description": "· 负责Aqara IoT云平台及App后端服务的开发与维护，支撑千万级设备的稳定接入；\n· 参与高并发、高可用微服务架构的设计、开发与演进；\n· 负责设备接入、消息推送、用户数据管理等核心业务模块的研发；\n· 参与系统性能优化、稳定性建设与线上问题排查。",
+    "publish_date": "2026-09-20"
+  },
+  {
+    "platform": "ncss",
     "job_id": "JyaWJ6wPkT8w6bVyPMTgsa",
     "title": "精英算法研发工程师（全栈发展）珠海/广州",
     "company": "珠海金山办公软件有限公司",
@@ -4925,6 +5893,17 @@
     "salary": "31.7千元/月",
     "url": "https://www.ncss.cn/student/jobs/detail/BNzEamtcvzudhsTD491HEU.html",
     "description": "{\"gwzz\":\"岗位亮点：\\n在这里，你将亲历“人工智能+”时代AI科技公司算法专家的成长之路，\\n探索多模态大模型与计算机视觉融合创新，从事图像理解、生成、OCR等算法研发。你所攻关的“让机器看懂屏幕”技术，正是实在 Agent 登顶 OSWorld 全球总榜（任务成功率 90.2%）的核心支撑——在真实生产场景中推动视觉智能落地，成长为多模态领域的算法专家。\\n\\n岗位职责：\\n1. 研发多模态大模型与计算机视觉算法，聚焦智能屏幕语义理解（ISSUT）、图像处理、OCR、目标检测等技术方向；\\n2. 推动模型设计、训练优化、工程部署及产品化落地，支撑数字员工像人一样看懂各类软件界面（从新版 Web 系统到老旧 CS 客户端）；\\n3. 跟踪顶会技术动态，开展技术复现与创新，输出行业领先方案。\",\"rzzg\":\"1. 硕士及以上学历，计算机、数学、电子信息等相关专业；\\n2. 熟悉多模态大模型训练调优、CV基础算法（如分割/检测/OCR）；\\n3. 掌握PyTorch/Tensorflow等框架；\\n4. 精通Python/C++/Java至少一门语言，具备扎实的算法与工程实现能力；\\n5. 能快速阅读并理解国内外领域论文；\",\"xzfl\":\"超长年假、丰厚年终奖金、七险一金、Happy Friday下午茶、高端体检、餐补、团建经费\"}",
+    "publish_date": "2026-09-19"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "9oyL9bxPonMRDadFF9o8tJ",
+    "title": "服务端研发工程师（全栈发展）-珠海/广州",
+    "company": "珠海金山办公软件有限公司",
+    "city": "广州",
+    "salary": "20.8千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/9oyL9bxPonMRDadFF9o8tJ.html",
+    "description": "{\"gwzz\":\"投递网址：join.wps.cn或微信搜索公众号：金山办公招聘-校园招聘\\n工作职责：\\n1. 负责核心业务系统的架构设计、功能开发与持续迭代；\\n2. 探索 AI 能力在办公场景的服务端落地。\",\"rzzg\":\"任职要求：\\n1. 对服务端技术抱有热情与钻研精神，愿意在此基础上向全栈方向拓展；\\n2. 熟悉 TCP / HTTP 协议，常用版本控制软件的使用；\\n3. 掌握 golang / php / C++ / Java 任一开发语言；\\n4. 熟悉客户端（Android / iOS / 鸿蒙）或前端（React / Vue / Type script）等任一技术方向者优先。\",\"xzfl\":\"海景办公\"}",
     "publish_date": "2026-09-19"
   },
   {
@@ -5237,22 +6216,11 @@
   },
   {
     "platform": "ncss",
-    "job_id": "FPsEDCZSvw9u9Edt2WTR9t",
-    "title": "软件开发工程师（C/C++/Java/C#/Python）",
-    "company": "卡斯柯信号有限公司",
-    "city": "上海",
-    "salary": "",
-    "url": "https://www.ncss.cn/student/jobs/detail/FPsEDCZSvw9u9Edt2WTR9t.html",
-    "description": "岗位职责：\n1)负责铁路、地铁核心信号系统软件的研发工作；\n2)负责信号系统软件的需求、设计、编码、调试及文档编制工作；\n3)参与软件研发全生命周期管理；\n4)参与相关系统和软件方案的技术评审；\n5)参与软件测试、现场实施的技术支持，对各铁路、地铁项目开通上线及稳定运行提供技术保障。",
-    "publish_date": "2026-09-18"
-  },
-  {
-    "platform": "ncss",
     "job_id": "2rfai6finhxjxwkSxCC9cG",
     "title": "前端开发工程师",
     "company": "招银网络科技（杭州）有限公司",
     "city": "杭州",
-    "salary": "10千元/月",
+    "salary": "",
     "url": "https://www.ncss.cn/student/jobs/detail/2rfai6finhxjxwkSxCC9cG.html",
     "description": "【职位职责】\n1. 负责招商银行各类应用系统Web前端开发，参与全栈式或移动端开发；\n2. 研究前沿Web技术，如AI代码生成、智能UI等，并在实际项目中运用。\n【职位要求】\n1. 本科及以上学历，STEM类专业（科学、技术、工程、数学）；\n2. 2027年应届毕业生，境内院校最高学历毕业时间为2026年11月1日-2027年7月31日，境外院校最高学历毕业时间为2026年8月1日-2027年7月31日；\n3. 热爱前端技术，熟悉HTML5、CSS3、JS，掌握React、Vue、Angular中一种或多种开发框架；\n4.了解Java、Node.JS、.Net、PHP、Python等技术，有相关项目开发经验者优先；\n5.了解大模型，具备相关实践经验者优先；\n6. 逻辑思维严密，沟通良好，有较强的学习和分析能力，具备团队合作意识；\n7. 品行端正，无不良行为记录。",
     "publish_date": "2026-09-18"
@@ -5732,28 +6700,6 @@
   },
   {
     "platform": "ncss",
-    "job_id": "SPf995c8UsmQQLj3xXpwTJ",
-    "title": "算法工程师",
-    "company": "唯导（上海）科技有限公司",
-    "city": "上海",
-    "salary": "",
-    "url": "https://www.ncss.cn/student/jobs/detail/SPf995c8UsmQQLj3xXpwTJ.html",
-    "description": "1. 基于SPAD-TCSPC光子计数直方图，设计深度学习模型（1D-CNN/Transformer等）实现峰值检测、低SNR深度解算与多径抑制；\n2. 构建dToF端到端深度估计hybrid pipeline，融合传统直方图拟合与数据驱动方法；\n3. 搭建蒙特卡洛光子传输仿真数据链，结合实测数据完成模型训练与评测；\n4. 与相关团队协同，参与算法-硬件联合优化及端侧轻量化部署；\n5. 跟踪CVPR/ICCV/NeurIPS/Optica等前沿进展，支持论文与专利产出。",
-    "publish_date": "2026-09-16"
-  },
-  {
-    "platform": "ncss",
-    "job_id": "DoMyy9LrXoH4TP9EYSrmMw",
-    "title": "AI全栈开发工程师",
-    "company": "上海之江生物科技股份有限公司",
-    "city": "上海",
-    "salary": "10-12千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/DoMyy9LrXoH4TP9EYSrmMw.html",
-    "description": "岗位职责：\n1.负责AI应用的全栈开发与落地，包括智能问答、内容生成、Agent工作流等核心功能，并与业务系统深度集成。\n2.基于LangGraph、Dify、LangChain等框架，开发可复用的AI服务API与专用Agent，支持多Agent协作与复杂任务编排。\n3.开展RAG数据的清洗、标注及特征工程建设，设计并优化Embedding检索 大模型生成链路，持续提升检索精度与生成效果。\n4.借助AI编码工具高效完成前后端开发：后端使用Python/Java构建高性能服务，前端基于Vue3/React及HTML/CSS/JS实现交互界面。\n5.深入业务场景，将AI技术嵌入业务流程，设计并落地AI驱动的智能化方案，提升业务效率与智能化水平。",
-    "publish_date": "2026-09-16"
-  },
-  {
-    "platform": "ncss",
     "job_id": "RDJ9h8VKkV45vDPqtrh3jg",
     "title": "2027届Agent开发工程师(Java/C++/移动端方向)",
     "company": "杭州华橙网络科技有限公司",
@@ -6183,17 +7129,6 @@
   },
   {
     "platform": "shixiseng",
-    "job_id": "inn_ugln6kckjxwu",
-    "title": "AI Agent 运营增长实习生",
-    "company": "视界引擎",
-    "city": "北京",
-    "salary": "200/天",
-    "url": "https://www.shixiseng.com/intern/inn_ugln6kckjxwu?pcm=pc_SearchList",
-    "description": "【职位描述】\n【工作内容】\n1. 参与种子用户社群搭建和运营，进行社群的维护、指导用户使用产品、社群答疑等，增加社群活跃度，建设良好互动社群氛围\n2. 通过社群运营持续挖掘用户痛点，协助开展数据统计，为产品迭代整理重点用户案例，定义产品需求\n3. 参与策划和执行运营活动，包括用户裂变、挑战赛、创意玩法等，提升社群活跃度和用户创作意愿\n4. 安排并参与用户深度访谈、市场调研、竞品调研等，协助团队收集和总结重要用户洞察\n5. 增长相关工作，深度参与包括投放、内容运营、达人运营等工作，调研海外内容生态并生产爆款内容\n\n【职位要求】\n1. Base北京，本科硕士均可\n2. 有较多AI产品使用经验，对AI行业有一定认知和理解\n3. 沟通能力强，逻辑清晰、执行力强，具备快速学习能力与抗压能力\n4. 有基础宣传素材制作能力，会使用capcut/midjourney等制作宣传素材\n5. 具备出色的分析和问题解决能力，能将复杂问题拆解为可执行的排查步骤\n6. 每周工作时间不低于4天，实习期不低于3个月",
-    "publish_date": "2026-09-14"
-  },
-  {
-    "platform": "shixiseng",
     "job_id": "inn_5ehaouo8ewmh",
     "title": "大模型应用算法工程师",
     "company": "快手",
@@ -6322,6 +7257,17 @@
     "salary": "12千元/月",
     "url": "https://www.ncss.cn/student/jobs/detail/Md5NhbK4JxrbM7whAgXs4v.html",
     "description": "岗位描述\n1、深度参与算法在游戏场景的落地实践，聚焦LLM、Agent、强化学习、游戏 AI 机器人等核心业务方向，探索算法技术与游戏玩法、运营等环节的融合路径，驱动产品体验与业务效率升级；\n2、独立负责算法全流程落地工作，涵盖样本采集与清洗、特征设计与工程化、模型选型训练、效果评估与迭代优化等日常核心任务，保障算法方案的可行性与落地效果。\n岗位要求\n1、硕士以上学历，计算机、软件工程、数学等相关专业，在校成绩优异；\n2、有强化学习相关人工智能领域研究或项目经验，并有一定的工程实现能力；\n3、熟练使用至少一种主流机器学习框架，精通至少一种编程语言（如 Python、C++ 等），能独立完成算法代码开发与调试；\n4、具备极强的逻辑分析与抽象思维能力，学习能力突出，能快速跟进人工智能领域前沿技术动态并应用于实际工作；\n5、工作积极主动，具备良好的跨团队沟通协作能力，有强烈的结果导向意识和团队合作精神。",
+    "publish_date": "2026-09-14"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "6mi6NHpPSu6eMbfQPmu98d",
+    "title": "后端开发工程师",
+    "company": "银河电力集团股份有限公司",
+    "city": "深圳",
+    "salary": "10-20千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/6mi6NHpPSu6eMbfQPmu98d.html",
+    "description": "1、负责电力相关系统的后端开发工作；\n2、负责项目的整体系统模块优化方案设计并负责核心模块的编码或改造；\n3、解决项目中的技术难题，负责项目中关键技术难点的攻关和预研；\n4、参与团队技术规范的制定并严格执行；\n5、主动参与技术分享和交流，不断学习相关技术，保持个人在同行业的竞争力。",
     "publish_date": "2026-09-14"
   },
   {
@@ -6721,6 +7667,17 @@
     "publish_date": "2026-09-11"
   },
   {
+    "platform": "niuke",
+    "job_id": "420808",
+    "title": "大模型推理优化实习生",
+    "company": "UCloud",
+    "city": "上海",
+    "salary": "200-300/天",
+    "url": "https://www.nowcoder.com/jobs/detail/420808",
+    "description": "1. 负责LLM/VLM大模型的部署与推理性能优化，系统性降低硬件延迟瓶颈，保障高并发下线上服务稳定性（TTFT与TPOT满足SLA要求）。\n2. 探索前沿推理加速技术，推动在新型GPU/NPU等硬件上的落地。\n\n1. 精通Python，熟悉C++，具备高性能代码开发与算法实现能力。\n2. 至少具备以下2个领域中的实践经验：\n    - a. Transformers与Diffusers库，深入理解Attention变体（GQA、MLA、Linear Attn、Sparse Attn）及其优化技术（FlashAttention、PagedAttention）；\n    - b. GPU编程（CUDA/cutlass/Triton/TileLang开发）且掌握性能分析工具（Nsight、PyTorch Profiler等）；\n    - c. 模型压缩（量化、稀疏化、知识蒸馏）；\n    - d. GPU集群通信架构（卡间通信NVLink/PCIe，机间通信RDMA/RoCE），理解NCCL、HCCL等通信库的工作机制；\n3. 符合以下条件者优先：\n    - a. 有超大规模模型（1T参数以上）的分布式部署经验；\n    - b. 有推理系统经验，如为vLLM、SGLang、TensorRT-LLM贡献过核心PR；\n    - c. 有投机采样（Speculative Decoding）的落地与优化经验（如EAGLE、DFlash等）；\n    - d. 有相关开源项目、专利或论文发表；\n    - e. 有国产芯片（如昇腾、海光等）的在线服务加速经验。\n4. 良好的团队协作能力与工程落地能力，对技术有持续热情。",
+    "publish_date": "2026-09-11"
+  },
+  {
     "platform": "shixiseng",
     "job_id": "inn_0fb42ljc8caw",
     "title": "AI agent 运营(A73098)",
@@ -6971,6 +7928,17 @@
     "salary": "1.5-3千元/月",
     "url": "https://www.ncss.cn/student/jobs/detail/HWFyDf4SX4P7VuuGyzDQFi.html",
     "description": "岗位职责：1、参与公司物流类业务系统后端开发与迭代，完成业务模块编码与功能实现；2、负责后端接口设计开发，配合前端开展接口联调，根据项目需要参与需求沟通；3、编写技术文档，整理接口文档、数据库设计文档，定期维护更新；4、参与项目测试，定位修复系统bug，协助完成版本发布；5、协助技术负责人，参与数据库优化、问题排查，保障系统稳定运行；6、根据技术规划，完成开发任务目标，提升系统性能，保障业务高效运转。岗位要求：1、本科及以上学历，2027届实习生优先录用；2、有Java项目开发实习经验者优先考虑；3、计算机相关专业、软件工程、大数据等相关专业；4、有较强的逻辑思维能力，具备良好的问题排查能力；5、熟悉SpringBoot、MySQL，了解Redis等中间件，有课程设计、实训项目经验优先；6、学习能力强，具备良好代码规范，有团队协作意识；",
+    "publish_date": "2026-09-10"
+  },
+  {
+    "platform": "shixiseng",
+    "job_id": "inn_pdyhdbq0jqmv",
+    "title": "AI 应用实习生（AI Agent 方向 · 远程）",
+    "company": "上海语侬",
+    "city": "上海",
+    "salary": "薪资面议",
+    "url": "https://www.shixiseng.com/intern/inn_pdyhdbq0jqmv?pcm=pc_SearchList",
+    "description": "【职位描述】\n这是一个怎么样的实习\n这段实习的第一个月，我们投入时间在你身上，重心放在陪伴式的学习和成长上。我们想给愿意投入的同学一套量身定制的学习路径：按你的兴趣和起点安排内容，一路带到你能真正参与AI智能体搭建项目。我们能提供的包括：\n• 和技术负责人一对一交流。 技术总监级别的同事对你直接负责，随时能约。\n• 每周一次周会复盘。 这周学习进度我们一起复盘，当场答疑。\n• 按你的兴趣定学习任务。 你更想钻 Agent 编排还是 企业交付？我们按你的方向安排内容。\n• 理论和上手同步。 学到的东西有对应的动手任务，让理论可以付诸于实践。\n\n具备参与能力之后，你会跟着真实客户项目走完一轮完整流程：\n1. 参与客户需求的沟通与拆解，搞清楚客户到底想解决什么问题\n2. 参与 AI 方案的设计与讨论，判断哪些环节适合交给 AI\n3. 写轻量脚本和小工具直接服务项目，比如把两个系统之间的数据打通\n4. 参与测试和上线准备，看到一个 AI 应用从能跑起来到客户愿意用之间发生了什么\n\n你能获得什么\n1. 一套为你定制的 AI 学习路径\n按你的兴趣和起点定制，随时答疑，每周复盘。\n2. 一段可以写在简历上的 AI 项目经历\n你将参与面向大型企业客户的 AI 智能体项目。从需求走到上线交付，你明白它当初为什么这么设计，痛点是什么，积攒实地经验。\n3. 真实客户和真实业务场景\n大部分同学接触 AI 是从模型和 Prompt 开始的。在这里你会直接看到同一个技术在真实业务里为什么会失败，又该怎么改进。\n4. 正规实习证明，支持实习背调\n5. 表现优秀者优先转为项目制长期合作\n优秀同学我们会邀请以项目制方式继续合作，按项目和实际产出结算。\n\n关于我们\n我们是一支早期 AI 创业团队，帮企业把 AI 智能体真正用进日常业务流程里。\n团队负责人有二十余年企业级技术交付和数字化转型经验，长期服务行业头部及国际化大型企业客户，曾担任技术交付总监，带队完成过大型企业应用平台的完整交付链路。我们已经多位国际公司客户，项目落地推进中。\n\n【任职要求】\n不设技术门槛和背景要求。我们真正关心你是否：\n• 有好奇心，对 AI 怎么在真实业务里落地感兴趣\n• 愿意学，愿意坚持保持学习\n• 有责任心，远程环境下能管好自己的节奏，进度和问题主动同步\n• 愿意长期投入，前期是我们在花时间带你，也希望你走得远一点\n会 Python 或者玩过 AI 工具会让你上手更快，但都不是门槛。学习路径本来就按你的起点来定。\n\n实习说明\n工作形式：全程远程，时间相对灵活\n投入周期：希望稳定投入 6 个月以上，长期参与者优先。第一个月我们主要在带你学，真正参与项目要到之后。持续参与，你才能从\"跟着学\"走到\"能独立负责一块\"，这段经历才算真的落进简历里。\n关于报酬：实习期以学习和项目参与为主，不提供固定薪酬。后续进入项目制合作阶段，根据具体项目和实际产出面议。\n\n投递方式\n直接投递，或请将简历发送至招聘邮箱，邮件标题注明「AI 应用实习生 + 姓名 + 学校 + 每周可投入时间」。\n我们会认真回复每一份认真投递的申请。",
     "publish_date": "2026-09-10"
   },
   {
@@ -7235,6 +8203,39 @@
     "salary": "",
     "url": "https://www.ncss.cn/student/jobs/detail/LPpKxvxVNMC4Bf7G3LaiqW.html",
     "description": "工作职责\n1.负责机器人具身操作任务的强化学习算法设计、开发和优化；\n2.研究多模态学习方法，结合视觉、触觉、力反馈提升机器人决策能力；\n3.开发任务规划与控制策略，解决复杂任务分解和长时间规划问题；\n4.优化从模拟到现实（Sim2Real）的迁移技术，提升算法鲁棒性；\n5.跟踪前沿技术，进行强化学习算法的调研、性能对比和评估；\n6.根据需求完成算法开发与代码维护，协助测试团队优化算法性能。\n任职资格\n1.硕士及以上学历，人工智能、计算机、机器人学等相关专业；\n2.掌握强化学习理论，熟悉PPO、DQN、SAC等主流算法；\n3.精通Python，熟悉PyTorch或TensorFlow等深度学习框架；\n4.熟悉Mujoco、IsaacGym、PyBullet等机器人仿真工具；\n5.熟悉LLM/VLM/VLA，了解RT-1/2、OpenVLA等多模态具身大模型经验者优先；\n6.在顶会发表论文或具备机器人项目经验者优先；\n7.工作积极主动，具备良好的团队合作与问题解决能力。",
+    "publish_date": "2026-09-09"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "455882",
+    "title": "算法工程师",
+    "company": "安克创新",
+    "city": "深圳",
+    "salary": "300-520/天",
+    "url": "https://www.nowcoder.com/jobs/detail/455882",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
+    "publish_date": "2026-09-09"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "28sgXX8VMMB8XRLcyPQn69",
+    "title": "后端开发工程师、前端开发工程师",
+    "company": "招银网络科技（杭州）有限公司",
+    "city": "深圳",
+    "salary": "15-25千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/28sgXX8VMMB8XRLcyPQn69.html",
+    "description": "【后端工程师】\n1. 负责招商银行信息化系统的建设，包括渠道交互、业务产品、核心框架、管理体系、基础架构等所有领域，涉及银行零售业务、对公业务、同业业务、投资业务、风险业务、管理业务等传统及新兴业务领域；\n2. 负责招商银行各个应用系统的规划、设计、实施和运维，包括系统分析、架构设计、功能实现、性能优化和AI应用等工作；\n3. 负责需求分析、需求挖掘、需求优化，配合业务部门参与业务规划，推动金融创新。\n【前端工程师】\n1. 负责招商银行各类应用系统Web前端开发，参与全栈式或移动端开发；\n2. 研究前沿Web技术，如AI代码生成、智能UI等，并在实际项目中运用。",
+    "publish_date": "2026-09-09"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "455880",
+    "title": "算法工程师",
+    "company": "安克创新",
+    "city": "上海",
+    "salary": "300-520/天",
+    "url": "https://www.nowcoder.com/jobs/detail/455880",
+    "description": "工作职责\n1面向供应链业务，负责服务供应链系统人工智能中心的设计、开发与部署，维护并优化现有系统，以满足复杂且快速变化的业务场景需求。\n2.搭建人工智能中心，运用人工智能技术赋能各类业务功能，例如需求预测、库存监控、流程自动化等。\n3.审阅业务需求文档，使用Python、SQL及其他同类编程语言开发自动化解决方案。\n\n任职要求\n1.计算机科学、计算机工程、软件工程或相关专业本科及以上学历。\n2.有人工智能或Python软件开发相关工作经验。\n3.能够针对复杂业务场景，设计创新且高效的人工智能系统架构；运用人工智能算法提升系统的决策能力与预测精度，满足多样化的业务需求。\n4.具备良好的沟通能力与英语语言能力。（必须)\n5.扎实掌握机器学习（如分类、聚类算法）与深度学习（如循环神经网络、Transformer模型）相关理论。了解智能体(Agent)的基础架构（如任务规划、内存管理、工具调用)；熟悉LangChain、AutoGPT等框架者优先。\n6.掌握检索增强生成(RAG)、多智能体协作(MCP/A2A)等技术。\n7.熟悉主流大模型（如GPT、深度求索、LLaMA、文心一言)及其微调方法；具备基础的提示词工程(Prompt Engineering).经验，能够通过提示词调优优化模型输出效果；了解轻量化模型部署技术（如OLLMA、模型量化)。",
     "publish_date": "2026-09-09"
   },
   {
@@ -7623,6 +8624,39 @@
     "publish_date": "2026-09-08"
   },
   {
+    "platform": "ncss",
+    "job_id": "BVpgvNbawEbWRchxmhqSzB",
+    "title": "程序员（前/后端开发岗） 深圳",
+    "company": "瑞霆狗(深圳)信息技术有限公司",
+    "city": "深圳",
+    "salary": "10-15千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/BVpgvNbawEbWRchxmhqSzB.html",
+    "description": "职责描述:\n1、参与公司SaaS平台研发工作；\n2、参与代码编写，开发与维护产品模块；\n3、参与Python相关模块的开发与维护工作\n4、配合团队完成模块的测试，确保代码质量\n5、持续优化用户体验和平台响应速度。\n6. 熟悉爬虫原理，有爬虫相关项目开发经验者优先\n任职要求:\n1、面向2027届毕业生，本科及以上学历，计算机相关专业；\n2、学习过C语言、数据结构，具有基本的算法编写能力；\n3、了解数据库，具有基本的SQL编写能力；\n4. 对 Python 编程语言有浓厚兴趣，并渴望深入学习和掌握其核心技术；\n5. 对selenium、scrapy、requests等模块熟悉。会用正则，xpath，jsonpath对结果解析，具有一定的web逆向能力；\n6. 熟悉MySQL、Redis数据库。\n7. 掌握http协议，熟悉html、dom、xpath等常见的数据抽取技术\n8. 热爱互联网，对互联网相关业务和技术充满好奇及热情\n9、有相关竞赛类奖项，有同行业实习/工作经验者优先。\n前端方向\nWeb 开发\n1. 必须技能：Html(html5),Css,Js(java script) ；\n2. 加分技能：Vue,React, Agular以上框架熟练使用其中一项即可；可熟练使用Git, Es6, Es7, Antd, Element, Sass, Less, Vits, Webpack 等基本工具技能或类似技术。\nAPP 应用开发\n1.必须技能： Dart，Flutter, React Native, Ionic, Cordova以上熟练掌握其中一项；\n2、加分技能:有小程序或者Web开发经验。\n后端方向\n必须技能：\n1、编程基本功扎实，对DDD、OO、IOC、AOP等有所了解，熟悉常用设计模式和数据结构；\n2、了解并使用过Redis；\n3、至少会一门编程语言，包括但不仅限于C#、Java、C++、Python、Go；\n4、了解并使用过MSSQL或MySQL数据库。\n加分技能：\n1、有.NET开发经验，熟悉C#语言，.NET Core、EF、ABP框架；\n2、了解RabbitMQ、MongoDB、ElasticSearch等组件；\n3、了解Docker和Kubernetes工具。\n薪资待遇:\n全职第一年税前15-25万；考核期提供实习补贴，全勤“3800/月+700”异地住宿补贴\n招聘流程:\n面试->笔试->实习(1个月左右)->答辩->发放offer\n简历投递:\n邮箱:recruitment@ratingdog.cn\n简历命名:姓名+在读院校+专业+程序员(前/后端开发岗)+2027校招",
+    "publish_date": "2026-09-08"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "460794",
+    "title": "ai算法工程师工程师",
+    "company": "字节跳动",
+    "city": "北京",
+    "salary": "600-1000/天",
+    "url": "https://www.nowcoder.com/jobs/detail/460794",
+    "description": "岗位职责：\n协助算法团队完成大模型应用侧的基础开发，包括Prompt工程、RAG知识库搭建、基础Agent功能调试\n参与业务场景数据集的清洗、标注与质量校验，搭建基础的数据处理流水线\n配合完成模型的效果测试、指标统计与问题复盘，输出基础的实验报告\n协助工程团队完成算法模块的简单部署与线上问题排查\n\n本科及以上学历，了解机器学习、深度学习基础理论，熟悉至少一种主流深度学习框架\n能熟练使用Python完成常规代码开发，有大模型相关项目、Kaggle入门竞赛经验优先\n具备基础的问题排查能力，愿意主动学习大模型微调、多模态相关技术",
+    "publish_date": "2026-09-08"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "7oKoud2ZhqQju6NdDG1tkG",
+    "title": "前端开发工程师",
+    "company": "招银网络科技(深圳)有限公司成都分公司",
+    "city": "杭州",
+    "salary": "15-25千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/7oKoud2ZhqQju6NdDG1tkG.html",
+    "description": "岗位职责\n1. 负责招商银行各类应用系统Web前端开发，参与全栈式或移动端开发；\n2. 研究前沿Web技术，如AI代码生成、智能UI等，并在实际项目中运用。\n任职要求\n1. 本科及以上学历，STEM类专业（科学、技术、工程、数学）；\n2. 2027年应届毕业生，境内院校最高学历毕业时间为2026年11月1日-2027年7月31日，境外院校最高学历毕业时间为2026年8月1日-2027年7月31日；\n3. 热爱前端技术，熟悉HTML5、CSS3、JS，掌握React、Vue、Angular中一种或多种开发框架；\n4.了解Java、Node.JS、.Net、PHP、Python等技术，有相关项目开发经验者优先；\n5.了解大模型，具备相关实践经验者优先；\n6. 逻辑思维严密，沟通良好，有较强的学习和分析能力，具备团队合作意识；\n7. 品行端正，无不良行为记录。",
+    "publish_date": "2026-09-08"
+  },
+  {
     "platform": "shixiseng",
     "job_id": "inn_g0fxmywsrjix",
     "title": "全栈工程师",
@@ -7855,17 +8889,6 @@
   },
   {
     "platform": "ncss",
-    "job_id": "WwZhcaq8o5jsb21MS2FnT5",
-    "title": "CAE求解器算法工程师（多物理场耦合）",
-    "company": "英特工程仿真技术（大连）有限公司",
-    "city": "北京",
-    "salary": "",
-    "url": "https://www.ncss.cn/student/jobs/detail/WwZhcaq8o5jsb21MS2FnT5.html",
-    "description": "岗位职责：\n1.开发多物理场耦合框架，实现流体-结构、热-结构、流体-热、电磁-热、电磁-结构等典型耦合场景仿真；\n2.研究耦合技术体系，包括耦合控制技术、求解器间通信与数据传递技术、收敛技术等；\n3.对接CAE软件完成通用耦合接口接入；\n4.编写耦合产品相关技术文档、产品说明材料。",
-    "publish_date": "2026-09-07"
-  },
-  {
-    "platform": "ncss",
     "job_id": "8PmPrACyWBWsxBa3aMHjSA",
     "title": "CAE求解器算法工程师（多体动力学机器人方向）",
     "company": "英特工程仿真技术（大连）有限公司",
@@ -7873,17 +8896,6 @@
     "salary": "",
     "url": "https://www.ncss.cn/student/jobs/detail/8PmPrACyWBWsxBa3aMHjSA.html",
     "description": "1.基于刚体描述、有限元方法的多体系统动力学仿真程序及相关算法的设计与研发，针对包含刚体与柔性体的机构；\n2.研发领域可能涉及内容包括：适合大变形与小变形描述的有限元单元技术、材料本构、约束及载荷库、接触与碰撞、基于任意拉格朗日欧拉方法实现的网格滑移、动力学与控制联合仿真、模态综合法、代数微分方程组求解器、频域及振动分析、以及多体与其它物理场间的耦合问题（实际参加研发其中的一部分项目）。\n3.其它可选研发方向包括：基于简化理论的齿轮带轮链轮等传动系统模拟、悬挂轮胎及汽车行驶过程的动力学仿真、火箭等系统的发射及飞行过程动力学仿真\n工作地点：大连、西安、沈阳、成都、武汉\n工作地点：北京、广州、深圳、上海",
-    "publish_date": "2026-09-07"
-  },
-  {
-    "platform": "ncss",
-    "job_id": "NRXeAQwcxdCmj96Gt3mQ23",
-    "title": "全栈开发工程师-27届校招（北京、广州、昆明、西安）",
-    "company": "卓望数码技术(深圳)有限公司",
-    "city": "北京",
-    "salary": "15-20千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/NRXeAQwcxdCmj96Gt3mQ23.html",
-    "description": "工作职责：\n1.负责业务系统的整体功能开发，独立完成需求拆解、技术方案设计、编码实现与自测，交付端到端可用的完整功能；\n2.参与业务系统的整体设计与开发，运用 Vue、Java 等前后端技术栈完成功能实现与联调，构建高可用应用；\n3.负责接口设计、数据库设计与服务集成，完成前后端联调与性能优化，保障系统数据流与业务逻辑的一致性、稳定性；\n4.负责通用组件、工具库与基础能力的沉淀与复用，参与代码评审与技术规范建设，持续提升团队研发效率与代码质量；\n5.参与系统的安全防护与问题定位，配合进行现网问题的分析、排查与修复，持续打磨产品质量与用户体验。",
     "publish_date": "2026-09-07"
   },
   {
@@ -8005,6 +9017,17 @@
     "salary": "3-5千元/月",
     "url": "https://www.ncss.cn/student/jobs/detail/hJkP5sL66PPXEdUseP9AW.html",
     "description": "\"岗位职责\n1、深入参与语音大模型的构建，搭建具有通用性和可拓展性的语音端到端大模型评测框架（对话、llm、ASR等方向），深度配合算法、产品进行自研探索和业务落地；\n2、结合行业趋势及业务应用场景，迭代更新评测标准、构建评测题库，负责语音大模型效果评测，定期反馈评估结果，产出评估报告，确保大模型评估结果置信；\n3、通过PE、代码、Workflow、Agent完成数据预处理、分析和清洗，按照训练需求进行标注、分析和验证调优，提升模型效果；\n4、与产品/算法团队协同，积极探索自动化模型评估、数据合成等方法，提高评测效率。\"",
+    "publish_date": "2026-09-05"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "HCekR2Q7M9NN2xLEpGtJjy",
+    "title": "Python研发工程师",
+    "company": "东方电子股份有限公司",
+    "city": "广州",
+    "salary": "8-8.5千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/HCekR2Q7M9NN2xLEpGtJjy.html",
+    "description": "1）负责电力系统相关业务平台、数据中台或应用系统的后端开发与维护；\n2）负责核心业务模块的设计、编码、单元测试与联调，保障代码质量与系统稳定性；\n3）配合前端、测试、运维等团队完成产品迭代与上线交付；\n4）跟踪行业技术动态，探索新技术在电力业务场景中的落地应用。",
     "publish_date": "2026-09-05"
   },
   {
@@ -8273,17 +9296,6 @@
   },
   {
     "platform": "ncss",
-    "job_id": "98ZPDX8ws844Se8Wysi7M6",
-    "title": "校招大模型应用开发工程师",
-    "company": "因诺（上海）资产管理有限公司",
-    "city": "北京",
-    "salary": "20千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/98ZPDX8ws844Se8Wysi7M6.html",
-    "description": "【工作职责】\n1、负责大模型能力在量化研究与策略开发场景中的工程化落地；\n2、开发大模型相关工具和服务，包括模型接口封装、研究资料检索、流程自动化、代码辅助等；\n3、推动大模型能力与公司现有数据系统、研究平台、交易系统集成；\n4、与量化研究员、策略开发、数据开发协作，将研究方案转化为可用的技术模块；\n5、参与面向研究与开发场景的Agent/工作流能力建设，将常见任务模式、工具调用链路和内部系统接口沉淀为可复用的工程模块；\n6、持续优化应用效果与系统可用性，提升研发效率。",
-    "publish_date": "2026-09-03"
-  },
-  {
-    "platform": "ncss",
     "job_id": "Jw1ES6TUZjq6FVH2YQYB7s",
     "title": "校招大模型量化研究员",
     "company": "因诺（上海）资产管理有限公司",
@@ -8401,6 +9413,83 @@
     "salary": "",
     "url": "https://www.ncss.cn/student/jobs/detail/8KsRsJKoP1mtzLFF1qRrdR.html",
     "description": "工作职责：\n1、负责相关业务需求分析与评估，代码编写，维护及测试等； 2、积极学习互联网主流开源技术，能够将之应用到具体开发过程中； 3、参与敏捷项目流程，熟悉敏捷项目的开发规范和管理制度。\n任职要求：\n1、硕士研究生及以上学历，计算机、软件开发等相关专业；\n2、熟悉移动互联网行业知识，计算机相关基础知识扎实。至少熟练掌握一门编程语言并愿意从事基于微服务架构的JAVA服务器端应用开发；\n3、具备较强的组织协调能力、分析判断能力、细节观察能力；热爱音乐行业，有互联网创新思维；具有较强的团队协作精神，抗压能力强；\n4、具备专业内资格证书者优先考虑；在校期间具备相关实践实习经验者优先考虑。",
+    "publish_date": "2026-09-03"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "FixFpBq99Cb3nD9Nua9ezV",
+    "title": "后端开发工程师",
+    "company": "深圳壹账通智能科技有限公司",
+    "city": "深圳",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/FixFpBq99Cb3nD9Nua9ezV.html",
+    "description": "岗位职责：\n1、负责寿险核心业务系统的后端设计与开发，覆盖承保、双录、质检、保单服务等保险业务全链路，支撑寿险业务高质量发展；\n2、参与寿险业务出海相关系统建设，支持多语言、多币种、多地区监管合规等国际化场景的技术方案设计与落地；\n3、探索大模型（LLM）等 AI 技术与寿险业务的结合点，落地智能质检、智能问答、研发效能提升等智能化应用，推动 AI 驱动的业务创新；\n4、参与需求分析、技术方案设计与评审，输出规范的技术文档，评估工作量并保障项目按期高质量交付；\n5、负责生产问题的定位、根因分析与修复，持续优化系统性能、稳定性与可维护性；\n6、参与代码评审与技术分享，参与团队工程化工具与知识库建设，沉淀可复用技术资产。\n岗位要求：\n1、本科及以上学历，计算机科学、软件工程等相关专业；\n2、扎实的 Java 基础，熟悉 Spring 等主流开发框架，理解多线程、集合、JVM 等核心知识；\n3、熟悉 PostgreSQL/MySQL 等关系型数据库，具备扎实的 SQL 编写与调优能力，了解 MyBatis/iBATIS 等持久层框架；\n4、了解分布式系统常用组件（消息队列、缓存、分布式任务调度），有异步任务、状态机、对账补偿等机制设计经验者优先；\n5、对大模型（LLM）应用开发有兴趣或实践经验（如 Prompt 工程、RAG、Agent）者优先；有金融行业或国际化业务系统研发经验者优先；\n6、工作严谨细致，责任心强，具备良好的沟通协作能力，能胜任生产保障等高压场景。",
+    "publish_date": "2026-09-03"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "TRiN4VnfKfHEjC8nfLkGTp",
+    "title": "后端开发工程师（英语流利）",
+    "company": "深圳壹账通智能科技有限公司",
+    "city": "深圳",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/TRiN4VnfKfHEjC8nfLkGTp.html",
+    "description": "岗位职责：\n· 参与零售/信贷核心系统（风控引擎、审批流程、账户管理、交易结算）的后端服务设计与开发。\n· 负责高并发API接口的编写与性能调优，保障金融数据的一致性和安全性。\n· 参与数据库设计、缓存（Redis）、消息队列（Kafka/RabbitMQ）等技术方案的落地。\n· 与前端、数据、产品团队协作，完成需求评审、联调及线上问题排查。\n岗位要求：\n· 本科及以上学历，计算机/软件工程/信息管理等相关专业。\n· 熟悉Java（Spring Boot/Cloud）或Go，了解MySQL、Redis、Linux基本操作。\n· 有实际项目开发经验（实习/课程设计/开源），能提供GitHub或代码示例。\n· 英语口语流利，能作为工作语言进行技术讨论与文档撰写（面试将实测）。\n· 逻辑清晰，责任心强，对金融科技与信贷业务有学习热情。",
+    "publish_date": "2026-09-03"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "WdNG2EUHeLQnGKXEQ2KK59",
+    "title": "Java后端开发",
+    "company": "深圳壹账通智能科技有限公司",
+    "city": "深圳",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/WdNG2EUHeLQnGKXEQ2KK59.html",
+    "description": "岗位职责：\n1 能够完成银行业核心系统，支付系统，ODS系统开发任务\n2 能够和开发组长一起准确理解客户需求，理解系统设计，具有英语读写能力\n岗位要求：\n1.本科及以上学历，具备银行项目经验优先\n2.熟练掌握java技术栈，熟悉oracl和mysql数据库",
+    "publish_date": "2026-09-03"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "UYPcSexEpSM3cyKXWpd2Gp",
+    "title": "后端开发工程师-金种子（深圳）",
+    "company": "中国移动通信有限公司",
+    "city": "深圳",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/UYPcSexEpSM3cyKXWpd2Gp.html",
+    "description": "工作职责：\n1、设计与开发面向AI中台与AI网关的核心服务系统，包括推理API服务、多模型统一接入与调度、Agent智能体编排、任务调度及流控鉴权等核心模块。\n2、构建高性能、高并发的AI后端服务，支撑大模型交互场景中的流式响应、智能体编排、上下文缓存等关键能力，并负责API设计与持续优化。\n3、负责大模型在后端的工程化落地，包括模型封装与部署、推理服务开发、API网关集成与性能调优，打通从数据接入、知识库构建到模型推理的全链路。\n4、构建稳健、可扩展的AI微服务与数据管道，参与CI/CD、监控告警及自动化运营体系建设，保障AI中台与网关服务的稳定性。\n5、与前端、算法等团队协作推进产品迭代，负责平台日常维护与升级，跟踪并快速落地AI网关、多模型编排等业界前沿技术。\n任职要求：\n1、博士学历，计算机、电子通信等相关专业，\n2、精通Golang/Java/Python（一种或多种），具备扎实的后端架构经验；\n3、熟练使用Eino\\LangChain\\LangGraph等主流AI框架，能独立实现Agent智能体编排、Prompt管理、RAG检索链路的工程化落地；具备AI中台工具链、模型管理平台或低代码AI编排引擎的研发经验。\n4、具备AI Agent相关经验和技能者优先，包括但不限于：\n1）熟悉AI Agent架构设计与开发（如基于LLM的自主决策Agent、多Agent协作系统）；\n2）有Agent工具调用（Tool Use/Function Calling）、规划与推理（Planning&Reasoning）、记忆管理（Memory Management）等核心机制的实践经验；\n5、熟悉消息中间件、关系型数据库及常见后端设计模式（幂等、重试、限流、异步任务等）；具备K8s等云原生部署能力，了解大模型基本原理与LLM API集成，能快速将多模型编排、AI网关及AI中台等新范式落地为稳定服务。\n6、具有扎实的AI后端工程开发能力，擅长API设计、数据库优化与分布式系统开发，能高效构建稳健、可扩展的AI微服务与数据管道，并持续完善CI/CD、监控告警及自动化运营体系。",
+    "publish_date": "2026-09-03"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "Kf6p7Ru8khXHWPbFsZvHTq",
+    "title": "前端开发工程师",
+    "company": "杭州慧启动元科技有限公司",
+    "city": "杭州",
+    "salary": "5-8千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/Kf6p7Ru8khXHWPbFsZvHTq.html",
+    "description": "核心岗位职责:1. 负责作业调度大脑Web端管控平台的前端开发，包括机器人集群监控大屏、任务调度可视化等；2. 实现3D场景可视化，提供直观的作业态势感知体验；3. 优化前端性能与交互体验，确保大规模数据实时流畅展示；4. 配合UI设计师完成设计稿还原，统一组件库；5. 实习岗协助进行页面开发、组件封装。任职要求：1. 计算机或相关专业本科及以上学历；2. 精通HTML/CSS/Java script/Type script，熟悉React或Vue等主流前端框架；3. 具备良好的前端工程化素养；4. 对用户体验有追求，具备一定的审美能力和交互设计思维。加分项：1. 有Three.js、ECharts、D3.js等数据可视化或3D渲染经验；2. 有实时数据大屏、监控系统或GIS地图开发经验；3. 了解WebSocket实时通信前端集成；4. 有机器人/工业互联网/IoT管控平台前端开发经验。",
+    "publish_date": "2026-09-03"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "EbNxzCmkWnq5PSjsYydoYK",
+    "title": "前端开发工程师",
+    "company": "中国移动通信有限公司",
+    "city": "杭州",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/EbNxzCmkWnq5PSjsYydoYK.html",
+    "description": "工作职责：\n负责Web前端、H5页面及小程序等用户界面的设计、开发与性能优化，实现产品交互逻辑、视觉还原与跨端兼容；协同设计师与后端开发团队，保障产品高品质交付；持续优化前端工程化体系与开发体验。\n任职要求：\n2027年或2026年未落实就业单位的应届毕业生，硕士及以上学历优先，计算机、软件工程等相关专业优先。\n1、精通HTML、CSS、Java script（ES6+），深刻理解W3C标准、语义化规范及浏览器兼容性原理；\n2、熟练掌握至少一种主流前端框架（如Vue、React等），并对其核心原理、生命周期有一定理解；\n3、熟悉Webpack、Vite等前端构建工具，了解模块化、组件化开发思想，具备相关项目实践经验；\n4、了解HTTP协议及RESTful API规范，能够与后端工程师高效协作；熟练使用Git进行代码版本管理；\n5、具备良好的审美能力和用户导向思维，对提升用户体验有热情和追求；\n6、有责任心，具备出色的沟通能力和团队协作精神。",
+    "publish_date": "2026-09-03"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "ML7SUdywfKT5wuatke37bV",
+    "title": "前端开发",
+    "company": "中国移动通信有限公司",
+    "city": "杭州",
+    "salary": "",
+    "url": "https://www.ncss.cn/student/jobs/detail/ML7SUdywfKT5wuatke37bV.html",
+    "description": "工作职责：\n1.负责爱购商城移动端产品的研发与实现：使用 Vue及相关技术栈开发高性能、跨平台的H5页面。运用 React Native 技术框架进行原生移动应用页面的开发、调试与性能优化，保障产品的用户体验与交付质量。\n2.参与业务需求的技术方案讨论与落地：与产品、设计及后端团队密切协作，能根据需求进行技术可行性分析，并提出合理的前端技术解决方案，确保开发工作高效、有序进行。\n3.致力于前端技术的探索与创新：主动学习和研究新技术（如Vue3.RN新架构、Type script、AICoding等），并尝试将其应用于实际项目，以提升开发效率、解决复杂业务场景问题并优化页面性能。\n任职要求：\n1.教育背景：大学本科及以上学历，计算机、人工智能、软件工程、网络工程、电子信息、通信工程等3T（IT/DT/CT）相关专业。\n2.核心能力：熟练掌握 Java script（ES6+）核心语法，熟悉Vue或React技术栈\n3.经验：有前端项目实践经验（如课程设计、实习项目、个人作品等），能展示出良好的学习能力和技术热情\n4.其他：具备良好的沟通能力和团队协作精神，能积极与产品、设计、后端同事协同工作。对前端技术有浓厚兴趣，具备优秀的问题分析和解决能力。乐于接受挑战，有强烈的责任心和自驱力",
     "publish_date": "2026-09-03"
   },
   {
@@ -8669,17 +9758,6 @@
   },
   {
     "platform": "ncss",
-    "job_id": "8AaJVpUWPa7So4PyWUcEb7",
-    "title": "大模型推理框架及优化工程师",
-    "company": "黑芝麻智能科技有限公司",
-    "city": "上海",
-    "salary": "20千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/8AaJVpUWPa7So4PyWUcEb7.html",
-    "description": "\"1. 参与端侧大模型推理框架开发与优化，支持 LLM/VLM 在嵌入式、车载 NPU 平台部署落地。\n2. 参与推理框架核心模块开发，包括模型解析、计算图优化、算子适配、内存管理、推理调度等。\n3. 针对 Transformer 类大模型开展性能优化，提升推理速度、降低时延与内存占用。\n4. 参与大模型量化、轻量化及推理优化技术落地，推动端侧大模型高效运行。\n5. 搭建模型性能评测体系，协助完成精度、性能和稳定性分析。\"",
-    "publish_date": "2026-09-02"
-  },
-  {
-    "platform": "ncss",
     "job_id": "Tsn4Aha9BdpaU6dsoS5obS",
     "title": "后端开发工程师",
     "company": "招银网络科技（杭州）有限公司",
@@ -8764,6 +9842,17 @@
     "salary": "10千元/月",
     "url": "https://www.ncss.cn/student/jobs/detail/R9dk9fxR4ingsdjAJg6415.html",
     "description": "\"岗位职责：\n1、参与C端项目核心功能开发；\n2、完成其他相关工作日常迭代和开发。\n任职要求：\n1、本科及以上学历，计算机相关专业，善于使用Code agents赋能工程开发；\n2、扎实的计算机基础，熟悉数据结构、算法及设计模式，深入理解操作系统与网络原理；\n3、熟练掌握Golang，熟悉协程、异步编程及高性能服务开发；\n4、熟练掌握MySQL数据库设计、索引优化及事务处理，熟悉Redis等缓存技术及集群方案；\n5、熟悉Linux开发环境，掌握Docker/K8s等容器化部署技术；\n6、熟悉HTTPS、TCP/IP协议，掌握接口性能调优及安全防护（防注入、鉴权等）方案；\n7、掌控各种开源中间件的使用和基本原理，包括但不限于Kafka、Pulsar、MQTT等；\n8、具备良好的编码规范意识，热爱技术钻研；\n9、逻辑清晰，责任心强，具备优秀的团队协作能力和抗压能力。\"",
+    "publish_date": "2026-09-02"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "4vaiAw9ZUaHK1rUhEymL4F",
+    "title": "后端开发工程师、测试技术开发工程师、运维研发工程师",
+    "company": "招银网络科技（杭州）有限公司",
+    "city": "深圳",
+    "salary": "15-25千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/4vaiAw9ZUaHK1rUhEymL4F.html",
+    "description": "【后端开发工程师】\n1. 负责招商银行信息化系统的建设，包括渠道交互、业务产品、核心框架、管理体系、基础架构等所有领域，涉及银行零售业务、对公业务、同业业务、投资业务、风险业务、管理业务等传统及新兴业务领域；\n2. 负责招商银行各个应用系统的规划、设计、实施和运维，包括系统分析、架构设计、功能实现、性能优化和AI应用等工作；\n3. 负责需求分析、需求挖掘、需求优化，配合业务部门参与业务规划，推动金融创新。\n【测试技术开发工程师】\n1. 负责测试工具系统的建设，涉及自动化测试、AI辅助测试、环境智能化运维等领域，支持功能和非功能测试；\n2. 负责测试工具系统的需求评审与方案设计，完成开发、测试、投产上线及持续运行监控，推动测试工具系统迭代升级；\n3. 拥抱变化，不断探索工具、方法与流程的创新，提高测试效率。\n【运维研发工程师】\n1. 负责招商银行云计算平台、linux、计算机网络、数据库、信息安全等关键系统的建设、管理、运维及技术支持；\n2. 负责云计算平台、基础大数据平台、移动运维平台等全行信息系统运维工具和管理平台的技术规划、设计与研发；\n3. 负责应用架构、全行智能运维平台的AI算法与复杂事件规则引擎的研究、设计与实现；\n4. 负责全行相关计算机信息系统的规范制定与完善；\n5. 负责对分行提供技术支持和指导。",
     "publish_date": "2026-09-02"
   },
   {
@@ -8998,6 +10087,39 @@
     "publish_date": "2026-08-31"
   },
   {
+    "platform": "ncss",
+    "job_id": "2kTghu4RkwQJBKgnYCXRxG",
+    "title": "Python开发实习生",
+    "company": "广州掌动智能科技有限公司",
+    "city": "广州",
+    "salary": "3.5-4.5千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/2kTghu4RkwQJBKgnYCXRxG.html",
+    "description": "岗位职责:1、深入理解AI项目原型及业务需求，协助团队成员进行项目开发2、根据新需求或用户反馈，协助现有系统进行修改、维护和二次开发3、协助团队成员维护项目相关文档，包括系统设计、API文档、用户手册4、熟悉Python开发语言，关注Python及相关技术的发展趋势。任职要求:1、本科及以上学历，计算机相关专业；2、熟悉python语言，有相关AI项目开发经验者优先；3、责任感强，工作认真、具备较强的解决问题能力、团队合作意识及能力;4、计算机基础理论扎实，熟悉数据结构、算法、操作系统、TCP、HTTP 等计算机知识。工作地点广州报业文化中心9楼",
+    "publish_date": "2026-08-31"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "448537",
+    "title": "运动控制算法工程师（实习）",
+    "company": "桥介数物（深圳）科技有限公司",
+    "city": "深圳",
+    "salary": "200-500/天",
+    "url": "https://www.nowcoder.com/jobs/detail/448537",
+    "description": "工作职责：\n- 参与人形、四足、双足及轮足机器人全向移动、感知移动、模仿学习、全身VLA、避障规控等算法的开发与训练部署\n- 参与模仿学习动作重定向算法开发\n- 参与机器人 Sim2Real 算法系统开发\n\n任职要求：\n- 具备扎实的 C++ 与 Python 编程基础\n- 熟悉 Linux、ROS 和 Git 版本管理\n- 掌握机器人运动学、动力学、最优控制、强化学习等相关理论\n- 有机器人强化学习开发经验，熟悉 Issac Gym、Issac Sim、MuJoCo 等仿真器\n加分项：\n- 在 ICRA、IROS、CoRL、SIGGRAPH 等顶级会议或期刊发表过相关论文\n- 参加过 RoboMaster、RoboCon 等机器人相关赛事\n- 成功真机训练部署过机器人（特别是自制机型）控制策略，且独立解决 Sim2Real 问题",
+    "publish_date": "2026-08-31"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "453816",
+    "title": "算法工程师-985/211/QS100",
+    "company": "昆仑万维",
+    "city": "北京",
+    "salary": "200-1000/天",
+    "url": "https://www.nowcoder.com/jobs/detail/453816",
+    "description": "1. 基于分布式训练框架（如 Megatron-LM、DeepSpeed、MS-Swift等）进行二次开发与优化；\n2. 分析并优化训练与推理阶段的性能瓶颈，包括显存占用、通信延迟、计算效率等；\n3. 研发高效的训练与推理融合框架（如 RLHF），支持大规模分布式环境；\n4. 深入研究 CUDA、通信框架（NCCL、RDMA 等），开发高性能算子及优化分布式通信效率。\n\n职位要求\n1. 学历背景： 985 硕士及以上学历，计算机相关专业，具备扎实的理论基础和强大的动手能力；\n2. 编程能力：\n  - 熟悉 Python 或 C++/CUDA 编程，熟悉 PyTorch 及其底层实现；\n  - 熟悉分布式系统开发与调试，有多进程调度与并行算法优化经验者优先；\n3. 推理与训练经验：\n  - 熟悉 LLM 模型结构与算法（Dense、FlashAttn、MoE、RLHF 等）；\n  - 有训练框架（如 Megatron-LM、DeepSpeed、MS-Swift等）开发与优化经验；\n优先条件：\n1. 拥有高性能 CUDA Kernel 开发与优化经验；\n2. 具备复杂大规模分布式系统设计与实现能力；\n3. 在实际项目中解决性能瓶颈的实战经验；",
+    "publish_date": "2026-08-31"
+  },
+  {
     "platform": "shixiseng",
     "job_id": "inn_amo3hzz8guec",
     "title": "前端开发工程师",
@@ -9007,6 +10129,17 @@
     "url": "https://www.shixiseng.com/intern/inn_amo3hzz8guec?pcm=pc_SearchList",
     "description": "【岗位职责】\n1、北京大才智的官网/教师后台/教管后台相关新功能开发及优化工作；\n2、移动端H5页面的开发支持；\n3、小程序项目开发；\n4、其他临时性需求；\n\n【任职要求】\n1、 计算机及相关专业，本科或本科以上，2023年以后毕业的在校学生；\n2、 基础扎实，精通HTML5、CSS3、JavaScript、ES6等前端开发技术；\n3、 熟练掌握Vue框架的使用，掌握其原理，能独立开发常用组件；\n4、 熟悉前端自动化和工程化，熟悉webpack，熟练使用Git；\n5、 有较强的自学能力,工作积极主动，具有良好的沟通能力，团队合作精神，能承担工作压力；",
     "publish_date": "2026-08-30"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "NHgVAcyWVjS2NaSiFL4vvA",
+    "title": "后端开发工程师",
+    "company": "深圳TCL新技术有限公司",
+    "city": "深圳",
+    "salary": "9-15千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/NHgVAcyWVjS2NaSiFL4vvA.html",
+    "description": "<p>&nbsp;1. 负责后端系统的设计、开发和维护，确保代码质量和性能优化；<br/>2. 参与需求分析、技术方案设计，并编写高质量的技术文档；<br/>3. 独立完成模块开发，解决复杂业务逻辑和技术难题；<br/>4. 与前端、测试、产品等团队协作，保证项目按时高质量交付；<br/>5. 具备AI和LLM大语言模型技术背景优先考虑。</p>",
+    "publish_date": "2026-08-29"
   },
   {
     "platform": "shixiseng",
@@ -9175,17 +10308,6 @@
   },
   {
     "platform": "shixiseng",
-    "job_id": "inn_qzb4a52ou8rz",
-    "title": "计算机视觉算法实习生",
-    "company": "力维智联",
-    "city": "深圳",
-    "salary": "120-150/天",
-    "url": "https://www.shixiseng.com/intern/inn_qzb4a52ou8rz?pcm=pc_SearchList",
-    "description": "【岗位职责】\n参与门店智能场站视觉AI系统的算法研发、训练、调优与部署落地。系统覆盖进门、预检区、接待区、客休区、机电&钣喷工位、EDS车间、洗车/充电区、行车及消防通道等全场景，需实现车品牌识别、车牌识别、工服识别、预检三件套识别、环车检查动作识别、物品摆放整齐识别、操作规范识别、维修动作识别、5S清扫识别、烟火识别、抽烟识别、车辆维修开工/中止/完工识别等数十种视觉AI能力。实习生将深度参与真实业务场景，接触小模型与多模态大模型协同的先进技术架构。\n【岗位职责】\n1.参与门店真实场景数据的采集方案设计、数据清洗与标注规范制定，针对低光照、密集遮挡、异形角度等长尾难题进行数据增强与质量验收\n2.基于PyTorch框架，负责目标检测（YOLO系列）、图像分类、OCR识别等算法的训练、调优与超参数搜索\n3.负责小模型与多模态大模型的协同设计与落地，针对门店场景（如低光照、密集目标等）进行模型优化\n4.参与基于百度一见平台的算法训练、调优与部署工作，实现“开箱即用”的模型效果\n5.将多模态大模型技术应用于视频理解、图文生成等核心场景，解决实际业务中的复杂问题，推动技术落地并产生商业价值\n6.负责模型测试与评估，搭建测试集，进行精度、性能、延迟、误报漏报等问题的分析与优化\n【任职要求】\n1.学历专业：计算机、模式识别、人工智能、自动化、数学等相关专业硕士在读，2027届及以后毕业生\n2.算法能力：\n-扎实的深度学习基础，精通Transformer、ViT、CLIP、多模态对齐、指令微调等主流技术栈\n-深刻理解目标检测（YOLOv5/v8/v9）、图像分类（ResNet/ViT）等经典算法原理，熟悉OCR识别者优先\n-熟悉多模态大模型（VLM）、大语言模型（LLM）相关的算法技术，在相关领域有良好的项目经验或研究经验\n3.编程能力：熟练掌握Python，熟练使用PyTorch或TensorFlow深度学习框架\n4.实习时长：每周至少实习4天，可连续实习3个月及以上\n**加分项**\n•有工业视觉、安防监控、智慧门店等相关项目经验或实习经历\n•有边缘端实际部署经验\n•熟悉模型量化、剪枝、蒸馏等轻量化技术，了解ONNX、TensorRT等推理加速框架\n•熟悉百度一见平台或有类似视觉AI平台使用经验\n•熟悉RTSP视频流处理、FFmpeg或GStreamer基础\n•在Kaggle、天池等算法竞赛中取得优异成绩，或发表过CV相关论文（CCF B类及以上）\n•对多模态大模型（VLM）在工业场景的落地有强烈好奇心与初步实践经验",
-    "publish_date": "2026-08-27"
-  },
-  {
-    "platform": "shixiseng",
     "job_id": "inn_wrhc97ce6rws",
     "title": "嵌入式开发工程师",
     "company": "艾莫机器人科技（深圳）有限公司",
@@ -9193,17 +10315,6 @@
     "salary": "100-200/天",
     "url": "https://www.shixiseng.com/intern/inn_wrhc97ce6rws?pcm=pc_SearchList",
     "description": "【职位描述】\n满足学历部分即可，有行业实习经验优先\n\nKnowledge 知识\n1. 嵌入式系统理论知识，掌握RTOS实时操作系统原理、底层资源调度、任务实时执行机制\n2. C/C++、Python编程语言知识，完整掌握软件开发生命周期\n3. 硬件底层知识：微控制器、FPGA、传感器、执行器、通信接口；熟悉CAN、SPI、I2C等通信协议\n4. 机器人子系统、控制系统相关专业知识，理解软硬件深度集成原理\n5. 嵌入式性能调优知识：延迟、效率、能耗优化，系统鲁棒性相关知识\n6. 嵌入式测试方法论，设计文档、测试协议、技术文档编写规范\n\nExperience 经验\n1. 学历背景：计算机、电气工程等相关专业，硕士及以上学历\n2. 有嵌入式软件开发实习实战经验，机器人/自动化领域项目经验优先\n3. 嵌入式系统架构设计、开发维护经验，做过传感器、执行器、通信接口软硬件集成项目\n4. RTOS实际应用、资源调优、底层低级编程实操经验\n5. 完整经历嵌入式系统测试调试、性能优化、技术文档全流程\n6. 优先经验：\n- 人形机器人/机器人控制系统、机器人应用软件开发经验\n- CAN/SPI/I2C通信协议落地实施经验\n- 敏捷开发、快速原型开发项目经验\n\nAbility 能力\n1. 嵌入式架构设计能力：设计机器人嵌入式软件系统，完成机器人子系统软件实现与维护\n2. 软硬件集成能力：对接硬件团队，完成传感器、执行器等组件软硬件无缝集成\n3. 实时系统调优能力：基于RTOS做资源管理，保障机器人关键任务实时执行；完成系统效率、延迟、能耗性能优化\n4. 测试调试能力：制定嵌入式软件测试方案，通过仿真+实物测试，保障系统可靠性、鲁棒性\n5. 技术文档输出能力：输出设计规格、测试协议等全套技术文档，支撑迭代与维护\n6. 跨团队协作能力：和硬件工程师协同推进系统落地\n\nTrait 特质\n1. 较强逻辑分析、故障定位与复杂问题解决能力\n2. 高度关注系统性能、可靠性与稳定性，对实时性、鲁棒性有高要求\n3. 乐于探索创新，愿意攻坚人形机器人前沿技术\n4. 严谨细致，重视测试流程、技术文档完整性\n5. 善于合作，适配敏捷开发模式，接受快速原型迭代",
-    "publish_date": "2026-08-27"
-  },
-  {
-    "platform": "shixiseng",
-    "job_id": "inn_rem1woxlu4ea",
-    "title": "数据工程实习生（开发方向）",
-    "company": "PANDAEU",
-    "city": "成都",
-    "salary": "150-200/天",
-    "url": "https://www.shixiseng.com/intern/inn_rem1woxlu4ea?pcm=pc_SearchList",
-    "description": "【职位描述】\n【岗位职责】\n1.参与公司项目开发，承担前端及/或后端模块的开发工作，并按照需求完成交付。\n2.根据项目要求，参与代码测试工作，包括功能验证及基础问题排查。\n3.参与项目相关会议（如需求评审、技术评审、站会等），理解业务需求并同步开发进展。\n\n【任职要求】\n1.计算机等相关专业，本科大三、大四或研究生在读；\n2.计算机基础扎实，熟悉数据结构与算法；熟悉JavaScript，了解至少一种前端框架（React/Vue）及Node.js后端框架（Express/NestJS），具备全栈开发的基础能力；\n3.对 AI 技术（如代码生成工具）有兴趣，可合理利用 AI 作为开发辅助工具；重视代码基础，具备独立编码、问题排查能力，能主动探索新技术，具备较强的技术调研与快速学习能力；\n4.有团队精神，心态乐观，热爱软件工程；\n5.可提供6个月及以上实习周期，每周确保至少4天到岗。\n\n【工作时间】\n周一至周五：上午：8：50—11：50 下午：13：30—18：00\n午休时间：11：40-13：30 周末双休\n\n【薪资福利】\n1.实习薪资：150-200 /天\n2.有转正名额，实习期间表现优秀者可申请转正。\n\n【补充说明】\n1.本岗位不安排线上面试，需到公司参加线下面试。无法参与线下面试的候选人请勿投递，感谢理解；\n2.面试环节会同步确认您的到岗时间及实习周期，请确保能够满足6个月以上的实习承诺。",
     "publish_date": "2026-08-27"
   },
   {
@@ -9384,17 +10495,6 @@
   },
   {
     "platform": "ncss",
-    "job_id": "7jxdEzisD26usJ8kF1Cx4m",
-    "title": "JAVA 后端开发工程师（集中交付）",
-    "company": "上海汉得信息技术股份有限公司",
-    "city": "北京",
-    "salary": "8-10千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/7jxdEzisD26usJ8kF1Cx4m.html",
-    "description": "\"职位描述:\n- 根据业务需求及产品功能完成应用系统技术方解决案设计和对应后端功能的技术设计及开发实现，包括设计应用系统相\n关集成架构，部署架构，数据结构，代码逻辑结构，业务逻辑功能开发实现及相关开发文档的撰写和维护；\n- 该岗位主要人员 base 以北京、上海为主。\n\"",
-    "publish_date": "2026-08-26"
-  },
-  {
-    "platform": "ncss",
     "job_id": "QoWNvr8GGzK4EXbsNpLBzU",
     "title": "JAVA 后端开发工程师",
     "company": "上海汉得信息技术股份有限公司",
@@ -9413,17 +10513,6 @@
     "salary": "8-10千元/月",
     "url": "https://www.ncss.cn/student/jobs/detail/55gkUMtUjsZcuySYaVa9FJ.html",
     "description": "\"职位描述:\n- 根据业务需求及产品功能，完成应用系统技术方案设计和前后端功能开发，包括前端页面与交互实现、后端接口与业务\n逻辑开发、数据结构设计、系统集成、部署架构设计，以及相关开发文档的撰写和维护（需出差）。\n\"",
-    "publish_date": "2026-08-26"
-  },
-  {
-    "platform": "ncss",
-    "job_id": "SrQqnXBe4ErbfvsVEmg7WS",
-    "title": "JAVA 后端研发工程师",
-    "company": "上海汉得信息技术股份有限公司",
-    "city": "上海",
-    "salary": "8-10千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/SrQqnXBe4ErbfvsVEmg7WS.html",
-    "description": "\"职位描述:\n- 根据业务需求及产品功能完成应用系统技术方解决案设计和对应后端功能的技术设计及开发实现，包括设计应用系统相\n关集成架构，部署架构，数据结构，代码逻辑结构，业务逻辑功能开发实现及相关开发文档的撰写和维护；\n- base 地为上海。\"",
     "publish_date": "2026-08-26"
   },
   {
@@ -9446,6 +10535,17 @@
     "salary": "250-300/天",
     "url": "https://www.shixiseng.com/intern/inn_xmo7brxrexxv?pcm=pc_SearchList",
     "description": "【职位描述】\n## 岗位职责\n\n* 参与文本生成工作流（text-to-workflow / chatflow）引擎研发，将自然语言需求转化为可导入、可执行的工作流 DSL（如 Dify DSL、n8n JSON），构建 Low-Code Coding Agent。\n\n* 设计与迭代生成链路，包括 prompt 工程、多智能体编排（需求解析、节点检索、图装配、校验修复）、结构化输出与 function calling。\n\n* 搭建并维护生成质量评测体系，定义合法率、可执行率、语义匹配等指标，进行 benchmark 与 bad-case 归因。\n\n* 快速跟进业界进展，并通过原型和实验判断实际价值。\n\n## 期望\n\n* 对 AI Agent 和新型软件研发方式有强烈兴趣。\n\n* 熟练使用 AI coding 工具，同时能够独立审查、调试和重构生成代码。\n\n* 动手能力强，能够快速进入陌生代码库并完成高质量交付。\n\n* 熟练掌握 Python、Linux、Git、Docker、异步编程和常见系统组件。\n\n* 重视测试、评测、性能、可靠性和安全边界。\n\n* 有高度 ownership，愿意追踪复杂问题直到解决。\n\n## 强加分项\n\n* 独立开发过高影响力 Agent、开发工具或基础设施项目。\n\n* 个人项目获得较高 GitHub Stars，或拥有明确的真实用户和使用量。\n\n* 是重要开源项目的核心维护者或贡献者。\n\n* 在 ICPC、NOI、IOI、CCPC 等高水平竞赛中取得突出成绩。\n\n* 在 NeurIPS、ICML、ICLR、SOSP、OSDI、NSDI 等高水平会议发表过相关工作。",
+    "publish_date": "2026-08-26"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "463622",
+    "title": "大模型AI Infra工程师（实习）",
+    "company": "杭州华为企业通信技术有限公司",
+    "city": "杭州",
+    "salary": "200-500/月",
+    "url": "https://www.nowcoder.com/jobs/detail/463622",
+    "description": "实习/校招\n华为2012中央软件院\nbase 北上杭深\n构建AI/Agent高性能系统，诚邀人才加入！\n\n核心职责\n1. AI训推加速\n   - 设计LLM训推算子，深入NPU亲和优化，加速LLM推理。\n   - 构建LLM推理网关，设计请求智能负载均衡，助力智能体服务加速。\n\n2. Agent技术探索\n   - 定义设计Agent互联能力，使能多智能体生态接入。\n   - 探索 Agent生产应用，设计Agent实现软件开发测试、算子调优、算法优化。\n\n3. 灵衢超节点高性能网络",
     "publish_date": "2026-08-26"
   },
   {
@@ -9691,50 +10791,6 @@
     "publish_date": "2026-08-24"
   },
   {
-    "platform": "ncss",
-    "job_id": "6TFQn6fakSGqr2d3jjZv95",
-    "title": "Agent 算法工程师",
-    "company": "智象未来（合肥）信息技术有限公司",
-    "city": "北京",
-    "salary": "",
-    "url": "https://www.ncss.cn/student/jobs/detail/6TFQn6fakSGqr2d3jjZv95.html",
-    "description": "深度参与AIGC场景下的智能体系统搭建与落地。\n负责多模态Agent系统研发、业务Skill设计、算法自动化评测的完整技术链路，推动Agent技术在图像、视频生成场景的深度应用与商业化落地。\n工作职责；\n1、负责AIGC场景进行智能体的效果优化，包括LLM Reasoning、Tool Calling、Skills、Context、Memory等核心功能。\n2、负责面向Agent场景的数据集构建与LLM Post-trainning。\n3、负责业务Skill的设计与优化，并根据业务数据反馈持续提升skill在业务场景的生产效果。\n负责构建面向AIGC场景的自动化评测体系，通过数据驱动的方式构建4、Agent自迭代闭环，持续优化Agent效果表现。跟进业界和学术界Al Agent以及大模型的最新进展。",
-    "publish_date": "2026-08-24"
-  },
-  {
-    "platform": "ncss",
-    "job_id": "F3eJET8wxhFa1atWi57MyZ",
-    "title": "AI Infra 大模型推理服务工程师 （集群部署方向）",
-    "company": "合肥中科类脑智能技术有限公司",
-    "city": "北京",
-    "salary": "20千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/F3eJET8wxhFa1atWi57MyZ.html",
-    "description": "1.负责大模型集群推理架构设计与性能优化；\n2.负责多机多卡分布式推理及并行策略优化；\n3.负责推理服务调度、Batching、KV Cache、PD分离等核心技术研发；\n4.负责推理系统监控与可观测性建设。",
-    "publish_date": "2026-08-24"
-  },
-  {
-    "platform": "ncss",
-    "job_id": "VJdXKT4LfpcLHTYAht963b",
-    "title": "多模态大模型算法研究员",
-    "company": "智象未来（合肥）信息技术有限公司",
-    "city": "北京",
-    "salary": "20千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/VJdXKT4LfpcLHTYAht963b.html",
-    "description": "1、基础模型研发：\n参与多模态生成式基础模型的架构设计与核心算法研发，参与图像生成和编辑、视频生成与编辑、3D生成或世界模型的技术攻坚。\n2、模型训练与优化：\n参与百亿级参数规模多模态生成模型的预训练或后训练相关工作，提升模型在复杂场景下的泛化能力与生成效果。\n【任职要求】",
-    "publish_date": "2026-08-24"
-  },
-  {
-    "platform": "ncss",
-    "job_id": "Pfk73P7d3ZNR3MX5Brhjke",
-    "title": "AI infra 算法工程师",
-    "company": "智象未来（合肥）信息技术有限公司",
-    "city": "北京",
-    "salary": "",
-    "url": "https://www.ncss.cn/student/jobs/detail/Pfk73P7d3ZNR3MX5Brhjke.html",
-    "description": "1. 负责语言、图片、视频等生成模型推理系统建设与性能优化，支撑在线服务与离线推理场景\n2. 设计高性能推理架构，实现动态批处理、KV Cache管理、并行推理、弹性扩缩容等优化手段\n3. 优化模型推理性能，包括算子融合、Kernel优化、显存管理、异步调度与资源调度等关键技术\n4. 推进量化、压缩与推理加速技术落地，在保证模型效果的前提下提升吞吐并降低推理成本\n5. 构建高可用推理服务体系，实现监控告警、容量规划、故障恢复与稳定性保障\n6. 跟踪业界最新推理技术，推动新方案在业务场景中的落地与应用",
-    "publish_date": "2026-08-24"
-  },
-  {
     "platform": "shixiseng",
     "job_id": "inn_llsajergjnsz",
     "title": "声呐图像算法工程——沧予科技团队",
@@ -9911,17 +10967,6 @@
     "publish_date": "2026-08-19"
   },
   {
-    "platform": "ncss",
-    "job_id": "TvxS6yn8KZpTDFHs3opc2R",
-    "title": "Java开发工程师",
-    "company": "苏州科达科技股份有限公司",
-    "city": "上海",
-    "salary": "",
-    "url": "https://www.ncss.cn/student/jobs/detail/TvxS6yn8KZpTDFHs3opc2R.html",
-    "description": "1、协助设计和实现后端服务和API接口；\n2、参与数据库设计，优化数据存储方案；\n3、协助进行系统性能优化和问题排查；\n4、编写技术文档，协助团队成员理解和使用后端服务；\n5、跟踪后端技术的最新发展，探索和实施新技术以提升系统性能。",
-    "publish_date": "2026-08-19"
-  },
-  {
     "platform": "shixiseng",
     "job_id": "inn_aihnzzvhampr",
     "title": "策略开发实习生-【电商合规】（杭州）",
@@ -10065,17 +11110,6 @@
     "publish_date": "2026-08-17"
   },
   {
-    "platform": "ncss",
-    "job_id": "AW5MW44QctewL58HMyTfpT",
-    "title": "Agent开发实习生（27届可转正）",
-    "company": "上海仙工智能科技股份有限公司",
-    "city": "上海",
-    "salary": "99.9千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/AW5MW44QctewL58HMyTfpT.html",
-    "description": "岗位职责\n1. 参与 Agent OS 核心能力的研发，包括 Agent 运行时、任务调度、工具调用、上下文管理、状态持久化及可观测性等模块。\n2. 使用 Rust 开发高性能、高可靠的后端服务和基础组件，编写结构清晰、可维护、可测试的代码。\n3. 参与大模型应用与 Agent 工作流的工程化落地，协助接入模型服务、MCP/工具协议、消息队列、数据库等基础设施。\n4. 参与系统接口设计、单元测试、集成测试、性能分析和问题排查，持续提升服务稳定性与资源利用率。\n5. 与产品、算法和平台工程师协作，将业务需求拆解为可实施的技术方案，并完成文档和交付物沉淀。\n6. 跟踪 Rust、AI Agent 和云原生技术的发展，在指导下完成技术验证与能力迭代。",
-    "publish_date": "2026-08-17"
-  },
-  {
     "platform": "shixiseng",
     "job_id": "inn_jmceet07wnfw",
     "title": "算法工程师（数据挖掘实习)",
@@ -10106,17 +11140,6 @@
     "salary": "",
     "url": "https://www.ncss.cn/student/jobs/detail/5MCX5HY1PodWEfQUAmiUvk.html",
     "description": "工作职责\n1.负责公司经营分析、研发效能、内部运营等多业务场景下AI Agent系统的设计开发工作，具备技术决策、技术选型、技术架构与技术风险评估能力，确保技术成果可交付、可度量、可运维;\n2.Agent系统与工作流建设:参与构建连接大模型与业务场景的Agent系统，设计并落地多步推理(Multi-step Reasoning)、动态Workflow 编排、多模型路由、多样 Tool Calling、DeepResearch等核心机制;\n3.深度参与AI Agent智能体及其配套能力的建设，设计并实现可扩展的Skill（技能）体系，支持业务快速接入自定义工具与能力；推进工具调用、知识库管理、工作流编排等核心模块的落地；\n4.协同完成项目全流程开发任务，对代码质量、系统稳定性及性能表现持有高标准自我要求；\n5.持续跟踪并研究前沿AI技术及业界Agent架构演进趋势，挖掘新技术与公司业务场景的融合点。",
-    "publish_date": "2026-08-15"
-  },
-  {
-    "platform": "ncss",
-    "job_id": "8wwa5iPgW2EwWi7mwrQeSs",
-    "title": "大模型推理测试开发工程师",
-    "company": "清昴智能科技（北京）有限公司",
-    "city": "北京",
-    "salary": "20千元/月",
-    "url": "https://www.ncss.cn/student/jobs/detail/8wwa5iPgW2EwWi7mwrQeSs.html",
-    "description": "1.测试策略与方案设计\n-负责大模型推理集群的全链路质量保障，制定功能、性能、稳定性、安全等维度的测试策略与计划。\n-深入理解推理引擎(如vLLM、TensorRT- LLM、TGI等)、调度系统与GPU集群架构，设计高覆盖、可复用的测试方案。\n2.功能与精度验证\n-验证模型推理结果的正确性与数值精度(如与训练框架对齐、不同量化精度对比)，确保多模型、多版本、多硬件环境下的输出一致性。\n-构造覆盖正常、边界、异常、对抗性的测试用例，评估提示词鲁棒性、多轮对话记忆、长上下文等特性。\n3.性能与压力测试\n-设计并执行延迟、吞吐、首token时间、并发用户数等关键指标的压测方案，建立性能基线。\n-分析GPU利用率、显存占用、网络带宽、调度延迟等瓶颈，配合研发团队进行性能调优与回归验证。\n4.稳定性与混沌工程\n-开展长时间稳定性测试，验证内存泄漏、显存碎片、资源回收、故障自愈等能力。\n-引入故障注入(节点宕机、网络分区、GPU错误、Etcd异常等)，检验集群高可用与容错机制。\n5.自动化测试与工具链建设\n-搭建持续集成/持续测试流水线，开发自动化测试框架与工具沉淀测试数据集",
     "publish_date": "2026-08-15"
   },
   {
@@ -10260,6 +11283,17 @@
     "salary": "400-500/天",
     "url": "https://www.nowcoder.com/jobs/detail/446327",
     "description": "1. 设计并开发高效的数据处理管道，对大规模多模态数据（如图像、文本、音频、视频等）进行采集、清洗、标注、存储和管理，确保数据的高质量与完整性，以支持后续算法模型的训练与优化。\n2. 专注于多模态算法的研究与开发，融合深度学习、机器学习等先进技术，构建创新性的多模态模型架构，实现不同模态信息之间的有效融合与交互，例如设计基于注意力机制的多模态融合网络，提升模型对多模态信息的综合理解能力。\n3. 负责多模态算法模型的训练过程，制定合理的训练策略与超参数设置，监控模型训练状态，及时解决训练过程中出现的过拟合、梯度消失等问题，确保模型的稳定收敛与性能提升。\n4. 与软件开发团队紧密合作，将多模态算法模型集成到实际应用系统中，参与系统架构设计与接口开发，确保模型与其他组件之间的无缝对接与协同工作，例如将多模态图像识别模型集成到数据解析搜索与推荐系统中。\n5. 跟踪多模态算法领域的前沿技术动态与研究成果，定期参与学术交流活动、阅读相关文献与技术博客，将先进的技术理念与方法引入到团队的项目实践中，推动团队整体技术水平的提升，例如探索新兴的多模态自监督学习技术在实际项目中的应用可能性\n\n1. 计算机科学、数学、统计学、电子工程等相关专业硕士及以上学历，具有扎实的数学基础（如线性代数、概率论、数值分析、最优化理论等）和深厚的编程功底（熟练掌握 Python、C++等编程语言）。\n2. 精通深度学习框架（如 TensorFlow、PyTorch 等），熟悉常用的深度学习模型架构（如 CNN、RNN、LSTM、Transformer 等）及其在多模态数据处理中的应用，具备独立设计、训练和优化复杂深度学习模型的能力。\n3. 具有 相关研究相关项目经验，参与过至少一个完整的多模态项目（如多模态智能客服系统、多模态图像检索应用、多模态视频分析平台等），在项目中承担核心算法研发与优化工作，有成功将多模态算法应用于实际业务场景的案例。\n4.有在学术研究或工业界从事多模态算法研究与开发的经历，在相关领域的顶级会议（如 CVPR、ICCV、ACL、EMNLP 等）或期刊上发表过高水平论文者优先考虑，或者拥有相关专利技术者优先。",
+    "publish_date": "2026-08-13"
+  },
+  {
+    "platform": "niuke",
+    "job_id": "407211",
+    "title": "算法工程师（仅限ACM/OI ）",
+    "company": "点点互动",
+    "city": "上海",
+    "salary": "200-350/天",
+    "url": "https://www.nowcoder.com/jobs/detail/407211",
+    "description": "岗位职责：\n作为中台服务于 无尽冬日 和 kingshot 等去年超100亿收入的大型游戏：\n1. 构建基于XGBoost/Transformer/Informer的用户行为分析系统，精准建模游戏用户的行为\n2. 开发用户生命周期价值预测模型，对用户活跃度、付费倾向等关键指标进行时序预测\n3. 搭建支持A/B测试的实验平台，量化评估运营策略对10亿美金级营收产品的实际影响\n4. 深度对接游戏运营部门，将业务需求转化为可落地的技术方案，建立异常行为预警机制\n5. 构建支持多机多卡的高可用训练框架，优化千亿级游戏行为数据的分布式处理流程\n\n岗位要求：\n（必要）在本科阶段获得ACM区域赛事银牌以上，蓝桥杯的C或者Python一等奖 或者百度之星进入决赛\n或者在高中阶段获得NOIP省一/NOI银牌以上\n（必要）能够实习四个月以上，最好是上海本地学校方便实习\n\n1. 精通Python/PyTorch生态，有Transformer等复杂模型的实际调优经验\n2. 深入理解树模型与神经网络等机器学习模型，掌握特征工程、模型解释性等实战技巧\n3. 有Git协作开发，参与过开源项目优先（简历附带git地址）\n4. 拥有将业务问题转化为数学建模问题的系统性思维，能独立设计技术验证方案\n5. 对游戏数据分析有强烈热情，具备快速学习新业务场景的学习敏锐度",
     "publish_date": "2026-08-13"
   },
   {
@@ -10593,6 +11627,17 @@
     "publish_date": "2026-08-06"
   },
   {
+    "platform": "niuke",
+    "job_id": "458326",
+    "title": "具身智能agent工程师",
+    "company": "北京嘭咔智能科技有限公司",
+    "city": "北京",
+    "salary": "250-300/天",
+    "url": "https://www.nowcoder.com/jobs/detail/458326",
+    "description": "【公司介绍】\n我们是聚焦下一代通用陪伴机器人研发的初创团队，汇聚了清北等高校以及头部科技大厂的顶尖人才，已获头部机构/产业资本认可和押注，团队高度扁平、背景多样，文化纯粹专注、追求极致、开放交流、AI Native。我们看到当前市场上的陪伴类产品更像功能堆叠的玩具，而我们的目标是创造真正\"有生命、有情感、有温度\"的、具备高自由度和多种交互模式的智能伙伴。\n【岗位职责】\n用代码和AI塑造机器人的\"灵魂\"，深度参与机器人复杂交互行为体系设计，并将其转化为端侧稳定运行的、有生命感的代码，具体包括：\n- 行为引擎构建：设计并迭代面向大模型的机器人交互行为调度框架，将个性、情绪和记忆等子系统编排为可组合、可扩展、可热更新的行为体系\n- 业务逻辑和工作流/工具链落地：紧密协作产品经理，将抽象的行为设计稿（行为树、情绪模型、成长曲线）还原为C++代码，搭建可视化的行为设计和调试Infra，深度参与机器人交互行为数据采集和合成，支撑具身大模型的端侧集成和落地\n- 多模态感知和执行打通：负责多模态传感器数据在端侧的采集、处理和分发，串联感知层（视觉/语音/触觉等）、决策层和执行层（眼睛/声音/肢体/移动等），让机器人看得到、听得懂、动得自然\n- 端侧系统性能优化：进行端侧应用开发和稳定性打磨，持续优化延迟、内存和功耗，让机器人在长时间陪伴中始终\"活着\"\n\n职位要求\n【任职要求】\n核心特质\n- 年轻高潜、开放、AI Native，对Agent/大模型/具身智能有强烈兴趣，AI Coding实践者，相信万物皆可Agent\n- 系统性抽象和架构能力极强，能在面对极高复杂度时依然保持代码结构清晰、模块边界干净、扩展空间充足\n- 对生命感有共情和追求，能理解宠物动人的交互行为，并愿意把这种感觉写进代码，养宠经验（猫/狗/异宠）优先\n- 能与产品经理双向奔赴，既能精准实现PM的行为设计意图，也能从工程视角反向提出\"这样设计可以让行为更自然/更易扩展\"的建议\n专业背景\n- 本科及以上，AI、机器人和CS等相关专业，名校背景优先，1-3年工作经验\n- 熟练掌握C++/Python，有Agent等复杂业务系统0-1应用层开发经验\n- 熟悉Linux应用开发，理解OS、多线程、IPC、事件驱动和异步编程等底层机制",
+    "publish_date": "2026-08-06"
+  },
+  {
     "platform": "shixiseng",
     "job_id": "inn_jfje15zfxhqn",
     "title": "国际化后端开发- 实习生",
@@ -10645,6 +11690,17 @@
     "salary": "薪资面议",
     "url": "https://www.shixiseng.com/intern/inn_2alz6tohkltw?pcm=pc_SearchList",
     "description": "【岗位职责】\n我们是谁\n小红书 Lab 1327 创新业务部门——专注 AI 创新产品的孵化，把前沿 AI 能力与用户核心痛点结合，打造真正有用的产品。\n我们需要你\n基本要求\n前端 / 后端 / 客户端 / Agent 架构等不限，熟悉至少一门语言，具备优秀的技术素养\n对 AI 有自己的理解，有热情；熟练使用 AI 工具，善于借助 AI 解决实际问题。\n28 届毕业生，每周至少到岗 4 天\n\n【任职要求】\n我们更看重的特质\n不设边界：遇到没做过的事，第一反应是\"我来试试\"，而不是\"这不是我的活\"\n心态 open：愿意尝试不同研发角色，敢于接受应用开发全链路的挑战\n自驱：有强烈的 ownership，能把一件事从 0 推到 1，再推到 10\n\n加分项（有其一即可）\n有 LLM / Agent / RAG 相关项目经历，个人或课外项目均可\n参与过 AI 产品从 0 到 1 的孵化，或独立开发过完整 App\n有开源项目贡献（GitHub Star 数、PR 记录）\n参加过 ACM / ICPC / Kaggle 等技术竞赛\n\n你能得到什么\n真正的全栈锻炼：不是照需求堆代码，是从看懂产品、写出来、到真正上线给用户用的完整链路\nOpen 的氛围：鼓励探索 AI 和创新，不设限制，边界是用来打破的\n最前沿的 AI 工作方式：不只是在用 AI 工具，你也可以定义团队的最佳 AI 工作流\n创业氛围：有机会独立孵化一个属于自己的产品，从 0 到上线",
+    "publish_date": "2026-08-05"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "EULMgGx4V5n6MDPsfns9Xc",
+    "title": "测试开发实习生（Python）",
+    "company": "广州中望龙腾软件股份有限公司",
+    "city": "广州",
+    "salary": "3千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/EULMgGx4V5n6MDPsfns9Xc.html",
+    "description": "岗位职责\n1.负责实现测试同事提出的自动化脚本/工具需求；\n2.负责管理部分自动化测试项的执行，整理数据、上报进展等，并编写脚本提高测试项的自动化程度。\n岗位要求\n1.本科学历，理工科专业，计算机类、数学类优先;\n2.熟悉Python编程，掌握常用数据结构，可以独立完成简单的工具脚本编写;\n3.了解git的基本使用方法;\n4.加分项：熟悉C++编程，了解内存泄漏且有处理经验者;",
     "publish_date": "2026-08-05"
   },
   {
@@ -10857,6 +11913,39 @@
     "publish_date": "2026-07-31"
   },
   {
+    "platform": "ncss",
+    "job_id": "XyERtti9GCLdWikUXmXwCr",
+    "title": "CAE业务-Python/C++开发实习生",
+    "company": "粤港澳大湾区（广东）国创中心",
+    "city": "广州",
+    "salary": "4-6千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/XyERtti9GCLdWikUXmXwCr.html",
+    "description": "【工作职责】\n1.通过Python开发工业软件相关测试用例\n2.参与公司开源工具的研发与维护工作\n3.参与开发自研软件的相关课程的教学设计与实践项目开发\n4.协助团队完成日常开发任务和技术调研\n5.按要求完成相关技术文档的编写工作\n【任职要求】\n1.本科或研究生在读，2027届及以后毕业生\n2.计算机科学、软件工程、电子信息等相关专业优先\n3.了解至少一门编程语言（C++/Python/Java等）\n4.熟悉基本的数据结构和算法\n5.具备良好的学习能力和问题分析能力\n6.具备良好的沟通能力和团队协作精神\n7.工作认真负责，有较强的责任心和主动性\n【加分项】\n1.具备Python基础或相关编程开发经验者优先\n2.掌握Git版本管理工具\n3.有C++项目经验或了解面向对象编程思想\n4.参与过实际项目开发或有个人技术作品\n【岗位须知】\n1、满6个月才能开实习证明，实习期中途不开实习证明；\n2、如不能6个月以上不要求开实习证明的可看业务部门意见是否安排。\n3、薪资：本科150/天，硕士225/天，博士450/天；\n4、实习生入职需签署实习承诺函，模板单位提供，需要老师签字并写上工作邮箱，签完后负责HR给老师发送邮件征询实习意见，老师确认并同意后才能走入职审批流程；\n5、工作时间：8:30-18:00，弹性上下班；午休2小时。周末双休。\n6、暂时不提供住宿，无交通补贴，单位有饭堂免费提供午餐，加班至19：30后方有晚餐。",
+    "publish_date": "2026-07-31"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "LWpYzDZH6Q7t6LJCienGng",
+    "title": "27 校招-软件开发工程师（c++/Python）",
+    "company": "广州文远知行科技有限公司",
+    "city": "广州",
+    "salary": "25-50千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/LWpYzDZH6Q7t6LJCienGng.html",
+    "description": "岗位职责:\n1、参与自动驾驶研发效能平台与工具链的设计和开发，涵盖 CI/CD、数据处理、AI 应用等方向\n2、参与内部工具的开发与优化，提升研发、测试、运营团队的工作效率和交付质量\n3、参与平台监控、告警和问题排查，保障线上服务稳定运行\n4、主动发现工程流程中的瓶颈和低效环节，提出并实现改进方案\n岗位要求:\n1、本科及以上学历，计算机科学、软件工程、电子信息、自动化等相关专业\n2、熟练掌握 Python 或 C++，具备良好的编码习惯和代码规范意识\n3、了解面向对象设计、常用设计模式和数据结构与算法\n4、有较强的学习能力和解决问题的能力，对技术充满热情\n5、良好的团队协作和沟通能力\n加分项:\n1、了解 Docker、Kubernetes 等容器化和编排技术\n2、了解数据库原理（MySQL / PostgreSQL）\n3、有 Web 开发经验（Django / Flask / React / Vue 等）\n4、了解 CI/CD 流程或有相关实践经验\n5、对大语言模型（LLM）应用或数据分析有兴趣或实践经历\n6、有自动驾驶、机器人或嵌入式系统相关项目经验",
+    "publish_date": "2026-07-31"
+  },
+  {
+    "platform": "ncss",
+    "job_id": "QjnNPtRP5TU3pmKArjz925",
+    "title": "校招-python后端开发-base广州",
+    "company": "广州嘉为科技有限公司",
+    "city": "广州",
+    "salary": "5-6千元/月",
+    "url": "https://www.ncss.cn/student/jobs/detail/QjnNPtRP5TU3pmKArjz925.html",
+    "description": "base广州，导师带教\n食宿自理，实习薪资200/天，三方后可调整\n岗位职责\n1.核心功能研发：承接AIOps产品需求，负责核心插件及Web模块的设计与开发；\n2.任务拆解与交付：独立进行任务拆分与排期，保障功能模块按时、高质量交付。\n3.AI应用开发：参与大模型应用（如RAG知识库、Agent等）的后端接口开发与落地，打通AI能力与业务系统的数据链路；\n任职要求\n1.学历专业：本科及以上学历，计算机/软件相关专业优先；\n2.技术基础：了解数据库表设计与SQL语法，熟悉MySQL数据库；掌握Python基础知识，了解 Django/Flask/FastAPI 等主流Web框架；\n3. AI能力：对前沿 AI 技术保持高度敏锐，有个人 AI 小工具或开源项目落地经验者优先；\n4.综合素质：逻辑思维清晰，学习能力强，具备良好的主动沟通能力。",
+    "publish_date": "2026-07-31"
+  },
+  {
     "platform": "shixiseng",
     "job_id": "inn_lxypaiwhxhht",
     "title": "健康算法工程师实习生",
@@ -10887,6 +11976,17 @@
     "salary": "10-12千元/月",
     "url": "https://www.ncss.cn/student/jobs/detail/8Kt2o2GXfAeitB5H87Ln7T.html",
     "description": "需要目前在杭 可以现场面试并快速到岗的同学！\n工作职责：\n1. 负责智能客服NLP核心算法研发，覆盖意图识别、实体抽取、语义匹配、多轮对话等任务，针对客服场景持续优化模型效果。\n2. 负责RAG系统全链路搭建与调优，包括知识库治理、文本分片、向量检索、重排序、Prompt工程及效果评估体系建设，解决长尾问答、知识更新等问题。\n3. 基于客服会话、工单等数据开展挖掘分析，沉淀FAQ与业务知识，定位badcase并推动算法迭代。\n4. 对接产品与业务团队，参与需求分析与方案设计，推动算法能力落地与项目交付。\n5. 跟踪NLP与大模型前沿技术，开展技术预研，参与团队技术分享与资产沉淀。\n任职要求：\n1. 计算机、人工智能、数学等相关专业本科及以上学历（***优先），具备扎实的机器学习与数学基础。\n2. 熟悉NLP常见算法与任务，理解RAG技术原理与全链路架构，有相关项目经验优先。\n3. 熟练使用Python，掌握Transformers、LangChain等主流框架，熟悉至少一种向量数据库/检索引擎（Milvus、ES等）。\n4. 逻辑清晰，具备独立分析和解决问题的能力，能针对业务问题输出可落地方案。\n5. 具备良好的沟通协作与学习能力，对NLP、大模型技术有持续热情。",
+    "publish_date": "2026-07-30"
+  },
+  {
+    "platform": "shixiseng",
+    "job_id": "inn_lf39dkxoaxmo",
+    "title": "可穿戴电化学传感器实习生",
+    "company": "韶音科技",
+    "city": "深圳",
+    "salary": "300/天",
+    "url": "https://www.shixiseng.com/intern/inn_lf39dkxoaxmo?pcm=pc_SearchList",
+    "description": "【职位描述】\n岗位职责 作为传感器实习生，你将负责： 1.可穿戴传感器的研发与测试，重点方向为电化学传感器的结构与电路设计 2.开发传感器信号采集、数据处理及算法分析方法，提升设备精度与稳定性 3.进行实验方案设计与执行，包括电化学性能测试与人体应用验证 4.文献与市场调研,总结相关前沿技术发展 任职要求 学历：硕士及以上学历(或已推研本科生)，材料科学、电子工程、机械工程、结构工程、生物医学工程或相关专业。 熟悉电化学检测原理。 具备柔性电子器件、可穿戴设备、电化学传感器研发相关经验，掌握常用制备与测试方法（如柔性印刷、电化学工作站测试、微纳加工等）。 熟悉人体体液生理指标的检测原理及应用技术。 加分项 有柔性可穿戴电化学传感器实际研发、原型设计或量产经验。 有跨学科合作经验，熟悉医疗器械注册流程或人体试验规范。 曾发表高水平论文或申请相关专利。 英文读写能力良好，能够阅读国际文献并撰写技术文档。",
     "publish_date": "2026-07-30"
   },
   {
