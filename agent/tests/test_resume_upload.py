@@ -329,9 +329,48 @@ def t_parse_text_still_works():
     return f"parse_text ok（name={resume.name}）"
 
 
+def t_parse_budget_wired():
+    """本轮修复钉住：简历解析必须带大额度 + low 思考档。
+
+    思考模型下 max_tokens 同时卡思考与正文，实测默认 1024 会 content 为空、
+    JSON 解析报 `Expecting value: line 1 column 1 (char 0)`。
+    """
+    saved = {k: os.environ.get(k)
+             for k in ("RATE_LIMIT_ENABLED", "RESUME_LLM_REASONING_EFFORT")}
+    os.environ["RATE_LIMIT_ENABLED"] = "true"
+    os.environ.pop("RESUME_LLM_REASONING_EFFORT", None)
+    try:
+        from shared import limits
+        from shared import llm_client as LC
+
+        _expect(limits.resume_max_tokens() >= 4096,
+                f"解析额度太小：{limits.resume_max_tokens()}")
+        _expect(limits.resume_reasoning_effort() == "low",
+                f"思考档默认不是 low：{limits.resume_reasoning_effort()!r}")
+        payload = LC._build_payload([{"role": "user", "content": "x"}],
+                                    "m", False, 4096, "low")
+        _expect(payload.get("max_tokens") == 4096, f"payload 没带额度：{payload}")
+        _expect(payload.get("reasoning_effort") == "low", f"payload 没带档位：{payload}")
+        plain = LC._build_payload([{"role": "user", "content": "x"}], "m", False, None)
+        _expect("reasoning_effort" not in plain, f"不传时不该注入：{plain}")
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    source = (REPO / "agent" / "resume" / "parser.py").read_text(encoding="utf-8")
+    _expect("reasoning_effort=effort" in source and "max_tokens=budget" in source,
+            "parser.py 没把额度/档位传给 chat()")
+    _expect("consume_truncated()" in source, "parser.py 没识别「输出触顶」这种失败")
+    return "4096 + low 已接线"
+
+
 check("PDF/Word/图片 集合定义正确", t_supported_sets)
 check("app.py 已接上 extractor", t_app_uses_extractor)
 check("提取文字能进 /resume 解析链路", t_parse_text_still_works)
+check("简历解析已带大额度+low 思考档", t_parse_budget_wired)
 
 # ---------------------------------------------------------------------------
 print()

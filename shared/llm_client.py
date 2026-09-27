@@ -92,12 +92,20 @@ def _resolve_max_tokens(max_tokens) -> int:
         return limits.default_max_tokens()
 
 
-def _build_payload(messages: list, model: str, stream: bool, max_tokens) -> dict:
-    """拼请求体：max_tokens 为 0 时不带这个键（保持旧 payload 形状）。"""
+def _build_payload(messages: list, model: str, stream: bool, max_tokens,
+                   reasoning_effort=None) -> dict:
+    """拼请求体：max_tokens 为 0 时不带这个键（保持旧 payload 形状）。
+
+    reasoning_effort: 思考档位（low / high / max）。glm-5.3-flash 是思考模型，
+        `max_tokens` 同时卡住思考（reasoning_content）与正文，抽取类任务用 low
+        才不会被思考吃光额度。空值不注入 —— payload 形状与老版本一致。
+    """
     payload = {"model": model, "messages": messages, "stream": stream}
     limit = _resolve_max_tokens(max_tokens)
     if limit > 0:
         payload["max_tokens"] = limit
+    if reasoning_effort:
+        payload["reasoning_effort"] = reasoning_effort
     return payload
 
 
@@ -136,14 +144,25 @@ def _record_usage(model: str = "unknown", source: str = "unknown",
         _safe_print(f"[token] 用量记录失败（忽略）：{_safe_str(e)}")
 
 
-def _note_finish_reason(finish_reason) -> None:
+def _note_finish_reason(finish_reason) -> bool:
     """finish_reason == "length" 说明输出被 max_tokens 掐断了。
 
     只打一行日志 + 打标记：真正的处理（当解析失败重来）在 react_agent。
+    返回「是否截断」，调用方据此在正文为空时给出更准确的说明 ——
+    思考模型被截断时 content 是空串，只报 JSON 解析错误会把人带偏。
     """
     if finish_reason == "length":
         limits.mark_truncated()
         _safe_print("[llm] 输出触顶（finish_reason=length），本轮回答被 max_tokens 截断")
+        return True
+    return False
+
+
+def _warn_if_empty_truncated(truncated: bool, content) -> None:
+    """触顶且正文为空：额度全被思考（reasoning_content）吃掉了。"""
+    if truncated and not (content or "").strip():
+        _safe_print("[llm] 输出触顶且正文为空：max_tokens 被思考（reasoning_content）吃光，"
+                    "请调大额度，或把 reasoning_effort 调低（如 low）")
 
 
 def _error_detail(e: Exception) -> str:
@@ -164,17 +183,19 @@ def _log_failure(attempt: int, e: Exception) -> None:
 
 
 def chat(messages: list, model: str = None, retries: int = 3, source: str = "unknown",
-         max_tokens: int = None) -> str:
+         max_tokens: int = None, reasoning_effort: str = None) -> str:
     """非流式调用，失败重试。
 
     source: 调用方标记（如 "react_agent"），用于 token 用量按来源聚合，默认 "unknown"。
     max_tokens: 单次输出上限；不传取 LLM_MAX_TOKENS（默认 1024）。
         输出被截断时 finish_reason 会是 "length"，这里打标记、react_agent 当解析
         失败处理（截断的 JSON 静默变成「格式错误」非常难排查）。
+    reasoning_effort: 思考档位（low / high / max），不传不注入。
+        思考模型下 max_tokens **同时**卡思考与正文，长思考会把额度吃光、正文变空。
     """
     model = model or ZHIPU_CHAT_MODEL
     headers = _headers()                    # 顺便校验 Key，缺了直接抛 ConfigError
-    payload = _build_payload(messages, model, False, max_tokens)
+    payload = _build_payload(messages, model, False, max_tokens, reasoning_effort)
     last_err = None
 
     _log_proxy_diag()
@@ -188,10 +209,13 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
             resp.raise_for_status()
             data = resp.json()
             choices = data.get("choices") or []
-            _note_finish_reason(choices[0].get("finish_reason") if choices else None)
+            truncated = _note_finish_reason(
+                choices[0].get("finish_reason") if choices else None)
             _record_usage(model=model, source=source,
                           usage=data.get("usage"), request_id=data.get("id"))
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"]["content"]
+            _warn_if_empty_truncated(truncated, content)
+            return content
         except ConfigError:
             raise
         except Exception as e:
@@ -206,7 +230,7 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
 
 
 def chat_stream(messages: list, model: str = None, source: str = "unknown",
-                max_tokens: int = None):
+                max_tokens: int = None, reasoning_effort: str = None):
     """流式调用，逐字返回（httpx 按行读 SSE）。
 
     source: 调用方标记，用于 token 用量按来源聚合，默认 "unknown"。
@@ -216,7 +240,7 @@ def chat_stream(messages: list, model: str = None, source: str = "unknown",
     """
     model = model or ZHIPU_CHAT_MODEL
     headers = _headers()
-    payload = _build_payload(messages, model, True, max_tokens)
+    payload = _build_payload(messages, model, True, max_tokens, reasoning_effort)
 
     usage = None
     request_id = None

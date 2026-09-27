@@ -5,6 +5,7 @@
 import json
 import re
 from pathlib import Path
+from shared import limits
 from shared.llm_client import chat
 from agent.tools.resume_match import Resume
 
@@ -38,12 +39,38 @@ EXTRACT_PROMPT = """你是简历解析专家。从下面的简历文本中提取
 
 
 def parse_text(text: str) -> Resume:
-    """从纯文本解析简历"""
+    """从纯文本解析简历
+
+    ⚠️ 必须显式给 max_tokens + reasoning_effort：模型是思考模型，
+    `max_tokens` 同时卡住思考（reasoning_content）与正文。走默认 1024 时
+    思考就能吃掉全部额度 → content 是空串 → json.loads 报
+    `Expecting value: line 1 column 1 (char 0)`，看起来像「模型没按格式输出」，
+    其实输出被掐断了（实测这份 1631 字简历：1024 空正文，4096 仍空，
+    8192 才出正文；配 reasoning_effort=low 后 ~500 token 就够）。
+    """
     prompt = EXTRACT_PROMPT.format(resume_text=text)
+    budget = limits.resume_max_tokens()
+    effort = limits.resume_reasoning_effort()
 
     for attempt in range(1, 4):
         try:
-            raw = chat([{"role": "user", "content": prompt}])
+            raw = chat([{"role": "user", "content": prompt}],
+                       source="resume_parse",
+                       max_tokens=budget, reasoning_effort=effort)
+        except Exception as e:
+            print(f"[第{attempt}次失败] {e}")
+            if attempt == 3:
+                raise RuntimeError(f"简历解析失败：{e}")
+            continue
+
+        # 触顶 = 输出不完整（可能正文为空）：同样的提示再重试必然同样触顶，
+        # 直接报清楚，别白等 3 轮、也别把它伪装成 JSON 格式错误
+        if limits.consume_truncated():
+            raise RuntimeError(
+                "简历解析输出被 max_tokens 截断（思考模型把额度吃完了，正文为空）。"
+                "请调大 RESUME_LLM_MAX_TOKENS，或把 RESUME_LLM_REASONING_EFFORT 设为 low。")
+
+        try:
             data = _parse_json(raw)
             return _dict_to_resume(data)
         except Exception as e:

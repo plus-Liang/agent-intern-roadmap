@@ -75,6 +75,32 @@ def default_max_tokens() -> int:
     return llm_max_tokens() if rate_limit_enabled() else 0
 
 
+def resume_max_tokens() -> int:
+    """简历解析（结构化抽取）的单次输出上限，默认 4096。
+
+    为什么要单独给：模型是**思考模型**，`max_tokens` 同时卡住思考
+    （`reasoning_content`）与正文。实测这份 1631 字简历，默认 1024 档
+    思考就要 3139 字符以上 → 1024 全被思考吃光、`content` 为空，
+    前端看到的是 `Expecting value: line 1 column 1 (char 0)`。
+    4096 仍不够（实测 finish_reason=length、content 空），8192 才出正文；
+    配合 `reasoning_effort=low` 后 ~500 token 就够，4096 是留余量。
+    总开关关闭时为 0（不注入），与改造前行为一致。
+    """
+    return _env_int("RESUME_LLM_MAX_TOKENS", 4096, 0) if rate_limit_enabled() else 0
+
+
+def resume_reasoning_effort() -> str:
+    """简历解析的思考档位（low / high / max；空串 = 不注入）。
+
+    实测 `low` 把思考从 3.1k 字符压到 ~100 字符，总输出降到 486~533 token，
+    抽取到的技能 / 项目条数与默认档位一致 —— 纯抽取任务不需要长时间思考。
+    """
+    if not rate_limit_enabled():
+        return ""
+    raw = os.getenv("RESUME_LLM_REASONING_EFFORT", "low")
+    return str(raw).strip().lower()
+
+
 def run_token_budget() -> int:
     """单次请求（一轮对话）累计 token 上限；0 = 不熔断。"""
     return _env_int("RUN_TOKEN_BUDGET", 30000, 0)
