@@ -35,6 +35,10 @@ pinned: false
 | Agent 层 | ReAct 循环 + 工具调用：搜岗位 / 看详情 / 简历匹配打分 / 改简历 / 投递跟踪 / 模拟面试 | `agent/react_agent.py`、`agent/tools_registry.py` |
 | 界面层 | Chainlit 对话、FastAPI + Swagger、Streamlit 数据看板 | `main.py`、`dashboard/app.py` |
 
+> **投递追踪的定位**：它是**手动录入的个人记录管理（本地 CRM）** —— 不做自动投递，
+> 也不读招聘平台的状态。招聘平台没有公开 API，自动投递违反服务条款。
+> 真正自动化的是投递**之前**的三步：**找岗位、算匹配、改简历**。
+
 仓库自带的 `rag/data/cleaned_jd.json` 有 **约 960 条**真实岗位（含六城分布，随每晚抓取持续增长），clone 下来即可检索，
 不需要先跑爬虫。**要跑起来只需要一个智谱 API Key**（对话模型；embedding 是本地模型，不花钱）。
 
@@ -102,6 +106,8 @@ flowchart TD
 ---
 
 ## 3. 快速开始
+
+> 想快速体验选**方式 A（Docker）**；想改代码或用 Dashboard 选**方式 B**。
 
 ### 方式 A：Docker（一条命令）
 
@@ -264,6 +270,8 @@ python -m rag.vector_store --rebuild      # 从 jobs.db 全量重建（约几分
   默认每晚 180 个组合，约 6 晚覆盖一轮；进度记在 `scrape_history` 表里。
 - **ncss 有全局 1 req/s 限速**，且每个岗位要多请求一次详情页，所以它是最慢的平台
   （实测 60 个组合 12–63 分钟，抖动大）；实习僧约 12.5s/组合，牛客约 1.5s/组合。
+- **clone 后拿到的是快照，不会自动更新。** 要最新数据：`git pull`，
+  或自己跑 `python -m agent.scrapers.scheduler --once`。
 
 ---
 
@@ -393,6 +401,23 @@ python scripts/audit_data.py                 # 数据质量统计
 - `scripts/verify_rag_e2e.py` 与 `scripts/verify_heal.py` 用 `Path(__file__)` 自己定位仓库根，
   换机器 / 换目录都能直接跑。
 - 依赖 `chroma_db/` 与 `jobs.db` 的脚本（`verify_rag_e2e.py`、`audit_data.py`）需要先按第 3 节建好数据。
+
+---
+
+## 扩展指南：想改什么，改哪里
+
+按"想改的东西"查表，**大部分需求只动一个文件、不用改代码**：
+
+| 你想改什么 | 改哪个文件 |
+|---|---|
+| 加城市 / 加关键词 | [`config/scraping.yaml`](config/scraping.yaml)（**只改这一个文件，不用改代码**；环境变量 `SCHEDULER_CITY` / `SCHEDULER_KEYWORDS` 优先级更高） |
+| 加平台 | 在 `agent/scrapers/` 下新建抓取器（参考 `agent/scrapers/niuke.py`），再在 `agent/scrapers/scheduler.py` 里注册 |
+| 换 LLM / 换 embedding | 根目录 `.env`（变量名见 [`.env.example`](.env.example) 与第 4 节） |
+| 改 Agent 提示词 | `agent/react_agent.py` 的 `STATIC_PREFIX` |
+| 改对话 UI | `agent/app.py`（Chainlit）；改看板 → `dashboard/` |
+| 加 REST 接口 | `api/router.py` |
+| 调 RAG（召回 / 融合 / 重排） | `rag/retriever.py`（BM25 + 向量 RRF）与 `agent/tools_registry.py`（分流 / 语义重排）；改完记得 `python -m rag.vector_store --rebuild` |
+| 加测试 | `agent/tests/` |
 
 ---
 
