@@ -27,6 +27,7 @@ from agent import storage
 from agent import user_feedback
 from agent import user_profile
 from agent.react_agent import run as run_agent
+from agent.resume import extractor
 from agent.tools.job_detail import get_job_detail
 from agent.tools.job_search import search_jobs
 from shared import limits
@@ -179,6 +180,62 @@ def _thread_id() -> str:
 def _norm_str(value) -> str:
     """None / 非字符串字段归一成 ''（简历解析出的字段可能是 None，直接 join 会炸）"""
     return "" if value is None else str(value)
+
+
+def _set_resume(resume_text: str) -> dict:
+    """解析简历文本 → 存会话 + 落快照，返回 resume_data。失败抛异常，由调用方兜。"""
+    from agent.resume.parser import parse_text
+
+    resume = parse_text(resume_text)
+    resume_data = {
+        "name": _norm_str(resume.name),
+        "skills": list(resume.skills or []),
+        "experience": list(resume.experience or []),
+        "projects": list(resume.projects or []),
+        "education": _norm_str(resume.education),
+        "city": _norm_str(resume.city),
+    }
+    cl.user_session.set("resume", resume_data)
+    # 简历落进会话快照：进程重启后不用重新 /resume
+    try:
+        chat_history.save_resume_snapshot(
+            cl.user_session.get("thread_id") or _thread_id(), resume_data
+        )
+    except Exception as e:                          # noqa: BLE001 - 快照失败不影响本次设置
+        print(f"[历史] 简历快照保存失败（忽略）：{type(e).__name__}: {e}")
+    return resume_data
+
+
+def _resume_success_text(resume_data: dict) -> str:
+    return (
+        f"✅ 简历已设置\n\n"
+        f"- 姓名：{resume_data['name']}\n"
+        f"- 技能：{', '.join(resume_data['skills'][:8])}\n"
+        f"- 教育：{resume_data['education']}\n"
+        f"- 城市：{resume_data['city']}"
+    )
+
+
+def _resume_attachments(message) -> list:
+    """取出 message.elements 里的真附件（有本地路径的）。
+
+    Chainlit 把上传文件落在 `.files/<session>/<uuid>.<ext>`，并在
+    element.path 上给出真实路径；没有 path 的元素（外链图片等）直接跳过。
+    """
+    found = []
+    for element in (getattr(message, "elements", None) or []):
+        path = getattr(element, "path", None)
+        if path:
+            found.append(element)
+    return found
+
+
+def _attachment_label(element) -> str:
+    name = getattr(element, "name", None) or ""
+    if name:
+        return name
+    path = getattr(element, "path", None)
+    return Path(path).name if path else "附件"
 
 
 def _record_turn(thread_id: str, question: str, answer: str,
@@ -808,44 +865,69 @@ async def on_message(message: cl.Message):
         ).send()
         return
 
-    # 命令：设置简历
-    if content.startswith("/resume"):
+    # 命令：设置简历（也接受「只上传 PDF/Word 附件、不写 /resume」）
+    attachments = _resume_attachments(message)
+    if content.startswith("/resume") or attachments:
         resume_text = content.replace("/resume", "").strip()
-        if not resume_text:
+
+        # 附件优先：从第一个能提取出文字的 PDF/Word 取正文，走同一条 /resume 保存流程
+        sources = list(attachments)
+        if resume_text:
+            sources.append(None)                    # 附件都不可用时兜文本
+        attachment_notes: list = []
+        for element in sources:
+            if element is None:
+                candidate, source = resume_text, "（粘贴文本）"
+            else:
+                label = _attachment_label(element)
+                candidate, err = extractor.extract_text(
+                    getattr(element, "path", None), label
+                )
+                if err:
+                    if extractor.is_image(getattr(element, "path", None), label):
+                        await cl.Message(
+                            content=(f"🖼️ 收到图片附件 `{label}`，但当前模型不支持读图，"
+                                     "请粘贴简历文本或上传 PDF / Word。")
+                        ).send()
+                        return
+                    attachment_notes.append(f"- `{label}`：{err}")
+                    continue
+                source = f"`{label}`"
+
+            try:
+                resume_data = _set_resume(candidate)
+            except Exception as e:                  # noqa: BLE001 - 解析失败给回执
+                if element is None:
+                    await cl.Message(content=f"❌ 简历解析失败：{e}").send()
+                    return
+                attachment_notes.append(f"- `{source}`：解析失败（{e}）")
+                continue
+
+            note = ("\n\n" + "\n".join(attachment_notes)) if attachment_notes else ""
             await cl.Message(
-                content="用法：`/resume 你的简历文本...`\n\n简历会保存在当前会话。"
+                content=f"（来自 {source}）\n{_resume_success_text(resume_data)}{note}"
             ).send()
             return
 
-        from agent.resume.parser import parse_text
-        try:
-            resume = parse_text(resume_text)
-            resume_data = {
-                "name": _norm_str(resume.name),
-                "skills": list(resume.skills or []),
-                "experience": list(resume.experience or []),
-                "projects": list(resume.projects or []),
-                "education": _norm_str(resume.education),
-                "city": _norm_str(resume.city),
-            }
-            cl.user_session.set("resume", resume_data)
-            # 简历落进会话快照：进程重启后不用重新 /resume
-            try:
-                chat_history.save_resume_snapshot(
-                    cl.user_session.get("thread_id") or _thread_id(), resume_data
-                )
-            except Exception as e:                  # noqa: BLE001 - 快照失败不影响本次设置
-                print(f"[历史] 简历快照保存失败（忽略）：{type(e).__name__}: {e}")
-
+        # 走到这里说明：既没有可用附件，也没有可用文本 → 明确降级，不静默忽略
+        has_image = any(
+            extractor.is_image(getattr(e, "path", None), _attachment_label(e))
+            for e in attachments
+        )
+        if attachment_notes:
             await cl.Message(
-                content=f"✅ 简历已设置\n\n"
-                        f"- 姓名：{resume_data['name']}\n"
-                        f"- 技能：{', '.join(resume_data['skills'][:8])}\n"
-                        f"- 教育：{resume_data['education']}\n"
-                        f"- 城市：{resume_data['city']}"
+                content=("⚠️ 附件没有提取到简历文本：\n" + "\n".join(attachment_notes)
+                         + "\n\n请粘贴简历文本，或换一份 PDF / Word 重试。")
             ).send()
-        except Exception as e:
-            await cl.Message(content=f"❌ 简历解析失败：{e}").send()
+        elif has_image:
+            await cl.Message(
+                content="🖼️ 收到图片附件，但当前模型不支持读图，请粘贴简历文本或上传 PDF / Word。"
+            ).send()
+        else:
+            await cl.Message(
+                content=("用法：`/resume 你的简历文本...`，或直接上传 PDF / Word 简历附件。\n\n"
+                         "简历会保存在当前会话。")
+            ).send()
         return
 
     # 命令：查看追踪

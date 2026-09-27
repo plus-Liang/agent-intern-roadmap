@@ -28,6 +28,7 @@ agent/data/applications.db
 agent/data/chat_history.db
 agent/data/.chainlit_secret
 agent/tests/_tmp_chat_history/
+agent/tests/_tmp_resume_upload/
 agent/data/exports/
 agent/data/resumes/*.json
 agent/evaluation/failures/

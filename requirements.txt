@@ -12,6 +12,8 @@ jieba==0.42.1
 python-dotenv==1.2.3
 json5==0.15.0
 pypdf==6.18.1
+# /chat 上传 PDF / Word 简历附件时用来提取文字（pypdf 在上面，python-docx 在下面）
+python-docx==1.2.0
 
 # Web service: /chat = Chainlit, / and /api = FastAPI + uvicorn
 chainlit==2.12.0

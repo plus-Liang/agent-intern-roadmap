@@ -57,18 +57,23 @@ reaction_on_message_received = false
 # Authorize users to spontaneously upload files with messages
 [features.spontaneous_file_upload]
     enabled = true
-    # Define accepted file types using MIME types
-    # Examples:
-    # 1. For specific file types:
-    #    accept = ["image/jpeg", "image/png", "application/pdf"]
-    # 2. For all files of certain type:
-    #    accept = ["image/*", "audio/*", "video/*"]
-    # 3. For specific file extensions:
-    #    accept = { "application/octet-stream" = [".xyz", ".pdb"] }
-    # Note: Using "*/*" is not recommended as it may cause browser warnings
-    accept = ["*/*"]
-    max_files = 20
-    max_size_mb = 500
+    # 只放行简历附件（PDF / Word）+ 图片：
+    # - PDF / .docx 会被 agent/app.py 提取文字后走 /resume 保存流程；
+    # - 图片放行是为了给出"模型不支持读图"的明确回复，而不是被前端静默拦掉；
+    # - 老版 .doc 故意不放行（python-docx 打不开），服务端仍有兜底提示；
+    # - Word 必须同时列两个 MIME：不同浏览器给 .docx 报的是
+    #   application/octet-stream（Chainlit 这里是**精确匹配**，漏一个就会被 400 拒收）。
+    accept = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/octet-stream",
+        "image/png",
+        "image/jpeg",
+    ]
+    # 简历一般几百 KB；20 个 × 500MB 的默认值既没必要也有塞满磁盘的风险。
+    # 上传落在仓库根的 .files/<session>/（会话结束即清），PDF/Word 20MB 足够。
+    max_files = 5
+    max_size_mb = 20
 
 [features.audio]
     # Enable audio features
