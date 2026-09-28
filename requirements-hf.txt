@@ -1,7 +1,6 @@
 # Slim deps for Hugging Face Spaces (FastAPI + Chainlit service).
-# Versions kept in sync with requirements-full.txt; no streamlit / playwright / torch /
-# sentence-transformers / scikit-learn (local-only heavy deps).
-# NOTE: numpy==2.5.3 requires Python >=3.12, so use 3.12+ here and in CI.
+# No streamlit / playwright / torch / sentence-transformers / scikit-learn.
+# numpy==2.5.3 requires Python >=3.12.
 fastapi==0.141.1
 uvicorn==0.52.4
 chainlit==2.12.0
@@ -13,27 +12,15 @@ jieba==0.42.1
 python-dotenv==1.2.3
 json5==0.15.0
 pypdf==6.18.1
-# /chat 上传 Word 简历（.docx）时解析要用；Dockerfile 装的正是本文件，
-# 漏了它容器里 .docx 一律 ModuleNotFoundError → “附件解析失败”
 python-docx==1.2.0
 pandas==3.0.5
 numpy==2.5.3
-
-# Imported directly at runtime, pinned instead of relying on transitive deps:
-# httpx (LLM calls), requests (niuke/ncss JSON APIs), pydantic (FastAPI models),
-# PyYAML (config/scraping.yaml), fastembed (local embeddings for RAG).
 httpx==0.28.1
 requests==2.34.2
 pydantic==2.13.5
 PyYAML==6.0.3
 fastembed==0.8.0
-
-# chromadb / fastembed 会拖进 cffi → pycparser。这两个是纯 C 扩展 + 纯 Python
-# 的老牌组合，构建机上偶发挑到没有 wheel 的版本就会现场编译（镜像里没有 gcc，
-# 一编译就整层失败）。和 requirements-full.txt 保持一致钉死。
 cffi==2.1.1
 pycparser==3.0
-
-# Chainlit data layer deps
-sqlalchemy>=2.0.30
+sqlalchemy[asyncio]>=2.0.30
 aiosqlite>=0.20.0

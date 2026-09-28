@@ -19,6 +19,7 @@ services:
       # 数据层落盘：cleaned_jd.json（git 自带）+ jobs.db（运行时生成）
       - ./rag/data:/app/rag/data
       # 向量库：不进 git，用命名卷持久化，容器重建不必重新向量化
+      - ./agent/data:/app/agent/data
       - chroma_db:/app/chroma_db
     command:
       ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
