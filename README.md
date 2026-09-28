@@ -216,6 +216,8 @@ python -m rag.vector_store --rebuild      # 从 jobs.db 全量重建（约几分
 | `RESUME_LLM_REASONING_EFFORT` | 简历解析思考档位，默认 `low`，空 = 不注入 |
 | `REACT_LLM_LONG_MAX_TOKENS` | ReAct **长输出轮**（完整简历 / 长列表）单次输出上限，默认 8192 |
 | `REACT_LLM_REASONING_EFFORT` | ReAct 思考档位，默认 `low`，空 = 不注入 |
+| `MATCH_LLM_MAX_TOKENS` | `match_resume` 工具**内部**那次 LLM 调用（不走 ReAct 分档）的单次输出上限，默认 4096 |
+| `MATCH_LLM_REASONING_EFFORT` | `match_resume` 工具内部调用的思考档位，默认 `low`，空 = 不注入 |
 | `RUN_TOKEN_BUDGET` | 闸门 2 单次请求累计 token 上限，默认 30000，触顶**降级收尾不拒绝请求** |
 | `DAILY_TOKENS_PER_USER` | 闸门 4 单用户日额度，默认 200000，`0` = 不限 |
 | `GLOBAL_DAILY_TOKENS` | 闸门 4 全局日额度，默认 2000000，`0` = 不限 |

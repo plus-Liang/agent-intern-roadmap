@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 import json
 import time
 from shared.llm_client import chat
+from shared.limits import match_max_tokens, match_reasoning_effort
 
 
 @dataclass
@@ -81,7 +82,19 @@ def match_resume_to_jd(resume: Resume, job_detail) -> MatchResult:
 """
     for attempt in range(1, 4):
         try:
-            content = chat([{"role": "user", "content": prompt}])
+            # 这里**必须**显式带上额度与思考档：chat() 不传就是全局默认 1024，
+            # 而 glm-5.3-flash 是思考模型，思考（reasoning_content）与正文共用
+            # max_tokens —— 真实 PDF 简历下思考必超 1024，正文要么被截断成
+            # `Unterminated string starting at: line 19 column 5`，要么整段为空
+            # （术语见 shared/limits.resume_max_tokens 的注释）。
+            # 实测（真实简历 + 真实 JD）：默认档 23.8~24.3s 且 100% 触顶，
+            # 4096 + low 降到 3.3~6.8s 且 JSON 合法，故单开一档 MATCH_LLM_*。
+            content = chat(
+                [{"role": "user", "content": prompt}],
+                source="resume_match",
+                max_tokens=match_max_tokens(),
+                reasoning_effort=match_reasoning_effort(),
+            )
             content = content.strip()
             if content.startswith("```"):
                 content = content.split("```")[1]

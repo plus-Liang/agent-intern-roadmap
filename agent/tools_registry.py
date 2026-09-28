@@ -852,7 +852,11 @@ TOOLS = {
         },
         "func": _match,
         "risk_level": "read",
-        "timeout": 30,
+        # 30s 不够：修复前单次内部 LLM 调用实测 23.8~24.3s（思考吃光 1024、
+        # 正文被截断），3 次重试 + 2s/4s 退避根本塞不进 30s，于是第二轮调用
+        # 必被主线程砍掉，observation 变成「执行超过 30s，本轮调用已放弃」。
+        # 修复后单次约 3~7s，60s 是留给「模型变慢的那一天」的余量。
+        "timeout": 60,
         "requires_confirmation": False,
     },
     "add_tracking": {

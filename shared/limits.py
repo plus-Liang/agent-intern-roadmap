@@ -101,6 +101,35 @@ def resume_reasoning_effort() -> str:
     return str(raw).strip().lower()
 
 
+def match_max_tokens() -> int:
+    """简历-JD 匹配（match_resume 工具）的单次输出上限，默认 4096。
+
+    为什么要单独给：与简历解析同源 —— `glm-5.3-flash` 是思考模型，
+    `max_tokens` 同时卡住思考（`reasoning_content`）与正文。**工具内部
+    的 chat() 不经过 ReAct 的分档逻辑**，不显式传就是全局默认 1024。
+    实测（真实 PDF 简历 + 出问题的两个 JD，各跑 2 遍）：默认档单次就要
+    23.8~24.3s、finish_reason 100% 是 length —— 要么正文被砍成
+    `Unterminated string starting at: line 19 column 5`，要么正文 0 字
+    （1024 全被思考吃光）。4096 只是上限、不花额外 token，留够余量。
+    总开关关闭时为 0（不注入），与改造前行为一致。
+    """
+    return _env_int("MATCH_LLM_MAX_TOKENS", 4096, 0) if rate_limit_enabled() else 0
+
+
+def match_reasoning_effort() -> str:
+    """简历-JD 匹配的思考档位（low / high / max；空串 = 不注入）。
+
+    默认 `low`，与简历解析、ReAct 同一档：实测同一份简历 + 同一个 JD，
+    默认档 23.8~24.3s 且必触顶，`low` + 4096 降到 3.3~6.8s 且 JSON 合法，
+    打分维度（skills/experience/education/location）与差距/亮点条数不变
+    —— 打分是固定形状的结构化输出，长思考的边际收益远小于它挤掉正文的代价。
+    """
+    if not rate_limit_enabled():
+        return ""
+    raw = os.getenv("MATCH_LLM_REASONING_EFFORT", "low")
+    return str(raw).strip().lower()
+
+
 def react_long_max_tokens() -> int:
     """ReAct 循环里**可能输出长文本**的那一轮的单次输出上限，默认 8192。
 
