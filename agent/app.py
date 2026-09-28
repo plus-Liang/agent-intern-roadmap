@@ -3,7 +3,8 @@
 
 除了常规对话，这里还挂着三件事：
 1. 用户反馈（D2）：每条回答下面挂 👍 / 👎，点了就落进 logs/feedback.db；
-2. 模拟面试（D3）：/mock-interview <公司> <岗位> 进入面试官模式，
+2. 模拟面试（D3）：「帮我模拟面试<公司><岗位>」这类大白话或
+   `/mock-interview <公司> <岗位>` 都能进入面试官模式，
    一次问一个问题，答完给一句反馈再问下一个，最后给综合评价；
 3. 对话历史落库：每轮问答写进 agent/data/chat_history.db，下一条消息把它
    注入回 prompt（`run_agent(..., history=...)`）。Chainlit 的 user_session
@@ -1320,6 +1321,21 @@ def _chainlit_data_layer():
     return data_layer.build()
 
 
+def _profile_hint_lines(profile: dict) -> list:
+    """把长期偏好渲染成人类可读的几行（欢迎语用，绝不出原始 JSON）。"""
+    lines = []
+    cities = profile.get("target_cities") or []
+    keywords = profile.get("target_keywords") or []
+    prefs = profile.get("preferences") or {}
+    if cities:
+        lines.append(f"- 目标城市：{'、'.join(str(c) for c in cities)}")
+    if keywords:
+        lines.append(f"- 偏好关键词：{'、'.join(str(k) for k in keywords)}")
+    for key, value in prefs.items():
+        lines.append(f"- {key}：{value}")
+    return lines
+
+
 async def _init_conversation(resumed: bool = False) -> None:
     """会话初始化：绑定用户 → 认下 thread_id → 还原历史 / 简历 / 面试。
 
@@ -1361,12 +1377,13 @@ async def _init_conversation(resumed: bool = False) -> None:
 
     profile = user_profile.load_profile()
     profile_hint = ""
-    if profile.get("target_cities") or profile.get("preferences"):
+    if profile.get("target_cities") or profile.get("target_keywords") or profile.get("preferences"):
+        pref_lines = _profile_hint_lines(profile)
         profile_hint = (
-            "\n**我记住的长期偏好**："
-            + json.dumps(profile, ensure_ascii=False)
+            "\n**我记住的长期偏好**：\n"
+            + "\n".join(pref_lines)
             + "\n"
-        )
+        ) if pref_lines else "\n**我记住的长期偏好**：还没记录偏好\n"
 
     if cl.user_session.get("history"):
         profile_hint += (
@@ -1376,20 +1393,18 @@ async def _init_conversation(resumed: bool = False) -> None:
 
     await cl.Message(
         content=(
-            "👋 我是你的求职助手 Agent。\n\n"
+            "👋 我是你的求职助手 Agent，直接用大白话说需求就行。\n\n"
             "**我能做的事**：\n"
-            "- 搜索实习岗位（如：帮我找北京的 Agent 实习）\n"
-            "- 查看岗位详情\n"
-            "- 简历匹配打分\n"
-            "- 添加到投递追踪\n"
-            "- 查询追踪状态\n"
-            "- 模拟面试：`/mock-interview 公司 岗位`\n"
-            "- 清空本会话历史：`/history-clear`\n\n"
-            "**使用建议**：\n"
-            "1. 先用 `/resume` 设置你的简历（或粘贴文本）\n"
-            "2. 然后直接说需求，我会自动调工具\n"
-            "3. 告诉过我一次偏好（如「我只找广州的」），以后我会一直记得\n"
-            "4. 对话历史会落库，进程重启后接着聊也能记得上下文\n"
+            "- 找实习岗位：帮我找北京的 Agent 实习\n"
+            "- 看岗位详情、给简历匹配打分\n"
+            "- 记录投递、查投递进度\n"
+            "- 模拟面试：帮我模拟面试字节 Agent 开发实习生\n"
+            "- 上传简历（PDF/Word）或粘贴文本，我来按它帮你匹配\n\n"
+            "**就这样用**：\n"
+            "1. 先把简历发给我（PDF/Word 文件，或直接粘贴文字）\n"
+            "2. 然后直接说需求，我会自动干活\n"
+            "3. 说一次偏好（比如「我只找广州的岗位」），以后我一直记得\n"
+            "4. 想清空本会话历史就发 `/history-clear`\n"
             f"{profile_hint}"
         )
     ).send()
