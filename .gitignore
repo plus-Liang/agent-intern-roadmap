@@ -50,3 +50,5 @@ agent/data/resumes/local/
 agent/data/packages/
 *.bak
 *.bak2
+
+backups/
