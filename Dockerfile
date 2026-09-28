@@ -8,6 +8,9 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_RETRIES=5 \
+    PIP_TIMEOUT=60 \
+    PIP_DEFAULT_TIMEOUT=60 \
     HOME=/home/user \
     PORT=7860
 
@@ -20,8 +23,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # 先装依赖（单独一层）：之后只改代码时仍能命中缓存
+# --prefer-binary：镜像里刻意没装 gcc，一旦 pip 挑中源码包就会现场编译失败；
+# 重试 / 超时交给上面的 PIP_RETRIES / PIP_TIMEOUT（镜像源偶发 502、超时是构建失败的主因）
 COPY requirements-hf.txt /app/requirements-hf.txt
-RUN pip install --no-cache-dir -r /app/requirements-hf.txt
+RUN pip install --no-cache-dir --prefer-binary --retries "${PIP_RETRIES}" \
+        --timeout "${PIP_TIMEOUT}" -r /app/requirements-hf.txt
 
 # HF Spaces 推荐非 root 运行
 RUN useradd -m -u 1000 user

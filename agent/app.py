@@ -35,7 +35,12 @@ from shared import limits
 from shared import token_tracker
 from shared.llm_client import chat
 from shared.logger import log_event
-from shared.user_context import get_current_user, set_current_user
+from shared.user_context import (
+    get_current_thread,
+    get_current_user,
+    set_current_thread,
+    set_current_user,
+)
 
 
 storage.init_db()
@@ -171,6 +176,10 @@ def _bind_user() -> str:
     ContextVar。在入口 set 之后，这一轮的所有**同步**调用
     （run_agent → 工具 → storage / user_profile / chat_history）读到的就是它。
     工具跑在子线程里，那一段由 tools_registry.call_tool 的 copy_context() 负责。
+
+    顺带把 thread_id 也绑上（同一个理由）：工具里要靠 get_current_thread()
+    知道「这条信息是哪条会话来的」，而工具只拿得到 ContextVar，
+    拿不到 cl.user_session。
     """
     user_id = _session_user_id() or chat_history.DEFAULT_USER_ID
     set_current_user(user_id)
@@ -178,6 +187,10 @@ def _bind_user() -> str:
         cl.user_session.set(_USER_ID_KEY, user_id)
     except Exception:                               # noqa: BLE001 - 无 socket 上下文
         pass
+    try:
+        set_current_thread(_thread_id())
+    except Exception as e:                          # noqa: BLE001 - 绑不上就留空串
+        print(f"[历史] thread_id 绑定失败（忽略）：{type(e).__name__}: {e}")
     return user_id
 
 
@@ -251,20 +264,61 @@ def _load_resume_for_thread(thread_id: str):
     return None
 
 
-def _load_interview_for_thread(thread_id: str):
-    """读某条会话的面试状态；本会话没有就继承旧固定会话那一份（理由同上）。"""
+def _load_interview_for_thread(thread_id: str, claim: bool = True):
+    """读某条会话的面试状态；本会话没有就继承旧固定会话那一份（理由同上）。
+
+    **继承即认领**（claim）：继承过来的那场面试当场落到本会话名下，旧固定
+    会话里的那条随之作废 —— 这正是修复「多会话继承同一场面试」的地方。
+    不认领的话每开一个新会话都会继承到**同一场**面试：两个标签页能同时接着
+    答同一场，答案互相覆盖，谁也面不完。
+    """
     pending = chat_history.load_interview(thread_id)
     if pending:
         return pending
     legacy = _user_thread_id()
-    if legacy != thread_id:
-        return chat_history.load_interview(legacy)
-    return None
+    if legacy == thread_id:
+        return None
+    inherited = chat_history.load_interview(legacy)
+    if not inherited:
+        return None
+    if claim:
+        try:
+            chat_history.set_interview(thread_id, inherited)   # 认领：落到本会话
+            chat_history.set_interview(legacy, None)           # 旧的那条只发一次
+        except Exception as e:                          # noqa: BLE001 - 认领失败也照样接着面
+            print(f"[历史] 面试认领失败（忽略）：{type(e).__name__}: {e}")
+    return inherited
 
 
 def _norm_str(value) -> str:
     """None / 非字符串字段归一成 ''（简历解析出的字段可能是 None，直接 join 会炸）"""
     return "" if value is None else str(value)
+
+
+def _save_resume_to_library(resume_data: dict) -> str:
+    """把会话简历同时写进简历库（缺口①），返回 resume_id。
+
+    会话快照（chat_threads.resume_json）只服务「进程重启后接着聊」，
+    是临时的；简历库（agent/data/resumes/<用户>/）才是用户资产 ——
+    Dashboard 选简历、`resume_id` 偏好都用它。以前 `/resume` 只写快照，
+    简历库里永远空的。
+
+    去重：与库里最新一版同名同内容就不重复存（反复 `/resume` 同一份简历
+    不该刷出一堆版本）。任何失败只打印，不影响本次设置简历。
+    """
+    try:
+        name = _norm_str(resume_data.get("name")) or "会话简历"
+        records = storage.list_resumes()
+        if records:
+            latest_id = records[0].get("id")
+            latest = storage.get_resume(latest_id)
+            if (latest and latest.get("name") == name
+                    and latest.get("content") == resume_data):
+                return str(latest_id or "")
+        return storage.save_resume(name, resume_data)
+    except Exception as e:                          # noqa: BLE001
+        print(f"[简历] 落简历库失败（忽略）：{type(e).__name__}: {e}")
+        return ""
 
 
 def _set_resume(resume_text: str) -> dict:
@@ -289,6 +343,8 @@ def _set_resume(resume_text: str) -> dict:
         )
     except Exception as e:                          # noqa: BLE001 - 快照失败不影响本次设置
         print(f"[历史] 简历快照保存失败（忽略）：{type(e).__name__}: {e}")
+    # 缺口①：会话快照之外，再落一份进简历库（用户资产，Dashboard 也读它）
+    _save_resume_to_library(resume_data)
     return resume_data
 
 
@@ -424,6 +480,35 @@ def _save_interview_snapshot(session):
         chat_history.set_interview(_thread_id(), session)
     except Exception as e:                          # noqa: BLE001
         print(f"[历史] 面试快照保存失败（忽略）：{type(e).__name__}: {e}")
+
+
+def _record_interview_memory(session, summary: str = "") -> dict:
+    """面试收尾：把这场面试的结果存进长期记忆（缺口②）。
+
+    以前收尾只做 `set_interview(active=False)`，把过程和评价一起清空，
+    用户回头什么都看不到（"面试结束记录全丢"）。现在收尾时先落一条
+    interview_record —— 面试状态照样清（它本来就不该长期占位），
+    但评价进了 user_memories，随时能用 list_memories 读回。
+
+    落库失败只打印，不影响面试收尾本身。
+    """
+    if not isinstance(session, dict):
+        return {"ok": False, "error": "没有面试状态"}
+    # 空会话（没开始面试就发 stop）不落库，免得留下一条空记录
+    if not (session.get("company") or session.get("history") or summary
+            or session.get("summary")):
+        return {"ok": False, "error": "这场面试没有内容可记"}
+    try:
+        return chat_history.save_interview_record(
+            session.get("company", ""),
+            session.get("title", ""),
+            summary or session.get("summary", ""),
+            turns=len(session.get("history") or []),
+            thread_id=_thread_id(),
+        )
+    except Exception as e:                          # noqa: BLE001
+        print(f"[历史] 面试记录落库失败（忽略）：{type(e).__name__}: {e}")
+        return {"ok": False, "error": str(e)}
 
 
 # --------------------------------------------------------------------------
@@ -950,6 +1035,8 @@ async def _handle_interview_message(content: str, session: dict):
                         "可以回顾上面的点评，把没答好的点补一补。"
             ).send()
         session["active"] = False
+        session["summary"] = summary or session.get("summary", "")
+        _record_interview_memory(session, summary)   # 缺口②：收尾先留档再清状态
         cl.user_session.set(_interview_key(), session)
         _save_interview_snapshot(session)          # active=False → 库里清空
         await cl.Message(content="（面试已结束，继续普通对话即可；想再来一次就发 "
@@ -990,12 +1077,22 @@ async def _start_interview(content: str):
                     "想换岗位就重新发 `/mock-interview 公司 岗位名`。"
         ).send()
 
+    await _begin_interview(company, title)
+
+
+async def _begin_interview(company: str, title: str):
+    """按「公司 + 岗位」开一场面试（`/mock-interview` 与自然语言路由共用）。
+
+    抽出来的原因：需求1 的意图路由必须走**同一条链路**（读 JD → 带简历 →
+    出第一题 → 落快照），否则两条入口的行为会慢慢分叉。
+    """
     resume = cl.user_session.get(_resume_key())
     async with cl.Step(name="面试官准备中", type="tool") as step:
         step.output = f"正在读取 {company} · {title} 的 JD 和你的简历…"
         session = _start_interview_session(company, title, resume)
 
     cl.user_session.set(_interview_key(), session)
+    cl.user_session.set(_pending_interview_key(), None)   # 开局即清待补槽位
     _save_interview_snapshot(session)
     await cl.Message(
         content=(
@@ -1006,6 +1103,202 @@ async def _start_interview(content: str):
             f"**问题 1**：{session['asked'][0]}"
         )
     ).send()
+
+
+# --------------------------------------------------------------------------
+# 需求1：入口意图路由（自然语言开面试，**不新增工具**）
+#
+# 为什么放在入口而不是给 Agent 加一个 start_interview 工具：
+# 面试是**独立于 ReAct 流程**的一条链路（自己的状态机、自己的收尾），
+# 做成工具会跟「面试进行中」的分支互相打架 —— Agent 可能在自己正在面试时
+# 又"开一场"。入口路由只有几行词表 + 抽取，零新增工具、零改 tools_registry。
+#
+# 实体抽取是**纯词法**的（不查数据库公司表）：rag 那边没有现成的公司清单，
+# 为了一个路由去动 rag 不划算。策略是"标题关键词首次出现处切一刀"：
+# 切口之前是公司，之后是岗位；切不出来就回问，绝不猜。
+# --------------------------------------------------------------------------
+
+# 触发动词：得和「面试」同时出现才算开局意图（"面试怎么准备" 这类问题不算）
+_INTENT_VERBS = ("模拟", "练习", "演练", "实战", "扮演", "充当", "来一场", "来一次",
+                 "出一套题", "当一次面试官")
+
+# 明确不是开局意图的问题式说法（命中就直接放行走普通 Agent）
+_INTENT_BLOCKERS = ("怎么准备", "如何准备", "如何应对", "面试题", "面试技巧", "面试经验",
+                    "面经", "注意什么", "要注意", "有什么建议", "是什么", "什么是",
+                    "有什么区别", "难吗", "为什么要", "自我介绍怎么写", "常见问题")
+
+# 填充词：出现在抽取结果的**首尾**就削掉（"帮我…" / "…吧"）
+_INTENT_FILLERS = ("帮我", "帮忙", "给我", "我想让你", "我想", "我想要", "我要", "我打算",
+                   "麻烦", "请你", "请", "你可以", "你能", "能不能", "可以", "来一场",
+                   "来一次", "来个", "来一个", "搞一场", "搞一次", "模拟一下", "模拟",
+                   "练习一下", "练习", "演练", "实战", "扮演", "充当", "面试官", "面试",
+                   "一下", "一场", "一次", "一个", "这种", "那种", "你好", "谢谢", "拜托")
+_INTENT_TAILS = ("吧", "呗", "呀", "啊", "哦", "嗯", "谢谢", "拜托", "了", "的")
+
+# 岗位侧的关键词。取"最早出现"的位置切分，所以顺序不影响结果；
+# 代价是公司名里带这些词（如"数据宝""设计院"）会被切错 —— 词法方案的固有误差，
+# 用户重发一次带空格的写法即可绕过。
+_TITLE_KEYWORDS = ("实习生", "实习", "工程师", "开发", "算法", "产品经理", "产品", "运营",
+                   "数据", "测试", "前端", "后端", "全栈", "研究", "设计", "专员", "经理",
+                   "助理", "分析", "架构", "大模型", "大数据", "Agent", "agent")
+
+# 回问槽位时，判定"这条消息像不像在回答我"，而不是另一个请求
+_OTHER_INTENT_WORDS = ("搜索", "搜一下", "帮我搜", "找", "投递", "记录", "提醒", "简历",
+                       "分析", "匹配", "jd", "JD", "为什么", "怎么", "哪些", "多少",
+                       "帮我看", "看看", "查", "统计", "画")
+
+
+def _pending_interview_key() -> str:
+    """待补面试槽位的会话键（理由同 `_resume_key`：必须按 thread 隔离）。"""
+    return f"pending_interview:{_thread_id()}"
+
+
+def _is_interview_intent(text: str) -> bool:
+    """这句话是不是"给我来一场模拟面试"？"""
+    flat = " ".join(str(text or "").split())
+    if not flat or len(flat) > 200 or flat.startswith("/"):
+        return False
+    if "面试" not in flat:
+        return False
+    if not any(w in flat for w in _INTENT_VERBS):
+        return False
+    if any(w in flat for w in _INTENT_BLOCKERS):
+        return False
+    # 否定句：「先不模拟面试」「不用面试了」
+    if re.search(r"(不要|不用|别|先不|不需要)(再|先)?(模拟|练习|来|搞)?(面试|模拟)", flat):
+        return False
+    return True
+
+
+# 抽取时首尾要反复削掉的东西：填充词 / 语气词之外，标点也得削
+# （「帮我模拟一下：字节跳动」里的全角冒号是填充分隔，不是公司名的一部分）
+_STRIP_CHARS = " \t，,。.、：:；;！!？?-—~～\"'“”‘’()（）"
+
+
+def _strip_fillers(text: str) -> str:
+    """削掉首尾的填充词 / 语气词 / 标点（循环削，直到稳定）。"""
+    out = " ".join(str(text or "").split()).strip(_STRIP_CHARS)
+    words = sorted(set(_INTENT_FILLERS) | set(_INTENT_TAILS), key=len, reverse=True)
+    changed = True
+    while changed and out:
+        changed = False
+        for word in words:
+            if out.startswith(word):
+                out = out[len(word):].strip(_STRIP_CHARS)
+                changed = True
+                break
+            if out.endswith(word):
+                out = out[: -len(word)].strip(_STRIP_CHARS)
+                changed = True
+                break
+    return out
+
+
+def _extract_interview_slots(text: str) -> tuple:
+    """从一句自然语言里抠出 (公司, 岗位)；抠不出来给空串，由调用方回问。
+
+    三种常见语序都覆盖：
+      「帮我模拟面试字节 Agent 开发实习生」→ 砍到"面试"之后取正文
+      「来一场字节的后端开发模拟面试」    → "面试"之后没东西了，改取之前
+      「帮我模拟一下：美团 数据分析实习生」→ 压根没有"面试"二字，取动词之后的正文
+    """
+    flat = " ".join(str(text or "").split())
+    body = ""
+    idx = flat.find("面试")
+    while idx != -1:
+        tail = _strip_fillers(flat[idx + 2:])
+        if len(tail) >= 2:
+            body = tail
+            break
+        idx = flat.find("面试", idx + 1)
+    if not body and "面试" in flat:
+        idx = flat.find("面试")
+        # 语序一：「字节的后端开发模拟面试」—— 取动词之前的正文
+        cut = len(flat)
+        for verb in _INTENT_VERBS:
+            pos = flat.find(verb)
+            if 0 < pos < idx:    # pos == 0 是「来一场…」这种前缀动词，不能拿它当结尾
+                cut = min(cut, pos)
+        if cut < idx:
+            body = _strip_fillers(flat[:cut])
+        else:
+            # 语序二：「来一场字节的后端开发面试」—— 动词在最前面，
+            # 取第一个动词之后、「面试」之前的正文
+            ends = [flat.find(v) + len(v) for v in _INTENT_VERBS if 0 <= flat.find(v) < idx]
+            start = min(ends) if ends else 0
+            body = _strip_fillers(flat[start:idx])
+    if not body and "面试" not in flat:
+        # 没有「面试」二字：削掉开头的动词 / 填充词，剩下的就是正文
+        ends = [flat.find(v) + len(v) for v in _INTENT_VERBS if flat.find(v) != -1]
+        start = min(ends) if ends else 0
+        body = _strip_fillers(flat[start:])
+    body = _strip_fillers(body)
+    if not body:
+        return "", ""
+
+    positions = [body.find(kw) for kw in _TITLE_KEYWORDS]
+    positions = [p for p in positions if p != -1]
+    pos = min(positions) if positions else -1
+    if pos > 0:
+        # 公司名尾巴上的「的」是语序带来的（"字节的" → "字节"）
+        return body[:pos].strip().rstrip("的地得").strip(), body[pos:].strip()
+    if pos == 0:
+        return "", body
+
+    parts = body.split()
+    if len(parts) >= 2:
+        return " ".join(parts[:-1]), parts[-1]
+    return body, ""
+
+
+def _looks_like_slot_reply(text: str) -> bool:
+    """回问槽位之后，这条消息像不像在回答（而不是另一个请求）。"""
+    flat = " ".join(str(text or "").split())
+    if not flat or len(flat) > 40 or flat.startswith("/"):
+        return False
+    return not any(w in flat for w in _OTHER_INTENT_WORDS)
+
+
+async def _route_interview_content(content: str) -> bool:
+    """入口意图路由。返回 True = 这条消息已处理完，调用方直接 return。
+
+    缺公司 / 岗位时不猜，回问一句并把已抽到的槽位挂到 `pending_interview:<tid>`；
+    补齐后复用 `/mock-interview` 的全链路（`_begin_interview`）。
+    """
+    pending = cl.user_session.get(_pending_interview_key()) or {}
+    slots = None
+    if pending:
+        if _looks_like_slot_reply(content):
+            company, title = _extract_interview_slots(content)
+            merged = (company or pending.get("company", ""),
+                      title or pending.get("title", ""))
+            if merged != (pending.get("company", ""), pending.get("title", "")):
+                slots = merged
+        if slots is None:
+            # 答非所问 / 又是另一个请求：放弃这次回问，别把无关消息吃掉
+            cl.user_session.set(_pending_interview_key(), None)
+
+    if slots is None:
+        if not _is_interview_intent(content):
+            return False
+        slots = _extract_interview_slots(content)
+
+    company, title = slots
+    if not company or not title:
+        missing = "、".join(n for n, v in (("公司名", company), ("岗位名", title)) if not v)
+        cl.user_session.set(_pending_interview_key(),
+                            {"company": company, "title": title})
+        await cl.Message(
+            content=(f"可以，我这就准备。还差 **{missing}** —— 直接告诉我就行，"
+                     "例如「字节跳动 Agent 开发实习生」。")
+        ).send()
+        return True
+
+    cl.user_session.set(_pending_interview_key(), None)
+    if await _deny_if_throttled("mock-interview"):
+        return True
+    await _begin_interview(company, title)
+    return True
 
 
 # --------------------------------------------------------------------------
@@ -1229,6 +1522,11 @@ async def on_message(message: cl.Message):
         if content.replace("/mock-interview", "", 1).strip().lower() in ("stop", "quit", "exit", "结束"):
             session = cl.user_session.get(_interview_key()) or {}
             session["active"] = False
+            # 提前结束也留档（缺口②：以前 stop 同样把记录清光）
+            _record_interview_memory(
+                session,
+                session.get("summary") or "（用户提前结束了这场模拟面试，没有生成综合评价）",
+            )
             cl.user_session.set(_interview_key(), session)
             _save_interview_snapshot(session)
             await cl.Message(content="已结束模拟面试。想再来一次就发 `/mock-interview 公司 岗位`。").send()
@@ -1251,6 +1549,12 @@ async def on_message(message: cl.Message):
                 await _handle_interview_message(content, interview)
         # 面试状态落库：进程重启后仍能接着面（`/history-clear` 会一并清掉）
         _save_interview_snapshot(interview)
+        return
+
+    # 需求1：入口意图路由 —— 自然语言也能开局（"帮我模拟面试字节 Agent 开发实习生"）。
+    # 放在"面试进行中"之后：正在面试时说的任何话都是回答，不该被路由劫走。
+    # 放在普通 Agent 之前：命中了就不该再走一遍 ReAct。
+    if await _route_interview_content(content):
         return
 
     # 正常对话：走 Agent

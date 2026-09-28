@@ -27,3 +27,13 @@ requests==2.34.2
 pydantic==2.13.5
 PyYAML==6.0.3
 fastembed==0.8.0
+
+# chromadb / fastembed 会拖进 cffi → pycparser。这两个是纯 C 扩展 + 纯 Python
+# 的老牌组合，构建机上偶发挑到没有 wheel 的版本就会现场编译（镜像里没有 gcc，
+# 一编译就整层失败）。和 requirements-full.txt 保持一致钉死。
+cffi==2.1.1
+pycparser==3.0
+
+# Chainlit data layer deps
+sqlalchemy>=2.0.30
+aiosqlite>=0.20.0

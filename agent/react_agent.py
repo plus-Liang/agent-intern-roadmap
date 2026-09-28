@@ -21,6 +21,7 @@ from agent.tools_registry import (
 )
 from agent import user_profile
 from agent import reminder
+from agent import chat_history
 
 
 MAX_TURNS = 6
@@ -185,6 +186,15 @@ semantic 传 true —— 判断标准是「用户有没有给出可直接检索�
 - 用户说出新的稳定偏好时（如"我只找广州的""关键词以后用 Agent 开发""以后都用产品岗版简历"），
   调用 save_preference 记住它（key 用 target_cities / target_keywords / resume_id
   或自定义偏好名，value 是值或列表）；用户想确认你记住了什么就用 get_preferences。
+
+【主动保存】
+- 用户说"记住/保存一下/以后都用这个"某段**内容**（面试评价、项目细节、联系方式、
+  谈薪结果、简历要点等）时，调用 save_memory 存下来（kind 选 note / interview_record /
+  resume_note / preference），不要只在回复里复述一遍就算完 —— 复述不会留下来。
+- 模拟面试跑完时系统会自动把综合评价存成一条 interview_record，你不用再存一次。
+- 用户问"你记得我什么""以前那场面试说了什么"时，调用 list_memories 读回来再回答，
+  不要凭对话上下文猜。
+- 记忆是**只增不改**的流水：不要为了"更新"去重复保存同一件事，除非用户明确要求再记一条。
 """
 
 # DYNAMIC_CONTEXT（本轮会变的信息）的固定抬头：既是给模型的状态标记，
@@ -269,6 +279,39 @@ def _check_reminders_tool(days: int = 7):
     return payload
 
 
+def _save_memory_tool(content, kind: str = "note"):
+    """工具 save_memory：把用户要求记住的内容存进长期记忆（user_memories）。
+
+    归属按 ContextVar 里的用户走（跨会话共享），来源 thread_id 由
+    shared.user_context.get_current_thread() 自动带上 —— 工具跑在子线程里，
+    那一段靠 tools_registry.call_tool 的 copy_context() 把上下文带进来。
+    """
+    try:
+        return chat_history.save_memory(content, kind=kind)
+    except Exception as e:                              # noqa: BLE001
+        return {"ok": False, "error": f"保存失败：{type(e).__name__}: {e}"}
+
+
+def _list_memories_tool(kind: str = "", limit: int = 10):
+    """工具 list_memories：读回长期记忆（默认最近 10 条，可按类型过滤）。"""
+    try:
+        records = chat_history.list_memories(kind=kind or None, limit=limit)
+    except Exception as e:                              # noqa: BLE001
+        return {"error": f"读取失败：{type(e).__name__}: {e}", "count": 0, "items": []}
+
+    lines = []
+    for item in records:
+        created = str(item.get("created_at") or "")[:16]
+        head = f"#{item.get('id')} [{item.get('kind')}] {created}".strip()
+        lines.append(f"{head}\n{item.get('content') or ''}")
+    payload = {
+        "count": len(records),
+        "items": records,
+        "text": "\n\n".join(lines) if lines else "（还没有存过任何记忆）",
+    }
+    return payload
+
+
 def register_profile_tools() -> list:
     """把长期记忆工具与跟进提醒工具注册进工具表，返回本次注册的工具名。
 
@@ -311,6 +354,38 @@ def register_profile_tools() -> list:
                 "days": "超期天数阈值，默认 7（用户说「超过 10 天的」就传 10）",
             },
             "func": _check_reminders_tool,
+        },
+        "save_memory": {
+            "description": (
+                "把用户要求长期记住的内容存下来（跨会话、跨清空历史都在，"
+                "用 list_memories 能读回）。用户说「记住这个」「保存一下」"
+                "「以后都用这个」时调用；模拟面试的收尾评价由系统自动保存，不用重复调用。"
+            ),
+            "parameters": {
+                "content": "要记住的正文（原话要点即可，最长 2000 字）",
+                "kind": (
+                    "类型：note（普通笔记，默认）/ interview_record（面试记录）"
+                    "/ resume_note（简历相关）/ preference（偏好类内容）"
+                ),
+            },
+            "func": _save_memory_tool,
+            "risk_level": "read",
+            "timeout": 30,
+            "requires_confirmation": False,
+        },
+        "list_memories": {
+            "description": (
+                "读回用户已经保存过的长期记忆（时间倒序）。用户问「你记得我什么」"
+                "「上次那场面试的评价是什么」时调用。只读，不改任何数据。"
+            ),
+            "parameters": {
+                "kind": "只看某一类（note / interview_record / resume_note / preference），留空看全部",
+                "limit": "最多返回几条，默认 10",
+            },
+            "func": _list_memories_tool,
+            "risk_level": "read",
+            "timeout": 30,
+            "requires_confirmation": False,
         },
     }
 

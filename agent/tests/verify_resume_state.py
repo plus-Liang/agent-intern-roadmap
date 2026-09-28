@@ -115,7 +115,12 @@ def t_isolated():
 
 
 def t_app_fallback():
-    """直接跑 app.py 的读取路径（新会话无自己那份 → 继承 user:<uid>）。"""
+    """直接跑 app.py 的读取路径：新会话无自己那份 → 一次性继承 user:<uid>。
+
+    面试是**继承即认领**（本轮需求 1 的修复）：继承过来的那场当场落到本会话
+    名下、旧固定会话里那条作废 —— 否则每开一个新会话都继承同一场，两个标签页
+    会同时接着答、互相覆盖。
+    """
     from agent import app
     app._user_id = lambda: "local"          # 离线：没有 chainlit socket 上下文
     assert app._user_thread_id() == LEGACY, app._user_thread_id()
@@ -124,9 +129,20 @@ def t_app_fallback():
     i = app._load_interview_for_thread(fresh)
     assert r and r.get("name") == "李雷", r
     assert i and i.get("turn") == 7, i
+    assert ch.load_interview(fresh) and ch.load_interview(fresh)["turn"] == 7, \
+        ch.load_interview(fresh)
+    assert ch.load_interview(LEGACY) is None, "继承即认领：旧固定会话不该还留着同一场面试"
+    second = "brand-new-thread-uuid-2"
+    assert app._load_interview_for_thread(second) is None, \
+        f"第二个新会话不该再继承到同一场面试：{ch.load_interview(second)}"
     own = app._load_resume_for_thread(NEW_TID)
     assert own and own["name"] == "韩梅梅", own
-    return "全新会话继承 user:local 的简历+面试；已有自己那份的会话优先读自己"
+    # 简历是快照（可复制、不认领）：旧固定会话那份照旧在
+    old_resume = ch.load_resume_snapshot(LEGACY)
+    assert old_resume and old_resume["name"] == "李雷", old_resume
+    ch.set_interview(fresh, None)           # 复原，后面的检查还要用旧会话那份
+    ch.set_interview(LEGACY, INTERVIEW)
+    return "全新会话一次性继承简历+面试；第二个新会话不再继承（面试继承即认领）"
 
 
 def t_inactive_clears():

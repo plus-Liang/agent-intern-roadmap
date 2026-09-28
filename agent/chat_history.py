@@ -52,6 +52,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from shared.config import ROOT_DIR  # noqa: E402
 from shared.user_context import DEFAULT_USER_ID as _CONTEXT_DEFAULT_USER  # noqa: E402
+from shared.user_context import get_current_thread  # noqa: E402
 from shared.user_context import get_current_user  # noqa: E402
 
 # 库路径：<repo_root>/agent/data/chat_history.db
@@ -119,9 +120,21 @@ CREATE TABLE IF NOT EXISTS chat_users (
 )
 """
 
+_CREATE_MEMORIES = """
+CREATE TABLE IF NOT EXISTS user_memories (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     TEXT NOT NULL DEFAULT 'local',
+    thread_id   TEXT NOT NULL DEFAULT '',
+    kind        TEXT NOT NULL DEFAULT 'note',
+    content     TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+)
+"""
+
 _CREATE_INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_threads_user ON chat_threads(user_id, updated_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_turns_thread ON chat_turns(thread_id, turn_index)",
+    "CREATE INDEX IF NOT EXISTS idx_memories_user ON user_memories(user_id, kind, id DESC)",
 )
 
 
@@ -147,6 +160,7 @@ def init_db() -> None:
         conn.execute(_CREATE_THREADS)
         conn.execute(_CREATE_TURNS)
         conn.execute(_CREATE_USERS)
+        conn.execute(_CREATE_MEMORIES)
         for statement in _CREATE_INDEXES:
             conn.execute(statement)
 
@@ -606,6 +620,125 @@ def load_interview(thread_id: str) -> dict | None:
     except (TypeError, ValueError):
         return None
     return data if isinstance(data, dict) and data.get("active") else None
+
+
+# --------------------------------------------------------------------------
+# 长期记忆（user_memories）
+#
+# 为什么单开一张表，而不是塞进 user_profile / chat_turns：
+# 画像（user_profile）是「偏好」这种结构化 KV，轮次（chat_turns）是有问有答的
+# 对话流水 —— 两者都跟着会话走。用户明确说「记住这条」的东西要能跨会话、
+# 跨清空留下来，还要能按类型回看，所以单独一张只增不改的表。
+# --------------------------------------------------------------------------
+
+MEMORY_KINDS = ("note", "interview_record", "resume_note", "preference")
+
+# 单条记忆长度上限：写进去是给模型以后读回上下文的，太长会把 prompt 顶满。
+MEMORY_MAX_CHARS = 2000
+
+# 一次最多返回多少条（防止一条 list_memories 把上下文打爆）。
+MEMORY_LIST_MAX = 50
+
+
+def _norm_kind(value) -> str:
+    """类型归一：小写、非字母数字一律折成下划线、最长 32；空则是 note。
+
+    折成下划线（而不是直接丢掉）是必须的：模型很可能写 "interview-record"
+    或 "interview record"，直接丢分隔符会变成 "interviewrecord"，之后按
+    "interview_record" 回看就一条也查不到。
+    """
+    text = "".join(
+        ch if (ch.isalnum() or ch == "_") else "_"
+        for ch in str(value or "").strip().lower()
+    )
+    while "__" in text:
+        text = text.replace("__", "_")
+    return text.strip("_")[:32].strip("_") or "note"
+
+
+def save_memory(content, kind: str = "note", thread_id: str | None = None,
+                user_id: str | None = None) -> dict:
+    """记一条长期记忆（只增不改），返回落库后的记录。
+
+    user_id 决定这条记忆归谁（默认当前 ContextVar 用户）；thread_id 只是
+    来源标记（默认当前会话，脚本 / 调度器没有会话就是空串），不参与归属。
+    内容为空不落库，超长截断到 MEMORY_MAX_CHARS。
+    """
+    raw = str(content or "").strip()
+    if not raw:
+        return {"ok": False, "error": "内容为空，没记任何东西", "id": 0}
+    text = raw[:MEMORY_MAX_CHARS]
+    uid = _norm_id(user_id or get_current_user()) or DEFAULT_USER_ID
+    tid = _norm_id(thread_id if thread_id is not None else get_current_thread())
+    kind_norm = _norm_kind(kind)
+    created = now()
+    with _get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO user_memories (user_id, thread_id, kind, content, created_at)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (uid, tid, kind_norm, text, created),
+        )
+        memory_id = int(cur.lastrowid or 0)
+    return {
+        "ok": True,
+        "id": memory_id,
+        "user_id": uid,
+        "thread_id": tid,
+        "kind": kind_norm,
+        "content": text,
+        "created_at": created,
+        "truncated": len(raw) > MEMORY_MAX_CHARS,
+    }
+
+
+def list_memories(kind: str | None = None, limit: int = 20,
+                  user_id: str | None = None) -> list[dict]:
+    """按时间倒序读回本用户的记忆；kind 为空则不过滤类型。"""
+    uid = _norm_id(user_id or get_current_user()) or DEFAULT_USER_ID
+    if limit is None:
+        count = 20
+    else:
+        try:
+            count = int(limit)
+        except (TypeError, ValueError):
+            count = 20
+    # 要 0 条没有意义（上层会当成"没有记忆"），给 1 条比给 20 条更安全
+    count = max(1, min(count, MEMORY_LIST_MAX))
+    sql = ("SELECT id, thread_id, kind, content, created_at FROM user_memories"
+           " WHERE user_id = ?")
+    params: list = [uid]
+    kind_norm = _norm_kind(kind) if str(kind or "").strip() else ""
+    if kind_norm:
+        sql += " AND kind = ?"
+        params.append(kind_norm)
+    sql += " ORDER BY id DESC LIMIT ?"
+    params.append(count)
+    with _get_conn() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [dict(row) for row in rows]
+
+
+def save_interview_record(company, title, summary, turns: int = 0,
+                          thread_id: str | None = None,
+                          user_id: str | None = None) -> dict:
+    """把一场面试的收尾结果记成长期记忆。
+
+    缺口②：以前面试一结束走的就是 `set_interview(active=False)`，
+    过程与评价一起被清空，用户回头什么都看不到。现在收尾时把评价
+    落进 user_memories，面试状态照样清（它本来就不该长期占位）。
+    company / title 为空也要能落一条 —— 评价本身才是用户想回看的。
+    """
+    head = " · ".join(
+        x for x in (str(company or "").strip(), str(title or "").strip()) if x
+    )
+    parts = [f"【模拟面试】{head}" if head else "【模拟面试】"]
+    text = str(summary or "").strip()
+    if text:
+        parts.append(text)
+    if turns:
+        parts.append(f"（共 {int(turns)} 轮问答）")
+    return save_memory("\n".join(parts), kind="interview_record",
+                       thread_id=thread_id, user_id=user_id)
 
 
 def _cli(argv: list) -> int:
