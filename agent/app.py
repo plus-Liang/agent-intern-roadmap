@@ -23,6 +23,7 @@ sys.path.insert(0, str(BASE_DIR))
 import chainlit as cl
 import json5
 from agent import chat_history
+from agent import data_layer
 from agent import storage
 from agent import user_feedback
 from agent import user_profile
@@ -47,9 +48,11 @@ token_tracker.init_token_db()
 # --------------------------------------------------------------------------
 # 认证（可选）：CHAT_AUTH_ENABLED=true 才注册，**默认关闭** → 与改造前一字不变。
 #
-# 为什么不用 Chainlit 的 data layer：它在没有 DATABASE_URL 时根本不落用户
-#（server.py 里 create_user 走的是 data_layer），要开还得引 sqlalchemy +
-# aiosqlite + 建表迁移。这里直接用 chat_history 的 chat_users 表，零新依赖。
+# 登录校验走 chat_history 的 chat_users 表（PBKDF2），**不用** Chainlit 的
+# users 表 —— 账号是业务数据，得能 `python -m agent.chat_history adduser` 管。
+# 但 data layer 一开，Chainlit 会在登录成功时顺手把同一个账号镜像进自己的
+# users 表（server.py:524 `data_layer.create_user`），那是它内部要用（线程归属
+# 要靠 PersistedUser.id），两边不冲突。
 # --------------------------------------------------------------------------
 
 AUTH_ENABLED = os.getenv("CHAT_AUTH_ENABLED", "").strip().lower() in (
@@ -119,6 +122,24 @@ if AUTH_ENABLED:
             metadata={"provider": "password"},
         )
 
+else:
+    # 需求 3 的侧边栏（会话列表 / 搜索 / 切换历史会话）在 Chainlit 2.12 里
+    # **必须有登录用户**才可用，这不是我们的选择：
+    #   · 列表接口 chainlit/server.py:967 —— 没有 current_user 直接 401
+    #     "Unauthorized"，且要用 PersistedUser.id 过滤归属；
+    #   · 恢复会话 chainlit/socket.py:82 —— `not session.user` 为真就直接 return，
+    #     @cl.on_chat_resume 永远不会被调用（socket.py:223）；
+    #   · 归属校验 chainlit/socket.py:145-162 —— 未登录的 websocket 连接会被
+    #     `raise ConnectionRefusedError("authentication failed")` 拒掉。
+    # 所以就绪但未开启时明确提示，免得以为 data layer 没生效。
+    print(
+        "[认证] 未启用（CHAT_AUTH_ENABLED 未开启）→ 对话历史仍按用户固定一条会话保存；\n"
+        "       侧边栏会话列表 / 搜索 / 切换历史会话需要 Chainlit 登录，属**不可用**状态。\n"
+        "       要用就在 .env 里设 CHAT_AUTH_ENABLED=true 和 CHAT_ADMIN_PASSWORD（自己的密码），\n"
+        "       重启后登录一次，再跑 python -m scripts.backfill_chainlit_threads --bind-user <账号> "
+        "把老会话记到你名下。"
+    )
+
 
 # --------------------------------------------------------------------------
 # 对话历史落库：会话标识 + 字段清洗
@@ -166,15 +187,79 @@ def _user_id() -> str:
 
 
 def _thread_id() -> str:
-    """当前用户的**固定** thread_id（= chat_history.thread_id_for_user(user_id)）。
+    """当前会话的 thread_id —— 就是 Chainlit 自己那一个。
 
-    为什么不用 cl.context.session.thread_id：Chainlit 2.12 里它是
-    `auth.threadId or uuid4()`（session.py:149），而无 data layer 时前端既不带
-    threadId 也不持久化 sessionId —— 实测每刷新一次页面就换一个 thread_id，
-    落库的历史永远读不回来。改成按 user_id 固定后，刷新 / 重启进程都能续上；
-    要开新会话发 `/history-clear`（原地清轮次，同样不换 id）。
+    Chainlit 2.12 里它是 `auth.threadId or uuid4()`（chainlit/session.py:149）。
+    接上 data layer 之前，前端既不保存 sessionId 也不带 threadId，实测每刷新
+    一次页面就换一个 id，落库的历史永远读不回来 —— 所以那时候只能按 user_id
+    写死成 `user:<user_id>`，代价是**一个用户只有一条会话**（侧边栏也就一条、
+    没法开新对话）。
+
+    接了 data layer 之后前端会把 threadId 带进 websocket 握手，刷新 / 切换
+    历史会话都是同一个 id，于是这里可以放心用真正的那一个：一条 Chainlit
+    会话 = 一条 thread，侧边栏的列表 / 搜索 / 新建对话全由它驱动。
+
+    兜底：没有 session（CLI、离线测试、启动期）时退回 `user:<user_id>`，
+    与旧行为逐字一致。
+    """
+    try:
+        thread_id = getattr(getattr(cl.context, "session", None), "thread_id", None)
+    except Exception as e:                          # noqa: BLE001 - 没有 socket 上下文
+        print(f"[历史] 取 thread_id 失败（退回按用户固定）：{type(e).__name__}: {e}")
+        thread_id = None
+    if thread_id:
+        return str(thread_id)
+    return chat_history.thread_id_for_user(_user_id())
+
+
+def _user_thread_id() -> str:
+    """该用户的**旧固定** thread_id（`user:<user_id>`，接 data layer 之前的形态）。
+
+    只用来做一次「一次性继承」：老会话的简历快照 / 面试状态都在这儿，
+    新开的 Chainlit 会话读不到自己那份时，回退读它 —— 东西不会凭空消失。
     """
     return chat_history.thread_id_for_user(_user_id())
+
+
+def _resume_key() -> str:
+    """简历快照的会话键。
+
+    为什么要带 thread_id：Chainlit 的 user_session 是 `{socket session id: dict}`
+    的进程内字典，恢复历史会话时 `socket.py:95` 会把**整份 metadata 直接灌进来**
+    （`user_sessions[session.id] = metadata.copy()`）—— 用固定的 "resume" 键会
+    让上一条会话的简历串到下一条。带上 thread_id 之后各会话互不干扰。
+    """
+    return f"resume:{_thread_id()}"
+
+
+def _interview_key() -> str:
+    """面试状态的会话键（理由同 `_resume_key`）。"""
+    return f"interview:{_thread_id()}"
+
+
+def _load_resume_for_thread(thread_id: str):
+    """读某条会话的简历快照；本会话没有就继承**旧固定会话**那一份。
+
+    没有第二段的话，升级到 data layer 的第一次开新对话会「简历丢了」。
+    """
+    snapshot = chat_history.load_resume_snapshot(thread_id)
+    if snapshot:
+        return snapshot
+    legacy = _user_thread_id()
+    if legacy != thread_id:
+        return chat_history.load_resume_snapshot(legacy)
+    return None
+
+
+def _load_interview_for_thread(thread_id: str):
+    """读某条会话的面试状态；本会话没有就继承旧固定会话那一份（理由同上）。"""
+    pending = chat_history.load_interview(thread_id)
+    if pending:
+        return pending
+    legacy = _user_thread_id()
+    if legacy != thread_id:
+        return chat_history.load_interview(legacy)
+    return None
 
 
 def _norm_str(value) -> str:
@@ -195,11 +280,12 @@ def _set_resume(resume_text: str) -> dict:
         "education": _norm_str(resume.education),
         "city": _norm_str(resume.city),
     }
-    cl.user_session.set("resume", resume_data)
+    resume_key = _resume_key()
+    cl.user_session.set(resume_key, resume_data)
     # 简历落进会话快照：进程重启后不用重新 /resume
     try:
         chat_history.save_resume_snapshot(
-            cl.user_session.get("thread_id") or _thread_id(), resume_data
+            _thread_id(), resume_data
         )
     except Exception as e:                          # noqa: BLE001 - 快照失败不影响本次设置
         print(f"[历史] 简历快照保存失败（忽略）：{type(e).__name__}: {e}")
@@ -335,9 +421,7 @@ def _save_interview_snapshot(session):
     任何异常都只提示，不影响面试本身。
     """
     try:
-        chat_history.set_interview(
-            cl.user_session.get("thread_id") or _thread_id(), session
-        )
+        chat_history.set_interview(_thread_id(), session)
     except Exception as e:                          # noqa: BLE001
         print(f"[历史] 面试快照保存失败（忽略）：{type(e).__name__}: {e}")
 
@@ -463,6 +547,8 @@ async def _send_feedback_prompt(question: str, answer: str, steps: list,
         s.get("action") for s in (steps or [])
         if isinstance(s, dict) and s.get("type") == "action"
     ]
+    # last_turn 里本来就带着"这一轮属于哪条会话"（thread_id + turn_index），
+    # 所以切会话后再点 👍/👎 也不会写错地方，不必再按 thread 分键。
     cl.user_session.set("last_turn", {
         "question": question,
         "answer": answer,
@@ -864,7 +950,7 @@ async def _handle_interview_message(content: str, session: dict):
                         "可以回顾上面的点评，把没答好的点补一补。"
             ).send()
         session["active"] = False
-        cl.user_session.set("interview", session)
+        cl.user_session.set(_interview_key(), session)
         _save_interview_snapshot(session)          # active=False → 库里清空
         await cl.Message(content="（面试已结束，继续普通对话即可；想再来一次就发 "
                                  "`/mock-interview 公司 岗位`）").send()
@@ -873,7 +959,7 @@ async def _handle_interview_message(content: str, session: dict):
     session["asked"].append(next_question)
     session["count"] = len(session["asked"])
     session["prev_question"] = next_question
-    cl.user_session.set("interview", session)
+    cl.user_session.set(_interview_key(), session)
     await cl.Message(
         content=f"**问题 {session['count']}**：{next_question}"
     ).send()
@@ -904,12 +990,12 @@ async def _start_interview(content: str):
                     "想换岗位就重新发 `/mock-interview 公司 岗位名`。"
         ).send()
 
-    resume = cl.user_session.get("resume")
+    resume = cl.user_session.get(_resume_key())
     async with cl.Step(name="面试官准备中", type="tool") as step:
         step.output = f"正在读取 {company} · {title} 的 JD 和你的简历…"
         session = _start_interview_session(company, title, resume)
 
-    cl.user_session.set("interview", session)
+    cl.user_session.set(_interview_key(), session)
     _save_interview_snapshot(session)
     await cl.Message(
         content=(
@@ -926,31 +1012,60 @@ async def _start_interview(content: str):
 # Chainlit 生命周期
 # --------------------------------------------------------------------------
 
-@cl.on_chat_start
-async def on_chat_start():
-    _bind_user()                                   # 回调入口绑定用户
-    cl.user_session.set("resume", None)
-    cl.user_session.set("interview", None)
+@cl.data_layer
+def _chainlit_data_layer():
+    """把「对话线程」交给 Chainlit 自己持久化（需求 3）。
 
-    # 对话历史落库：按 user_id 取/建**固定**会话，并把历史读进内存。
-    # 新用户是空历史；同一 user_id 刷新 / 重启进程都能读回旧轮次。
+    注册这一个回调，侧边栏的**历史会话列表 / 搜索 / 新建对话**就全都有了：
+    Chainlit 前端看到 `dataPersistence: true`（server.py:898）才会显示那一栏。
+
+    注意库是**另开的** `agent/data/chainlit.db`：存的是线程 / 消息步骤 / 反馈，
+    与 `chat_history.db`（简历快照、面试状态、账号）井水不犯河水，一张表都没动。
+    表由 `agent/data_layer.py` 在建表访问前幂等创建 —— Chainlit 包里没有
+    models.py / alembic，它自己不建表。
+    """
+    return data_layer.build()
+
+
+async def _init_conversation(resumed: bool = False) -> None:
+    """会话初始化：绑定用户 → 认下 thread_id → 还原历史 / 简历 / 面试。
+
+    `/history-clear`（原地清轮次）与恢复历史会话都复用这里。
+    `resumed=True` 时历史已由 Chainlit 回放进聊天窗口，所以不再重复发欢迎语。
+    """
+    _bind_user()                                   # 回调入口绑定用户
+    # 顺序要紧：user_id 落进 user_session 之后 _thread_id() 才认得当前用户。
     cl.user_session.set(_USER_ID_KEY, _user_id())
     thread_id = _thread_id()
     cl.user_session.set("thread_id", thread_id)
+
+    # 会话态一律按 thread 存：Chainlit 恢复历史会话时会把整份 metadata 灌回
+    # user_session（socket.py:95），用固定键会跨会话串味。
+    cl.user_session.set(_resume_key(), None)
+    cl.user_session.set(_interview_key(), None)
     try:
-        chat_history.ensure_user_thread(_user_id())
+        # 自建库里也认下这条会话（侧边栏切回来时轮次、快照都有归属处）
+        chat_history.ensure_thread(thread_id, user_id=_user_id())
         history = chat_history.load_history(thread_id, limit=chat_history.HISTORY_TURNS)
         cl.user_session.set("history", history)
-        # 简历也按会话还原（重启后不用重新 /resume）
-        snapshot = chat_history.load_resume_snapshot(thread_id)
+        # 简历 / 面试按会话还原；本会话没有就继承旧固定会话那份（升级不丢东西）
+        snapshot = _load_resume_for_thread(thread_id)
         if snapshot:
-            cl.user_session.set("resume", snapshot)
-        pending_interview = chat_history.load_interview(thread_id)
+            cl.user_session.set(_resume_key(), snapshot)
+        pending_interview = _load_interview_for_thread(thread_id)
         if pending_interview:
-            cl.user_session.set("interview", pending_interview)
+            cl.user_session.set(_interview_key(), pending_interview)
     except Exception as e:                          # noqa: BLE001 - 历史坏了也要能聊
         print(f"[历史] 会话初始化失败（忽略）：{type(e).__name__}: {e}")
         cl.user_session.set("history", [])
+
+    if resumed:
+        count = len(cl.user_session.get("history") or [])
+        await cl.Message(
+            content=(f"↩️ 已恢复这条会话的历史（{count} 轮）。"
+                     "简历与面试状态也已一并回放，可以直接接着聊。")
+        ).send()
+        return
 
     profile = user_profile.load_profile()
     profile_hint = ""
@@ -986,6 +1101,26 @@ async def on_chat_start():
             f"{profile_hint}"
         )
     ).send()
+
+
+@cl.on_chat_start
+async def on_chat_start():
+    await _init_conversation()
+
+
+@cl.on_chat_resume
+async def on_chat_resume(thread: dict):
+    """侧边栏点了历史会话 → 回到那一条。
+
+    Chainlit 会先把这条 thread 的步骤回放进聊天窗口（socket.py:233），
+    再把 thread 的 metadata 灌回 user_session，所以这里只要把**业务侧**的
+    历史 / 简历 / 面试状态对齐即可（都按 thread_id 定位）。
+
+    恢复的三个前提（缺一个就静默失败）：有 data layer、有登录用户、
+    注册了本回调 —— 见 chainlit/socket.py:82 与 :223。
+    """
+    _ = thread
+    await _init_conversation(resumed=True)
 
 
 @cl.on_message
@@ -1092,9 +1227,9 @@ async def on_message(message: cl.Message):
     # 命令：模拟面试
     if content.startswith("/mock-interview"):
         if content.replace("/mock-interview", "", 1).strip().lower() in ("stop", "quit", "exit", "结束"):
-            session = cl.user_session.get("interview") or {}
+            session = cl.user_session.get(_interview_key()) or {}
             session["active"] = False
-            cl.user_session.set("interview", session)
+            cl.user_session.set(_interview_key(), session)
             _save_interview_snapshot(session)
             await cl.Message(content="已结束模拟面试。想再来一次就发 `/mock-interview 公司 岗位`。").send()
             return
@@ -1106,7 +1241,7 @@ async def on_message(message: cl.Message):
         return
 
     # 面试进行中：这条消息是回答，不走进普通 Agent 流程
-    interview = cl.user_session.get("interview")
+    interview = cl.user_session.get(_interview_key())
     if interview and interview.get("active"):
         if await _deny_if_throttled("interview"):
             return
@@ -1123,7 +1258,7 @@ async def on_message(message: cl.Message):
     if await _deny_if_throttled("agent"):
         return
 
-    resume = cl.user_session.get("resume")
+    resume = cl.user_session.get(_resume_key())
     thread_id = cl.user_session.get("thread_id") or _thread_id()
     # 注入落库的历史（最近 HISTORY_TURNS 轮）。
     # 注意：历史里**没有** resume / interview 快照——那两样只由本轮动态上下文提供，

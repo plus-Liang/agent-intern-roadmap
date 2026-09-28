@@ -354,14 +354,20 @@ def t_app_wiring():
                   "_record_turn(", "/history-clear", "history=history"):
         if token not in src:
             _fail(f"app.py 缺少接入点：{token!r}")
-    if "on_chat_resume" in src:
-        _fail("本轮不应注册 on_chat_resume（Q1：它依赖 data layer，本轮不做）")
-    return "app.py 已接入 chat_history，且未添加 on_chat_resume"
+    # 需求 3（Chainlit data layer）之后这里反过来了：当时**故意不注册**
+    # on_chat_resume（它依赖 data layer，没接之前恢复历史会话是空转）；
+    # 现在 data layer 已接入，恢复会话就靠它，所以要**必须在位**。
+    for token in ("@cl.data_layer", "@cl.on_chat_resume", "_resume_key()",
+                  "_interview_key()", "_load_resume_for_thread(",
+                  "_load_interview_for_thread("):
+        if token not in src:
+            _fail(f"app.py 缺少 data layer 接入点：{token!r}")
+    return "app.py 已接入 chat_history + 会话按 thread 隔离的 data layer 接入点"
 
 
 check("run() 签名向后兼容", t_run_signature)
 check("历史拼装辅助函数在位且不注入状态快照", t_history_helper_exists)
-check("app.py 接入点齐全且无 on_chat_resume", t_app_wiring)
+check("app.py 接入点齐全（含 data layer / on_chat_resume）", t_app_wiring)
 
 
 # ---------------------------------------------------------------------------

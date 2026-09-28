@@ -57,6 +57,10 @@ os.environ["DAILY_TOKENS_PER_USER"] = "200000"
 os.environ["GLOBAL_DAILY_TOKENS"] = "2000000"
 os.environ["MAX_CONCURRENCY"] = "3"
 
+# 宿主机 .env 若开着认证（需求 3 起默认开启）却没填密码，import agent.app 会
+# SystemExit（那是给真实启动用的保护）。测试不关心认证，显式关掉。
+os.environ["CHAT_AUTH_ENABLED"] = "false"
+
 from agent import react_agent as RA                    # noqa: E402
 from shared import limits as L                         # noqa: E402
 from shared import llm_client as LC                    # noqa: E402

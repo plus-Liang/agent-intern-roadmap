@@ -19,6 +19,11 @@ python-docx==1.2.0
 chainlit==2.12.0
 fastapi==0.141.1
 uvicorn==0.52.4
+# Chainlit data layer (侧边栏历史会话列表 / 搜索 / 新建对话)：Chainlit 官方的
+# SQLAlchemyDataLayer 依赖这两个。库是独立的 agent/data/chainlit.db，
+# 表由 agent/data_layer.py 幂等创建（Chainlit 包里没有 alembic，不自动建表）。
+SQLAlchemy==2.0.44
+aiosqlite==0.21.0
 
 # Imported directly at runtime but previously only listed in full/hf files:
 # httpx talks to the LLM, APScheduler runs the nightly job, PyYAML reads config/scraping.yaml.
