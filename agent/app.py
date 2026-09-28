@@ -1353,11 +1353,10 @@ async def _init_conversation(resumed: bool = False) -> None:
         cl.user_session.set("history", [])
 
     if resumed:
-        count = len(cl.user_session.get("history") or [])
-        await cl.Message(
-            content=(f"↩️ 已恢复这条会话的历史（{count} 轮）。"
-                     "简历与面试状态也已一并回放，可以直接接着聊。")
-        ).send()
+        # 恢复历史时**不再发提示条**：Chainlit 已经把步骤回放进聊天窗口，
+        # 用户看到的就是接着聊的上下文，再插一条「已恢复这条会话的历史…」
+        # 反而像系统告警（DeepSeek 也不弹）。上下文恢复逻辑在下面这段
+        # `count` 之前已经全部做完，这里直接静默返回即可。
         return
 
     profile = user_profile.load_profile()

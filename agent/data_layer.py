@@ -162,6 +162,26 @@ def ensure_schema() -> None:
                     conn.execute(f'ALTER TABLE "{table}" ADD COLUMN "{name}" {kind}')
 
 
+def _as_bool(value):
+    """把库里的布尔列还原成真 bool（None 保持 None）。
+
+    **为什么必须要这一步**：官方 `sql_alchemy.py` 是把 `"isError"` 原样塞进
+    `StepDict` 的（:488 / :803 / :930）。Postgres 那边这列是真 boolean，没事；
+    我们用的 SQLite 没有布尔类型 —— 写入的是 Python `False`，SQLAlchemy 的
+    sqlite 方言把参数转成字符串后**落库成了 '0'**（实测 43 条步骤 `isError`
+    全是 text '0'），取回来自然也是字符串。
+
+    前端头像组件只做 `if (isError)` 判断：字符串 `"0"` 是**真值**，于是恢复
+    历史时每条消息的助手头像都换成了红色 `circle-alert` 图标 —— 就是用户
+    看到的「旧对话前面有红色感叹号」。
+    """
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    if value is None:
+        return None
+    return bool(value)
+
+
 def _build_class():
     """延迟 import：没装 sqlalchemy 时不能让 `import agent.data_layer` 直接炸。"""
     from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
@@ -252,6 +272,40 @@ def _build_class():
                 metadata=metadata,
                 tags=tags,
             )
+
+        async def get_all_user_threads(
+            self,
+            user_id: Optional[str] = None,
+            thread_id: Optional[str] = None,
+        ):
+            """列表 / 单条 thread 的统一出口，顺手把 `isError` 修成真 bool。
+
+            为什么要覆写：恢复历史（`socket.py:84` resume_thread → `get_thread`
+            → 这里）与侧边栏列表都走这个方法，`isError` 的字符串 `'0'` 会让
+            前端把每条消息都当错误渲染（见 `_as_bool` 的说明）。在这一层修一
+            次，比在 app.py 里逐条重写步骤安全得多 —— 步骤内容一律不动，
+            只改这一个标记位。
+            """
+            threads = await super().get_all_user_threads(
+                user_id=user_id,
+                thread_id=thread_id,
+            )
+            if not isinstance(threads, list):
+                return threads
+            for thread in threads:
+                if not isinstance(thread, dict):
+                    continue
+                for step in thread.get("steps") or []:
+                    if isinstance(step, dict) and "isError" in step:
+                        step["isError"] = _as_bool(step["isError"])
+            return threads
+
+        async def get_step(self, step_id: str):
+            """单条步骤同病同治（回放/更新反馈时会单独取步骤）。"""
+            step = await super().get_step(step_id)
+            if isinstance(step, dict) and "isError" in step:
+                step["isError"] = _as_bool(step["isError"])
+            return step
 
         async def list_threads(self, pagination, filters):
             """列表照旧，只是把**会话标题**也纳入搜索。
