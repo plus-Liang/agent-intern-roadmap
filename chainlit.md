@@ -1,14 +1,27 @@
-# Welcome to Chainlit! 🚀🤖
+# 求职助手 Agent 🎯
 
-Hi there, Developer! 👋 We're excited to have you on board. Chainlit is a powerful tool designed to help you prototype, debug and share applications built on top of LLMs.
+一个会说人话的 AI 求职搭子：把简历丢给它，然后像跟朋友聊天一样说需求，它自己去查岗位、算匹配、记投递、陪你练面试。
 
-## Useful Links 🔗
+## 它能帮你做什么
 
-- **Documentation:** Get started with our comprehensive [Chainlit Documentation](https://docs.chainlit.io) 📚
-- **Discord Community:** Join our friendly [Chainlit Discord](https://discord.gg/k73SQ3FyUh) to ask questions, share your projects, and connect with other developers! 💬
+- **找实习岗位**：按城市、方向、关键词搜岗位，直接给可投的清单
+- **简历匹配打分**：拿你的简历逐条岗位比对，告诉你为什么合适 / 哪里差了
+- **投递管理**：记录投了哪家、进度到哪一步，随时问「我投的 XX 怎么样了」
+- **模拟面试**：按岗位出题、追问、给复盘反馈
+- **记住你的偏好**：说过一次「只看广州」，后面一直按这个来
 
-We can't wait to see what you create with Chainlit! Happy coding! 💻😊
+## 快速开始
 
-## Welcome screen
+1. **先给简历**：点回形针上传 PDF / Word，或者直接把简历文字粘进对话框
+2. **再说人话**：比如
+   - 「帮我找北京的 Agent 实习」
+   - 「这个岗位我简历能过吗」
+   - 「记一下，我投了字节这个岗」
+   - 「帮我模拟面试字节 Agent 开发实习生」
+3. **不用记命令**：需要清空本会话历史时发 `/history-clear` 就行
 
-To modify the welcome screen, edit the `chainlit.md` file at the root of your project. If you do not want a welcome screen, just leave this file empty.
+## 小提示
+
+- 大白话比「专业提示词」更好使，越具体越准（城市、方向、时间、薪资）
+- 简历尽量带上项目经历和技术栈，匹配结果会明显更靠谱
+- 岗位来自公开招聘渠道，投递前建议去官方渠道再确认一遍
