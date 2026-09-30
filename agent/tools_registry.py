@@ -151,7 +151,15 @@ def _search(keyword, city=None, limit=20, semantic=False):
 
 
 def _rows_from_jobs(jobs) -> list[dict]:
-    """Job 列表 -> 工具返回用的瘦身 dict（字段口径保持不变）。"""
+    """Job 列表 -> 工具返回用的瘦身 dict。
+
+    字段口径保持"瘦身"：只带展示必需的字段，**不含 description**（一条 JD 正文
+    上千字，20 条就几万 token，搜索结果列表不需要）。但 `url` 必须带上 ——
+    它是用户"点开看详情"的唯一入口：DB 与 Job 里一直有 url，此前被这里漏掉，
+    导致 observation 里根本没有链接，模型只能列「公司/岗位/薪资/城市」，
+    用户无法点击。带上 url 不会显著增大 observation（每条 ~80 字），
+    但让 prompt 侧的 markdown 链接要求有数据可依。
+    """
     return [
         {
             "job_id": j.job_id,
@@ -159,6 +167,7 @@ def _rows_from_jobs(jobs) -> list[dict]:
             "company": j.company,
             "city": j.city,
             "salary": j.salary,
+            "url": j.url or "",
             "tags": j.tags or [],
         }
         for j in jobs
