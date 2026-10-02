@@ -73,6 +73,15 @@ def available_backend() -> str:
 # 中文字体探测
 # --------------------------------------------------------------------------
 
+_BUNDLED_FONT_DIR = Path(__file__).resolve().parent / "fonts"
+
+# 随仓库分发的中文字体（文泉驿微米黑，GPL v3 + 字体例外）。
+# 注意：必须在 _FONT_CANDIDATES 之前命中 —— 精简容器镜像（如 python:3.12-slim）
+# 里一个中文字体都没有，只靠系统字体探测会退化成 Helvetica，中文全变 `?`。
+_BUNDLED_FONTS = [
+    _BUNDLED_FONT_DIR / "wqy-microhei.ttc",
+]
+
 _FONT_CANDIDATES = [
     r"C:\Windows\Fonts\msyh.ttc",
     r"C:\Windows\Fonts\msyhl.ttc",
@@ -91,14 +100,16 @@ _FONT_CANDIDATES = [
 def find_cjk_font(prefer_ttf: bool = False) -> str | None:
     """找一个可用的中文字体文件；找不到返回 None。
 
+    顺序：PDF_CJK_FONT 环境变量 → 随仓库字体 → 系统字体（按 _FONT_CANDIDATES）。
     prefer_ttf=True 时优先纯 .ttf（fpdf2 对 .ttc 字体集合支持不稳），
-    否则按 _FONT_CANDIDATES 的顺序取第一个存在的。
+    此时候选顺序不变，只把 .ttc 排在 .ttf 之后。
     """
     env_font = os.getenv("PDF_CJK_FONT", "").strip()
     if env_font and Path(env_font).is_file():
         return env_font
 
-    candidates = list(_FONT_CANDIDATES)
+    candidates = [str(p) for p in _BUNDLED_FONTS if p.is_file()]
+    candidates += list(_FONT_CANDIDATES)
     if prefer_ttf:
         candidates.sort(key=lambda p: (not p.lower().endswith(".ttf"),))
 
@@ -434,11 +445,15 @@ _DROPPABLE_TABLES = {
 
 
 def _subset_font(font, used_gids) -> bytes:
-    """只保留用到的字形，把字体从 ~19MB 压到几百 KB。
+    """只保留用到的字形数据，把内嵌字体从 MB 级压到几百 KB。
 
-    做法是「把没用的字形清空」而不是重排 GID：cmap / hmtx / post 全部保持原样，
-    复合字形引用到的部件（比如带声调的字母）也会一并保留，
+    做法是「把没用的字形的 loca 指向空数据」而不是重排 GID：cmap / hmtx
+    全部保持原样，复合字形引用到的部件（比如带声调的字母）也会一并保留，
     这样字体结构改动最小，最不容易被阅读器判为损坏。
+    另把 post 表从 version 2.0（逐字形存名字，微米黑这张就 540 KB）降到
+    3.0（只有表头）—— 渲染靠 glyf、正文提取靠 ToUnicode，字形名没人用。
+    实测（微米黑 5.2 MB 源字体 + 一份真实简历）：内嵌子集 454 KB、
+    生成的 PDF 约 0.5 MB；不做这两步则内嵌 1 MB、PDF 约 1 MB。
     """
     offsets = _glyph_offsets(font)
     glyf_off = font.tables[b"glyf"][0]
@@ -457,13 +472,14 @@ def _subset_font(font, used_gids) -> bytes:
     new_glyf = bytearray()
     loca = []
     for gid in range(font.num_glyphs):
-        loca.append(len(new_glyf))
-        if gid in keep:
-            start, end = offsets[gid], offsets[gid + 1]
-            if end > start:
-                body = font.data[glyf_off + start:glyf_off + end]
-                new_glyf += body
-                new_glyf += b"\x00" * ((4 - len(body) % 4) % 4)
+        start, end = offsets[gid], offsets[gid + 1]
+        if gid in keep and end > start:
+            loca.append(len(new_glyf))
+            body = font.data[glyf_off + start:glyf_off + end]
+            new_glyf += body
+            new_glyf += b"\x00" * ((4 - len(body) % 4) % 4)
+        else:
+            loca.append(len(new_glyf))             # 没保留的字形指向空数据，不占体积
     loca.append(len(new_glyf))
 
     blobs = {
@@ -473,6 +489,13 @@ def _subset_font(font, used_gids) -> bytes:
     }
     blobs[b"glyf"] = bytes(new_glyf)
     blobs[b"loca"] = b"".join(struct.pack(">I", off) for off in loca)
+
+    # post 表 version 2.0 会给**每个**字形存名字（微米黑这一张就 540 KB，
+    # 子集后也一样大）：正文提取靠 ToUnicode，阅读器渲染靠 glyf，字形名没人要，
+    # 直接降到 version 3.0（只有表头、无字形名）。
+    post = blobs.get(b"post")
+    if post and len(post) >= 4 and struct.unpack(">I", post[:4])[0] == 0x00020000:
+        blobs[b"post"] = struct.pack(">IIhhIIIIII", 0x00030000, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     head = bytearray(blobs[b"head"])
     head[50:52] = struct.pack(">h", 1)             # indexToLocFormat = 1（长格式 loca）

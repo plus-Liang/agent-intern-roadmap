@@ -6,6 +6,7 @@ import json
 import re
 from dataclasses import asdict
 from shared.llm_client import chat
+from shared import limits
 from agent.tools.resume_match import Resume
 
 
@@ -72,7 +73,17 @@ def tailor_resume(resume: Resume, job_detail) -> dict:
 
     for attempt in range(1, 4):
         try:
-            raw = chat([{"role": "user", "content": prompt}])
+            # 必须显式带额度与思考档：chat() 不传就是全局默认 1024，思考模型
+            # （glm-5.3-flash）的思考与正文共用 max_tokens —— 实测默认档
+            # finish_reason=length 且正文为空，json.loads 报
+            # `Expecting value: line 1 column 1 (char 0)`，投递包只能退回原简历
+            # （见 shared/limits.cover_letter_max_tokens 的实测记录）。
+            raw = chat(
+                [{"role": "user", "content": prompt}],
+                source="tailor_resume",
+                max_tokens=limits.cover_letter_max_tokens(),
+                reasoning_effort=limits.cover_letter_reasoning_effort(),
+            )
             data = _parse_json(raw)
             return data
         except Exception as e:

@@ -17,6 +17,7 @@ from agent.tools.pdf_export import available_backend, export_resume_pdf, normali
 from agent.tools.resume_match import match_resume_to_jd, Resume
 from agent.resume.tailor import tailor_resume
 from shared.llm_client import chat
+from shared import limits
 from shared.user_context import get_current_user
 from agent import state_machine
 from agent import storage
@@ -249,9 +250,38 @@ def _match(job_id, resume_json):
     }
 
 
-def _add_tracking(company, title, platform="mock", url=""):
-    """添加投递记录"""
-    app_id = storage.create_application(company, title, platform, url)
+def _platform_from_url(url) -> str:
+    """从岗位链接反推来源平台（niuke / shixiseng / ncss / …）。
+
+    "mock" 只是「本地聚合数据」这个数据通道的名字，不是岗位来源平台 ——
+    手动添加投递记录时调用方通常不传 platform，兜底成 mock 会让
+    job_info.txt 的「来源平台」写成假值（问题 3）。所以这里按链接域名反推；
+    反推不出来才保留 mock。
+    """
+    text = str(url or "").strip().lower()
+    if not text:
+        return "mock"
+    if "nowcoder.com" in text or "niuke" in text:
+        return "niuke"
+    if "shixiseng.com" in text:
+        return "shixiseng"
+    if "ncss.cn" in text:
+        return "ncss"
+    for host, platform in (
+        ("zhipin.com", "boss"), ("lagou.com", "lagou"), ("liepin.com", "liepin"),
+        ("zhaopin.com", "zhilian"), ("linkedin.com", "linkedin"),
+        ("yingjiesheng.com", "yingjiesheng"), ("51job.com", "51job"),
+    ):
+        if host in text:
+            return platform
+    return "mock"
+
+
+def _add_tracking(company, title, platform="", url=""):
+    """添加投递记录（platform 留空时按链接反推，别默认写成 mock）"""
+    app_id = storage.create_application(
+        company, title, str(platform or "").strip() or _platform_from_url(url), url
+    )
     return {"id": app_id, "company": company, "title": title, "status": "applied"}
 
 
@@ -599,8 +629,14 @@ def _generate_cover_letter(resume_data, record, detail) -> tuple:
     )
 
     try:
+        # 必须显式带额度与思考档：chat() 不传就是全局默认 1024，而
+        # glm-5.3-flash 是思考模型、思考与正文共用 max_tokens —— 实测 1024 档
+        # finish_reason=length、正文只写出 168 字（自荐信都没写完），
+        # 4096 + low 一次出全（术语见 shared/limits.cover_letter_max_tokens）。
         text = (chat([{"role": "user", "content": prompt}],
-                     source="application_package") or "").strip()
+                     source="application_package",
+                     max_tokens=limits.cover_letter_max_tokens(),
+                     reasoning_effort=limits.cover_letter_reasoning_effort()) or "").strip()
         if text.startswith("```"):                  # 模型偶尔会套一层围栏
             match = re.search(r"```(?:markdown|md|text)?\s*(.*?)\s*```", text, re.DOTALL)
             if match:
@@ -611,6 +647,23 @@ def _generate_cover_letter(resume_data, record, detail) -> tuple:
     except Exception as e:                          # noqa: BLE001 - 生成失败也要让投递包落地
         return (_fallback_cover_letter(company, title),
                 f"自荐信生成失败（{type(e).__name__}: {e}），已用模板兜底")
+
+
+def _source_platform(record: dict, detail) -> str:
+    """定出「来源平台」：岗位详情 > 链接反推 > 投递记录字段。
+
+    投递记录的 platform 常常是 mock（只是本地数据通道名），
+    所以只在详情与链接都定不出来时才用它。
+    """
+    platform = str(getattr(detail, "platform", "") or "").strip()
+    if platform and platform != "mock":
+        return platform
+    from_url = _platform_from_url(
+        getattr(detail, "url", "") or record.get("url", "")
+    )
+    if from_url and from_url != "mock":
+        return from_url
+    return platform or str(record.get("platform", "") or "")
 
 
 def _job_info_text(record: dict, detail, job_id_used: str) -> str:
@@ -649,7 +702,9 @@ def _job_info_text(record: dict, detail, job_id_used: str) -> str:
         "",
         "【投递记录】",
         f"记录 id：{record.get('id', '')}",
-        f"来源平台：{record.get('platform', '')}",
+        # 记录里的 platform 可能只是「本地数据」通道名（mock），
+        # 优先用岗位详情解析出的真实来源平台，其次按链接反推（问题 3）。
+        f"来源平台：{_source_platform(record, detail)}",
         f"当前状态：{record.get('status', '')}",
         f"投递时间：{record.get('applied_at', '')}",
         f"打包时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
@@ -874,6 +929,7 @@ TOOLS = {
             "company": "公司名",
             "title": "岗位名",
             "url": "岗位链接（可选）",
+            "platform": "来源平台（可选）：niuke/shixiseng/ncss 等；不传则按 url 自动判断",
         },
         "func": _add_tracking,
         "risk_level": "reversible",

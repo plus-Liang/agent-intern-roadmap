@@ -130,6 +130,35 @@ def match_reasoning_effort() -> str:
     return str(raw).strip().lower()
 
 
+def cover_letter_max_tokens() -> int:
+    """投递包（自荐信 + 简历定制）的单次输出上限，默认 4096。
+
+    为什么要单独给：与简历解析 / 匹配同源 —— `glm-5.3-flash` 是思考模型，
+    `max_tokens` 同时卡住思考（`reasoning_content`）与正文，且**工具内部的
+    chat() 不经过 ReAct 的分档逻辑**，不显式传就是全局默认 1024。
+    实测（真实简历 + 真实岗位 466364，容器内）：
+    - 自荐信：默认 1024 档 `finish_reason=length`、正文只有 168 字（连称呼都没写完）；
+      4096 + `low` 一次出全、`finish_reason=stop`；
+    - 简历定制（返回 JSON）：默认 1024 档正文为空、`json.loads` 报
+      `Expecting value: line 1 column 1 (char 0)`，连试 3 次都失败 → 投递包被迫用原简历。
+    4096 只是上限、不花额外 token。总开关关闭时为 0（不注入），与改造前一致。
+    """
+    return _env_int("COVER_LETTER_LLM_MAX_TOKENS", 4096, 0) if rate_limit_enabled() else 0
+
+
+def cover_letter_reasoning_effort() -> str:
+    """投递包（自荐信 + 简历定制）的思考档位（low / high / max；空串 = 不注入）。
+
+    默认 `low`，与简历解析 / 匹配同档：实测同一提示下 `low` 把 1024 档从
+    「触顶截断」变成「一次写完整封」，行文与呼应的技能点没有变差 ——
+    自荐信与简历定制都是短文本重写，长思考的边际收益远小于它挤掉正文的代价。
+    """
+    if not rate_limit_enabled():
+        return ""
+    raw = os.getenv("COVER_LETTER_LLM_REASONING_EFFORT", "low")
+    return str(raw).strip().lower()
+
+
 def react_long_max_tokens() -> int:
     """ReAct 循环里**可能输出长文本**的那一轮的单次输出上限，默认 8192。
 
