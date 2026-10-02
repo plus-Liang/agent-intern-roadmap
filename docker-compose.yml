@@ -13,6 +13,11 @@ services:
     # 密钥与配置走 .env（.env 本身已被 .gitignore / .dockerignore 排除）
     env_file:
       - .env
+    environment:
+      # 容器默认 UTC：投递记录时间比北京时间少 8 小时（13:42 vs 21:42）。
+      # 写在这里而不是 .env —— environment 的优先级高于 env_file，不会被 .env 里的
+      # TZ 覆盖掉；镜像基于 debian（自带 tzdata），Asia/Shanghai 直接可用。
+      - TZ=Asia/Shanghai
     ports:
       - "8000:7860"
     volumes:

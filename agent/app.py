@@ -11,6 +11,7 @@
    是纯内存的，**没有这一步，进程重启 / 断线重连之后上下文就全丢了**。
 """
 import asyncio
+import contextvars
 import json
 import os
 import re
@@ -533,13 +534,31 @@ _SEMAPHORE = None
 def _semaphore():
     """全局并发信号量（懒建：要绑在当前事件循环上）。
 
-    run_agent 是**在事件循环里同步阻塞**的，多用户并发会互相卡住；
-    本轮先用信号量把并发压住（真正的修法是 to_thread，单独一轮做）。
+    重活儿（run_agent / 面试官出题）现在都 `_off_loop` 到子线程跑，事件循环
+    不再被阻塞；信号量的职责是**限制同时在跑的重活儿数量**（每个子线程都会
+    打 LLM，并发放开等于把单次预算和日额度一起打穿），也是单 worker 下
+    唯一还能约束并发的闸门。
     """
     global _SEMAPHORE
     if _SEMAPHORE is None:
         _SEMAPHORE = asyncio.Semaphore(max(1, limits.max_concurrency()))
     return _SEMAPHORE
+
+
+def _off_loop(func, *args, **kwargs):
+    """把同步阻塞函数丢进子线程执行，**显式**带上当前 ContextVar。
+
+    为什么不能直接 `asyncio.to_thread(func, ...)` 就算了：
+    run_agent / _ask_interviewer 一路上会读 `get_current_user()`
+    （shared/token_tracker 按它记用量）与 `get_current_thread()`
+    （save_memory 的来源标记），而**子线程不继承调用方的上下文** ——
+    不 copy_context 的话这一轮的用量会静默记到兜底用户 `local` 名下。
+    这里与 tools_registry.call_tool 对工具子线程的处理是同一套做法。
+    在子线程里 set 的 ContextVar（单次预算 / 截断标记）留在子线程内，
+    不会污染事件循环那条上下文。
+    """
+    ctx = contextvars.copy_context()
+    return asyncio.to_thread(ctx.run, func, *args, **kwargs)
 
 
 def _quota_warning(scope: str, user_id: str, used: int, limit: int) -> None:
@@ -986,7 +1005,7 @@ def _ask_interviewer(session: dict) -> dict:
     return _parse_interview_reply(raw)
 
 
-def _start_interview_session(company: str, title: str, resume) -> dict:
+async def _start_interview_session(company: str, title: str, resume) -> dict:
     """建一个面试会话：定位 JD、带上简历，并问出第一题"""
     job_id, jd = _resolve_job(company, title)
     session = {
@@ -1002,7 +1021,7 @@ def _start_interview_session(company: str, title: str, resume) -> dict:
         "prev_question": "",
     }
 
-    reply = _ask_interviewer(session)
+    reply = await _off_loop(_ask_interviewer, session)
     question = _clean(reply.get("next_question")) or "先做个自我介绍吧，重点讲讲你和这个岗位相关的经历。"
     session["asked"].append(question)
     session["count"] = 1
@@ -1017,7 +1036,7 @@ async def _handle_interview_message(content: str, session: dict):
         "answer": content,
     })
 
-    reply = _ask_interviewer(session)
+    reply = await _off_loop(_ask_interviewer, session)
     feedback = _clean(reply.get("feedback"))
     summary = _clean(reply.get("summary"))
     next_question = _clean(reply.get("next_question"))
@@ -1090,7 +1109,7 @@ async def _begin_interview(company: str, title: str):
     resume = cl.user_session.get(_resume_key())
     async with cl.Step(name="面试官准备中", type="tool") as step:
         step.output = f"正在读取 {company} · {title} 的 JD 和你的简历…"
-        session = _start_interview_session(company, title, resume)
+        session = await _start_interview_session(company, title, resume)
 
     cl.user_session.set(_interview_key(), session)
     cl.user_session.set(_pending_interview_key(), None)   # 开局即清待补槽位
@@ -1587,8 +1606,10 @@ async def on_message(message: cl.Message):
         async with cl.Step(name="Agent 工作中", type="tool") as step:
             step.output = "正在分析..."
             try:
-                result = run_agent(content, resume_data=resume, verbose=False,
-                                   history=history)
+                # 丢进子线程跑：run_agent 是同步的（多轮 LLM + 工具调用，动辄
+                # 几十秒），留在事件循环里会卡住 socket.io 心跳 → 前端「无法连接」。
+                result = await _off_loop(run_agent, content, resume_data=resume,
+                                         verbose=False, history=history)
             except Exception as e:
                 await cl.Message(content=f"❌ 出错了：{e}").send()
                 return
