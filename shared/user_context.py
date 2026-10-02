@@ -29,8 +29,11 @@ from contextlib import contextmanager
 # 无认证 / 后台任务 / 脚本 / 测试时的兜底用户，也是存量数据的归属者
 DEFAULT_USER_ID = "local"
 
+# 用哨兵当默认值：这样能区分「有人显式绑过用户」和「从没绑过、拿的是兜底 local」。
+_UNSET = object()
+
 _current_user: contextvars.ContextVar = contextvars.ContextVar(
-    "current_user_id", default=DEFAULT_USER_ID
+    "current_user_id", default=_UNSET
 )
 
 
@@ -42,7 +45,20 @@ def normalize_user_id(value) -> str:
 
 def get_current_user() -> str:
     """当前用户 id（从没 set 过时返回 DEFAULT_USER_ID）。"""
-    return normalize_user_id(_current_user.get())
+    value = _current_user.get()
+    return normalize_user_id(None if value is _UNSET else value)
+
+
+def has_current_user() -> bool:
+    """当前用户是**显式绑定**的，还是「没人绑、拿兜底 local」。
+
+    存在的意义：多用户下所有写入都必须归到真实登录用户；一旦某条链路的上下文
+    在中间掉了，`get_current_user()` 会静默返回 `local`，数据就悄悄写错人名下。
+    工具层用这个函数把「兜底」标注出来（见 tools_registry._log_tool），
+    让归属问题在日志里一眼可见，而不是事后靠翻库才发现。
+    脚本 / Dashboard / 调度器 / 单测本来就没有登录态，返回 False 是正常现象。
+    """
+    return _current_user.get() is not _UNSET
 
 
 def set_current_user(user_id) -> contextvars.Token:

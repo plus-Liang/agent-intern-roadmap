@@ -18,7 +18,7 @@ from agent.tools.resume_match import match_resume_to_jd, Resume
 from agent.resume.tailor import tailor_resume
 from shared.llm_client import chat
 from shared import limits
-from shared.user_context import get_current_user
+from shared.user_context import get_current_user, has_current_user
 from agent import state_machine
 from agent import storage
 
@@ -277,12 +277,24 @@ def _platform_from_url(url) -> str:
     return "mock"
 
 
-def _add_tracking(company, title, platform="", url=""):
-    """添加投递记录（platform 留空时按链接反推，别默认写成 mock）"""
+def _add_tracking(company, title, platform="", url="", status="applied"):
+    """添加投递记录（platform 留空时按链接反推，别默认写成 mock）。
+
+    status 可选：用户说「已投递」时模型会顺手传 status，早期不接受这个参数，
+    工具直接报「不支持参数：status」——模型若不重试就会回一句"已添加 ✅"，
+    看起来像幻觉。这里接住这个参数，做成一次调用就能成功。
+    """
+    to_status = str(status or "applied").strip().lower()
+    if to_status not in state_machine.STATUS:
+        raise ValueError(
+            "未知状态：{}，可选：{}".format(status, "/".join(state_machine.STATUS))
+        )
     app_id = storage.create_application(
         company, title, str(platform or "").strip() or _platform_from_url(url), url
     )
-    return {"id": app_id, "company": company, "title": title, "status": "applied"}
+    if to_status != "applied":                    # create_application 落的是 applied
+        storage.update_status(app_id, to_status, "创建记录时指定")
+    return {"id": app_id, "company": company, "title": title, "status": to_status}
 
 
 def _list_tracking(status=None):
@@ -860,8 +872,14 @@ def _validate_args(name: str, args, spec: dict) -> dict:
 
 
 def _log_tool(name: str, risk: str, status: str, **fields) -> None:
-    """统一日志：[tool] name=delete_tracking risk=irreversible latency=123ms status=ok"""
-    line = f"[tool] name={name} risk={risk}"
+    """统一日志：[tool] name=delete_tracking risk=irreversible user=admin latency=123ms status=ok
+
+    user 每次都打：多用户下「这条数据归谁」全靠它，出问题不用再翻库猜。
+    `!unbound` 后缀 = 这一轮没人显式绑过用户，拿的是兜底 local（见 has_current_user）。
+    """
+    line = f"[tool] name={name} risk={risk} user={get_current_user()}"
+    if not has_current_user():
+        line += "!unbound"
     line += "".join(f" {key}={value}" for key, value in fields.items())
     print(f"{line} status={status}")
 
@@ -933,12 +951,14 @@ TOOLS = {
         "requires_confirmation": False,
     },
     "add_tracking": {
-        "description": "把岗位添加到投递追踪系统。",
+        "description": "把岗位添加到投递追踪系统。新增成功必须如实回执工具返回的 id。",
         "parameters": {
             "company": "公司名",
             "title": "岗位名",
             "url": "岗位链接（可选）",
             "platform": "来源平台（可选）：niuke/shixiseng/ncss 等；不传则按 url 自动判断",
+            "status": "初始状态（可选，默认 applied）：applied/viewed/interview 等，"
+                      "用户说「已投递」就是 applied",
         },
         "func": _add_tracking,
         "risk_level": "reversible",

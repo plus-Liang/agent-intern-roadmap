@@ -183,12 +183,25 @@ def _bind_user() -> str:
     知道「这条信息是哪条会话来的」，而工具只拿得到 ContextVar，
     拿不到 cl.user_session。
     """
-    user_id = _session_user_id() or chat_history.DEFAULT_USER_ID
+    user_id = _session_user_id()
+    resolved = bool(user_id)
+    if not resolved:
+        # 登录态下本该总能解析出用户名；走到这里说明这一轮回调没拿到身份。
+        # 以前这里**静默**降级成兜底用户，于是工具把数据写进 local 而没人知道
+        # （查库只看到 user_id=local，看不出是哪一层丢的）。现在必须留痕。
+        user_id = chat_history.DEFAULT_USER_ID
+        print(f"[用户] ⚠️ 本轮未取到登录身份，按兜底用户 {user_id} 处理；"
+              f"若这是登录会话，说明身份在回调入口丢了（auth_enabled="
+              f"{os.getenv('CHAT_AUTH_ENABLED', '')!r}）")
     set_current_user(user_id)
-    try:
-        cl.user_session.set(_USER_ID_KEY, user_id)
-    except Exception:                               # noqa: BLE001 - 无 socket 上下文
-        pass
+    if resolved:
+        # 只在**真的解析出身份**时才回写 user_session：
+        # 把兜底值写进去会污染后续轮次——一旦写过 local，即使之后 socket 上下文
+        # 恢复了，也会一直被 local 覆盖。
+        try:
+            cl.user_session.set(_USER_ID_KEY, user_id)
+        except Exception:                           # noqa: BLE001 - 无 socket 上下文
+            pass
     try:
         set_current_thread(_thread_id())
     except Exception as e:                          # noqa: BLE001 - 绑不上就留空串

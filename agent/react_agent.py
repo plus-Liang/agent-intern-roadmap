@@ -110,6 +110,21 @@ STATIC_PREFIX = """你是一个求职助手 Agent。你可以调用工具帮用�
 4. 字符串里不能有真实换行，用 \\n 转义。
 5. final_answer 必须是单行字符串。
 
+【写操作必须先真调工具（硬规则，违反即错误）】
+这里说的写操作 = 会**改动数据**的动作：添加投递记录、改状态、删除记录、保存简历等。
+1. 只有**真的调用过对应工具、并拿到成功返回**之后，才允许在 final_answer 里说
+   「已添加 / 已记录 / 已修改 / 已删除 ✅」这类完成时表述。
+2. 本轮**一个工具都没调**时，final_answer 里禁止出现完成时表述。此时要么直接
+   调用工具，要么只说明「我还没执行 / 我准备这样执行」——**不要先报成功**。
+3. 工具返回以「工具调用失败：」开头时，必须把失败原因**如实**转述给用户，
+   绝不允许改口说成功，也不允许假装记录已经写进去了。
+4. 报成功必须带工具返回里的真实凭证（记录 id / 公司 / 岗位），凭证只能照抄工具返回，
+   不许自己编。
+5. 典型错误（必须避免）：用户说「添加投递记录：快手，大模型算法」，你直接回
+   「已添加 ✅」，却根本没调用 add_tracking。正确做法是本轮输出：
+   {{"thought": "…", "action": "add_tracking",
+     "action_input": {{"company": "快手", "title": "大模型算法"}}}}
+
 【搜索结果透明化】
 调用 search_jobs 拿到结果后，必须如实、完整地汇报，不要只挑几条就说完了：
 1. 先报总数：明确说出工具本次返回的完整条数（如「共找到 20 个相关岗位」），
@@ -183,6 +198,10 @@ semantic 传 true —— 判断标准是「用户有没有给出可直接检索�
 只调用回答当前问题所必需的工具。用户没要求查看详情就不要调 get_job_detail，
 用户没要求匹配简历就不要调 match_resume。
 判断标准：如果问题的答案用当前已有信息就能回答，立即给 final_answer。
+
+**例外（写操作永远不适用这条）**：只要用户是在要求改动数据（添加 / 修改 / 删除 /
+保存），就必须真的调用工具，不能因为「看起来已经知道该做什么」就跳过调用——
+不调用而直接回答「已完成」是错误答案，见上面【写操作必须先真调工具】。
 
 【跟进提醒（主动报告）】
 - 用户问「我该做什么 / 接下来干什么 / 有什么要跟进的 / 投递有消息吗」这类
@@ -810,6 +829,11 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
         try:
             decision = _parse_json(raw)
         except Exception as e:
+            # 以前这里只 print 不写日志：整轮在 app.log 里就是空白，
+            # 事后根本看不出「模型这一轮其实没调工具、只是输出废了」。
+            log_event(trace_id, "parse_error", turn=turn,
+                      error=f"{type(e).__name__}: {e}"[:200],
+                      output_chars=len(raw or ""))
             if verbose:
                 print(f"[解析失败] {e}")
             messages.append({"role": "assistant", "content": raw})
@@ -835,6 +859,20 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
         action = decision.get("action")
         action_input = decision.get("action_input", {})
 
+        # 兜底：两个字段都没有时以前会变成 action=None → call_tool 报「未知工具：None」，
+        # 模型收到的提示很晦涩（看着像工具坏了，而不是它自己漏了字段）。显式说清楚。
+        if not action:
+            log_event(trace_id, "bad_action", turn=turn,
+                      decision=str(decision)[:150])
+            messages.append({"role": "assistant", "content": raw})
+            messages.append({
+                "role": "user",
+                "content": "你的 JSON 里既没有 final_answer 也没有 action，"
+                           "两者必须二选一（要调工具就写 action + action_input；"
+                           "要结束就写 final_answer）。请重新输出。",
+            })
+            continue
+
         # 把 "current" 替换成真实简历
         if action == "match_resume" and resume_data:
             if action_input.get("resume_json") in (None, "current", ""):
@@ -856,11 +894,16 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
                       f"（完整 {len(result_str)} 字，steps 里存的是全文）")
         except Exception as e:
             result_str = f"工具调用失败：{e}"
+            # 失败必须两级留痕：给模型（下面的 observation）＋给日志。
+            # 只给模型的话，事后翻 app.log 会以为这一轮没出过问题。
+            log_event(trace_id, "tool_error", turn=turn, tool=action,
+                      error=f"{type(e).__name__}: {e}"[:200])
             if verbose:
                 print(f"Observation: {result_str}")
 
         log_event(trace_id, "observation", turn=turn,
-                  result_preview=result_str[:100])
+                  result_preview=result_str[:100],
+                  ok=not result_str.startswith("工具调用失败："))
 
         messages.append({"role": "assistant", "content": raw})
         messages.append({
