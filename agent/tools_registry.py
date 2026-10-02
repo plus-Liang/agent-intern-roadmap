@@ -797,17 +797,26 @@ def generate_application_package(company, job_id=None):
 # risk_level 语义（按伤害半径）：
 #   read          只读，不改任何状态
 #   reversible    可撤销（改动能再改回来 / 产物可重建）
-#   irreversible  不可撤销（删了就没，必须用户确认）
+#   irreversible  不可撤销（删了就没）
+#
+# 「不可撤销」的确认分两层，**默认走 prompt 层**：
+#   - prompt 层（默认）：Agent 在对话里复述记录、等用户回话，然后直接调工具。
+#     这是唯一可行的做法 —— react_agent 每轮都是 call_tool(name, args)（不带 confirmed），
+#     跨轮也记不住"用户上一轮已经确认过"，工具层再拦一次就是死循环：
+#     用户说一百次"确认"，工具层永远只看到 confirmed=False（智能体永远删不掉东西）。
+#   - 工具层（requires_confirmation=True）：只给**能在同一次调用里带上 confirmed=True**
+#     的上层 UI 用。当前没有任何工具用它 —— 别再给 delete_tracking 加回来。
 
 VALID_RISK_LEVELS = ("read", "reversible", "irreversible")
 DEFAULT_TIMEOUT = 30                       # 秒，未显式声明 timeout 时的兜底
 
 
 class ToolNeedsConfirmation(Exception):
-    """工具风险过高，需要用户确认后才能执行。
+    """工具风险过高，需要在**同一次调用内**先确认才能执行。
 
-    上层 UI 捕获它，用 name / args / risk_level 决定是否弹确认框；
-    用户确认后以 call_tool(name, args, confirmed=True) 重放这次调用。
+    只适用于「上层 UI 能拿到这个异常 → 弹确认框 → 带 confirmed=True 重放」的调用方。
+    ReAct 循环做不到这件事（每轮是新的 call_tool、没有 UI 确认框、跨轮不记得已确认），
+    所以对话里的确认统一放 prompt 层（见上面 risk_level 注释）。
     """
 
     def __init__(self, name: str, args: dict, risk_level: str = "irreversible"):
@@ -971,7 +980,10 @@ TOOLS = {
     "delete_tracking": {
         "description": (
             "删除一家公司的投递记录（连同它的状态变更历史），不可恢复。"
-            "一次只能删一家公司，因此不支持“删除全部记录”这类批量操作。"
+            "一次只能删一家公司，因此不支持“删除全部记录”这类批量操作；"
+            "同一家公司有多条记录时一次调用只删最近一条，需要逐条调用。"
+            "**只在用户明确要求删除时调用**：确认在对话层完成（先按用户要求列出记录、"
+            "等用户回复同意），工具层不会二次拦截，也不要再向用户要一轮确认。"
         ),
         "parameters": {
             "company": "公司名（用于定位记录，支持模糊匹配）",
@@ -979,7 +991,9 @@ TOOLS = {
         "func": _delete_tracking,
         "risk_level": "irreversible",
         "timeout": 30,
-        "requires_confirmation": True,
+        # 刻意 False：跨轮确认放 prompt 层（见上面 risk_level 的注释）。
+        # 改回 True → react_agent 每轮都拿到 ToolNeedsConfirmation → 用户永远删不掉。
+        "requires_confirmation": False,
     },
     "update_tracking_notes": {
         "description": (
@@ -1316,29 +1330,28 @@ def _run_selftest() -> int:
                     f"超时被中止：{timeout_err}")
 
         def check_delete():
-            # 不可逆工具必须先过确认：未确认要报 ToolNeedsConfirmation，且不许碰库
-            unconfirmed = expect_error(
-                lambda: call_tool("delete_tracking", {"company": "阶跃星辰"}),
-                kind=ToolNeedsConfirmation,
-            )
-            assert storage.find_application("阶跃星辰") is not None, "未确认不该删掉任何记录"
+            # 确认已上移到 prompt 层（Agent 复述记录 + 等用户回话再调）。
+            # 工具层**不能再拦**：react_agent 每轮只调 call_tool(name, args)（无 confirmed），
+            # 再拦一次就是死循环 —— 用户说多少次「确认」都删不掉。回归防线钉在这里。
+            assert TOOLS["delete_tracking"].get("requires_confirmation") is False, \
+                "delete_tracking 的确认必须在 prompt 层，不能加回工具层拦截"
 
-            out = call_tool("delete_tracking", {"company": "阶跃星辰"}, confirmed=True)
+            out = call_tool("delete_tracking", {"company": "阶跃星辰"})
             assert out["deleted"] is True and out["id"] == step_new, out
             assert storage.get_application(step_new) is None, "记录应该已被删除"
             assert storage.get_events(step_new) == [], "关联事件应一并删除"
 
             left = storage.find_application("阶跃星辰")
             assert left is not None and left["id"] == step_old, "应还有一条更早的同公司记录"
-            call_tool("delete_tracking", {"company": "阶跃星辰"}, confirmed=True)
+            call_tool("delete_tracking", {"company": "阶跃星辰"})
             assert storage.find_application("阶跃星辰") is None, "同公司记录应已删净"
 
             gone = expect_error(lambda: call_tool(
-                "delete_tracking", {"company": "阶跃星辰"}, confirmed=True,
+                "delete_tracking", {"company": "阶跃星辰"},
             ))
             assert storage.get_application(tencent_id) is not None, "不该误删其他公司的记录"
 
-            return (f"删除 id={out['id']}（含事件）；未确认被拦：{unconfirmed}；"
+            return (f"未确认也一次删掉 id={out['id']}（含事件）；"
                     f"重复删除报错：{gone}")
 
         check("0. call_tool 运行时校验（元数据/参数/超时）", check_runtime_guard)
