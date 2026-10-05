@@ -19,11 +19,17 @@ EXTRACT_PROMPT = """你是简历解析专家。从下面的简历文本中提取
 {{
   "name": "姓名",
   "skills": ["技能1", "技能2"],
+  "educations": [
+    {{"school": "学校名", "major": "专业", "degree": "本科" 或 "硕士" 或 "博士",
+      "start": "2025.09", "end": "至今"}}
+  ],
   "experience": [
-    {{"company": "公司名", "role": "岗位", "months": 数字, "description": "工作描述"}}
+    {{"company": "公司名", "role": "岗位", "start": "2025.06", "end": "2025.09",
+      "months": 数字, "description": "工作描述"}}
   ],
   "projects": [
-    {{"name": "项目名", "tech": ["技术1"], "desc": "项目描述"}}
+    {{"name": "项目名", "tech": ["技术1"], "start": "2025.10", "end": "2026.01",
+      "desc": "项目描述"}}
   ],
   "education": "本科" 或 "硕士" 或 "博士",
   "city": "当前城市",
@@ -35,6 +41,15 @@ EXTRACT_PROMPT = """你是简历解析专家。从下面的简历文本中提取
 1. 如果某字段在简历中找不到，填空字符串或空数组。
 2. skills 去重、标准化（如"会写Python" → "Python"）。
 3. experience 里的 months 是实习月数，找不到就填 0。
+4. **educations 必须逐条完整照抄学校名、专业、学历层次、起止时间**，并保留原顺序。
+   简历里写了学校/专业/时间就绝不能省略 —— "上海大学 | 人工智能（硕士研究生）|
+   2025.09-至今" 必须录成 school="上海大学"、major="人工智能"、
+   degree="硕士研究生"、start="2025.09"、end="至今"；多条教育经历就多项。
+5. **时间范围必须原样保留**：experience / projects 的 start（开始）与 end（结束）
+   一律来自简历原文（"2025 年 10 月 - 2026 年 1 月" → start="2025.10"、
+   end="2026.01"），统一成 YYYY.MM；还在进行中的写 "至今"。原文没写时间才留空。
+6. education 只填最高学历档位（本科/硕士/博士），它和 educations 不能互相替代：
+   educations 是明细，education 是档位，两个都要输出。
 """
 
 
@@ -120,14 +135,38 @@ def _parse_json(text: str) -> dict:
     return json.loads(text)
 
 
+def _clean_educations(raw) -> list:
+    """规整教育经历明细：丢掉空项，字段名统一成 school/major/degree/start/end。"""
+    items = []
+    for edu in (raw or []):
+        if not isinstance(edu, dict):
+            continue
+        entry = {
+            "school": str(edu.get("school") or edu.get("学校") or "").strip(),
+            "major": str(edu.get("major") or edu.get("专业") or "").strip(),
+            "degree": str(edu.get("degree") or edu.get("学历") or "").strip(),
+            "start": str(edu.get("start") or edu.get("开始") or "").strip(),
+            "end": str(edu.get("end") or edu.get("结束") or "").strip(),
+        }
+        if any(entry.values()):
+            items.append(entry)
+    return items
+
+
 def _dict_to_resume(data: dict) -> Resume:
+    educations = _clean_educations(data.get("educations"))
+    education = str(data.get("education") or "").strip()
+    if not education and educations:
+        education = educations[0].get("degree", "")
+
     return Resume(
         name=data.get("name", "匿名"),
         skills=data.get("skills", []),
         experience=data.get("experience", []),
         projects=data.get("projects", []),
-        education=data.get("education", ""),
+        education=education,
         city=data.get("city", ""),
+        educations=educations,
     )
 
 

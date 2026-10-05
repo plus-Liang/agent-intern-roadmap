@@ -18,8 +18,9 @@ class Resume:
     skills: list[str] = field(default_factory=list)
     experience: list[dict] = field(default_factory=list)  # [{"company": ..., "role": ..., "months": ...}]
     projects: list[dict] = field(default_factory=list)    # [{"name": ..., "tech": [...], "desc": ...}]
-    education: str = ""                                    # "本科" / "硕士"
+    education: str = ""                                    # "本科" / "硕士"（学历档位）
     city: str = ""
+    educations: list[dict] = field(default_factory=list)   # [{"school","major","degree","start","end"}]
 
 
 @dataclass
@@ -48,6 +49,7 @@ def match_resume_to_jd(resume: Resume, job_detail) -> MatchResult:
 【简历】
 姓名：{resume.name}
 技能：{', '.join(resume.skills)}
+教育经历：{json.dumps(resume.educations, ensure_ascii=False)}
 教育：{resume.education}
 城市：{resume.city}
 实习经历：{json.dumps(resume.experience, ensure_ascii=False)}

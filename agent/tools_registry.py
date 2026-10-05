@@ -15,7 +15,7 @@ from agent.tools.job_search import search_jobs
 from agent.tools.job_detail import get_job_detail
 from agent.tools.pdf_export import available_backend, export_resume_pdf, normalize_resume
 from agent.tools.resume_match import match_resume_to_jd, Resume
-from agent.resume.tailor import tailor_resume
+from agent.resume.tailor import strip_self_praise, tailor_resume
 from shared.llm_client import chat
 from shared import limits
 from shared.user_context import get_current_user, has_current_user
@@ -513,7 +513,10 @@ COVER_LETTER_PROMPT = """你是求职者本人，正在写一封投递用的自�
 2. 结构：开头点明应聘的岗位 → 中间用简历里真实存在的技能/实习/项目说明为什么匹配
    （尽量呼应上面的任职要求）→ 结尾表达期待面试。
 3. **绝对不能编造简历里没有的经历、技能、成绩或数字**。
-4. 直接输出自荐信正文（可以有称呼和结尾问候），不要标题、不要 markdown 围栏、不要解释。
+4. **只写客观事实，不写自我评价**：说「做过什么 + 可量化结果」，不要写
+   「具备快速学习与团队协作能力」「沟通顺畅」「责任心强」「注重工程质量」这类
+   自我评价，也不要写「体现了…能力」「展现了…精神」。宁可少写一句，也不许自夸。
+5. 直接输出自荐信正文（可以有称呼和结尾问候），不要标题、不要 markdown 围栏、不要解释。
 """
 
 
@@ -597,6 +600,7 @@ def _resume_to_dataclass(data: dict) -> Resume:
         projects=list(data.get("projects") or []),
         education=str(data.get("education") or ""),
         city=str(data.get("city") or ""),
+        educations=list(data.get("educations") or []),
     )
 
 
@@ -612,7 +616,47 @@ def _tailor_resume(data: dict, detail) -> tuple:
         return data, ["简历定制返回空结果，已改用原简历"]
 
     warnings = [f"简历定制提醒：{w}" for w in (result.get("warnings") or [])]
-    return tailored, warnings
+    return _backfill_from_original(data, tailored), warnings
+
+
+def _backfill_from_original(orig: dict, new: dict) -> dict:
+    """把定制结果里被 LLM 弄丢的客观字段补回来（问题 1：学校/专业/时间不许丢）。
+
+    - 段落整体为空 → 直接用原简历的（LLM 只回了项目、把实习/教育吞掉是常见故障）；
+    - 教育经历少了 school → 整段换回原简历的（学校名是最不能丢的字段）；
+    - 项目 / 实习按名称（退化成下标）配对，把 start / end 补回定制结果。
+    """
+    merged = dict(new or {})
+    for key in ("name", "skills", "experience", "projects", "educations",
+                "education", "city"):
+        if not merged.get(key) and orig.get(key):
+            merged[key] = orig.get(key)
+
+    orig_edus = list(orig.get("educations") or [])
+    new_edus = [e for e in (merged.get("educations") or []) if isinstance(e, dict)]
+    if orig_edus and not any(str(e.get("school") or "").strip() for e in new_edus):
+        merged["educations"] = orig_edus
+
+    for key, name_key in (("projects", "name"), ("experience", "company")):
+        orig_items = list(orig.get(key) or [])
+        for i, item in enumerate(merged.get(key) or []):
+            if not isinstance(item, dict):
+                continue
+            for field in ("start", "end"):
+                if str(item.get(field) or "").strip():
+                    continue
+                src = None
+                for cand in orig_items:
+                    if (isinstance(cand, dict)
+                            and str(cand.get(name_key) or "").strip()
+                            and str(cand.get(name_key)) == str(item.get(name_key))):
+                        src = cand
+                        break
+                if src is None and i < len(orig_items) and isinstance(orig_items[i], dict):
+                    src = orig_items[i]
+                if src and str(src.get(field) or "").strip():
+                    item[field] = src[field]
+    return merged
 
 
 def _fallback_cover_letter(company: str, title: str) -> str:
@@ -654,7 +698,8 @@ def _generate_cover_letter(resume_data, record, detail) -> tuple:
             if match:
                 text = match.group(1).strip()
         if text:
-            return text, ""
+            # LLM 有时还是收不住嘴，再过一遍确定性清洗（问题 2 同源）
+            return strip_self_praise(text), ""
         raise ValueError("模型返回空内容")
     except Exception as e:                          # noqa: BLE001 - 生成失败也要让投递包落地
         return (_fallback_cover_letter(company, title),

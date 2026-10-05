@@ -154,6 +154,36 @@ def _to_lines(value) -> list:
     return [value]
 
 
+def _tidy(text) -> str:
+    """排版前清理数字/单位之间被误加的空格。
+
+    问题 3：原文里常见 "< 5ms"、"5 ms"、"5m s" 这类断开的写法，排到 PDF 里
+    就像错字。只收拾「比较符↔数字」「数字↔单位」「数字+字母↔字母」这三种
+    确定性形态，不碰正常的中英文混排空格。
+    """
+    if text is None:
+        return ""
+    text = str(text)
+    text = re.sub(r"([<≤>≥≈=＝])\s+(?=\d)", r"\1", text)
+    text = re.sub(r"(?<=\d)\s+(?=\d)", "", text)
+    text = re.sub(r"(?<=\d)\s+(?=(?:ms|min|sec|s|h|k|w|W|MB|GB|KB|TB|%|‰)\b)", "", text)
+    text = re.sub(r"(?<=\d[a-zA-Z])\s+(?=[a-zA-Z]\b)", "", text)
+    return text
+
+
+def _time_range(item: dict) -> str:
+    """取条目的起止时间，拼成 "2025.10-2026.01" / "2025.09-至今"。"""
+    start = str(_pick(item, "start", "start_date", "开始") or "").strip()
+    end = str(_pick(item, "end", "end_date", "结束") or "").strip()
+    if start and end:
+        return f"{start}-{end}"
+    if start:
+        return f"{start} 至今"
+    if end:
+        return end
+    return str(_pick(item, "time", "date", "时间") or "").strip()
+
+
 def _pick(item: dict, *keys, default=""):
     for key in keys:
         if key in item and item[key] not in (None, ""):
@@ -205,17 +235,21 @@ def _experience_blocks(item) -> list:
         role = _pick(item, "role", "position", "title", "岗位")
         months = _pick(item, "months", "duration", "月数")
         desc = _pick(item, "description", "desc", "detail", "描述")
+        period = _time_range(item)
 
         head = " | ".join(str(p) for p in (company, role) if p)
-        if months not in ("", None):
-            months_text = f"{months} 个月" if str(months).strip().isdigit() else str(months)
-            head = f"{head}（{months_text}）" if head else months_text
+        suffix = period
+        months_text = str(months).strip()
+        if not suffix and months_text and months_text not in ("0", "None", "nan"):
+            suffix = f"{months_text} 个月" if months_text.isdigit() else months_text
+        if suffix:
+            head = f"{head}（{suffix}）" if head else suffix
 
-        blocks = [{"kind": "body", "text": head}] if head else []
+        blocks = [{"kind": "body", "text": _tidy(head)}] if head else []
         if desc:
-            blocks.append({"kind": "bullet", "text": f"· {desc}"})
+            blocks.append({"kind": "bullet", "text": f"· {_tidy(desc)}"})
         return blocks
-    return [{"kind": "body", "text": str(item)}]
+    return [{"kind": "body", "text": _tidy(str(item))}]
 
 
 def _project_blocks(item) -> list:
@@ -223,6 +257,7 @@ def _project_blocks(item) -> list:
         name = _pick(item, "name", "项目名", "title")
         tech = _pick(item, "tech", "stack", "技术栈")
         desc = _pick(item, "desc", "description", "描述")
+        period = _time_range(item)
 
         if isinstance(tech, (list, tuple)):
             tech_text = "、".join(str(t) for t in tech if str(t).strip())
@@ -230,14 +265,16 @@ def _project_blocks(item) -> list:
             tech_text = str(tech or "").strip()
 
         head = str(name or "").strip()
+        if period:
+            head = f"{head}（{period}）" if head else period
         if tech_text:
             head = f"{head}　|　技术栈：{tech_text}" if head else f"技术栈：{tech_text}"
 
-        blocks = [{"kind": "body", "text": head}] if head else []
+        blocks = [{"kind": "body", "text": _tidy(head)}] if head else []
         if desc:
-            blocks.append({"kind": "bullet", "text": f"· {desc}"})
+            blocks.append({"kind": "bullet", "text": f"· {_tidy(desc)}"})
         return blocks
-    return [{"kind": "body", "text": str(item)}]
+    return [{"kind": "body", "text": _tidy(str(item))}]
 
 
 def resume_blocks(resume) -> list:
@@ -263,9 +300,19 @@ def resume_blocks(resume) -> list:
     contact = []
     city = str(_pick(data, "city", "城市")).strip()
     education = str(_pick(data, "education", "学历")).strip()
+    educations = _to_lines(_pick(data, "educations", "教育经历"))
+    if len(educations) == 1 and isinstance(educations[0], str) \
+            and educations[0].lstrip().startswith("["):
+        try:                                        # 教育明细可能是 JSON 字符串
+            parsed = json.loads(educations[0])
+            if isinstance(parsed, list):
+                educations = parsed
+        except (ValueError, TypeError):
+            pass
     if city:
         contact.append(f"城市：{city}")
-    if education:
+    # 有教育明细时单独起一节写学校/专业/时间，联系方式里就不再重复学历档位
+    if education and not educations:
         contact.append(f"教育：{education}")
     for extra in ("phone", "电话", "email", "邮箱"):
         value = str(_pick(data, extra)).strip()
@@ -275,6 +322,26 @@ def resume_blocks(resume) -> list:
         blocks.append({"kind": "contact", "text": "　|　".join(contact)})
 
     blocks.append({"kind": "space", "size": 6})
+
+    if educations:
+        blocks.append({"kind": "h2", "text": "教育经历"})
+        for item in educations:
+            if isinstance(item, dict):
+                school = _pick(item, "school", "学校")
+                major = _pick(item, "major", "专业")
+                degree = _pick(item, "degree", "education", "学历")
+                period = _time_range(item)
+                name_part = str(major or "").strip()
+                if degree:
+                    name_part = f"{name_part}（{degree}）" if name_part else str(degree)
+                head = " | ".join(
+                    str(p) for p in (school, name_part, period) if str(p or "").strip()
+                )
+                head = head or json.dumps(item, ensure_ascii=False)
+            else:
+                head = str(item)
+            blocks.append({"kind": "body", "text": _tidy(head)})
+        blocks.append({"kind": "space", "size": 4})
 
     skills = _to_lines(_pick(data, "skills", "技能"))
     if skills:
