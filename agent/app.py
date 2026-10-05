@@ -349,6 +349,10 @@ def _set_resume(resume_text: str) -> dict:
         "projects": list(resume.projects or []),
         "education": _norm_str(resume.education),
         "city": _norm_str(resume.city),
+        # 教育明细（学校/专业/起止）必须带上：此前这里手工挑 6 个键，
+        # parser 解析出的 resume.educations 被整段丢掉 → 简历库 JSON 里
+        # 只有 education="硕士"，投递包只能回退渲染「教育：硕士」。
+        "educations": [dict(e) for e in (resume.educations or []) if isinstance(e, dict)],
     }
     resume_key = _resume_key()
     cl.user_session.set(resume_key, resume_data)

@@ -867,15 +867,26 @@ def _job_info_text(record: dict, detail, job_id_used: str) -> str:
     return "\n".join(lines)
 
 
-def _record_from_job_library(company, job_id=None):
+def _record_from_job_library(company, job_id=None, title=""):
     """还没有投递记录时，直接从岗位库定位岗位，造一份**不落库**的临时记录。
 
     为什么需要：「想投」≠「投了」。用户只是表达投递意向时库里不该有投递记录，
     但生成投递包又必须先拿到岗位信息 —— 所以这条路径只查岗位库（只读），
     绝不碰 applications 表（任何"先生成包就先写条记录"的做法都是谎报已投递）。
 
-    定位顺序：job_id（search_jobs 结果里的）→ 按公司名/岗位名在岗位库里找。
-    返回 (临时 record, JobDetail)；两样都定不到就抛 ValueError 并说明怎么传参。
+    定位顺序（**按公司名挑岗位是错的**，见下）：
+      0) job_id：能解析出详情**且公司/岗位名与请求不矛盾**才认（防模型传错 id）；
+      1) (company, title) 双条件精确匹配：先查本轮 search_jobs 的 last_job_list
+         （用户刚看过的列表最可信），再查全库；
+      2) 完整岗位名单条件精确匹配（公司名在库里的写法与用户输入不一致时兜底）；
+      3) 公司名子串 —— **最后兜底**。
+    返回 (临时 record, JobDetail)；三档都定位不到就抛 ValueError 并说明怎么传参。
+
+    ⚠️ 为什么必须按 (company,title) 而不是只按 company：一家公司常挂多个岗位
+    （实测「墨泊可士」在库里有 9 个：AI Agent开发（可转正）/ AI大模型应用开发（可转正）/
+    Java开发 …）。只按公司名匹配会返回**遍历顺序里的第一条**，于是「我要投 AI Agent开发」
+    被定位成 inn_8n6ozfwjbrge（AI大模型应用开发），而正确的那条是
+    inn_qpa38aa45nvn —— 用户点了 A 系统给了 B。
     """
     tried = []
 
@@ -894,41 +905,103 @@ def _record_from_job_library(company, job_id=None):
             "applied_at": "",
         }
 
+    comp_key = _norm_text(company)
+    title_key = _norm_text(title)
+
+    def _accepts(company_name, title_name) -> bool:
+        """详情本身是否就是用户要的那条：给了什么就核什么，两者都给了就都要对上。"""
+        detail_company = _norm_text(company_name)
+        detail_title = _norm_text(title_name)
+        ok = True
+        if comp_key:
+            if not detail_company:
+                ok = False
+            elif comp_key not in detail_company and detail_company not in comp_key:
+                ok = False
+        if title_key and detail_title != title_key:
+            ok = False
+        return ok
+
     if job_id and str(job_id).strip():
         try:
             detail = get_job_detail("mock", str(job_id).strip())
-        except Exception as e:                      # noqa: BLE001 - id 不对就再按公司名找
+        except Exception as e:                      # noqa: BLE001 - id 不对就再往下找
             tried.append(f"job_id={job_id}（{type(e).__name__}）")
         else:
-            return _record_from(detail), detail
+            if _accepts(getattr(detail, "company", ""), getattr(detail, "title", "")):
+                return _record_from(detail), detail
+            tried.append(
+                f"job_id={job_id}（指向「{getattr(detail, 'company', '')} "
+                f"{getattr(detail, 'title', '')}」，与请求的「{company} {title}」不符）")
 
-    target = _norm_text(company)
-    if target:
+    def _find(match_fn):
+        """按谓词在库里找第一条；命中返回 (record, detail)，一条都没命中返回 None。"""
         try:
             # 空关键词 + limit=0 = 读全库：公司名不一定出现在岗位标题/描述里，
-            # 靠 search_jobs 的关键词过滤会漏，这里必须自己按公司名比对。
+            # 靠 search_jobs 的关键词过滤会漏，这里必须自己按字段比对。
             jobs = search_jobs("", None, 0, platform="mock")
         except Exception as e:                      # noqa: BLE001 - 库坏了就报"没找到"
-            jobs = []
             tried.append(f"岗位库（{type(e).__name__}）")
+            return None
         for job in jobs:
-            if (target in _norm_text(job.company)
-                    or _norm_text(job.title) == target):
-                try:
-                    detail = get_job_detail("mock", job.job_id)
-                except Exception:                   # noqa: BLE001 - 换下一条候选
-                    continue
-                return _record_from(detail, job), detail
+            if not match_fn(_norm_text(job.company), _norm_text(job.title)):
+                continue
+            try:
+                detail = get_job_detail("mock", job.job_id)
+            except Exception:                       # noqa: BLE001 - 换下一条候选
+                continue
+            return _record_from(detail, job), detail
+        return None
 
-    hint = "、".join(tried) if tried else "没有传 job_id，岗位库里也没找到这家公司"
+    if comp_key or title_key:
+        # 1) (company, title) 双条件精确匹配 —— 先查本轮搜索列表（用户刚看过的），再查全库
+        for item in (_session_state().get("last_job_list") or []):
+            item_company = _norm_text(item.get("company"))
+            item_title = _norm_text(item.get("title"))
+            if not (item_company or item_title):
+                continue
+            if comp_key and comp_key not in item_company and item_company not in comp_key:
+                continue
+            if title_key and item_title != title_key:
+                continue
+            item_id = str(item.get("job_id") or "").strip()
+            if not item_id:
+                continue
+            try:
+                detail = get_job_detail("mock", item_id)
+            except Exception:                       # noqa: BLE001 - 换下一条候选
+                continue
+            return _record_from(detail), detail
+
+        def _pair_match(job_company, job_title):
+            return (not comp_key or comp_key in job_company or job_company in comp_key) \
+                and (not title_key or job_title == title_key)
+
+        found = _find(_pair_match)
+        if found:
+            return found
+
+        # 2) 完整岗位名单条件精确匹配（公司名写法不一致时的兜底）
+        if title_key:
+            found = _find(lambda _jc, jt: jt == title_key)
+            if found:
+                return found
+
+        # 3) 公司名子串（真正意义上的模糊兜底）
+        if comp_key:
+            found = _find(lambda jc, _jt: comp_key in jc or jc == comp_key)
+            if found:
+                return found
+
+    hint = "、".join(tried) if tried else "没有传 job_id，岗位库里也没找到匹配的岗位"
     raise ValueError(
-        f"没找到公司「{company}」的岗位（{hint}）。先调 search_jobs 搜出岗位，"
-        f"再把结果里那条岗位的 company 和 job_id 一起传进来。"
+        f"没找到「{company} {title}」这个岗位（{hint}）。先调 search_jobs 搜出岗位，"
+        f"再把结果里那条岗位的 company / title / job_id 一起传进来（三个都给最准）。"
         f"（本工具只准备材料，不会写投递记录。）"
     )
 
 
-def generate_application_package(company, job_id=None):
+def generate_application_package(company, job_id=None, title=""):
     """生成一键投递包：简历 PDF + 自荐信 + 岗位信息。
 
     目录：agent/data/packages/{company}_{时间戳}/
@@ -948,7 +1021,7 @@ def generate_application_package(company, job_id=None):
         detail, job_warnings = _resolve_job(record, job_id)
         warnings += job_warnings
     else:
-        record, detail = _record_from_job_library(company, job_id)
+        record, detail = _record_from_job_library(company, job_id, title)
     job_id_used = detail.job_id if detail is not None else (
         str(job_id).strip() if job_id else ""
     )
@@ -1310,12 +1383,16 @@ TOOLS = {
             "**用户表达投递意向时调用它**（「我想投第 3 个 / 打算投 / 帮我投这个 / "
             "生成投递包」）——本工具只是替用户备好材料，**不写投递记录**，"
             "备好之后用户才拿去真投递；投递意向阶段不要调 add_tracking。"
-            "company 传公司名；job_id 优先从 search_jobs 的结果里取（「第 N 个」就是结果里 "
-            "index 字段等于 N 的那一条，照抄它的 job_id，**不要自己数行**），"
-            "不传时按公司名在岗位库里找。没有投递记录也能用。"
+            "company 传公司名、**title 传完整岗位名**、job_id 优先从 search_jobs 的结果里取"
+            "（「第 N 个」就是结果里 index 字段等于 N 的那一条，照抄它的 job_id，"
+            "**不要自己数行**）—— 三个都给最准：同一家公司常同时挂多个岗位（如"
+            "「AI Agent开发（可转正）」和「AI大模型应用开发（可转正）」），"
+            "只给公司名会定位到该公司的其它岗位。"
+            "不传 job_id/title 时按公司名在岗位库里模糊找。没有投递记录也能用。"
         ),
         "parameters": {
             "company": "公司名（用于定位投递记录，支持模糊匹配）",
+            "title": "完整岗位名（强烈建议传，如「AI Agent开发（可转正）」）——与 company 一起精确定位岗位",
             "job_id": "岗位 ID（可选，不传就自动从投递记录/搜索结果里找）",
         },
         "func": generate_application_package,
