@@ -164,6 +164,11 @@ def _tidy(text) -> str:
     if text is None:
         return ""
     text = str(text)
+    # 领域错字守卫：这几个词是「形近字」误写的高发区（LLM 生成/复制粘贴都可能带进来），
+    # 排到 PDF 里就是硬错字，而 `千级` 是本项目简历里的高频表述（"构建千级文档向量库"）。
+    # 只收确定无歧义的形近混淆，不做通用纠错。
+    for wrong, right in (("干级", "千级"), ("干万", "千万")):
+        text = text.replace(wrong, right)
     text = re.sub(r"([<≤>≥≈=＝])\s+(?=\d)", r"\1", text)
     text = re.sub(r"(?<=\d)\s+(?=\d)", "", text)
     text = re.sub(r"(?<=\d)\s+(?=(?:ms|min|sec|s|h|k|w|W|MB|GB|KB|TB|%|‰)\b)", "", text)

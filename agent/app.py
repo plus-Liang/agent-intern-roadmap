@@ -13,6 +13,7 @@
 import asyncio
 import contextvars
 import json
+import re
 import os
 import re
 import secrets
@@ -654,7 +655,7 @@ def _build_feedback_actions() -> list:
 
 async def _send_feedback_prompt(question: str, answer: str, steps: list,
                                 thread_id: str = "", turn_index=None):
-    """把「这一轮问了什么、答了什么、用了哪些工具」存进会话，并挂出反馈按钮。
+    """把「这一轮问了什么、答了什么、用了哪些工具」存进会话，供 👍/👎 回写。
 
     thread_id / turn_index 是落库那一轮的定位（见 _record_turn），
     用户点 👍/👎 时靠它们把 rating 回写到 chat_turns 的对应行。
@@ -674,10 +675,10 @@ async def _send_feedback_prompt(question: str, answer: str, steps: list,
         "thread_id": thread_id,
         "turn_index": turn_index,
     })
-    try:
-        await cl.Message(content="这条回答对你有帮助吗？", actions=_build_feedback_actions()).send()
-    except Exception as e:                          # noqa: BLE001 - 按钮发不出去也要能继续聊
-        print(f"[反馈] 反馈按钮发送失败（忽略）：{type(e).__name__}: {e}")
+    # 这里**不再**单独发一条「这条回答对你有帮助吗？」：那条短消息会在同一条
+    # 回答下面多出一组按钮（问题4），而且它自带的「复制」键复制的只是这一句
+    # 问话（问题3）。两个按钮改由回答消息自己携带，见 on_message 里的
+    # `msg = cl.Message(content="", actions=_build_feedback_actions())`。
 
 
 @cl.action_callback(FEEDBACK_ACTION)
@@ -1368,6 +1369,95 @@ def _profile_hint_lines(profile: dict) -> list:
     return lines
 
 
+_HISTORY_CLEAR_VERBS = "清空|清除|删掉|删除|清掉|忘掉|重置"
+_HISTORY_CLEAR_NOUNS = "历史|对话|记录|上下文|聊天"
+# 两种语序都要认：「清空历史」和「把历史记录清掉」（中间允许夹几个字）
+_HISTORY_CLEAR_RE = re.compile(
+    rf"({_HISTORY_CLEAR_VERBS})[^。！？\n]{{0,6}}?({_HISTORY_CLEAR_NOUNS})"
+    rf"|({_HISTORY_CLEAR_NOUNS})[^。！？\n]{{0,6}}?({_HISTORY_CLEAR_VERBS})"
+)
+_HISTORY_CLEAR_SIMPLE = ("重新开始", "从头开始聊", "当作没聊过", "清空历史")
+#: 提到这些词时「清空…记录」说的是业务数据（投递记录 / 岗位库 / 偏好），不是对话历史
+_HISTORY_CLEAR_DENY = ("投递", "申请", "岗位", "求职", "偏好", "简历", "数据库", "反馈")
+
+_ORDINAL_NUM = {"一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5,
+                "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+
+
+def _is_history_clear_intent(text: str) -> bool:
+    """大白话版「清空历史」：清空/清除/删掉… + 历史/对话/记录/上下文。
+
+    两条闸门：① 只认短句（≤ 20 字），长句里出现这些词多半在聊别的事；
+    ② 句子里提到投递/岗位/偏好等业务词时一律不算 —— 「清空投递记录」说的是
+    applications，不是对话历史。
+    """
+    t = (text or "").strip()
+    if not t or len(t) > 20 or any(w in t for w in _HISTORY_CLEAR_DENY):
+        return False
+    if t in _HISTORY_CLEAR_SIMPLE:
+        return True
+    return bool(_HISTORY_CLEAR_RE.search(t))
+
+
+def _ordinal_job_hint(content: str) -> str:
+    """把「第 N 个」翻成确定的 job_id，追加到本轮输入里当提示。
+
+    为什么要这层：跨轮让模型自己数行不可靠 —— 同一家公司（墨泊可士）的「第 3 个」
+    会被数成两个不同的 job_id。序号由 search_jobs 的 index 给出并存在会话状态里
+    （tools_registry._number_jobs / lookup_job_ordinal），这里只做翻译。
+
+    查不到（没搜过岗位 / 序号越界）就返回空串，行为与改动前完全一致。
+    """
+    if not content:
+        return ""
+    m = re.search(r"第\s*([0-9]{1,2}|[一二三四五六七八九十两])\s*(?:个|条|份|家)", content)
+    if not m:
+        # 裸「第 N」只认「整句话就是个点单」的情形（「第3」「第3吧」）；
+        # 否则「第 3 轮面试怎么样」会被误当成岗位序号。
+        m = re.search(
+            r"第\s*([0-9]{1,2}|[一二三四五六七八九十两])\s*(?:了|吧|呀|呢|啊|！|。|？|\?|$)",
+            content,
+        )
+    if not m:
+        return ""
+    raw = m.group(1)
+    number = int(raw) if raw.isdigit() else _ORDINAL_NUM.get(raw, 0)
+    if number <= 0:
+        return ""
+    try:
+        from agent import tools_registry
+        entry = tools_registry.lookup_job_ordinal(number)
+    except Exception as e:                          # noqa: BLE001 - 查表失败不该影响对话
+        print(f"[岗位序号] 解析「第 {number} 个」失败（忽略）：{type(e).__name__}: {e}")
+        return ""
+    if not entry or not entry.get("job_id"):
+        return ""
+    return (
+        f"\n\n[系统提示 · 岗位序号] 用户说的「第 {number} 个」= 上一次 search_jobs "
+        f"结果里 index={number} 的那条岗位：job_id={entry['job_id']}，"
+        f"公司={entry.get('company', '')}，岗位={entry.get('title', '')}，"
+        f"城市={entry.get('city', '')}，链接={entry.get('url', '')}。"
+        f"请**直接用它**（job_detail / generate_application_package 都用这个 job_id），"
+        f"不要重新搜索，也不要换成别的岗位。"
+    )
+
+
+def _format_step_log(steps) -> str:
+    """把 ReAct 执行过程整理成 CoT 面板里的文字。"""
+    lines = ["**Agent 执行过程：**", ""]
+    for s in steps or []:
+        if s.get("type") == "action":
+            lines += [
+                f"**第 {s['turn']} 轮**",
+                f"- 💭 {s['thought']}",
+                f"- 🔧 `{s['action']}({json.dumps(s['action_input'], ensure_ascii=False)[:100]})`",
+                "",
+            ]
+    if len(lines) == 2:
+        lines.append("本轮没有调用工具，直接回答。")
+    return "\n".join(lines)
+
+
 async def _init_conversation(resumed: bool = False) -> None:
     """会话初始化：绑定用户 → 认下 thread_id → 还原历史 / 简历 / 面试。
 
@@ -1420,7 +1510,7 @@ async def _init_conversation(resumed: bool = False) -> None:
     if cl.user_session.get("history"):
         profile_hint += (
             f"\n**已恢复本会话的历史**：{len(cl.user_session.get('history'))} 轮，"
-            "可以直接接着追问；想清空就发 `/history-clear`。\n"
+            "可以直接接着追问；想清空就跟我说「清空历史」。\n"
         )
 
     await cl.Message(
@@ -1436,7 +1526,7 @@ async def _init_conversation(resumed: bool = False) -> None:
             "1. 先把简历发给我（PDF/Word 文件，或直接粘贴文字）\n"
             "2. 然后直接说需求，我会自动干活\n"
             "3. 说一次偏好（比如「我只找广州的岗位」），以后我一直记得\n"
-            "4. 想清空本会话历史就发 `/history-clear`\n"
+            "4. 想清空本会话历史就跟我说「清空历史」\n"
             f"{profile_hint}"
         )
     ).send()
@@ -1470,7 +1560,9 @@ async def on_message(message: cl.Message):
 
     # 命令：清空本会话的对话历史（**原地清轮次**，thread_id 不变 ——
     # 这就是"开个新对话"：不变 id 才能保住刷新续接的能力）
-    if content == "/history-clear":
+    # 除了老命令 `/history-clear`，也认「清空历史」这类大白话：欢迎语就是这么教
+    # 用户的（问题5），教了却不认等于教错。
+    if content == "/history-clear" or _is_history_clear_intent(content):
         thread_id = _thread_id()
         try:
             deleted = chat_history.clear_turns(thread_id)
@@ -1615,32 +1707,32 @@ async def on_message(message: cl.Message):
     # 所以不会出现「同一份简历被注入两次」的重复（见 react_agent._history_to_messages）。
     history = cl.user_session.get("history") or []
 
+    # 「我想投第 N 个」：序号一律以工具给的 index 为准（见 _ordinal_job_hint）。
+    # 提示只进给模型的那一份输入；落库/历史里仍然是用户原话。
+    agent_input = content + _ordinal_job_hint(content)
+
     async with _semaphore():
         async with cl.Step(name="Agent 工作中", type="tool") as step:
             step.output = "正在分析..."
             try:
                 # 丢进子线程跑：run_agent 是同步的（多轮 LLM + 工具调用，动辄
                 # 几十秒），留在事件循环里会卡住 socket.io 心跳 → 前端「无法连接」。
-                result = await _off_loop(run_agent, content, resume_data=resume,
+                result = await _off_loop(run_agent, agent_input, resume_data=resume,
                                          verbose=False, history=history)
             except Exception as e:
                 await cl.Message(content=f"❌ 出错了：{e}").send()
                 return
 
-    # 展示步骤
-    if result.get("steps"):
-        step_log = "**Agent 执行过程：**\n\n"
-        for s in result["steps"]:
-            if s["type"] == "action":
-                step_log += (
-                    f"**第 {s['turn']} 轮**\n"
-                    f"- 💭 {s['thought']}\n"
-                    f"- 🔧 `{s['action']}({json.dumps(s['action_input'], ensure_ascii=False)[:100]})`\n\n"
-                )
-        step.output = step_log
+            # **必须在 `with` 里写回 step.output**：Step.__aexit__ 会调一次
+            # update()（chainlit/step.py:471-483）把当时的 output 推给前端；
+            # 出了 with 再赋值前端永远收不到 —— 面板会一直停在「正在分析...」，
+            # 而面板上那个「复制」键复制的就是这五个字（问题3：用户以为复制的是正文）。
+            step.output = _format_step_log(result.get("steps"))
 
-    # 流式输出最终回答
-    msg = cl.Message(content="")
+    # 流式输出最终回答。👍/👎 直接挂在回答消息上（问题4：不再单独发一条
+    # 「这条回答对你有帮助吗？」，那条短消息底部会多出一组按钮，它自带的
+    # 「复制」键复制的也只是它自己那一句问话）。
+    msg = cl.Message(content="", actions=_build_feedback_actions())
     for token in result["answer"]:
         await msg.stream_token(token)
     await msg.send()
@@ -1658,6 +1750,6 @@ async def on_message(message: cl.Message):
         except Exception as e:                      # noqa: BLE001
             print(f"[历史] 回读历史失败（忽略）：{type(e).__name__}: {e}")
 
-    # 回答末尾挂 👍 / 👎（D2 用户反馈）
+    # 记住这一轮的问答，供 👍 / 👎 回写（按钮已挂在回答消息上）
     await _send_feedback_prompt(content, answer, result.get("steps"),
                                 thread_id=thread_id, turn_index=turn_index)

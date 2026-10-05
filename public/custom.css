@@ -97,6 +97,20 @@ body {
   padding: 14px 16px;
 }
 
+/* --------------------------------------------------------------------------
+   隐藏 Chainlit 内置的点赞按钮
+   为什么：内置按钮只要接了 data layer 就会出现（前端
+   showFeedbackButtons = !!dataPersistence），它的中文 tooltip 恰好也是
+   「有帮助 / 没有帮助」，跟我们自己挂在回答上的 👍 有帮助 / 👎 没帮助 并排，
+   看起来就是同一条回答底部出现了两组反馈按钮（问题4）。
+   这两个 class 只长在内置按钮上（前端 bundle 里的 positive-feedback-on/off、
+   negative-feedback-on/off），隐藏它们不会误伤别的按钮。
+   -------------------------------------------------------------------------- */
+[class*="positive-feedback-"],
+[class*="negative-feedback-"] {
+  display: none !important;
+}
+
 /* 输入框：白底 + 同样的边框与圆角 */
 #message-composer {
   background-color: #ffffff !important;

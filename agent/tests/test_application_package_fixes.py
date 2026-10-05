@@ -96,6 +96,8 @@ def test_problem3_tidy():
     check("5 ms → 5ms", pdf_export._tidy("延迟 5 ms") == "延迟 5ms")
     check("5m s → 5ms", pdf_export._tidy("延迟 5m s") == "延迟 5ms")
     check("千级 保留", pdf_export._tidy("构建千级文档向量库") == "构建千级文档向量库")
+    check("干级 → 千级", pdf_export._tidy("构建干级文档向量库") == "构建千级文档向量库")
+    check("干万 → 千万", pdf_export._tidy("日均干万级请求") == "日均千万级请求")
     check("中文正常空格不动", pdf_export._tidy("2025 年 10 月") == "2025 年 10 月")
 
 
@@ -241,6 +243,19 @@ def test_e2e():
         cover = Path(result["files"]["cover_letter.md"]).read_text(encoding="utf-8")
         found_cover = [w for w in PRAISE_WORDS if w in cover]
         check("自荐信无主观自我评价", not found_cover, f"命中：{found_cover}")
+        # 「为什么这家公司」：必须有一句基于 JD 具体信息、且不是放之四海皆准的套话
+        cliche = [w for w in ("平台大", "发展前景好", "前景广阔", "氛围好", "重视人才",
+                              "行业领先", "大厂") if w in cover]
+        check("自荐信无空泛套话", not cliche, f"命中：{cliche}")
+        check("自荐信有「为什么这个岗位」",
+              any(w in cover for w in ("感兴趣", "兴趣", "吸引我", "想加入",
+                                       "最想", "愿意", "为什么选")),
+              f"正文末尾：{cover[-120:]}")
+        print("  ---- cover_letter.md 末尾 ----")
+        for line in [ln for ln in cover.splitlines() if ln.strip()][-4:]:
+            print(f"    {line}")
+        print("  ---- cover_letter.md 全文 ----")
+        print(cover)
         print(f"  ℹ️  产物体积：resume.pdf {Path(result['files']['resume.pdf']).stat().st_size} B"
               f" / cover_letter.md {len(cover)} 字")
 

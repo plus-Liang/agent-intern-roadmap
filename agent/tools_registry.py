@@ -93,8 +93,8 @@ def _retrieve(*args, **kwargs):
     return retrieve(*args, **kwargs)
 
 
-def _search(keyword, city=None, limit=20, semantic=False):
-    """工具 search_jobs 的实现。
+def _search_rows(keyword, city=None, limit=20, semantic=False):
+    """工具 search_jobs 的候选检索（编号在 _search 里统一做）。
 
     Round 10 接入 RAG（乙方案：**SQL 先过滤、子集内语义重排**）：
       1) 先用 SQL 关键词/城市过滤出候选岗位（精确查询行为完全不变）；
@@ -149,6 +149,54 @@ def _search(keyword, city=None, limit=20, semantic=False):
     # 语义路没覆盖到的候选挂在后面（不能因为重排把岗位弄丢）
     reranked.extend(r for r in rows if r.get("job_id") not in seen_ids)
     return reranked
+
+
+def _number_jobs(rows) -> list[dict]:
+    """给搜索结果编上 index，并把「序号 → job_id」记进当前用户的会话状态。
+
+    为什么要编号：用户看完列表会说「我想投第 3 个」，而「第 3 个是哪条」如果交给
+    模型跨轮自己数行，展示时列表被裁剪/分组之后就会数错（同一家公司先后数出两个
+    不同的 job_id）。序号由工具给出并落进会话状态，下一轮由 lookup_job_ordinal
+    直接查表，链路上不再有"数"这个动作。
+    """
+    numbered = []
+    for i, row in enumerate(rows or [], start=1):
+        item = dict(row)
+        item["index"] = i
+        numbered.append(item)
+    _session_state()["last_job_list"] = [
+        {
+            "index": r["index"],
+            "job_id": str(r.get("job_id") or ""),
+            "title": str(r.get("title") or ""),
+            "company": str(r.get("company") or ""),
+            "city": str(r.get("city") or ""),
+            "url": str(r.get("url") or ""),
+        }
+        for r in numbered
+    ]
+    return numbered
+
+
+def _search(keyword, city=None, limit=20, semantic=False):
+    """工具 search_jobs 的对外入口：检索 + 编号。"""
+    return _number_jobs(_search_rows(keyword, city, limit, semantic))
+
+
+def lookup_job_ordinal(number):
+    """按序号取「上一次 search_jobs 结果」里的岗位；查不到返回 None。
+
+    给 app 侧用：用户说「我想投第 3 个」时先查这里，把 job_id 直接写进本轮
+    给模型的提示里（见 agent/app.py 的 _ordinal_job_hint）。
+    """
+    try:
+        wanted = int(number)
+    except (TypeError, ValueError):
+        return None
+    for item in _session_state().get("last_job_list") or []:
+        if item.get("index") == wanted:
+            return dict(item)
+    return None
 
 
 def _rows_from_jobs(jobs) -> list[dict]:
@@ -511,7 +559,13 @@ COVER_LETTER_PROMPT = """你是求职者本人，正在写一封投递用的自�
 【要求】
 1. 第一人称，正文 200-300 个中文字符。
 2. 结构：开头点明应聘的岗位 → 中间用简历里真实存在的技能/实习/项目说明为什么匹配
-   （尽量呼应上面的任职要求）→ 结尾表达期待面试。
+   （尽量呼应上面的任职要求）→ **再写一句「为什么对这个岗位/这家公司感兴趣」**：
+   必须落到上面【目标岗位】里的**具体一点**（业务方向 / 技术栈 / 职责里的某个点 /
+   城市），并写明这就是你想加入的原因，例如「这个岗位要在 XX 方向做 XX，这正是我
+   上一段实习在解决的问题，也是我最想继续做的方向」；
+   **不许写「平台大」「发展前景好」「氛围好」「重视人才」这类放到任何公司都成立的
+   套话**，也不许只写「与岗位方向一致」这种没有具体信息的附和，更不许借这句自夸；
+   JD 里确实没有可依据的信息时才省掉这一句 → 结尾表达期待面试。
 3. **绝对不能编造简历里没有的经历、技能、成绩或数字**。
 4. **只写客观事实，不写自我评价**：说「做过什么 + 可量化结果」，不要写
    「具备快速学习与团队协作能力」「沟通顺畅」「责任心强」「注重工程质量」这类
@@ -1212,7 +1266,8 @@ TOOLS = {
             "**用户表达投递意向时调用它**（「我想投第 3 个 / 打算投 / 帮我投这个 / "
             "生成投递包」）——本工具只是替用户备好材料，**不写投递记录**，"
             "备好之后用户才拿去真投递；投递意向阶段不要调 add_tracking。"
-            "company 传公司名；job_id 优先从 search_jobs 的结果里取（「第 N 个」就数第 N 条），"
+            "company 传公司名；job_id 优先从 search_jobs 的结果里取（「第 N 个」就是结果里 "
+            "index 字段等于 N 的那一条，照抄它的 job_id，**不要自己数行**），"
             "不传时按公司名在岗位库里找。没有投递记录也能用。"
         ),
         "parameters": {
