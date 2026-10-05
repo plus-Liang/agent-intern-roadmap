@@ -713,15 +713,76 @@ def _job_info_text(record: dict, detail, job_id_used: str) -> str:
         url or "（投递记录里没有链接）",
         "",
         "【投递记录】",
-        f"记录 id：{record.get('id', '')}",
+        f"记录 id：{record.get('id', '') or '（暂无投递记录，本包只是备好的材料）'}",
         # 记录里的 platform 可能只是「本地数据」通道名（mock），
         # 优先用岗位详情解析出的真实来源平台，其次按链接反推（问题 3）。
         f"来源平台：{_source_platform(record, detail)}",
-        f"当前状态：{record.get('status', '')}",
-        f"投递时间：{record.get('applied_at', '')}",
+        f"当前状态：{record.get('status', '') or '（还没投递）'}",
+        f"投递时间：{record.get('applied_at', '') or '（还没投递）'}",
         f"打包时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
     ]
     return "\n".join(lines)
+
+
+def _record_from_job_library(company, job_id=None):
+    """还没有投递记录时，直接从岗位库定位岗位，造一份**不落库**的临时记录。
+
+    为什么需要：「想投」≠「投了」。用户只是表达投递意向时库里不该有投递记录，
+    但生成投递包又必须先拿到岗位信息 —— 所以这条路径只查岗位库（只读），
+    绝不碰 applications 表（任何"先生成包就先写条记录"的做法都是谎报已投递）。
+
+    定位顺序：job_id（search_jobs 结果里的）→ 按公司名/岗位名在岗位库里找。
+    返回 (临时 record, JobDetail)；两样都定不到就抛 ValueError 并说明怎么传参。
+    """
+    tried = []
+
+    def _record_from(detail, job=None):
+        return {
+            "id": "",
+            "company": getattr(detail, "company", "")
+            or (getattr(job, "company", "") if job else "") or company,
+            "title": getattr(detail, "title", "")
+            or (getattr(job, "title", "") if job else ""),
+            "url": getattr(detail, "url", "")
+            or (getattr(job, "url", "") if job else ""),
+            "platform": getattr(detail, "platform", "")
+            or (getattr(job, "platform", "") if job else ""),
+            "status": "",
+            "applied_at": "",
+        }
+
+    if job_id and str(job_id).strip():
+        try:
+            detail = get_job_detail("mock", str(job_id).strip())
+        except Exception as e:                      # noqa: BLE001 - id 不对就再按公司名找
+            tried.append(f"job_id={job_id}（{type(e).__name__}）")
+        else:
+            return _record_from(detail), detail
+
+    target = _norm_text(company)
+    if target:
+        try:
+            # 空关键词 + limit=0 = 读全库：公司名不一定出现在岗位标题/描述里，
+            # 靠 search_jobs 的关键词过滤会漏，这里必须自己按公司名比对。
+            jobs = search_jobs("", None, 0, platform="mock")
+        except Exception as e:                      # noqa: BLE001 - 库坏了就报"没找到"
+            jobs = []
+            tried.append(f"岗位库（{type(e).__name__}）")
+        for job in jobs:
+            if (target in _norm_text(job.company)
+                    or _norm_text(job.title) == target):
+                try:
+                    detail = get_job_detail("mock", job.job_id)
+                except Exception:                   # noqa: BLE001 - 换下一条候选
+                    continue
+                return _record_from(detail, job), detail
+
+    hint = "、".join(tried) if tried else "没有传 job_id，岗位库里也没找到这家公司"
+    raise ValueError(
+        f"没找到公司「{company}」的岗位（{hint}）。先调 search_jobs 搜出岗位，"
+        f"再把结果里那条岗位的 company 和 job_id 一起传进来。"
+        f"（本工具只准备材料，不会写投递记录。）"
+    )
 
 
 def generate_application_package(company, job_id=None):
@@ -733,16 +794,18 @@ def generate_application_package(company, job_id=None):
       - job_info.txt     岗位信息 + 链接 + 投递记录
 
     返回：{"company", "job_id", "package_dir", "files": {...}, "warnings": [...]}
-    """
-    record = storage.find_application(company)
-    if not record:
-        raise ValueError(
-            f"未找到公司「{company}」的投递记录（可用 list_tracking 看现有记录）"
-        )
 
+    「想投」≠「投了」：有投递记录就用记录里的岗位信息；**没有记录也能生成**
+    （用户还没投，这本来就是正常状态），此时从岗位库直接定位岗位，
+    全程只读，不写 applications（见 _record_from_job_library）。
+    """
     warnings = []
-    detail, job_warnings = _resolve_job(record, job_id)
-    warnings += job_warnings
+    record = storage.find_application(company)
+    if record:
+        detail, job_warnings = _resolve_job(record, job_id)
+        warnings += job_warnings
+    else:
+        record, detail = _record_from_job_library(company, job_id)
     job_id_used = detail.job_id if detail is not None else (
         str(job_id).strip() if job_id else ""
     )
@@ -951,7 +1014,14 @@ TOOLS = {
         "requires_confirmation": False,
     },
     "add_tracking": {
-        "description": "把岗位添加到投递追踪系统。新增成功必须如实回执工具返回的 id。",
+        "description": (
+            "把岗位写进投递追踪系统 —— 这代表**用户已经真的投递过了**。"
+            "**只在用户明确说已投递时才调用**（「我投了 / 已投 / 投完了 / 投递完成」）；"
+            "用户只是表达投递意向（「我想投第 3 个 / 打算投 / 帮我投这个」）时"
+            "**不要调用本工具**，那时应该调 generate_application_package 生成投递包。"
+            "提前写记录等于谎报用户已投递，会让跟进提醒的天数全部算错。"
+            "新增成功必须如实回执工具返回的 id。"
+        ),
         "parameters": {
             "company": "公司名",
             "title": "岗位名",
@@ -1093,8 +1163,12 @@ TOOLS = {
     "generate_application_package": {
         "description": (
             "给一家公司生成一键投递包：按岗位定制的简历 PDF + 自荐信 + 岗位信息（含链接），"
-            "打包到 agent/data/packages/ 下的一个目录里，返回目录路径。"
-            "用户说「生成投递包」「把简历和自荐信打包」时调用它。"
+            "打包到 agent/data/packages/ 下的一个目录里，返回目录路径与三个文件路径。"
+            "**用户表达投递意向时调用它**（「我想投第 3 个 / 打算投 / 帮我投这个 / "
+            "生成投递包」）——本工具只是替用户备好材料，**不写投递记录**，"
+            "备好之后用户才拿去真投递；投递意向阶段不要调 add_tracking。"
+            "company 传公司名；job_id 优先从 search_jobs 的结果里取（「第 N 个」就数第 N 条），"
+            "不传时按公司名在岗位库里找。没有投递记录也能用。"
         ),
         "parameters": {
             "company": "公司名（用于定位投递记录，支持模糊匹配）",
