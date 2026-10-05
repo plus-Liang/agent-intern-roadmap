@@ -13,7 +13,8 @@ from pathlib import Path
 
 from agent.tools.job_search import search_jobs
 from agent.tools.job_detail import get_job_detail
-from agent.tools.pdf_export import available_backend, export_resume_pdf, normalize_resume
+from agent.tools.pdf_export import (available_backend, export_resume_pdf, fix_tech_terms,
+                                    normalize_resume)
 from agent.tools.resume_match import match_resume_to_jd, Resume
 from agent.resume.tailor import strip_self_praise, tailor_resume
 from shared.llm_client import chat
@@ -690,6 +691,13 @@ def _backfill_from_original(orig: dict, new: dict) -> dict:
     new_edus = [e for e in (merged.get("educations") or []) if isinstance(e, dict)]
     if orig_edus and not any(str(e.get("school") or "").strip() for e in new_edus):
         merged["educations"] = orig_edus
+    # orig 自己就没教育明细（解析非确定性把它丢了）→ 兜底源为空，去简历库同名人
+    # 的其它版本里捞回最近一份带 school 的（实测 f9bbd037 就是这种情况）。
+    if not any(str(e.get("school") or "").strip() for e in
+               [x for x in (merged.get("educations") or []) if isinstance(x, dict)]):
+        recovered = _recover_educations_from_library(orig)
+        if recovered:
+            merged["educations"] = recovered
 
     for key, name_key in (("projects", "name"), ("experience", "company")):
         orig_items = list(orig.get(key) or [])
@@ -711,6 +719,41 @@ def _backfill_from_original(orig: dict, new: dict) -> dict:
                 if src and str(src.get(field) or "").strip():
                     item[field] = src[field]
     return merged
+
+
+def _recover_educations_from_library(orig: dict) -> list:
+    """原简历本身就丢了教育明细时，从简历库里同名的其它版本捞回（问题 1）。
+
+    解析非确定性会让同一份简历存出「有 educations」和「只有 education=硕士」
+    两种版本；投递包正好用上坏的那份时，_backfill_from_original 的源是空的。
+    这里取「同一姓名、且带 school 的最近一份」当回填源；找不到就返回空，
+    不猜、不编造。
+    """
+    name = str((orig or {}).get("name") or "").strip()
+    if not name or not name.isprintable():
+        return []
+    try:
+        items = storage.list_resumes()
+    except Exception:                               # noqa: BLE001 - 库读不到就放弃兜底
+        return []
+    for item in items:
+        if str(item.get("name") or "").strip() != name:
+            continue
+        if str(item.get("id") or "") == str((orig or {}).get("id") or ""):
+            continue
+        try:
+            record = storage.get_resume(item.get("id"))
+        except Exception:                           # noqa: BLE001
+            continue
+        content = (record or {}).get("content")
+        if not isinstance(content, dict):
+            continue
+        edus = [e for e in (content.get("educations") or [])
+                if isinstance(e, dict) and str(e.get("school") or "").strip()]
+        if edus:
+            print(f"[教育兜底] 原简历无教育明细，已用同名人版本 {item.get('id')} 回填")
+            return edus
+    return []
 
 
 def _fallback_cover_letter(company: str, title: str) -> str:
@@ -752,8 +795,9 @@ def _generate_cover_letter(resume_data, record, detail) -> tuple:
             if match:
                 text = match.group(1).strip()
         if text:
-            # LLM 有时还是收不住嘴，再过一遍确定性清洗（问题 2 同源）
-            return strip_self_praise(text), ""
+            # LLM 有时还是收不住嘴，再过一遍确定性清洗（问题 2 同源）；
+            # 拼错的专有名词（Llamalndex）也在这里确定性纠回（问题 4）
+            return fix_tech_terms(strip_self_praise(text)), ""
         raise ValueError("模型返回空内容")
     except Exception as e:                          # noqa: BLE001 - 生成失败也要让投递包落地
         return (_fallback_cover_letter(company, title),

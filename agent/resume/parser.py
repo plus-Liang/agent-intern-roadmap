@@ -87,6 +87,7 @@ def parse_text(text: str) -> Resume:
 
         try:
             data = _parse_json(raw)
+            data = _ensure_educations(data, text)
             return _dict_to_resume(data)
         except Exception as e:
             print(f"[第{attempt}次失败] {e}")
@@ -151,6 +152,102 @@ def _clean_educations(raw) -> list:
         if any(entry.values()):
             items.append(entry)
     return items
+
+
+# --------------------------------------------------------------------------
+# 教育经历确定性兜底（问题 1）
+# --------------------------------------------------------------------------
+# LLM 抽取是非确定性的：同一段简历文本两次解析，可能一次带 educations、
+# 一次只剩 education="硕士"（实测库里的 f9bbd037 就是这么落库的），
+# 结果投递包整段「教育经历」消失，而下游 _backfill_from_original 的源
+# （已被解析坏的 orig）本来就是空的，兜底无从触发。
+# 学校名/专业/入学时间是简历里最不能丢的客观字段 —— 这里用纯正则从原始
+# 文本再捞一遍：LLM 没给出带 school 的明细时，强制回填。
+
+_SCHOOL_RE = re.compile(r"[\u4e00-\u9fa5]{2,15}(?:大学|学院|学校|研究院|科学院)")
+_DEGREE_RE = re.compile(
+    r"博士研究生|博士后|博士|硕士研究生|硕士|学士|本科|大专|专科|中专|高中")
+_RANGE_RE = re.compile(
+    r"(\d{4}\s*[.\-/年]\s*\d{1,2})\s*[-–—~～至到]\s*"
+    r"(\d{4}\s*[.\-/年]\s*\d{1,2}|至今|现在|今|[Pp]resent)")
+_EDU_HEAD_RE = re.compile(r"教育")
+_NEXT_SECTION_RE = re.compile(r"技能|实习|工作|项目|证书|荣誉|奖励|自我评价|校园|获奖")
+_EDGE_STRIP = r"^[\s|｜/、,，.。:：()（）\-–—]+|[\s|｜/、,，.。:：()（）\-–—]+$"
+
+
+def _norm_ym(text) -> str:
+    """「2025 年 9 月」/「2025-09」→「2025.09」；认不出来就返回原文。"""
+    match = re.search(r"(\d{4})\s*[.\-/年]\s*(\d{1,2})", str(text or ""))
+    if not match:
+        return str(text or "").strip()
+    return f"{match.group(1)}.{int(match.group(2)):02d}"
+
+
+def _edu_section_lines(text: str) -> list:
+    """取「教育背景 / 教育经历」小节的行；没有小节头就用全部行。"""
+    lines = [line.strip() for line in str(text or "").splitlines()]
+    start = next((i for i, line in enumerate(lines) if _EDU_HEAD_RE.search(line)), None)
+    if start is None:
+        return lines
+    picked = []
+    for line in lines[start:]:
+        if picked and line and _NEXT_SECTION_RE.search(line) and not _SCHOOL_RE.search(line):
+            break
+        picked.append(line)
+    return picked or lines
+
+
+def extract_educations(text: str) -> list:
+    """从简历原文里确定性抽取教育明细（school/major/degree/start/end）。"""
+    lines = _edu_section_lines(text)
+    items = []
+    for index, line in enumerate(lines):
+        school_match = _SCHOOL_RE.search(line)
+        if not school_match:
+            continue
+        # 时间可能写在下一行（「上海大学 人工智能」/「2025.09-至今」两行式）
+        window = line
+        if not _RANGE_RE.search(line) and index + 1 < len(lines):
+            window = f"{line} {lines[index + 1]}"
+        range_match = _RANGE_RE.search(window)
+        degree_match = _DEGREE_RE.search(line)
+
+        tail = line[school_match.end():]
+        if range_match:
+            tail = tail.replace(range_match.group(0), "")
+        if degree_match:
+            tail = tail.replace(degree_match.group(0), "")
+        end = ""
+        if range_match:
+            raw_end = range_match.group(2).strip()
+            end = "至今" if raw_end.lower() in ("至今", "现在", "今", "present") \
+                else _norm_ym(raw_end)
+        entry = {
+            "school": school_match.group(0),
+            "major": re.sub(_EDGE_STRIP, "", tail),
+            "degree": degree_match.group(0) if degree_match else "",
+            "start": _norm_ym(range_match.group(1)) if range_match else "",
+            "end": end,
+        }
+        if entry not in items:
+            items.append(entry)
+    return [entry for entry in items if entry["school"]]
+
+
+def _ensure_educations(data: dict, text: str) -> dict:
+    """LLM 漏了 / 弄丢了教育明细 → 用原文正则结果强制回填（问题 1）。"""
+    parsed = _clean_educations(data.get("educations"))
+    if any(str(edu.get("school") or "").strip() for edu in parsed):
+        return data
+    found = extract_educations(text)
+    if not found:
+        return data
+    print(f"[教育兜底] LLM 未返回 school，已从简历原文补回 {len(found)} 条教育经历")
+    data = dict(data)
+    data["educations"] = found
+    if not str(data.get("education") or "").strip():
+        data["education"] = found[0].get("degree") or ""
+    return data
 
 
 def _dict_to_resume(data: dict) -> Resume:

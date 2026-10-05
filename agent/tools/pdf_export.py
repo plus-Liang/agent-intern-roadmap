@@ -154,6 +154,30 @@ def _to_lines(value) -> list:
     return [value]
 
 
+# 常见技术名词的确定性拼写纠正（问题 4）：LLM 生成的两个固定误区 ——
+# ① 小写 l 与大写 I 形近（实测自荐信里 "Llamalndex"）；② 品牌名大小写被抹平
+# （"Langchain" / "Fastapi" / "Mysql"）。只收无歧义项 + ASCII 词边界，
+# 不做通用纠错、不碰正常文本。
+_TECH_TERMS = (
+    ("Llamalndex", "LlamaIndex"), ("Llamaindex", "LlamaIndex"),
+    ("Langchian", "LangChain"), ("Langchain", "LangChain"),
+    ("Langgraph", "LangGraph"), ("Fastapi", "FastAPI"),
+    ("Mysql", "MySQL"), ("Postgresql", "PostgreSQL"),
+    ("Pytorch", "PyTorch"), ("Tensorflow", "TensorFlow"),
+    ("Github", "GitHub"), ("Gitlab", "GitLab"),
+)
+
+
+def fix_tech_terms(text) -> str:
+    """把常见技术名词的错拼改回标准写法（问题 4）。"""
+    if not text:
+        return ""
+    fixed = str(text)
+    for wrong, right in _TECH_TERMS:
+        fixed = re.sub(r"(?<![A-Za-z])" + re.escape(wrong) + r"(?![A-Za-z])", right, fixed)
+    return fixed
+
+
 def _tidy(text) -> str:
     """排版前清理数字/单位之间被误加的空格。
 
@@ -173,7 +197,19 @@ def _tidy(text) -> str:
     text = re.sub(r"(?<=\d)\s+(?=\d)", "", text)
     text = re.sub(r"(?<=\d)\s+(?=(?:ms|min|sec|s|h|k|w|W|MB|GB|KB|TB|%|‰)\b)", "", text)
     text = re.sub(r"(?<=\d[a-zA-Z])\s+(?=[a-zA-Z]\b)", "", text)
-    return text
+    return fix_tech_terms(text)
+
+
+def _tidy_blocks(blocks: list) -> list:
+    """渲染前对整份文本统一过一遍清洗（问题 2：_tidy 必须覆盖所有路径）。
+
+    各构造分支里难免有漏挂 _tidy 的行（姓名 h1、联系方式行、技能整行、
+    _plain 纯文本路径），把清洗收口到「渲染前」这一处，就不会再随分支漂移。
+    """
+    for block in blocks:
+        if isinstance(block, dict) and isinstance(block.get("text"), str):
+            block["text"] = _tidy(block["text"])
+    return blocks
 
 
 def _time_range(item: dict) -> str:
@@ -357,6 +393,15 @@ def resume_blocks(resume) -> list:
                 flat.extend(str(x) for x in item if str(x).strip())
             else:
                 flat.append(str(item))
+        # 去重（问题 3）：LLM 定制的技能列表里 LangGraph 这类词会重复出现，
+        # 排到 PDF 里就是同一行里同一个词两遍。按原顺序保留首次出现。
+        seen, deduped = set(), []
+        for item in flat:
+            key = item.strip().lower()
+            if key and key not in seen:
+                seen.add(key)
+                deduped.append(item.strip())
+        flat = deduped
         blocks.append({"kind": "body", "text": "、".join(flat)})
         blocks.append({"kind": "space", "size": 4})
 
@@ -1155,7 +1200,7 @@ def export_resume_pdf(resume: dict, output_path: str) -> str:
     首选后端失败时自动降级到下一个可用后端。
     """
     path = Path(output_path)
-    blocks = resume_blocks(resume)
+    blocks = _tidy_blocks(resume_blocks(resume))
 
     order = []
     for name in (available_backend(), "stdlib"):

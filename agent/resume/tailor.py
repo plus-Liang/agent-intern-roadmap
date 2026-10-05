@@ -101,7 +101,7 @@ def tailor_resume(resume: Resume, job_detail) -> dict:
                 reasoning_effort=limits.cover_letter_reasoning_effort(),
             )
             data = _parse_json(raw)
-            return _sanitize_result(data)
+            return _sanitize_result(_restore_source_fields(data, resume))
         except Exception as e:
             print(f"[第{attempt}次失败] {e}")
             if attempt == 3:
@@ -169,6 +169,35 @@ def _sanitize_result(result: dict) -> dict:
     for proj in (tailored.get("projects") or []):
         if isinstance(proj, dict) and proj.get("desc"):
             proj["desc"] = strip_self_praise(proj["desc"])
+    return result
+
+
+def _restore_source_fields(result: dict, resume: Resume) -> dict:
+    """定制结果里被 LLM 弄丢的客观字段，从入参简历强制回填（问题 1）。
+
+    educations / education / name / city / skills 都是「入参简历里本来就有」
+    的事实字段：定制只该改措辞，不该把它们变没。这里做确定性兜底，
+    不依赖模型这次心情好不好（同一份简历两次定制结果不同就是这么来的）。
+    """
+    tailored = (result or {}).get("tailored")
+    if not isinstance(tailored, dict) or not tailored:
+        return result
+
+    if not str(tailored.get("name") or "").strip() and resume.name:
+        tailored["name"] = resume.name
+    if not str(tailored.get("city") or "").strip() and resume.city:
+        tailored["city"] = resume.city
+    if not tailored.get("skills") and resume.skills:
+        tailored["skills"] = list(resume.skills)
+
+    src_edus = [e for e in (getattr(resume, "educations", None) or [])
+                if isinstance(e, dict)]
+    new_edus = [e for e in (tailored.get("educations") or []) if isinstance(e, dict)]
+    if src_edus and not any(str(e.get("school") or "").strip() for e in new_edus):
+        tailored["educations"] = [dict(e) for e in src_edus]
+
+    if not str(tailored.get("education") or "").strip() and resume.education:
+        tailored["education"] = resume.education
     return result
 
 
