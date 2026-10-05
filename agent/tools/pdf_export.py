@@ -169,34 +169,34 @@ _TECH_TERMS = (
 
 
 def fix_tech_terms(text) -> str:
-    """把常见技术名词的错拼改回标准写法（问题 4）。"""
-    if not text:
-        return ""
-    fixed = str(text)
-    for wrong, right in _TECH_TERMS:
-        fixed = re.sub(r"(?<![A-Za-z])" + re.escape(wrong) + r"(?![A-Za-z])", right, fixed)
-    return fixed
+    """文本清洗的唯一入口：形近字/断空格 + 常见技术名词错拼（问题 3+4 合并）。
 
-
-def _tidy(text) -> str:
-    """排版前清理数字/单位之间被误加的空格。
-
-    问题 3：原文里常见 "< 5ms"、"5 ms"、"5m s" 这类断开的写法，排到 PDF 里
-    就像错字。只收拾「比较符↔数字」「数字↔单位」「数字+字母↔字母」这三种
-    确定性形态，不碰正常的中英文混排空格。
+    原先排版路径用 `_tidy`（含形近字「干级→千级」和断空格规则），而自荐信出口
+    （tools_registry 的 `_generate_cover_letter`）只调 `fix_tech_terms`，于是
+    「干级」「< 5ms」这类错字能从自荐信这条路漏出去。把全部清洗规则收口到本函数，
+    任何调用者拿到的都是同一种清洗结果，不再随调用点漂移。
     """
     if text is None:
         return ""
     text = str(text)
     # 领域错字守卫：这几个词是「形近字」误写的高发区（LLM 生成/复制粘贴都可能带进来），
-    # 排到 PDF 里就是硬错字，而 `千级` 是本项目简历里的高频表述（"构建千级文档向量库"）。
+    # 排出来就是硬错字，而 `千级` 是本项目简历里的高频表述（"构建千级文档向量库"）。
     # 只收确定无歧义的形近混淆，不做通用纠错。
     for wrong, right in (("干级", "千级"), ("干万", "千万")):
         text = text.replace(wrong, right)
+    # 断空格：只收拾「比较符↔数字」「数字↔数字」「数字↔单位」「数字+字母↔字母」
+    # 这四种确定性形态（"< 5ms" / "5 ms" / "5m s"），不碰正常的中英文混排空格。
     text = re.sub(r"([<≤>≥≈=＝])\s+(?=\d)", r"\1", text)
     text = re.sub(r"(?<=\d)\s+(?=\d)", "", text)
     text = re.sub(r"(?<=\d)\s+(?=(?:ms|min|sec|s|h|k|w|W|MB|GB|KB|TB|%|‰)\b)", "", text)
     text = re.sub(r"(?<=\d[a-zA-Z])\s+(?=[a-zA-Z]\b)", "", text)
+    for wrong, right in _TECH_TERMS:
+        text = re.sub(r"(?<![A-Za-z])" + re.escape(wrong) + r"(?![A-Za-z])", right, text)
+    return text
+
+
+def _tidy(text) -> str:
+    """排版内部沿用的历史名字，实现与 `fix_tech_terms` 完全一致。"""
     return fix_tech_terms(text)
 
 
