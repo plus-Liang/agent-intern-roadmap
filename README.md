@@ -213,24 +213,30 @@ ZHIPU_CHAT_MODEL=deepseek-chat             # 模型名，原样填服务商文�
 
 - **embedding 不受换模型影响**：检索用的 embedding 是本地 `fastembed` 模型（`BAAI/bge-small-zh-v1.5`），
   在本地推理，不调 API、不花钱，换对话模型不用动它，也不用换 Key。
-- **换非智谱模型最常见的坑：`400 不支持参数 reasoning_effort`**。项目给思考模型传了
-  `reasoning_effort=low`，注入点在 `shared/llm_client.py` 的 `_build_payload()`：
-  `if reasoning_effort: payload["reasoning_effort"] = reasoning_effort`。解决办法二选一 ——
-  ① **不改代码**：把 `.env` 里 `REACT_LLM_REASONING_EFFORT` / `RESUME_LLM_REASONING_EFFORT` /
-  `MATCH_LLM_REASONING_EFFORT` / `COVER_LETTER_LLM_REASONING_EFFORT` 全部**留空**（空串即不注入，默认值是 `low`）；
-  ② **改代码（唯一的代码改动点）**：在 `_build_payload()` 里加判断，只对智谱注入，例如
-  `if reasoning_effort and "bigmodel.cn" in ZHIPU_BASE_URL:`。
+- **换非智谱模型的 `reasoning_effort` 已自动适配，不用管**。项目给思考模型默认传
+  `reasoning_effort=low`（注入点在 `shared/llm_client.py` 的 `_build_payload()`）。有些
+  OpenAI 兼容网关不认这个参数，会直接回 400（`invalid_request_error` / `unknown_parameter`）。
+  客户端一旦从报错里认出「是 reasoning_effort 不被支持」，就会自动**去掉该参数重试一次**，
+  并把「这个模型不吃 reasoning_effort」记进进程内缓存，之后对同一模型的请求不再注入——
+  换模型不会因为这个参数失败，只会在日志里多打一行 `[llm] INFO`。
+  若想彻底不发这个参数，也可以把 `.env` 里 `REACT_LLM_REASONING_EFFORT` /
+  `RESUME_LLM_REASONING_EFFORT` / `MATCH_LLM_REASONING_EFFORT` /
+  `COVER_LETTER_LLM_REASONING_EFFORT` 全部**留空**（空串即不注入，默认值是 `low`）。
 - 输出额度（`LLM_MAX_TOKENS` / `REACT_LLM_LONG_MAX_TOKENS` 等）按 token 计，换到的服务若单次输出上限更小，
   记得把 `REACT_LLM_LONG_MAX_TOKENS` 一起调小，否则会经常 `finish_reason=length`。
 
 **操作步骤（3 步）**
 
+> ⚠️ **改完 `.env` 必须 `docker compose down && docker compose up -d`，不能只 `restart`。**
+> `docker compose restart` 只是重启容器里的进程，**不会重新读取 `.env`**，改的模型 / Key 不会生效，
+> 很容易被误判成「换模型失败」。本地 pip 方式同理：Ctrl+C 后重新 `python start.py`。
+
 ```bash
-# ① 编辑 .env，改 ZHIPU_CHAT_MODEL（换厂商时 KEY / BASE_URL 一起改）
-# ② 重启让新配置生效
-docker compose restart app        # 本地 pip 方式：Ctrl+C 后重新 python start.py
+# ① 编辑 .env，改 ZHIPU_CHAT_MODEL（换厂商时 ZHIPU_API_KEY / ZHIPU_BASE_URL 一起改）
+# ② 重建容器让新配置生效（只 restart 不会重读 .env！）
+docker compose down && docker compose up -d   # 本地 pip 方式：Ctrl+C 后重新 python start.py
 # ③ 打开 http://localhost:8000/chat，发一句「你好」
-#    能正常回话 = 换模型成功；若报错，先看日志里是不是 reasoning_effort / base_url 的问题
+#    能正常回话 = 换模型成功；若报错，先看日志里是不是 base_url / Key 的问题
 ```
 
 ### 对话与多用户

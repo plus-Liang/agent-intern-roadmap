@@ -12,6 +12,13 @@
 （默认取 shared.limits.default_max_tokens()，即 LLM_MAX_TOKENS，调用方可覆盖），
 并读取 `choices[0].finish_reason == "length"` 识别「输出被截断」——
 截断不是正常答案，在 shared.limits 里打个标记让 react_agent 按解析失败处理。
+
+换模型自适配（reasoning_effort）：思考档位参数不是所有 OpenAI 兼容网关都认
+（DeepSeek / Moonshot / OpenAI 等多数会直接 400 invalid_request_error）。
+这里做了一个自适应兜底 —— 一旦报错文本同时命中「reasoning_effort」和
+「不支持 / unknown / invalid」字样，就自动去掉该参数重试一次，并把
+「这个模型不吃 reasoning_effort」写进进程内缓存，本进程后续请求不再注入。
+调用方（react_agent 等）无需感知，换模型只改 .env 即可。
 """
 import json
 import os
@@ -78,6 +85,51 @@ def _log_proxy_diag() -> None:
                 f"NO_PROXY={bool(os.environ.get('NO_PROXY'))}")
 
 
+# 进程内缓存：已确认「不吃 reasoning_effort」的模型（键 = 小写模型名）。
+# 命中后 _build_payload 直接不注入该参数，避免每次请求都先吃一个 400 再重试。
+_EFFORT_UNSUPPORTED_MODELS = set()
+
+# 「参数被拒」的特征词：必须先命中 reasoning_effort，再配以下任意一个。
+# 中英文都收，网关的措辞不完全统一（智谱/部分代理会回中文）。
+_EFFORT_REJECT_HINTS = (
+    "not supported", "unsupported", "unknown", "invalid",
+    "不支持", "未知", "无效",
+)
+
+
+def _effort_key(model) -> str:
+    """缓存键：模型名（大小写不敏感），空模型名不缓存。"""
+    return (model or "").strip().lower()
+
+
+def reasoning_effort_unsupported(model: str = None) -> bool:
+    """该模型是否已被判定「不认识 reasoning_effort」（本进程内）。"""
+    return _effort_key(model) in _EFFORT_UNSUPPORTED_MODELS
+
+
+def is_reasoning_effort_rejected(e: Exception) -> bool:
+    """判断这次失败是不是「网关不认 reasoning_effort」导致的。
+
+    必须**同时**满足：报错文本提到 reasoning_effort，且带不支持/未知/非法字样。
+    这样不会把模型不存在、额度不足、网络超时之类的错误误判成参数不兼容。
+    """
+    text = f"{_safe_str(e)} {_error_detail(e)}".lower()
+    if "reasoning_effort" not in text:
+        return False
+    return any(hint in text for hint in _EFFORT_REJECT_HINTS)
+
+
+def _note_effort_unsupported(model: str, e: Exception) -> None:
+    """降级时记一行 INFO 日志，并把该模型写进进程内缓存。"""
+    key = _effort_key(model)
+    if key:
+        _EFFORT_UNSUPPORTED_MODELS.add(key)
+    detail = (_error_detail(e) or _safe_str(e)).replace("\n", " ")
+    _safe_print(f"[llm] INFO 模型 {model} 不支持 reasoning_effort"
+                f"（{detail[:120]}），已自动去掉该参数重试；"
+                f"本进程后续对它的请求不再注入")
+
+
 def _resolve_max_tokens(max_tokens) -> int:
     """定出本次调用的 max_tokens：显式参数优先，否则取闸门默认值。
 
@@ -99,12 +151,15 @@ def _build_payload(messages: list, model: str, stream: bool, max_tokens,
     reasoning_effort: 思考档位（low / high / max）。glm-5.3-flash 是思考模型，
         `max_tokens` 同时卡住思考（reasoning_content）与正文，抽取类任务用 low
         才不会被思考吃光额度。空值不注入 —— payload 形状与老版本一致。
+
+    换模型自适配：该模型已被判定不吃 reasoning_effort 时（见
+    reasoning_effort_unsupported），这里直接不注入，省掉一次注定失败的请求。
     """
     payload = {"model": model, "messages": messages, "stream": stream}
     limit = _resolve_max_tokens(max_tokens)
     if limit > 0:
         payload["max_tokens"] = limit
-    if reasoning_effort:
+    if reasoning_effort and not reasoning_effort_unsupported(model):
         payload["reasoning_effort"] = reasoning_effort
     return payload
 
@@ -197,10 +252,13 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
     headers = _headers()                    # 顺便校验 Key，缺了直接抛 ConfigError
     payload = _build_payload(messages, model, False, max_tokens, reasoning_effort)
     last_err = None
+    downgraded = False                      # 参数退让只做一次
 
     _log_proxy_diag()
 
-    for attempt in range(1, retries + 1):
+    attempt = 0
+    while attempt < retries:
+        attempt += 1
         try:
             # httpx 用 json= 自己序列化 UTF-8 body，也自己设 Content-Type
             # trust_env=False：不读代理等环境变量，避免它们参与请求编码
@@ -219,6 +277,15 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
         except ConfigError:
             raise
         except Exception as e:
+            # 换模型自适配：网关不认 reasoning_effort → 去掉参数立刻重试一次。
+            # 这一次不计进重试预算（预算留给真正的网络/服务端错误），也不 sleep。
+            if (not downgraded and "reasoning_effort" in payload
+                    and is_reasoning_effort_rejected(e)):
+                downgraded = True
+                _note_effort_unsupported(model, e)
+                payload.pop("reasoning_effort", None)
+                attempt -= 1
+                continue
             last_err = e
             _log_failure(attempt, e)
             if attempt < retries:
@@ -237,6 +304,8 @@ def chat_stream(messages: list, model: str = None, source: str = "unknown",
     max_tokens: 同 chat()，不传取 LLM_MAX_TOKENS。
     网关若在收尾 chunk 里带 usage 就记，没带则记 0 并标记 stream_no_usage。
     记账发生在生成器结束之后，调用方 break / 抛异常同样会落一条。
+    换模型自适配同 chat()：网关不认 reasoning_effort 就自动去掉重试一次
+    （只在还没吐出任何内容时降级，避免同一段正文被发两遍）。
     """
     model = model or ZHIPU_CHAT_MODEL
     headers = _headers()
@@ -244,38 +313,54 @@ def chat_stream(messages: list, model: str = None, source: str = "unknown",
 
     usage = None
     request_id = None
+    downgraded = False                      # 参数退让只做一次
+    yielded_any = False
     try:
-        # trust_env=False：同 chat()，不看代理环境变量
-        with httpx.Client(timeout=TIMEOUT, trust_env=False) as client:
-            with client.stream("POST", CHAT_URL, json=payload, headers=headers) as resp:
-                resp.raise_for_status()
-                try:
-                    # SSE 响应头常不带 charset，显式按 UTF-8 解码，避免中文乱码
-                    resp.encoding = "utf-8"
-                except Exception:                # noqa: BLE001 - 赋值失败也无妨
-                    pass
-                for raw in resp.iter_lines():
-                    line = raw.strip()
-                    if not line or not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-                    if request_id is None:
-                        request_id = chunk.get("id")
-                    if chunk.get("usage") is not None:
-                        usage = chunk["usage"]
-                    choices = chunk.get("choices") or []
-                    if not choices:             # 带 usage 的收尾 chunk 可能没有 choices
-                        continue
-                    if choices[0].get("finish_reason"):
-                        _note_finish_reason(choices[0].get("finish_reason"))
-                    content = (choices[0].get("delta") or {}).get("content")
-                    if content:
-                        yield content
+        while True:
+            try:
+                # trust_env=False：同 chat()，不看代理环境变量
+                with httpx.Client(timeout=TIMEOUT, trust_env=False) as client:
+                    with client.stream("POST", CHAT_URL, json=payload,
+                                       headers=headers) as resp:
+                        resp.raise_for_status()
+                        try:
+                            # SSE 响应头常不带 charset，显式按 UTF-8 解码，避免中文乱码
+                            resp.encoding = "utf-8"
+                        except Exception:        # noqa: BLE001 - 赋值失败也无妨
+                            pass
+                        for raw in resp.iter_lines():
+                            line = raw.strip()
+                            if not line or not line.startswith("data:"):
+                                continue
+                            data = line[5:].strip()
+                            if data == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data)
+                            except json.JSONDecodeError:
+                                continue
+                            if request_id is None:
+                                request_id = chunk.get("id")
+                            if chunk.get("usage") is not None:
+                                usage = chunk["usage"]
+                            choices = chunk.get("choices") or []
+                            if not choices:     # 带 usage 的收尾 chunk 可能没有 choices
+                                continue
+                            if choices[0].get("finish_reason"):
+                                _note_finish_reason(choices[0].get("finish_reason"))
+                            content = (choices[0].get("delta") or {}).get("content")
+                            if content:
+                                yielded_any = True
+                                yield content
+                return
+            except Exception as e:              # noqa: BLE001 - 只处理参数退让，其余原样抛
+                if (downgraded or yielded_any or "reasoning_effort" not in payload
+                        or not is_reasoning_effort_rejected(e)):
+                    raise
+                downgraded = True
+                _note_effort_unsupported(model, e)
+                payload.pop("reasoning_effort", None)
+                usage = None
+                request_id = None
     finally:
         _record_usage(model=model, source=source, usage=usage, request_id=request_id)
