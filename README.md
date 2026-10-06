@@ -192,6 +192,47 @@ python -m rag.vector_store --rebuild      # 从 jobs.db 全量重建（约几分
 | `LOCAL_EMBEDDING_MODEL` | 本地 embedding 模型，默认 `BAAI/bge-small-zh-v1.5`（无需 Key） |
 | `USE_RERANKER` | 是否启用重排器，默认 `false`（开启需要 torch / sentence-transformers） |
 
+#### 换模型：只改 `.env` 三个变量
+
+> 变量名是历史遗留（`ZHIPU_*`），**它的值可以指向任何 OpenAI 兼容服务**——不是只能连智谱。
+> `shared/llm_client.py` 实际请求的是 `{ZHIPU_BASE_URL}/chat/completions`，Key 走 `Authorization: Bearer`。
+
+```bash
+# 以 DeepSeek 为例，三行全部换掉（换智谱自家模型只改最后一行）
+ZHIPU_API_KEY=sk-xxxxxxxx                  # 目标服务的 Key
+ZHIPU_BASE_URL=https://api.deepseek.com/v1 # OpenAI 兼容根地址，**不要**带 /chat/completions
+ZHIPU_CHAT_MODEL=deepseek-chat             # 模型名，原样填服务商文档里的名字
+```
+
+| 能直接用 | 不能直接用（要改代码） |
+|---|---|
+| 智谱全系：`glm-4-flash` / `glm-4.5-air` / `glm-4.6v` / `glm-5.3-flash` 等 | 需要私有 SDK 的模型（如 Anthropic 原生协议） |
+| 其他 OpenAI 兼容 API：DeepSeek / Moonshot / 通义 / OpenAI 等 | 本地 Ollama（要改 `shared/llm_client.py` 的调用方式，不能只改 `.env`） |
+
+**注意事项**
+
+- **embedding 不受换模型影响**：检索用的 embedding 是本地 `fastembed` 模型（`BAAI/bge-small-zh-v1.5`），
+  在本地推理，不调 API、不花钱，换对话模型不用动它，也不用换 Key。
+- **换非智谱模型最常见的坑：`400 不支持参数 reasoning_effort`**。项目给思考模型传了
+  `reasoning_effort=low`，注入点在 `shared/llm_client.py` 的 `_build_payload()`：
+  `if reasoning_effort: payload["reasoning_effort"] = reasoning_effort`。解决办法二选一 ——
+  ① **不改代码**：把 `.env` 里 `REACT_LLM_REASONING_EFFORT` / `RESUME_LLM_REASONING_EFFORT` /
+  `MATCH_LLM_REASONING_EFFORT` / `COVER_LETTER_LLM_REASONING_EFFORT` 全部**留空**（空串即不注入，默认值是 `low`）；
+  ② **改代码（唯一的代码改动点）**：在 `_build_payload()` 里加判断，只对智谱注入，例如
+  `if reasoning_effort and "bigmodel.cn" in ZHIPU_BASE_URL:`。
+- 输出额度（`LLM_MAX_TOKENS` / `REACT_LLM_LONG_MAX_TOKENS` 等）按 token 计，换到的服务若单次输出上限更小，
+  记得把 `REACT_LLM_LONG_MAX_TOKENS` 一起调小，否则会经常 `finish_reason=length`。
+
+**操作步骤（3 步）**
+
+```bash
+# ① 编辑 .env，改 ZHIPU_CHAT_MODEL（换厂商时 KEY / BASE_URL 一起改）
+# ② 重启让新配置生效
+docker compose restart app        # 本地 pip 方式：Ctrl+C 后重新 python start.py
+# ③ 打开 http://localhost:8000/chat，发一句「你好」
+#    能正常回话 = 换模型成功；若报错，先看日志里是不是 reasoning_effort / base_url 的问题
+```
+
 ### 对话与多用户
 
 | 变量 | 说明 |
