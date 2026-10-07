@@ -1,0 +1,11 @@
+# Streamlit Dashboard 的额外依赖，叠加在 requirements-hf.txt 之上。
+#
+# 为什么单独一个文件（而不是往 requirements-hf.txt 里加 streamlit）：
+#   requirements-hf.txt 是 app 镜像（HF Spaces / docker-compose 的 app 服务）装的，
+#   刻意不含 streamlit；塞进去会让云端镜像白胖一圈，而且和「app 镜像只跑 Web 服务」
+#   的定位冲突。
+#   Dockerfile.dashboard 先按 Dockerfile 逐字装一遍 requirements-hf.txt（命中同一份
+#   构建缓存，不重复下载），再装本文件 —— 只有这一层是新建的。
+#
+# 版本与 requirements.txt（本地 pip 方式）保持一致。
+streamlit==1.63.0

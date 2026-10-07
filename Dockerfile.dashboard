@@ -1,0 +1,77 @@
+# Streamlit Dashboard 专用镜像（docker-compose 的 dashboard 服务，只本地用）。
+#
+# 为什么单独一份 Dockerfile（而不是让 app 服务跑 dashboard）：
+#   Dockerfile 装的是 requirements-hf.txt，那个文件**刻意不含 streamlit**
+#   （云端 HF Space 不跑看板）。直接在 app 容器里 `streamlit run` 会
+#   ModuleNotFoundError。两份 Dockerfile 各自干净：
+#     · app 镜像体积不变，云端不受影响；
+#     · dashboard 镜像多装一个 streamlit，本地随时能起。
+#
+# 与 Dockerfile 的两点差异：
+#   ① 多装 requirements-dashboard.txt；
+#   ② 构建上下文里**带上了 dashboard/**（靠 Dockerfile.dashboard.dockerignore
+#      覆盖根目录 .dockerignore 里那条 `dashboard/`，BuildKit 的 Dockerfile 专属
+#      ignore 文件约定：<Dockerfile 路径>.dockerignore）。
+#
+# 前两层（apt / COPY requirements-hf.txt / pip install）与 Dockerfile **逐字一致**，
+# 目的是命中 app 那次构建留下的 pip 缓存层，不重复装一遍 chromadb / fastembed。
+
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_RETRIES=5 \
+    PIP_TIMEOUT=60 \
+    PIP_DEFAULT_TIMEOUT=60 \
+    HOME=/home/user \
+    PORT=7860
+
+# ⚠️ 上面 ENV 里的 PORT=7860 是给 HF Spaces 用的，dashboard 自己**用不到**。
+# 保留它只有一个原因：BuildKit 的构建缓存是「按指令逐条 + 父链」算 key 的，
+# 只要这条 ENV 与 Dockerfile 里那条**逐字一致**，下面那个 200MB 的 pip 依赖层
+# 就能与 app 镜像共用同一份缓存 —— 全新 clone 后 `docker compose up --build`
+# 只装一遍依赖，不是两遍（实测：不加这行时 dashboard 要重新下载全部 wheel）。
+
+WORKDIR /app
+
+# 健康检查用 curl；dashboard 不需要 gcc（依赖全是 manylinux wheel）
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# ↓↓↓ 这两条必须与 Dockerfile 里的**逐字相同**，否则命中不了同一份缓存层
+COPY requirements-hf.txt /app/requirements-hf.txt
+RUN pip install --no-cache-dir --prefer-binary --retries "${PIP_RETRIES}" \
+        --timeout "${PIP_TIMEOUT}" -r /app/requirements-hf.txt
+# ↑↑↑
+
+# Dashboard 自己的额外依赖（目前只有 streamlit）
+COPY requirements-dashboard.txt /app/requirements-dashboard.txt
+RUN pip install --no-cache-dir --prefer-binary --retries "${PIP_RETRIES}" \
+        --timeout "${PIP_TIMEOUT}" -r /app/requirements-dashboard.txt
+
+RUN useradd -m -u 1000 user
+
+COPY --chown=user:user . /app
+
+# 运行期要写数据库 / 日志 / Streamlit 缓存，先建好目录并交还属主
+RUN mkdir -p /app/agent/data /app/logs \
+    && chown -R user:user /app
+
+USER user
+
+EXPOSE 8501
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8501/_stcore/health || exit 1
+
+# 用 `streamlit` 控制台脚本，**不要**用 `python -m streamlit`：
+# `-m` 会把 cwd（/app）预先塞进子进程的 sys.path，dashboard/ 又会插在 sys.path[0]，
+# 于是 dashboard/shared.py 抢在 shared/ 包前面被当成顶层模块，报
+# 「No module named 'shared.llm_client'; 'shared' is not a package」。
+# 细节见 start.py 顶部注释。
+# 端口/地址也写在 CMD 里（与 docker-compose.yml 的 command 一致），
+# 这样 `docker run` 单独起这个镜像时也是对的。
+CMD ["streamlit", "run", "dashboard/app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]

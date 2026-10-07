@@ -1,9 +1,20 @@
 # 一条命令起服务：cp .env.example .env && docker compose up --build
 # 访问 http://localhost:8000 （/chat 对话、/docs API 文档）
+#      http://localhost:8501 （Streamlit Dashboard）
+#
+# 两个容器共享数据：./rag/data（岗位库）、./agent/data（投递记录 / 简历 / 对话历史）、
+# ./logs（token 用量 / 反馈）、命名卷 chroma_db（向量库）—— 所以看板里的投递追踪、
+# 岗位列表与 app 里的完全一致。
 #
 # 为什么单 worker：四道闸门里的「单用户频率」是进程内令牌桶（shared/limits.py），
 # 多 worker 各持一份桶，限流就失真；要横向扩副本必须先换成 Redis / 落库滑动窗口。
-# 镜像不含 Streamlit Dashboard 与 Playwright（见 Dockerfile / .dockerignore）。
+#
+# ⚠️ dashboard（8501）**没有任何认证**，能读能写你的投递记录 / 简历 / 对话历史。
+# 因此这里把它绑在回环地址，只本机能访问，局域网和公网都到不了。要给别人看，
+# 先自己套一层带认证的反向代理，再改 ports。
+#
+# 镜像分工：Dockerfile 只跑 FastAPI + Chainlit（不含 Streamlit / Playwright）；
+# Dashboard 由 Dockerfile.dashboard 单独构建（多装一个 streamlit，不污染 app 镜像）。
 services:
   app:
     build:
@@ -26,6 +37,9 @@ services:
       # 向量库：不进 git，用命名卷持久化，容器重建不必重新向量化
       - ./agent/data:/app/agent/data
       - chroma_db:/app/chroma_db
+      # token_usage.db（用量）/ feedback.db（反馈）：dashboard 的「Token 成本」页
+      # 读的就是这里，两个容器挂同一份才能与 app 对上；顺带解决「容器重建用量清零」。
+      - ./logs:/app/logs
     command:
       ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
     healthcheck:
@@ -35,7 +49,42 @@ services:
       retries: 3
       start_period: 60s
     restart: unless-stopped
-    # 注意：logs/（token_usage.db、feedback.db）未挂卷，容器重建会清空用量/反馈记录
+
+  # Streamlit 看板：本地用，不公开（无认证，见文件头 ⚠️）
+  dashboard:
+    build:
+      context: .
+      # 装 requirements-hf.txt + streamlit；dashboard/ 靠 Dockerfile.dashboard.dockerignore
+      # 覆盖根 .dockerignore 才能进镜像
+      dockerfile: Dockerfile.dashboard
+    image: agent-intern-roadmap-dashboard:local
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      # 只绑回环：http://localhost:8501 能开，局域网访问不到。
+      # 要让同网段设备访问，改成 "8501:8501"，但先想清楚「无认证」这件事。
+      - "127.0.0.1:8501:8501"
+    volumes:
+      # 与 app 逐条相同，保证看板看到的数据就是 app 的数据
+      - ./rag/data:/app/rag/data
+      - ./agent/data:/app/agent/data
+      - chroma_db:/app/chroma_db
+      - ./logs:/app/logs
+    # 只控制启动顺序，不等待 app 健康（dashboard 不依赖 app 的接口）
+    depends_on:
+      - app
+    command:
+      ["streamlit", "run", "dashboard/app.py",
+       "--server.port", "8501", "--server.address", "0.0.0.0"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8501/_stcore/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
 volumes:
   chroma_db:

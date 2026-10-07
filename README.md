@@ -53,7 +53,7 @@ pinned: false
 | `http://localhost:8000/` | 首页（对话 / 看板 / API 三张卡片） |
 | `http://localhost:8000/chat` | Chainlit 对话 Agent |
 | `http://localhost:8000/docs` | FastAPI 自动生成的 API 文档（Swagger UI，可直接在线调试） |
-| `http://localhost:8501` | Streamlit Dashboard（岗位列表 / 投递追踪 / 匹配打分 / Token 成本 / 简历管理 / 对话 Agent） |
+| `http://localhost:8501` | Streamlit Dashboard（岗位列表 / 投递追踪 / 匹配打分 / Token 成本 / 简历管理 / 对话 Agent）⚠️ **无认证，只本地用** |
 
 ---
 
@@ -111,7 +111,7 @@ flowchart TD
 
 ## 3. 快速开始
 
-> 想快速体验选**方式 A（Docker）**；想改代码或用 Dashboard 选**方式 B**。
+> 两种方式都会同时起 **Web 服务 8000** 和 **Dashboard 8501**；要改代码 / 跑抓取就用方式 B。
 
 ### 方式 A：Docker（一条命令）
 
@@ -119,16 +119,29 @@ flowchart TD
 git clone https://github.com/plus-Liang/agent-intern-roadmap.git
 cd agent-intern-roadmap
 cp .env.example .env          # 打开 .env，把 ZHIPU_API_KEY 填上
-docker compose up --build     # 访问 http://localhost:8000
+docker compose up --build     # 访问 http://localhost:8000（/chat）与 http://localhost:8501（看板）
 ```
 
 - `docker-compose.yml` 里 `env_file: .env` 是**必需**的，没有 `.env` 会直接启动失败。
 - 端口映射是 `8000:7860`（容器内固定 7860，与 HF Space 的 `app_port` 一致）。
-- 已挂卷：`./rag/data`（数据）与命名卷 `chroma_db`（向量库）。
-- 只跑 FastAPI + Chainlit，**不含 Streamlit Dashboard 与 Playwright**，所以首页的看板卡片在容器里点不开。
+- `docker compose up` 会起**两个容器**，共用同一份数据：
+
+  | 服务 | 地址 | 是什么 |
+  |---|---|---|
+  | `app` | `http://localhost:8000` | FastAPI + Chainlit（`/`、`/chat`、`/docs`） |
+  | `dashboard` | `http://localhost:8501` | Streamlit 看板（岗位列表 / 投递追踪 / 匹配打分 / Token 成本 / 简历管理 / 对话 Agent） |
+
+- 两个服务**共用**同一份数据：`./rag/data`（岗位库 / `cleaned_jd.json`）、`./agent/data`（投递记录、简历、对话历史）、`./logs`（token 用量 / 反馈）、命名卷 `chroma_db`（向量库）。所以看板里的投递记录、岗位列表与 app 里完全一致。
+- `dashboard` 由单独的 `Dockerfile.dashboard` 构建（`python:3.12-slim` + `requirements-hf.txt` + `requirements-dashboard.txt` 的 streamlit），**不会**把 Streamlit 塞进 app 镜像，云端 HF Space 依旧是精简镜像。
 - 基础镜像与运行环境统一在 **Python 3.12**：`Dockerfile` 用 `python:3.12-slim`，
   `runtime.txt` 写 `python-3.12`，与 `numpy==2.5.3`（没有 3.11 wheel）的要求一致。
 - 代码更新后重新构建：`docker compose up --build`；日常启动不需要 `--build`：`docker compose up`。
+- app 容器仍然**不含 Playwright**：容器里跑不了抓取，要抓数据请用方式 B。
+
+> ⚠️ **Dashboard 没有任何认证**（没有登录、没有密码），只能本机自己用。
+> `docker-compose.yml` 因此把它绑在回环地址（`127.0.0.1:8501:8501`），局域网和公网都访问不到。
+> 想让同网段的设备访问，把那一行改成 `"8501:8501"` —— **改之前先想清楚**：看板能读出并改写你的投递记录、简历、对话历史，暴露即等于把这些给别人看。
+> 要放公网，请先自己套一层带认证的反向代理。
 
 ### 方式 B：本地 pip（两步）
 
@@ -408,7 +421,7 @@ python -m agent.chat_history listusers                    # 列号
 | 端口 | 谁在用 | 怎么改 |
 |---|---|---|
 | 8000 | `main.py` / `uvicorn main:app`（首页、`/chat`、`/docs`） | `python main.py` 里改 `port`，或直接 `uvicorn main:app --port 8080` |
-| 8501 | Streamlit Dashboard | `start.py` 的 `SERVICES`，或 `streamlit run dashboard/app.py --server.port 8502` |
+| 8501 | Streamlit Dashboard | 本地 pip：`start.py` 的 `SERVICES`；Docker：`docker-compose.yml` 里 dashboard 的 `ports`（想换宿主机端口改成 `"8502:8501"`；想公开改成 `"8501:8501"`，先看上面的无认证警告） |
 | 7860 | 容器内 uvicorn / HF Space `app_port` | 改 `Dockerfile` 的 `CMD`、`docker-compose.yml` 的 `ports: "8000:7860"` 左值 |
 
 改完记得同步首页卡片与 `docker-compose.yml` 里写死的 `localhost:8501` 链接。
@@ -417,8 +430,9 @@ python -m agent.chat_history listusers                    # 列号
 
 - **语义检索为空**：多半是 `chroma_db/` 还没建（不进 git）。跑一次
   `python -m rag.vector_store --rebuild`。不建也能用关键词检索，只是模糊需求效果差。
-- **看板卡片点不开**：首页第二张卡片指向 `http://localhost:8501`，容器部署里没有 Streamlit，
-  这是本地开发约定。本地用 `python start.py` 起就有。
+- **看板卡片点不开**：首页第二张卡片指向 `http://localhost:8501`。`docker compose up` 与
+  `python start.py` 都会起 Dashboard；只单独跑 `python main.py`（或只 `docker compose up app`）
+  时没有 Dashboard，卡片自然点不开。
 
 ---
 
