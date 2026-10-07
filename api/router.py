@@ -16,8 +16,13 @@ from typing import Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+
+# 置顶接口要复用 Chainlit 的登录态（cookie）与数据层，见文件末尾的 /threads/*
+from chainlit.auth import get_current_user
+
+from agent import data_layer
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 JOB_DATA = BASE_DIR / "rag" / "data" / "cleaned_jd.json"
@@ -322,3 +327,64 @@ async def scheduler_trigger() -> dict:
     dispatched = scheduler_service.trigger()
     return {"status": "accepted", "dispatched": dispatched,
             "already_running": not dispatched}
+
+
+# --------------------------------------------------------------------------
+# 会话置顶（Chainlit 库 agent/data/chainlit.db 的 threads."pinnedAt"）
+#
+# 这是「侧边栏会话菜单里的置顶 / 取消置顶」的后端，前端在 public/custom.js
+# （Chainlit 的 custom_js）。命令 /pin /unpin（agent/app.py）是同一套数据层函数，
+# 保留着当兜底：Chainlit 升级后前端 DOM 结构一变，注入会失效，命令不受影响。
+#
+# 认证：直接复用 Chainlit 自己的登录态（chainlit.auth.get_current_user）——
+#   同源请求自动带 access_token cookie（也兼容 Authorization: Bearer），
+#   token 缺失 / 无效由它抛 401，这里不自己解 JWT、也不自己比对密码。
+#   认证没开（CHAT_AUTH_ENABLED 未启用）时 Chainlit 的 require_login() 为假、
+#   get_current_user() 返回 None，此时按「无归属」处理（本地单用户场景）。
+# --------------------------------------------------------------------------
+
+class PinRequest(BaseModel):
+    thread_id: str
+
+
+def _owner_id(user) -> Optional[str]:
+    """置顶归属用的用户 id。
+
+    用 PersistedUser.id（= threads."userId"）而不是登录用户名：data_layer 的
+    `_count_pinned` 是按 `"userId" = ?` 数的，用用户名永远数出 0，MAX_PINNED
+    上限就等于没有。取不到 id 时退回 identifier，再取不到就交给 data_layer
+    按会话行上的 userId 兜底（`_owner_key`）。
+    """
+    if user is None:
+        return None
+    return str(getattr(user, "id", None) or getattr(user, "identifier", None) or "") or None
+
+
+@router.get("/threads/pinned", summary="已置顶会话 id 列表（侧边栏菜单用来决定文案）")
+async def list_pinned_threads(user=Depends(get_current_user)) -> dict:
+    ids = await asyncio.to_thread(data_layer.pinned_thread_ids, _owner_id(user))
+    return {"ok": True, "thread_ids": ids}
+
+
+@router.post("/threads/pin", summary="置顶会话")
+async def pin_thread(payload: PinRequest, user=Depends(get_current_user)) -> dict:
+    thread_id = (payload.thread_id or "").strip()
+    if not thread_id:
+        raise HTTPException(status_code=400, detail="缺少 thread_id")
+    ok = await asyncio.to_thread(data_layer.pin_thread, thread_id, _owner_id(user))
+    if not ok:
+        raise HTTPException(
+            status_code=404,
+            detail="置顶失败：会话不存在，或置顶数已达上限 %d 个" % data_layer.MAX_PINNED,
+        )
+    return {"ok": True, "pinned": True}
+
+
+@router.post("/threads/unpin", summary="取消置顶会话")
+async def unpin_thread(payload: PinRequest, user=Depends(get_current_user)) -> dict:
+    thread_id = (payload.thread_id or "").strip()
+    if not thread_id:
+        raise HTTPException(status_code=400, detail="缺少 thread_id")
+    # 本来就没置顶也回 ok（幂等）：前端菜单在别的标签页里被改过时不至于报错
+    await asyncio.to_thread(data_layer.unpin_thread, thread_id)
+    return {"ok": True, "pinned": False}

@@ -161,7 +161,9 @@ custom_css = "/public/custom.css"
 
 # Specify a JavaScript file that can be used to customize the user interface.
 # The JavaScript file can be served from the public directory.
-# custom_js = "/public/test.js"
+# 侧边栏会话菜单里注入「置顶 / 取消置顶」（后端见 api/router.py 的 /threads/*）。
+# 同 custom_css：Chainlit 自己会把 root path 前缀加上，实际请求 /chat/public/custom.js。
+custom_js = "/public/custom.js"
 
 # The style of alert boxes. Can be "classic" or "modern".
 alert_style = "classic"

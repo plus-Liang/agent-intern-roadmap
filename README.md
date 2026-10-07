@@ -431,7 +431,11 @@ python -m agent.chat_history listusers                    # 列号
 
 ### Q8. 怎么置顶对话？
 
-在会话里发 `/pin` —— 这个会话就会排到侧边栏最上面；取消用 `/unpin`。
+**首选**：鼠标移到侧边栏某条会话上，点右边的「…」菜单 →「📌 置顶」（已置顶的会话那一条显示「📌 取消置顶」）。
+
+**兜底**：在会话里发 `/pin` —— 当前这个会话就会排到最上面；取消用 `/unpin`。
+菜单注入依赖 Chainlit 前端 DOM（`thread-<id>` / `thread-options` / `rename-thread`），
+升级 Chainlit 后可能失效，那时用命令。实现：`public/custom.js`（前端）+ `api/router.py` 的 `/threads/pin|unpin|pinned`（后端）。
 
 - 置顶的按**置顶时间倒序**排在最上，未置顶的仍按最近更新（`updated_at`）倒序。
 - 顺序由数据层决定（`agent/data_layer.py` 覆写 `get_all_user_threads`）：

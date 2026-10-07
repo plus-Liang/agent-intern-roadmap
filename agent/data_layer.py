@@ -189,6 +189,88 @@ def _now_pin() -> str:
     return datetime.now(timezone.utc).strftime(_PIN_TIME_FMT)
 
 
+def _parse_ts(value) -> "Optional[object]":
+    """把接口上的时间字符串解析成 aware UTC datetime，解析不了返回 None。
+
+    库里历史上混过两种写法（`2026-09-26 17:12:57` 无时区、`...Z`、`...+00:00`），
+    所以不写死格式，认不出来就当「没有」——只影响谁算「最新的那条」。
+    """
+    from datetime import datetime, timezone
+
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            parsed = datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _newest_created_at(threads) -> str:
+    """这一页里最「新」的 `createdAt`（原样字符串，给下面当基准用）。"""
+    newest = None
+    newest_text = ""
+    for thread in threads or []:
+        if not isinstance(thread, dict):
+            continue
+        text = str(thread.get("createdAt") or "")
+        parsed = _parse_ts(text)
+        if parsed is not None and (newest is None or parsed > newest):
+            newest, newest_text = parsed, text
+    return newest_text
+
+
+def _pin_display_created_at(
+    pinned_at: Dict[str, str], newest: str = "", now: str = ""
+) -> Dict[str, str]:
+    """给置顶会话伪造 `createdAt`，让它们落进前端的「Today」时间桶并排在最前。
+
+    **为什么要伪造**（实测结论，别再踩）：Chainlit 前端根本不看我们返回的数组
+    顺序 —— `ThreadHistory` 这个状态一拿到 `threads` 就调编译好的 `Vvt()`：
+
+        [...t].sort((r,a) => new Date(a.createdAt) - new Date(r.createdAt))
+
+    然后按 `createdAt` 与「本地今天零点」的天数差分桶（Today / Yesterday /
+    Previous 7 days / Previous 30 days / 月份），渲染时按桶输出。所以后端再怎么
+    ORDER BY，侧边栏也不会动：置顶会话在 `/project/threads` 里排第 1，浏览器里
+    照旧排在最后一档（改这一版之前就是这个现象）。
+
+    能推动它的只有 `createdAt` 这个字段本身 —— 前端自己发新消息时也是这么干的
+    （`index-*.js` 里 `createdAt: new Date().toISOString()` 把当前会话顶到 Today）。
+
+    **基准取「服务端现在」和「同页最新 createdAt」的较大者**：只取服务端现在是不够的
+    —— 前端发消息时写的是**浏览器本地时间**的 ISO 串，UTC+8 下会比服务端 UTC 早 8 小时，
+    于是刚聊过的会话 `createdAt` 反而"来自未来"、压过伪造值（实测：置顶后只升到第 2 位，
+    输给一条 14:33Z 的会话，而服务端 now 才 07:13Z）。所以基准要压过所有同页会话，
+    再 +1 秒留余量；同一批置顶之间按置顶时间倒序（最近置顶的排最前），用递减的
+    **毫秒**偏移错开，保证第 50 个置顶仍高于基准。只改返回的副本，
+    **库里真实的 `createdAt` 一个字都不动**。
+
+    时区：前端按浏览器本地时区算「今天」，这里给的是 UTC —— 对 UTC+8 的用户
+    （本项目实际场景）永远落在 Today；只有极端负偏移（如 UTC-11）且服务端 UTC
+    时刻在上半天时才可能显示成 Yesterday，数据层拿不到客户端时区，这个取舍认了。
+    """
+    from datetime import datetime, timedelta, timezone
+
+    if not pinned_at:
+        return {}
+    ordered = sorted(pinned_at, key=lambda tid: str(pinned_at[tid]), reverse=True)
+    base = _parse_ts(now) or datetime.now(timezone.utc)
+    rival = _parse_ts(newest)
+    if rival is not None and rival >= base:
+        base = rival + timedelta(seconds=1)
+    return {
+        tid: (base - timedelta(milliseconds=i)).strftime(_PIN_TIME_FMT)
+        for i, tid in enumerate(ordered)
+    }
+
+
 def _owner_key(thread_id: str, user_id: Optional[str]) -> str:
     """置顶归属：优先调用方给的当前用户，否则退回线程行上的 userId。
 
@@ -272,6 +354,29 @@ def is_pinned(thread_id: str) -> bool:
             (thread_id,),
         ).fetchone()
     return bool(row)
+
+
+def pinned_thread_ids(user_id: Optional[str] = None) -> list:
+    """该用户名下已置顶的会话 id 列表（给侧边栏菜单决定显示「置顶」还是「取消置顶」）。
+
+    为什么要按用户过滤：菜单注入的按钮标签必须和这条会话的真实置顶状态一致，
+    否则会出现「点『置顶』其实是在取消」的错位。给的 `user_id` 是 Chainlit 的
+    持久化用户 id（= `threads."userId"`）；接 data layer 之前建的会话 `userId`
+    是 NULL，那时列表本来也是靠别的方式被列出来的，所以一并算进「可见」这一档。
+    """
+    ensure_schema()
+    with _conn() as conn:
+        if user_id:
+            rows = conn.execute(
+                'SELECT "id" FROM threads WHERE "pinnedAt" IS NOT NULL '
+                'AND ("userId" = ? OR "userId" IS NULL)',
+                (str(user_id),),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                'SELECT "id" FROM threads WHERE "pinnedAt" IS NOT NULL'
+            ).fetchall()
+    return [str(row[0]) for row in rows]
 
 
 def _as_bool(value):
@@ -396,22 +501,16 @@ def _build_class():
             → 这里）与侧边栏列表都走这个方法，`isError` 的字符串 `'0'` 会让
             前端把每条消息都当错误渲染（见 `_as_bool` 的说明）。
 
-            置顶排序的理由：Chainlit 前端拿到列表后按 `createdAt` 自己重排
-            （编译好的 JS，改不了），所以排序只能压在数据层 —— **返回顺序就是
-            最终顺序**。这里有两条路：
+            置顶排序的理由：侧边栏的顺序**不由我们控制**。Chainlit 前端一拿到
+            threads 就调编译好的 `Vvt()`：先按 `createdAt` 倒排，再按相对时间分桶
+            （Today / Yesterday / Previous 7 days / … / 月份），渲染按桶输出 ——
+            我们返回的数组顺序被完全忽略（实测：置顶会话在 `/project/threads`
+            里排第 1，浏览器侧边栏里照旧排最后一档）。
 
-            * 优先改 SQL（`/project/threads` 那条路的分页 `list_threads` 会先
-              调用 `get_all_user_threads(user_id=...)`，Python 侧只做切片）：
-
-                  SELECT ..., t."pinnedAt" AS pinned_at
-                  ... GROUP BY ... (含 t."pinnedAt")
-                  ORDER BY (t."pinnedAt" IS NULL), t."pinnedAt" DESC,
-                           updatedAt DESC NULLS LAST
-
-            * `user_thread_limit` 默认 1000，比熟人用户的会话数大得多，所以
-              「先取一页再自己排」与「让 SQL 排」结果一致；SQL 万一因为库太老
-              没有 `pinnedAt` 列而报错，就退回这一条（`pinnedAt` 为空 => 只剩
-              `updatedAt` 的顺序，等于没置顶时的旧行为）。
+            所以这里做两件事：
+            * 返回顺序照旧排成「置顶优先」（API 语义一致，单测好断言）；
+            * 给置顶会话伪造 `createdAt`（`_pin_display_created_at`），让它落进前端
+              的 Today 桶 —— 这一步才是真正让它在侧边栏置顶的操作。
             """
             threads = await super().get_all_user_threads(
                 user_id=user_id,
@@ -420,10 +519,19 @@ def _build_class():
             if not isinstance(threads, list):
                 return threads
             pinned_at = await self._pinned_at_map()
+            # 单条查询（恢复历史 / 按 id 取）不伪造：那边前端不看时间桶
+            fake_created = {}
+            if thread_id is None and pinned_at:
+                fake_created = _pin_display_created_at(
+                    pinned_at, newest=_newest_created_at(threads)
+                )
             for thread in threads:
                 if not isinstance(thread, dict):
                     continue
-                thread["pinnedAt"] = pinned_at.get(str(thread.get("id") or ""))
+                tid = str(thread.get("id") or "")
+                thread["pinnedAt"] = pinned_at.get(tid)
+                if tid in fake_created:
+                    thread["createdAt"] = fake_created[tid]
                 for step in thread.get("steps") or []:
                     if isinstance(step, dict) and "isError" in step:
                         step["isError"] = _as_bool(step["isError"])
@@ -541,5 +649,6 @@ __all__ = [
     "ensure_schema",
     "is_pinned",
     "pin_thread",
+    "pinned_thread_ids",
     "unpin_thread",
 ]
