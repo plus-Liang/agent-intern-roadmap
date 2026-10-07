@@ -32,7 +32,7 @@ pinned: false
 |---|---|---|
 | 数据层 | 抓实习僧 / 牛客 / 国家大学生就业服务平台（ncss，原 24365），清洗去重后落 `cleaned_jd.json` + SQLite | `agent/scrapers/scheduler.py` |
 | RAG 层 | 岗位 JD 切块 → 本地 embedding 入库 → BM25 + 向量 RRF 融合检索（模糊需求走语义重排） | `rag/retriever.py`、`rag/vector_store.py` |
-| Agent 层 | ReAct 循环 + 工具调用：搜岗位 / 看详情 / 简历匹配打分 / 改简历 / 投递跟踪 / 模拟面试 | `agent/react_agent.py`、`agent/tools_registry.py` |
+| Agent 层 | ReAct 循环 + 工具调用：搜岗位 / 看详情 / 简历匹配打分 / 改简历 / 投递跟踪 / 模拟面试；也支持**直接粘贴岗位链接或 JD 文本** | `agent/react_agent.py`、`agent/tools_registry.py` |
 | 界面层 | Chainlit 对话、FastAPI + Swagger、Streamlit 数据看板 | `main.py`、`dashboard/app.py` |
 
 > **投递追踪的定位**：它是**手动录入的个人记录管理（本地 CRM）** —— 不做自动投递，
@@ -41,6 +41,10 @@ pinned: false
 
 仓库自带的 `rag/data/cleaned_jd.json` 有 **约 960 条**真实岗位（含六城分布，随每晚抓取持续增长），clone 下来即可检索，
 不需要先跑爬虫。**要跑起来只需要一个智谱 API Key**（对话模型；embedding 是本地模型，不花钱）。
+
+**岗位不用只在系统里搜**：在 `/chat` 里可以直接粘贴**实习僧 / 牛客 / ncss** 的岗位链接
+（系统按链接里的 job_id 去岗位库取那一条），也可以把**任意平台**（Boss、智联等抓不到的）
+的 JD 文本整段贴进来 —— 一样能做匹配打分、生成投递包和模拟面试。
 
 启动后四个入口：
 
@@ -417,6 +421,13 @@ python -m agent.chat_history listusers                    # 列号
   这是本地开发约定。本地用 `python start.py` 起就有。
 
 ---
+
+### Q7. Boss / 智联等平台可以用吗？
+
+不能自动抓 —— 这些平台没有公开接口，抓取也违反服务条款。但**可以把 JD 文本复制粘贴给我**：
+在 `/chat` 里直接贴整段 JD（含「岗位职责 / 任职要求」），我会把它当成一个临时岗位，
+一样能做匹配打分、生成投递包和模拟面试。粘贴实习僧 / 牛客 / ncss 的岗位链接更省事，
+连 JD 都不用贴（系统按链接里的 job_id 去岗位库取那一条）。
 
 ## 7. 测试怎么跑
 

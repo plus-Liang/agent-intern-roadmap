@@ -34,6 +34,7 @@ from agent.react_agent import run as run_agent
 from agent.resume import extractor
 from agent.tools.job_detail import get_job_detail
 from agent.tools.job_search import search_jobs
+from agent.tools.url_parser import find_job_urls, looks_like_jd
 from shared import limits
 from shared import token_tracker
 from shared.llm_client import chat
@@ -1412,6 +1413,91 @@ def _is_history_clear_intent(text: str) -> bool:
     return bool(_HISTORY_CLEAR_RE.search(t))
 
 
+def _pasted_entry_hint(content: str) -> str:
+    """粘贴入口：岗位链接直接查库 / 长 JD 文本直接接住，都翻成一段系统提示。
+
+    为什么要这层（两层识别里的第一层）：
+    - 链接：用户贴的是「哪条岗位」的钥匙，库里查得到就**当场**查好、写进会话态，
+      模型不用再搜一遍，也不会把 URL 当普通文本聊过去；查不到就明说并引导
+      用户改用 JD 文本（Boss / 智联抓不到页面，但文本一样能匹配）。
+    - JD 文本：「像不像 JD」是个确定性规则（够长 + 含招聘分节词，见
+      url_parser.looks_like_jd），放这里比让模型自己猜稳得多，也省一轮工具调用。
+
+    没命中就返回空串，行为与改动前完全一致。
+    """
+    text = content or ""
+    if not text:
+        return ""
+    try:
+        from agent import tools_registry
+    except Exception as e:                          # noqa: BLE001 - 注册表挂了不该影响对话
+        print(f"[粘贴入口] 导入 tools_registry 失败（忽略）：{type(e).__name__}: {e}")
+        return ""
+
+    hits = find_job_urls(text)
+    if hits:
+        platform, job_id, _url = hits[0]
+        try:
+            detail = tools_registry.remember_job_from_url(platform, job_id)
+        except Exception as e:                      # noqa: BLE001 - 查库失败退回普通对话
+            print(f"[粘贴入口] 按链接查库失败（忽略）：{type(e).__name__}: {e}")
+            detail = None
+        if detail is not None:
+            return (
+                "\n\n[系统提示 · 用户粘贴的岗位] 用户粘贴了 {} 链接，系统已按 "
+                "job_id={} 从岗位库查到岗位：公司={}，岗位={}，城市={}，薪资={}，"
+                "job_id={}。请先用一句话确认这个岗位，然后等用户下一步"
+                "（匹配简历 / 生成投递包 / 模拟面试）——**不要再调 search_jobs 重搜**；"
+                "用户接着说话时默认就是指这条岗位。".format(
+                    platform, job_id, detail.company, detail.title,
+                    detail.city, detail.salary, detail.job_id)
+            )
+        return (
+            "\n\n[系统提示 · 用户粘贴的岗位] 用户粘贴的是 {} 链接（job_id={}），"
+            "但**岗位库里没有这一条**。请如实告诉用户「库里没查到这条岗位」，"
+            "并请他直接把这个岗位的 JD 文本（岗位职责 / 任职要求）粘贴过来，"
+            "一样能做匹配和模拟面试。不要假装查到，也不要编造岗位信息。".format(
+                platform, job_id)
+        )
+
+    if looks_like_jd(text):
+        try:
+            entry = tools_registry.analyze_pasted_jd(text)
+        except Exception as e:                      # noqa: BLE001 - 解析失败退回普通对话
+            print(f"[粘贴入口] JD 文本解析失败（忽略）：{type(e).__name__}: {e}")
+            return ""
+        return (
+            "\n\n[系统提示 · 用户粘贴的岗位] 用户粘贴的这段长文本已被识别为一份 JD，"
+            "系统已经接收：{}（临时岗位 job_id={}，未落库）。"
+            "请直接用这个结果回执用户（点明公司 / 岗位名），然后等下一步指令；"
+            "**不要**再调 analyze_pasted_jd 重复接收，"
+            "也不要把这段文本当普通聊天话题回应。".format(
+                entry["summary"], entry["job_id"])
+        )
+
+    # 没命中新链接 / 新 JD：只要会话里还留着一个粘贴岗位，就补一句轻量提醒。
+    # 为什么需要：粘贴后的**下一轮**（「帮我匹配简历」）本身不含链接 / JD，
+    # 模型只能从对话历史里回忆那个岗位 —— 实测（牛客那条）它会先 search_jobs
+    # 重搜、搜不到再重搜，把整轮额度烧光还没出分数。这里每轮把会话态重述一遍，
+    # 用确定性兜住，不指望模型从历史里稳定回忆。
+    try:
+        current = tools_registry.get_current_pasted_job()
+    except Exception as e:                          # noqa: BLE001
+        print(f"[粘贴入口] 读会话态失败（忽略）：{type(e).__name__}: {e}")
+        current = None
+    if current is None:
+        return ""
+    return (
+        "\n\n[系统提示 · 当前粘贴的岗位] 本次会话里用户粘贴过的岗位仍然是："
+        "公司={}，岗位={}，城市={}，job_id={}。用户没点名别的公司 / 岗位时，"
+        "「帮我匹配简历 / 生成投递包 / 模拟面试」默认都指这一条 —— "
+        "**直接调对应工具、job_id 传 {}，不要再调 search_jobs 重搜**"
+        "（粘贴岗位不落库，搜是搜不到的）。".format(
+            current.company, current.title, current.city, current.job_id,
+            current.job_id)
+    )
+
+
 def _ordinal_job_hint(content: str) -> str:
     """把「第 N 个」翻成确定的 job_id，追加到本轮输入里当提示。
 
@@ -1534,7 +1620,9 @@ async def _init_conversation(resumed: bool = False) -> None:
             "- 看岗位详情、给简历匹配打分\n"
             "- 记录投递、查投递进度\n"
             "- 模拟面试：帮我模拟面试字节 Agent 开发实习生\n"
-            "- 上传简历（PDF/Word）或粘贴文本，我来按它帮你匹配\n\n"
+            "- 上传简历（PDF/Word）或粘贴文本，我来按它帮你匹配\n"
+            "- 也可以直接粘贴岗位链接（实习僧 / 牛客 / ncss），"
+            "或把任意平台的 JD 文本贴给我，我用它帮你匹配\n\n"
             "**就这样用**：\n"
             "1. 先把简历发给我（PDF/Word 文件，或直接粘贴文字）\n"
             "2. 然后直接说需求，我会自动干活\n"
@@ -1722,7 +1810,7 @@ async def on_message(message: cl.Message):
 
     # 「我想投第 N 个」：序号一律以工具给的 index 为准（见 _ordinal_job_hint）。
     # 提示只进给模型的那一份输入；落库/历史里仍然是用户原话。
-    agent_input = content + _ordinal_job_hint(content)
+    agent_input = content + _pasted_entry_hint(content) + _ordinal_job_hint(content)
 
     async with _semaphore():
         async with cl.Step(name="Agent 工作中", type="tool") as step:

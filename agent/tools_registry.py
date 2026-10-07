@@ -12,7 +12,8 @@ from datetime import datetime
 from pathlib import Path
 
 from agent.tools.job_search import search_jobs
-from agent.tools.job_detail import get_job_detail
+from agent.tools.job_detail import JobDetail, get_job_detail
+from agent.tools.url_parser import parse_pasted_jd
 from agent.tools.pdf_export import (available_backend, export_resume_pdf, fix_tech_terms,
                                     normalize_resume)
 from agent.tools.resume_match import match_resume_to_jd, Resume
@@ -302,6 +303,31 @@ def _detail(job_id):
     }
 
 
+def _resolve_match_detail(job_id):
+    """定位要匹配的岗位：显式 job_id（先查库）→ 会话里粘贴的岗位。
+
+    优先级与需求一致：显式 job_id > 会话态粘贴岗位 > 正常查库。
+    显式 id 查不到、而会话里有粘贴岗位时用粘贴岗位（用户多半就是接着说它），
+    两边都没有才报错，并把「怎么给我一个岗位」说清楚。
+    """
+    wanted = str(job_id or "").strip()
+    if wanted:
+        try:
+            return get_job_detail("mock", wanted)
+        except Exception as e:                      # noqa: BLE001 - 换会话态兜底
+            problem = "job_id={} 查不到（{}）".format(wanted, type(e).__name__)
+    else:
+        problem = "没有传 job_id"
+    pasted = get_current_pasted_job()
+    if pasted is not None:
+        return pasted
+    raise ValueError(
+        problem + "，会话里也没有粘贴过的岗位。"
+        "请先用 search_jobs 搜一个岗位，或把岗位链接（实习僧 / 牛客 / ncss）"
+        "或该岗位的 JD 文本粘贴过来。"
+    )
+
+
 def _match(job_id, resume_json):
     # 传进来的可能是 storage 的「简历记录外壳」（{id, name, content: {...}}，
     # 模型从 get_resume 抄来的就是这种），也可能是结构化简历本身或 JSON 字符串。
@@ -321,7 +347,7 @@ def _match(job_id, resume_json):
         educations=[dict(e) for e in (resume_data.get("educations") or [])
                     if isinstance(e, dict)],
     )
-    detail = get_job_detail("mock", job_id)
+    detail = _resolve_match_detail(job_id)
     result = match_resume_to_jd(resume, detail)
     return {
         "score": result.score,
@@ -527,9 +553,118 @@ def _session_state() -> dict:
     user_id = get_current_user()
     state = _SESSION_STATE.get(user_id)
     if state is None:
-        state = {"current_resume_id": None}
+        state = {
+            "current_resume_id": None,
+            # 粘贴入口（岗位链接 / JD 文本）识别出的「当前岗位」（JobDetail）。
+            # 与 current_resume_id 一样按用户分桶，多用户并发时各看各的。
+            "current_pasted_job": None,
+            "current_pasted_job_source": "",
+        }
         _SESSION_STATE[user_id] = state
     return state
+
+
+PASTED_JOB_MIN_CHARS = 100      # 与 url_parser.JD_MIN_CHARS 同一口径：>100 字才算一份 JD
+
+
+def _job_detail_from_dict(data: dict) -> JobDetail:
+    """岗位 dict → JobDetail。
+
+    临时岗位（用户粘贴的 JD）与库里岗位在这之后完全同构 —— 匹配打分 / 投递包 /
+    模拟面试都只认 JobDetail 上的字段，不关心它到底是查库来的还是粘贴来的。
+    """
+    return JobDetail(
+        platform=str(data.get("platform") or "pasted"),
+        job_id=str(data.get("job_id") or ""),
+        title=str(data.get("title") or ""),
+        company=str(data.get("company") or ""),
+        city=str(data.get("city") or ""),
+        salary=str(data.get("salary") or ""),
+        url=str(data.get("url") or ""),
+        description=str(data.get("description") or ""),
+        requirements=str(data.get("requirements") or ""),
+        bonus=str(data.get("bonus") or ""),
+        tags=list(data.get("tags") or []),
+        education=str(data.get("education") or ""),
+    )
+
+
+def _set_pasted_job(detail: JobDetail, source: str) -> None:
+    """把识别出的岗位记进当前用户的会话态，供后续几轮复用。"""
+    state = _session_state()
+    state["current_pasted_job"] = detail
+    state["current_pasted_job_source"] = source
+
+
+def get_current_pasted_job():
+    """会话态里的「当前粘贴岗位」（JobDetail）；没有就是 None。"""
+    return _session_state().get("current_pasted_job")
+
+
+def find_job_in_library(platform, job_id):
+    """按 (platform, job_id) 查岗位库；查不到返回 None。
+
+    job_id 是岗位表主键（各平台自带前缀，天然全局唯一），所以按 id 取单条即可；
+    platform 只用来**复核**：链接域名与库里那条的 platform 对不上时不算命中，
+    免得 id 恰好撞上别家平台的岗位时给用户一条错的。
+    """
+    wanted = str(job_id or "").strip()
+    if not wanted:
+        return None
+    try:
+        detail = get_job_detail("mock", wanted)
+    except Exception:                               # noqa: BLE001 - 库里没这条
+        return None
+    want_platform = str(platform or "").strip().lower()
+    got_platform = str(getattr(detail, "platform", "") or "").strip().lower()
+    if want_platform and got_platform and want_platform != got_platform:
+        return None
+    return detail
+
+
+def remember_job_from_url(platform, job_id):
+    """链接命中的岗位 → 记进会话态并返回 JobDetail；库里没有就返回 None。"""
+    detail = find_job_in_library(platform, job_id)
+    if detail is None:
+        return None
+    _set_pasted_job(detail, "url")
+    return detail
+
+
+def analyze_pasted_jd(text):
+    """接住用户粘贴的一整段 JD 文本（**不落库**），当成当前会话的「当前岗位」。
+
+    触发时机：用户贴长文本且像 JD（含「岗位职责 / 任职要求 / 工作内容」等，
+    判定规则见 url_parser.looks_like_jd）。界面层已经做过一次确定性识别，
+    这里再留一个工具口子 —— 模型自己判断「这是 JD」时也能主动调它。
+
+    job_id 用正文的 sha1 前 12 位（pasted_<hash>）：同一段文本重复粘贴拿到同一个
+    id，会话态里不会越积越多，也不会跟库里任何岗位 id 撞车。
+    """
+    raw = str(text or "").strip()
+    if len(raw) < PASTED_JOB_MIN_CHARS:
+        raise ValueError(
+            "这段文本只有 {} 字，不像一份 JD（至少要 {} 字）。"
+            "如果确实想按它匹配，请把完整的岗位职责与任职要求一起粘贴过来。".format(
+                len(raw), PASTED_JOB_MIN_CHARS)
+        )
+    detail = _job_detail_from_dict(parse_pasted_jd(raw))
+    _set_pasted_job(detail, "text")
+    company = detail.company or "（未写明公司名）"
+    title = detail.title or "（未写明岗位名）"
+    summary = "已接收岗位：{} / {}".format(company, title)
+    return {
+        "job_id": detail.job_id,
+        "company": detail.company,
+        "title": detail.title,
+        "city": detail.city,
+        "salary": detail.salary,
+        "chars": len(raw),
+        "summary": summary,
+        "hint": (summary + "（临时岗位，job_id={}，未落库）。".format(detail.job_id)
+                 + "接下来用户说匹配简历 / 生成投递包 / 模拟面试时直接用这个岗位，"
+                   "不要再调 search_jobs 重搜。"),
+    }
 
 
 def save_resume_tool(name, content):
@@ -1057,6 +1192,14 @@ def _record_from_job_library(company, job_id=None, title=""):
                 f"job_id={job_id}（指向「{getattr(detail, 'company', '')} "
                 f"{getattr(detail, 'title', '')}」，与请求的「{company} {title}」不符）")
 
+    # 0.5) 会话里粘贴过的岗位（链接 / JD 文本）-- 比岗位库更贴近用户当下说的那条。
+    #      放在显式 job_id 之后：用户点名了 id 就以 id 为准。
+    pasted = get_current_pasted_job()
+    if pasted is not None:
+        if _accepts(getattr(pasted, "company", ""), getattr(pasted, "title", "")):
+            return _record_from(pasted), pasted
+        tried.append("会话里有粘贴的岗位，但与请求的公司 / 岗位名不符")
+
     def _find(match_fn):
         """按谓词在库里找第一条；命中返回 (record, detail)，一条都没命中返回 None。"""
         try:
@@ -1337,10 +1480,29 @@ TOOLS = {
         "timeout": 30,
         "requires_confirmation": False,
     },
+    "analyze_pasted_jd": {
+        "description": (
+            "接收用户**粘贴的一整段 JD 文本**（Boss / 智联等抓不到的平台），"
+            "把它变成当前会话的「当前岗位」，之后可直接匹配简历 / 生成投递包 / 模拟面试。"
+            "**只在用户粘贴的确实是一份 JD 时才调**：文本 >100 字且含"
+            "「岗位职责 / 任职要求 / 工作内容」这类招聘分节词。"
+            "不落库（job_id 形如 pasted_<hash>），返回里给出识别到的公司 / 岗位与临时 job_id。"
+            "系统提示里已经写明「已接收岗位」时不要重复调用。"
+        ),
+        "parameters": {"text": "用户粘贴的 JD 全文（原样传入，不要自己改写或截断）"},
+        "func": analyze_pasted_jd,
+        "risk_level": "read",
+        "timeout": 30,
+        "requires_confirmation": False,
+    },
     "match_resume": {
-        "description": "简历与岗位匹配打分。",
+        "description": (
+            "简历与岗位匹配打分。job_id 传用户要匹配的那条岗位；"
+            "用户刚粘贴过岗位链接 / JD 文本且没说别的岗位时，job_id 传粘贴返回的 job_id"
+            "（也可以留空，系统会自动用会话里那个粘贴岗位）。"
+        ),
         "parameters": {
-            "job_id": "岗位 ID",
+            "job_id": "岗位 ID（可留空：留空时用当前粘贴的岗位）",
             "resume_json": "简历 JSON 字符串或对象",
         },
         "func": _match,
