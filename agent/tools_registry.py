@@ -94,6 +94,29 @@ def _retrieve(*args, **kwargs):
     return retrieve(*args, **kwargs)
 
 
+def _prefer_title_hits(rows, keyword) -> list[dict]:
+    """把「岗位名命中关键词」的结果稳定地排到前面（组内保持原顺序）。
+
+    为什么需要排：工具给出的 `index` 就是列表顺序，用户会说「我想投第一个」，
+    而系统按 index 取岗位。若排在前面的是「只在 JD 正文里提到关键词」的岗位，
+    用户眼里的第一种就可能不是 index=1 —— 实测搜「广州 Agent」时，SQL 原顺序
+    第一条是只在正文提到 Agent 的「算法工程师」，真正叫「AI Agent 开发」的
+    岗位排在第 5，两者对不上就会投错岗。
+
+    稳定排序：命中组 / 未命中组各自保持 SQL 原顺序，结果可复现；
+    关键词多词时要求**全部词**都出现在岗位名里（放宽会误排，命中组为空则原样返回）。
+    """
+    tokens = [t for t in re.split(r"[\s,，、/]+", str(keyword or "")) if t]
+    if not tokens:
+        return rows
+    hits, misses = [], []
+    for row in rows or []:
+        title = str(row.get("title") or "").lower()
+        group = hits if all(t.lower() in title for t in tokens) else misses
+        group.append(row)
+    return hits + misses
+
+
 def _search_rows(keyword, city=None, limit=20, semantic=False):
     """工具 search_jobs 的候选检索（编号在 _search 里统一做）。
 
@@ -116,6 +139,9 @@ def _search_rows(keyword, city=None, limit=20, semantic=False):
         rows = _semantic_rows(keyword, city, limit)
     else:
         rows = _rows_from_jobs(search_jobs(keyword, city, limit, platform="mock"))
+        # 精确路：岗位名命中关键词的排前面，让 index=1 就是用户最该看到的岗位
+        # （用户说「第一个」时系统按 index 取，顺序必须与展示顺序一致）
+        rows = _prefer_title_hits(rows, keyword)
 
     if not semantic or not rows or len(rows) > SEMANTIC_MAX_CANDIDATES:
         return rows
@@ -277,10 +303,14 @@ def _detail(job_id):
 
 
 def _match(job_id, resume_json):
-    if isinstance(resume_json, str):
-        resume_data = json.loads(resume_json)
-    else:
-        resume_data = resume_json
+    # 传进来的可能是 storage 的「简历记录外壳」（{id, name, content: {...}}，
+    # 模型从 get_resume 抄来的就是这种），也可能是结构化简历本身或 JSON 字符串。
+    # 必须统一归一化：外壳的 skills/projects/education/city 都藏在 content 里，
+    # 直接在顶层取会全取到 None → 构造出空简历 → 匹配恒为 0 分并谎报
+    # 「无实习或项目经历、学历信息缺失、城市信息缺失」（真实故障）。
+    resume_data = normalize_resume(resume_json)
+    if not isinstance(resume_data, dict):
+        resume_data = {}
     resume = Resume(
         name=resume_data.get("name", "匿名"),
         skills=resume_data.get("skills", []),
@@ -288,6 +318,8 @@ def _match(job_id, resume_json):
         projects=resume_data.get("projects", []),
         education=resume_data.get("education", ""),
         city=resume_data.get("city", ""),
+        educations=[dict(e) for e in (resume_data.get("educations") or [])
+                    if isinstance(e, dict)],
     )
     detail = get_job_detail("mock", job_id)
     result = match_resume_to_jd(resume, detail)
@@ -494,18 +526,52 @@ def use_resume(resume_id):
     }
 
 
+def _resume_content(record):
+    """把「简历记录」拆成结构化内容（record 外壳 → content；已是内容则原样）。"""
+    return normalize_resume(record)
+
+
+def _resume_has_content(record) -> bool:
+    """这份简历里到底有没有可用内容（技能 / 项目 / 实习）。
+
+    简历库里躺着测试残留（如「重名回填自测-不参与投递」：0 技能 0 项目，
+    只有学历和城市）。它比真简历新时会把「取当前简历」的回落带偏 —— 拿它去
+    匹配，结果就是 0 分 + 「无实习或项目经历」。所以回落时必须跳过这种空壳。
+    """
+    data = _resume_content(record)
+    if not isinstance(data, dict):
+        return False
+    if data.get("_plain"):
+        return bool(str(data["_plain"]).strip())
+    return bool(data.get("skills") or data.get("projects") or data.get("experience"))
+
+
 def get_current_resume():
-    """取当前该用的简历：会话里 use_resume 设过的优先，否则用默认/最新一份。
+    """取当前该用的简历：会话里 use_resume 设过的优先，否则用默认/最新的有效一份。
 
     给 react_agent 用：调用方没显式传 resume_data 时，自动挂上当前简历。
+
+    返回的是**归一化后的简历内容**（name/skills/projects/... 直接挂在顶层），
+    不是 storage 的记录包装 —— 外壳是 {id, name, content: {...}}，直接丢给
+    match_resume 会让顶层 skills/projects/education/city 全取到 None，
+    匹配恒为 0 分（真实故障：用户保存了陈明简历，打分却是「无实习或项目经历」）。
     """
     current_id = _session_state().get("current_resume_id")
     if current_id:
         data = storage.get_resume(current_id)
-        if data:
-            return data
-        _session_state()["current_resume_id"] = None    # 那份已被删，清理掉
-    return storage.get_default_resume()
+        if data and _resume_has_content(data):
+            return _resume_content(data)
+        if data is None:
+            _session_state()["current_resume_id"] = None    # 那份已被删，清理掉
+    default = storage.get_default_resume()
+    if default and _resume_has_content(default):
+        return _resume_content(default)
+    # 兜底：默认那份是空壳（测试残留）时，从新到旧找第一份真有内容的
+    for item in storage.list_resumes() or []:
+        full = storage.get_resume(item.get("id"))
+        if full and _resume_has_content(full):
+            return _resume_content(full)
+    return _resume_content(default) if default else default
 
 
 # ========== C4 / F1：简历导出 PDF + 一键投递包 ==========

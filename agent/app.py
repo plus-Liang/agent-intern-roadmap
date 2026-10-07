@@ -364,7 +364,16 @@ def _set_resume(resume_text: str) -> dict:
     except Exception as e:                          # noqa: BLE001 - 快照失败不影响本次设置
         print(f"[历史] 简历快照保存失败（忽略）：{type(e).__name__}: {e}")
     # 缺口①：会话快照之外，再落一份进简历库（用户资产，Dashboard 也读它）
-    _save_resume_to_library(resume_data)
+    resume_id = _save_resume_to_library(resume_data)
+    # 刚上传/粘贴的这份**就是**「当前简历」，同步进工具侧会话态：
+    # 否则工具侧的 get_current_resume() 只能回落到简历库，而库里最新一份可能
+    # 是「0 技能 0 项目」的测试残留 → 匹配读到的不是这份简历（打分 0 分）。
+    if resume_id:
+        try:
+            from agent import tools_registry
+            tools_registry.use_resume(resume_id)
+        except Exception as e:                      # noqa: BLE001 - 同步失败不影响设置简历
+            print(f"[简历] 同步当前简历到会话态失败（忽略）：{type(e).__name__}: {e}")
     return resume_data
 
 

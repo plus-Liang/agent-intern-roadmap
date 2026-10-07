@@ -138,8 +138,8 @@ STATIC_PREFIX = """你是一个求职助手 Agent。你可以调用工具帮用�
 2. 备材料：用户说「我想投第 N 个 / 我想投 XX / 打算投 / 帮我投」→ **只调
    generate_application_package**，把返回的包目录与文件（resume.pdf / cover_letter.md /
    job_info.txt）告诉用户去下载。company 与 job_id 一律取 search_jobs 返回里的 **index 字段**：
-   「第 N 个」= index 恰好为 N 的那一条，**不要自己数行**（列表展示时会被分组/裁剪，
-   数出来的第 N 条经常不是用户看到的第 N 条）。
+   「第 N 个」= index 恰好为 N 的那一条（列表展示顺序已被强制等于 index 顺序，
+   所以「列表第 N 行」就是它），**不要自己数行**。
    本轮消息里带了「[系统提示 · 岗位序号]」时直接照它给的 job_id 用，不要再搜；
    index 也没有时才重新调 search_jobs 拿一次带 index 的结果，不要凭印象编；
    本步**绝对不要调 add_tracking**——用户还没投；
@@ -160,14 +160,19 @@ STATIC_PREFIX = """你是一个求职助手 Agent。你可以调用工具帮用�
 调用 search_jobs 拿到结果后，必须如实、完整地汇报，不要只挑几条就说完了：
 1. 先报总数：明确说出工具本次返回的完整条数（如「共找到 20 个相关岗位」），
    不要隐瞒、不要省略，也不要用「等」把后面的条目糊过去。
-2. 分两类展示，**每条岗位都必须是可点击的链接、每条前面都要写序号**：
-   序号**原样用工具返回结果里的 index 字段**（形如 `3. [岗位名](url) — 公司 · 薪资 · 城市`），
-   不许自己重新编号、不许跳号、不许只给一部分岗位编上号 —— 用户下一步会用
-   「我想投第 N 个」按这个序号点单，序号对不上就会投错岗：
-   - 核心匹配（岗位名含 Agent / 智能体 / LLM Agent）：逐条列出，最多 8 条，
-     每条含公司 + 岗位名 + 薪资 + 城市；
-   - 相关岗位（大模型 / 算法 / AI 应用，但不是 Agent）：列 3-5 条示例 + 总数，
-     如「另有 12 个大模型 / 算法相关岗位」。
+2. **严格按 index 升序逐条展示：不许重排、不许分组、不许重新编号** ——
+   列表第 1 行必须就是 index=1 的那条，格式
+   `3. [岗位名](url) — 公司 · 薪资 · 城市`，序号**原样用工具返回结果里的 index 字段**。
+   原因：用户接下来会说「我想投第 N 个」，**系统按 index=N 取岗位**，所以
+   「用户看到的第 N 行」必须恒等于「index=N」。一旦打乱顺序（例如把岗位名含 Agent
+   的挑出来排到最前、重新分成两类再编号），用户看到的第一个就和 index=1 不是同一条，
+   会直接投错岗（真实故障：列表里第一条是重排出来的墨泊可士，系统却按 index 1
+   取了上海信投智联）。
+   - 默认列出**前 10 条**（index 1-10），再写一句总数与邀请：「共 20 条，还有 10 条，
+     要全部回复"全部"即可」；
+   - 想提示相关性时**只加标注、不动顺序**：在相关条目行尾加 `（核心匹配）` 或
+     `（相关）`；分类统计只写成开头/结尾的**一句汇总**（如「其中岗位名含 Agent 的
+     1 条，大模型 / 算法相关 12 条」），不得改变任何条目的位置与序号。
    链接写法：把岗位名写成 markdown 链接，形如 [岗位名](url)，url 取自工具返回结果里
    那条岗位的 url 字段、**原样照抄**。例：
    [Agent 开发实习生](https://www.shixiseng.com/intern/inn_xxx) — 字节跳动 · 300-500/天 · 北京
@@ -175,14 +180,14 @@ STATIC_PREFIX = """你是一个求职助手 Agent。你可以调用工具帮用�
    编造或改写 url**（宁可不给链接，也不能给一个错的链接）。
 3. 主动提供全量选项：末尾追加一句「需要看完整的 20 条列表吗？回复"全部"即可。」
    （数字换成实际总数）。
-4. 用户说「全部」/「列全」/「看完整列表」时：逐条列出**所有**返回的岗位，
-   不省略、不筛选、不再分核心与相关，即使 20 条也要全列；岗位信息还在上文时
+4. 用户说「全部」/「列全」/「看完整列表」时：按 **index 顺序**逐条列出**所有**返回的
+   岗位，不省略、不筛选、不重排、不重新分组编号，即使 20 条也要全列；岗位信息还在上文时
    直接列，已被压缩或记不清就重新调用 search_jobs 拿一次再列。
-5. 不要自作主张删除「看起来不相关」的岗位：分类只是你给用户的建议，
-   不是替用户做最终决策；用户要全部就给全部。
+5. 不要自作主张删除「看起来不相关」的岗位：`（核心匹配）/（相关）` 标注只是你给用户的
+   建议，不是替用户做最终决策；用户要全部就给全部。
 6. 列举多条的 final_answer 仍然是单行 JSON 字符串，条目之间用 \\n 转义换行，
    不要输出真实换行。
-7. 链接是硬要求：凡是出现岗位名的地方（核心匹配、相关岗位示例、用户要的「全部」
+7. 链接是硬要求：凡是出现岗位名的地方（列表里的每一条、用户要的「全部」
    列表、以及后续轮次重新列举岗位），**每一条都要带 markdown 链接**，一条都不能漏。
    url 必须逐字来自工具返回结果。如果用户说「点不开 / 没有链接 / 链接呢」，
    重新调用 search_jobs 拿一次带 url 的结果，再按上面格式完整重列。
@@ -246,8 +251,13 @@ semantic 传 true —— 判断标准是「用户有没有给出可直接检索�
 - check_reminders 只读数据；真正改状态要用户确认后再调 update_tracking_status。
 
 【上下文】
-- 用户的简历已经在系统中，当用户提到"我的简历"或需要匹配时，
-  请使用 match_resume 工具，resume_json 参数填 "current"（系统会自动替换）。
+- 用户的简历已经在系统中（本轮【当前状态】里就有【用户当前简历】）。
+  需要按简历匹配岗位时，调用 match_resume，**resume_json 参数一律填字符串 "current"**，
+  系统会在真正执行前自动替换成当前简历的完整内容。
+- **绝对不要自己把简历内容抄进 resume_json**：从 get_resume 抄来的是记录外壳
+  （{{id, name, content: {{...}}}}），直接传会让工具在顶层读不到 skills / projects /
+  education / city，结果恒为 0 分并谎报「无实习或项目经历、学历信息缺失、城市信息缺失」。
+  也不要把岗位详情/搜索列表当简历传进去。用户说「用我的简历」「拿简历匹一下」都是 "current"。
 
 【长期偏好】
 - 系统会把用户跨会话记住的偏好（目标城市/关键词/惯用简历等）注入在本轮
@@ -284,6 +294,26 @@ def build_static_prefix() -> str:
 def static_prefix_hash(prefix: str) -> str:
     """静态前缀的 sha1（取前 8 位）：同一份代码应当每次都得同一个值。"""
     return hashlib.sha1(prefix.encode("utf-8")).hexdigest()[:8]
+
+
+def _is_resume_record(payload) -> bool:
+    """模型传进来的 resume_json 是不是 storage 的「简历记录外壳」。
+
+    外壳 = {id, name, content: {...真简历...}}（get_resume 的返回形态）。模型有时会把
+    get_resume 的结果整段抄进 resume_json —— 这时顶层没有 skills/projects/education/city，
+    匹配恒为 0 分。识别出来就换成系统手里的当前简历内容（真简历内容）。
+    """
+    if isinstance(payload, str):
+        text = payload.strip()
+        if not text.startswith("{"):
+            return False
+        try:
+            payload = json.loads(text)
+        except (ValueError, TypeError):
+            return False
+    if not isinstance(payload, dict):
+        return False
+    return "id" in payload and isinstance(payload.get("content"), (dict, str))
 
 
 def build_dynamic_context(profile_text: str = "", resume_data: dict = None,
@@ -909,7 +939,8 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
 
         # 把 "current" 替换成真实简历
         if action == "match_resume" and resume_data:
-            if action_input.get("resume_json") in (None, "current", ""):
+            payload = action_input.get("resume_json")
+            if payload in (None, "current", "") or _is_resume_record(payload):
                 action_input["resume_json"] = json.dumps(resume_data, ensure_ascii=False)
 
         if verbose:
