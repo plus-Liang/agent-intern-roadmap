@@ -28,9 +28,12 @@ SQLAlchemyDataLayer 只会执行 `INSERT/SELECT/UPDATE/DELETE`，包里既没有
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from pathlib import Path
 from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -71,7 +74,10 @@ _SCHEMA = (
         "userId"         TEXT,
         "userIdentifier" TEXT,
         "tags"           TEXT,
-        "metadata"       TEXT
+        "metadata"       TEXT,
+        -- 我们加的列（官方表结构里没有，见 _PinnedDataLayer 的说明）：
+        -- 置顶时间，NULL = 未置顶。Chainlit 自己的 SQL 从不碰它，加了不影响升级。
+        "pinnedAt"       TEXT
     )
     """,
     """
@@ -142,17 +148,27 @@ _SCHEMA = (
 #: （step.to_dict() 一定带这两个键，chainlit/step.py:326-327），
 #: 结果就是**消息步骤一条都不落库 → 切回历史会话看不到任何内容**。
 _MISSING_COLUMNS = {
+    "threads": (("pinnedAt", "TEXT"),),
     "steps": (("defaultOpen", "TEXT"), ("autoCollapse", "TEXT")),
     "elements": (("autoPlay", "TEXT"), ("playerConfig", "TEXT")),
 }
 
 
-def ensure_schema() -> None:
-    """建表 + 补列（都幂等）。同步函数，供 CLI / 测试直接调用。"""
+#: 被置顶的会话数上限：挡住「异常状态把整个列表顶满」这种情况。
+MAX_PINNED = 50
+
+
+def _conn():
+    """同步 sqlite 连接（建表 / 置顶读写）—— 与 data layer 用同一个库文件。"""
     import sqlite3
 
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    return sqlite3.connect(str(DB_PATH), timeout=10)
+
+
+def ensure_schema() -> None:
+    """建表 + 补列（都幂等）。同步函数，供 CLI / 测试直接调用。"""
+    with _conn() as conn:
         for statement in _SCHEMA:
             conn.execute(statement)
         for table, columns in _MISSING_COLUMNS.items():
@@ -160,6 +176,102 @@ def ensure_schema() -> None:
             for name, kind in columns:
                 if name not in existing:
                     conn.execute(f'ALTER TABLE "{table}" ADD COLUMN "{name}" {kind}')
+
+
+#: 置顶时间戳格式：UTC + 微秒 + 'Z'。**必须带微秒** —— 秒级精度下同一秒内连续
+#: 置顶两个会话会拿到相同字符串，`pinnedAt DESC` 的顺序就不确定了。
+_PIN_TIME_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+
+def _now_pin() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime(_PIN_TIME_FMT)
+
+
+def _owner_key(thread_id: str, user_id: Optional[str]) -> str:
+    """置顶归属：优先调用方给的当前用户，否则退回线程行上的 userId。
+
+    为什么不只看线程行的 userId：接 data layer 早期建的会话 userId 是 NULL
+    （`update_thread` 拿不到 Chainlit 用户），那时列表靠
+    `WHERE userId = :user_id OR id = :thread_id` 才被列出来。归属只存一份、
+    写错就取消不掉，所以宁可先用调用方给的当前用户。
+    """
+    if user_id:
+        return str(user_id)
+    with _conn() as conn:
+        row = conn.execute(
+            'SELECT "userId" FROM threads WHERE "id" = ?', (str(thread_id),)
+        ).fetchone()
+    return str(row[0]) if row and row[0] else ""
+
+
+def _count_pinned(conn, owner: str) -> int:
+    """该用户名下已置顶的会话数（`owner` 为空时按「无归属」这一档算）。"""
+    if not owner:
+        return conn.execute(
+            'SELECT COUNT(*) FROM threads WHERE "pinnedAt" IS NOT NULL '
+            'AND COALESCE("userId", \'\') = \'\''
+        ).fetchone()[0]
+    return conn.execute(
+        'SELECT COUNT(*) FROM threads WHERE "pinnedAt" IS NOT NULL '
+        'AND "userId" = ?',
+        (owner,),
+    ).fetchone()[0]
+
+
+def pin_thread(thread_id: str, user_id: Optional[str] = None) -> bool:
+    """把会话置顶（重复置顶 = 刷新置顶时间）。返回 False 表示没这条会话 / 超上限。"""
+    thread_id = str(thread_id or "").strip()
+    if not thread_id:
+        return False
+    ensure_schema()
+    owner = _owner_key(thread_id, user_id)
+    with _conn() as conn:
+        if not conn.execute(
+            'SELECT 1 FROM threads WHERE "id" = ?', (thread_id,)
+        ).fetchone():
+            return False
+        already = conn.execute(
+            'SELECT 1 FROM threads WHERE "id" = ? AND "pinnedAt" IS NOT NULL',
+            (thread_id,),
+        ).fetchone()
+        if not already and _count_pinned(conn, owner) >= MAX_PINNED:
+            return False
+        conn.execute(
+            'UPDATE threads SET "pinnedAt" = ? WHERE "id" = ?',
+            (_now_pin(), thread_id),
+        )
+    return True
+
+
+def unpin_thread(thread_id: str) -> bool:
+    """取消置顶；返回是否真的改动了（未置顶的会话返回 False，不算错误）。"""
+    thread_id = str(thread_id or "").strip()
+    if not thread_id:
+        return False
+    ensure_schema()
+    with _conn() as conn:
+        cur = conn.execute(
+            'UPDATE threads SET "pinnedAt" = NULL '
+            'WHERE "id" = ? AND "pinnedAt" IS NOT NULL',
+            (thread_id,),
+        )
+        return cur.rowcount > 0
+
+
+def is_pinned(thread_id: str) -> bool:
+    """这条会话是不是置顶的（给 `/pin` `/unpin` 回执用）。"""
+    thread_id = str(thread_id or "").strip()
+    if not thread_id:
+        return False
+    ensure_schema()
+    with _conn() as conn:
+        row = conn.execute(
+            'SELECT 1 FROM threads WHERE "id" = ? AND "pinnedAt" IS NOT NULL',
+            (thread_id,),
+        ).fetchone()
+    return bool(row)
 
 
 def _as_bool(value):
@@ -278,13 +390,28 @@ def _build_class():
             user_id: Optional[str] = None,
             thread_id: Optional[str] = None,
         ):
-            """列表 / 单条 thread 的统一出口，顺手把 `isError` 修成真 bool。
+            """列表 / 单条 thread 的统一出口：修 `isError` + **置顶排序**。
 
-            为什么要覆写：恢复历史（`socket.py:84` resume_thread → `get_thread`
+            修 isError 的理由：恢复历史（`socket.py:84` resume_thread → `get_thread`
             → 这里）与侧边栏列表都走这个方法，`isError` 的字符串 `'0'` 会让
-            前端把每条消息都当错误渲染（见 `_as_bool` 的说明）。在这一层修一
-            次，比在 app.py 里逐条重写步骤安全得多 —— 步骤内容一律不动，
-            只改这一个标记位。
+            前端把每条消息都当错误渲染（见 `_as_bool` 的说明）。
+
+            置顶排序的理由：Chainlit 前端拿到列表后按 `createdAt` 自己重排
+            （编译好的 JS，改不了），所以排序只能压在数据层 —— **返回顺序就是
+            最终顺序**。这里有两条路：
+
+            * 优先改 SQL（`/project/threads` 那条路的分页 `list_threads` 会先
+              调用 `get_all_user_threads(user_id=...)`，Python 侧只做切片）：
+
+                  SELECT ..., t."pinnedAt" AS pinned_at
+                  ... GROUP BY ... (含 t."pinnedAt")
+                  ORDER BY (t."pinnedAt" IS NULL), t."pinnedAt" DESC,
+                           updatedAt DESC NULLS LAST
+
+            * `user_thread_limit` 默认 1000，比熟人用户的会话数大得多，所以
+              「先取一页再自己排」与「让 SQL 排」结果一致；SQL 万一因为库太老
+              没有 `pinnedAt` 列而报错，就退回这一条（`pinnedAt` 为空 => 只剩
+              `updatedAt` 的顺序，等于没置顶时的旧行为）。
             """
             threads = await super().get_all_user_threads(
                 user_id=user_id,
@@ -292,13 +419,38 @@ def _build_class():
             )
             if not isinstance(threads, list):
                 return threads
+            pinned_at = await self._pinned_at_map()
             for thread in threads:
                 if not isinstance(thread, dict):
                     continue
+                thread["pinnedAt"] = pinned_at.get(str(thread.get("id") or ""))
                 for step in thread.get("steps") or []:
                     if isinstance(step, dict) and "isError" in step:
                         step["isError"] = _as_bool(step["isError"])
-            return threads
+            if thread_id is not None or not pinned_at:
+                return threads
+            return sorted(threads, key=lambda t: _thread_sort_key(t, pinned_at))
+
+        async def _pinned_at_map(self) -> Dict[str, str]:
+            """`{thread_id: pinnedAt}`；没置顶（或老库没这列）时是空 dict。"""
+            try:
+                rows = await self.execute_sql(
+                    query=(
+                        'SELECT "id", "pinnedAt" FROM threads '
+                        'WHERE "pinnedAt" IS NOT NULL'
+                    ),
+                    parameters={},
+                )
+            except Exception as e:                      # noqa: BLE001 - 老库没这列
+                logger.info(f"data_layer: pinnedAt 不可用（{type(e).__name__}），跳过置顶排序")
+                return {}
+            if not isinstance(rows, list):
+                return {}
+            return {
+                str(row["id"]): str(row["pinnedAt"])
+                for row in rows
+                if isinstance(row, dict) and row.get("id") and row.get("pinnedAt")
+            }
 
         async def get_step(self, step_id: str):
             """单条步骤同病同治（回放/更新反馈时会单独取步骤）。"""
@@ -357,4 +509,37 @@ def build():
     return _build_class()()
 
 
-__all__ = ["DB_PATH", "build", "ensure_schema"]
+def _thread_sort_key(thread, pinned_at: Dict[str, str]):
+    """置顶优先 + 置顶按置顶时间倒序 + 未置顶按 updatedAt 倒序。
+
+    Python `sorted` 是稳定排序，`sorted(...)` 时传入的已是官方的
+    `updatedAt DESC` 顺序，所以第三段用「相同 updatedAt 保持原顺序」。
+
+    `updatedAt` 来自 SQL 的 `MAX(s."createdAt")`，是 ISO 字符串（同格式等长，
+    字符串比较 = 时间比较）。置顶但没算到 `updatedAt` 的（空会话）排最后。
+    """
+    created = str(thread.get("createdAt") or "")
+    updated = str(thread.get("updatedAt") or created or "")
+    stamped = pinned_at.get(str(thread.get("id") or ""))
+    if stamped:
+        return (0, _neg_text(stamped), _neg_text(updated))
+    return (1, "", _neg_text(updated))
+
+
+def _neg_text(value: str):
+    """把「倒序」变成「升序」：字符串按码位取补（`chr(0x10FFFF - ord(ch))`）。
+
+    比写两遍比较函数简单，也不依赖 `functools.cmp_to_key`。
+    """
+    return tuple(-ord(ch) for ch in value)
+
+
+__all__ = [
+    "DB_PATH",
+    "MAX_PINNED",
+    "build",
+    "ensure_schema",
+    "is_pinned",
+    "pin_thread",
+    "unpin_thread",
+]

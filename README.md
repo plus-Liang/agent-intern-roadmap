@@ -429,6 +429,19 @@ python -m agent.chat_history listusers                    # 列号
 一样能做匹配打分、生成投递包和模拟面试。粘贴实习僧 / 牛客 / ncss 的岗位链接更省事，
 连 JD 都不用贴（系统按链接里的 job_id 去岗位库取那一条）。
 
+### Q8. 怎么置顶对话？
+
+在会话里发 `/pin` —— 这个会话就会排到侧边栏最上面；取消用 `/unpin`。
+
+- 置顶的按**置顶时间倒序**排在最上，未置顶的仍按最近更新（`updated_at`）倒序。
+- 顺序由数据层决定（`agent/data_layer.py` 覆写 `get_all_user_threads`）：
+  Chainlit 前端的列表顺序照单全收，所以刷新页面就能看到新顺序。
+- 最多置顶 `data_layer.MAX_PINNED`（50）个；`/pin` 有回执，失败会说原因。
+- 置顶状态存在 Chainlit 库 `threads.pinnedAt`（我们自己加的列，NULL = 未置顶），
+  启动时 `ensure_schema()` 自动补列，不用手工迁移。
+
+---
+
 ## 7. 测试怎么跑
 
 全部测试都是**离线**的：不联网、不调真 LLM、不写 `rag/data/` 与真实向量库，

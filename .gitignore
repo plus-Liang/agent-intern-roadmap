@@ -31,6 +31,7 @@ agent/data/chainlit.db
 agent/data/.chainlit_secret
 agent/tests/_tmp_chat_history/
 agent/tests/_tmp_limits/
+agent/tests/_tmp_pin/
 agent/tests/_tmp_resume_upload/
 agent/tests/_tmp_resume_state/
 agent/data/exports/

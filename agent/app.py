@@ -1679,6 +1679,28 @@ async def on_message(message: cl.Message):
         ).send()
         return
 
+    # 命令：把当前会话置顶 / 取消置顶（侧边栏顶部）。
+    # 排序在数据层做（见 agent/data_layer.py 的 get_all_user_threads）：
+    # Chainlit 前端拿到列表后自己按 createdAt 重排，改不了它。
+    if content in ("/pin", "/unpin"):
+        thread_id = _thread_id()
+        if content == "/pin":
+            if await _off_loop(data_layer.is_pinned, thread_id):
+                text = "📌 这个会话已经置顶了，就在侧边栏最上面。"
+            elif await _off_loop(data_layer.pin_thread, thread_id, _user_id()):
+                text = ("📌 已置顶这个会话，它会排在侧边栏最上面。"
+                        "取消用 `/unpin`。（浏览器里刷新一下页面就能看到新顺序）")
+            else:
+                text = ("⚠️ 置顶失败：这个会话可能还没落库，或置顶数已满"
+                        f"（上限 {data_layer.MAX_PINNED} 个）。先聊一轮再试。")
+        else:
+            if await _off_loop(data_layer.unpin_thread, thread_id):
+                text = "已取消置顶，这个会话回到按最近更新的位置。"
+            else:
+                text = "这个会话本来就没有置顶。"
+        await cl.Message(content=text).send()
+        return
+
     # 命令：设置简历（也接受「只上传 PDF/Word 附件、不写 /resume」）
     attachments = _resume_attachments(message)
     if content.startswith("/resume") or attachments:
