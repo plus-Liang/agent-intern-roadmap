@@ -432,17 +432,74 @@ def _update_tracking_status(company, new_status, note=""):
     }
 
 
-def _delete_tracking(company):
-    """删除投递记录及其状态事件：find_application 定位 → delete_application"""
-    record = _locate_application(company)
-    storage.delete_application(record["id"])
-    return {
+def _delete_tracking(company="", ids=None, all=False):
+    """批量删除投递记录及其状态事件。
+
+    三种模式（按用户原话选一种，**一次调用删完**）：
+      - company="X"      ：删掉该公司名下**全部**记录（模糊匹配，大小写不敏感）
+      - ids=["a","b"]    ：按 list_tracking 给出的 id 精确删若干条
+      - all=True         ：清空当前用户的**全部**投递记录
+    优先级 ids > company > all。一条都没匹配到就抛 ValueError，
+    绝不返回 deleted=true 假装删成功（那会变成幻觉的温床）。
+    """
+    if ids:
+        raw_ids = ids if isinstance(ids, (list, tuple, set)) else str(ids).replace(",", " ").split()
+        targets, seen = [], []
+        for raw in raw_ids:
+            app_id = str(raw or "").strip()
+            if not app_id or app_id in seen:
+                continue
+            seen.append(app_id)
+            record = storage.get_application(app_id)
+            if record:
+                targets.append(record)
+        if not targets:
+            raise ValueError(
+                "没有找到 id 为 {} 的投递记录（先用 list_tracking 确认 id）".format("、".join(seen))
+            )
+    elif str(company or "").strip():
+        keyword = str(company).strip().lower()
+        targets = [
+            r for r in storage.list_applications()
+            if keyword in str(r.get("company") or "").lower()
+        ]
+        if not targets:
+            raise ValueError("未找到公司「{}」的投递记录".format(company))
+    elif all:
+        targets = storage.list_applications()
+        if not targets:
+            raise ValueError("当前没有任何投递记录，无需删除")
+    else:
+        raise ValueError(
+            "必须指定 company（删该公司全部）/ ids（按 id 批量删）/ all=true（清空全部）之一"
+        )
+
+    deleted = [
+        {"id": r["id"], "company": r["company"], "title": r["title"], "status": r["status"]}
+        for r in targets
+    ]
+    for record in targets:
+        storage.delete_application(record["id"])
+
+    remaining = storage.list_applications()
+    result = {
         "deleted": True,
-        "id": record["id"],
-        "company": record["company"],
-        "title": record["title"],
-        "last_status": record["status"],
+        "count": len(deleted),
+        "records": deleted,
+        "remaining": len(remaining),
+        "remaining_records": [
+            {"id": r["id"], "company": r["company"], "title": r["title"], "status": r["status"]}
+            for r in remaining[:50]
+        ],
     }
+    if len(deleted) == 1:                      # 单条删除保留老字段，兼容既有调用方与日志
+        result.update({
+            "id": deleted[0]["id"],
+            "company": deleted[0]["company"],
+            "title": deleted[0]["title"],
+            "last_status": deleted[0]["status"],
+        })
+    return result
 
 
 def _update_tracking_notes(company, notes):
@@ -1351,14 +1408,25 @@ TOOLS = {
     },
     "delete_tracking": {
         "description": (
-            "删除一家公司的投递记录（连同它的状态变更历史），不可恢复。"
-            "一次只能删一家公司，因此不支持“删除全部记录”这类批量操作；"
-            "同一家公司有多条记录时一次调用只删最近一条，需要逐条调用。"
-            "**只在用户明确要求删除时调用**：确认在对话层完成（先按用户要求列出记录、"
-            "等用户回复同意），工具层不会二次拦截，也不要再向用户要一轮确认。"
+            "删除投递记录（连同它的状态变更历史），不可恢复。**支持批量，一次调用删完**，"
+            "按用户原话选一种（不要逐条、逐家公司地调用）：\n"
+            "① company=\"公司名\"：删掉该公司名下**全部**记录"
+            "（用户说「删掉墨泊可士」→ 该公司几条一起删）；\n"
+            "② all=true：清空当前用户的**全部**投递记录"
+            "（用户说「全部删掉 / 都删掉 / 清空投递记录」→ 直接用它，"
+            "不要先问公司名、也不要说「需要逐家指定公司名」）；\n"
+            "③ ids=[\"id1\",\"id2\"]：按 list_tracking 返回的 id 精确删若干条"
+            "（用户点名「第 2、3 条」或指定了具体几条时）。\n"
+            "一条都没匹配到会报错，不会误删。**只在用户明确要求删除时调用**："
+            "确认在对话层完成（先按用户要求列出记录、等用户回复同意），"
+            "工具层不会二次拦截，也不要再向用户要一轮确认。"
+            "返回里带 count（本次删了几条）、records（删掉了哪几条）、remaining（还剩几条），"
+            "回执直接照抄这些数字，不要自己数。"
         ),
         "parameters": {
-            "company": "公司名（用于定位记录，支持模糊匹配）",
+            "company": "公司名（删该公司名下全部记录，支持模糊匹配）",
+            "ids": "要删除的记录 id 列表（id 来自 list_tracking）",
+            "all": "传 true 表示清空当前用户的全部投递记录（用户明确说「全部删掉/都删掉/清空」时）",
         },
         "func": _delete_tracking,
         "risk_level": "irreversible",
@@ -1717,23 +1785,33 @@ def _run_selftest() -> int:
             assert TOOLS["delete_tracking"].get("requires_confirmation") is False, \
                 "delete_tracking 的确认必须在 prompt 层，不能加回工具层拦截"
 
+            # 1) company 模式：一次调用删掉该公司名下**全部**记录（阶跃星辰有 2 条）
             out = call_tool("delete_tracking", {"company": "阶跃星辰"})
-            assert out["deleted"] is True and out["id"] == step_new, out
+            assert out["deleted"] is True and out["count"] == 2, out
+            assert {r["id"] for r in out["records"]} == {step_new, step_old}, out
             assert storage.get_application(step_new) is None, "记录应该已被删除"
+            assert storage.get_application(step_old) is None, "同公司更早那条也该一并删除"
             assert storage.get_events(step_new) == [], "关联事件应一并删除"
+            assert out["remaining"] == 2, f"应剩腾讯/OpenAI 两条，实际 {out['remaining']}"
 
-            left = storage.find_application("阶跃星辰")
-            assert left is not None and left["id"] == step_old, "应还有一条更早的同公司记录"
-            call_tool("delete_tracking", {"company": "阶跃星辰"})
-            assert storage.find_application("阶跃星辰") is None, "同公司记录应已删净"
+            # 2) ids 模式：按 id 精确删（并保留老字段 id/company/title）
+            one = call_tool("delete_tracking", {"ids": [tencent_id]})
+            assert one["count"] == 1 and one["id"] == tencent_id, one
+            assert storage.get_application(tencent_id) is None, "按 id 删除应生效"
+            assert one["remaining"] == 1, one
 
-            gone = expect_error(lambda: call_tool(
-                "delete_tracking", {"company": "阶跃星辰"},
-            ))
-            assert storage.get_application(tencent_id) is not None, "不该误删其他公司的记录"
+            # 3) 一条都没匹配到必须报错，不能返回 deleted=true 假装成功（幻觉防线）
+            gone_company = expect_error(lambda: call_tool("delete_tracking", {"company": "阶跃星辰"}))
+            gone_ids = expect_error(lambda: call_tool("delete_tracking", {"ids": ["nope1234"]}))
+            no_args = expect_error(lambda: call_tool("delete_tracking", {}))
 
-            return (f"未确认也一次删掉 id={out['id']}（含事件）；"
-                    f"重复删除报错：{gone}")
+            # 4) all 模式：一次清空全部；空库再删要报错
+            last = call_tool("delete_tracking", {"all": True})
+            assert last["count"] == 1 and last["remaining"] == 0, last
+            empty = expect_error(lambda: call_tool("delete_tracking", {"all": True}))
+
+            return (f"company 一次删 {out['count']} 条、ids 删 1 条、all 一次清空；"
+                    f"空结果均报错（{gone_company}｜{gone_ids}｜{no_args}｜{empty}）")
 
         check("0. call_tool 运行时校验（元数据/参数/超时）", check_runtime_guard)
         check("1. find_application('阶跃星辰') 找到记录", check_find_hit)
