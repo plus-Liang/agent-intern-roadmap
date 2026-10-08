@@ -419,13 +419,19 @@ def _job_identity(job: dict) -> str:
 
 
 def _job_sort_key(job: dict):
-    """排序键：publish_date 降序，日期为空的排最后。
+    """排序键：publish_date 降序，日期为空的排最后，**同日按 job_id 兜底**。
 
-    返回 (1, date) / (0, date.min)：配合 reverse=True 让有日期的排在前面，
-    且日期新的更靠前；日期为空的统一沉底（date.min 保证空日期之间不炸）。
+    返回 (1, date, job_id) / (0, date.min, job_id)：配合 reverse=True 让有日期的排在
+    前面，且日期新的更靠前；日期为空的统一沉底（date.min 保证空日期之间不炸）。
+
+    为什么必须带二级键 job_id（Bug 2）：只按 publish_date 排序时，**同一天**的岗位
+    顺序完全取决于输入顺序（Python 稳定排序 + 上游是合并进来的）。每天夜间抓取后
+    重跑 merge_jds，同日期那一大批的相对顺序就会跟着新数据的插入位置变化 →
+    `cleaned_jd.json` 顺序变 → 走 JSON 兜底路的搜索「连问两次同一句话拿到不同列表」。
+    job_id 客观、跨平台唯一、与抓取顺序无关，正好当二级键。
     """
     parsed = _parse_date(job.get("publish_date"))
-    return (parsed is not None, parsed or date.min)
+    return (parsed is not None, parsed or date.min, _job_field(job, "job_id"))
 
 
 def _is_stale(publish_date, today, stale_days) -> bool:

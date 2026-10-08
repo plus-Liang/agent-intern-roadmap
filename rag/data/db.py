@@ -548,7 +548,8 @@ def get_jobs_by_identity(company: str, title: str) -> list[dict]:
         with _connect() as conn:
             rows = conn.execute(
                 f"SELECT * FROM {TABLE} WHERE LOWER(TRIM(IFNULL(company, ''))) = ? "
-                f"AND LOWER(TRIM(IFNULL(title, ''))) = ? ORDER BY publish_date DESC",
+                f"AND LOWER(TRIM(IFNULL(title, ''))) = ? "
+                f"ORDER BY publish_date DESC, job_id ASC",
                 (company_key, title_key),
             ).fetchall()
     except sqlite3.Error as exc:

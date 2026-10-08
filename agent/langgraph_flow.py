@@ -502,16 +502,23 @@ def filter_jobs(state: SearchState) -> dict:
 
 
 def _job_line(row: dict) -> str:
-    """单条岗位的展示行，格式与旧版 prompt 规定**逐字一致**：
-    `3. [岗位名](url) — 公司 · 薪资 · 城市 （核心匹配）`
+    """单条岗位的展示行，格式 = 旧版 prompt 规定 + **岗位类型**：
+    `3. [岗位名](url) — 公司 · 薪资 · 城市 · 类型 （核心匹配）`
+
+    为什么必须显式带类型：牛客实习频道里**近一半**岗位标题不带「实习」二字
+    （「算法工程师」「大模型算法」「AI算法工程师」），只读标题会把它们当成正式岗。
+    用户本轮报的「搜实习仍返回正式岗」，举的例子正是牛客实习频道的
+    「算法工程师 — 上海信投智联科技」（该条 live 复核在 recruitType=2 实习频道，
+    薪资 300-500/天）—— 链路过滤没错，错在列表没把类型显示出来。
     """
     title = str(row.get("title") or "").strip()
     url = str(row.get("url") or "").strip()
     company = str(row.get("company") or "").strip()
     salary = str(row.get("salary") or "").strip()
     city = str(row.get("city") or "").strip()
+    job_type = normalize_job_type(row.get("job_type"))
     name = f"[{title}]({url})" if url else title
-    tail = " · ".join(p for p in (company, salary, city) if p)
+    tail = " · ".join(p for p in (company, salary, city, job_type) if p)
     line = f"{row.get('index')}. {name}"
     if tail:
         line += f" — {tail}"
@@ -551,6 +558,12 @@ def respond_search(state: SearchState) -> dict:
         detail_scope += f"关键词「{keyword}」"
     if city:
         detail_scope += ("，" if detail_scope else "") + f"城市「{city}」"
+    # 把类型过滤**写进标题**：用户说「找实习」时若结果里出现标题不带「实习」的
+    # 岗位（牛客实习频道近一半如此），只有把「类型「实习」」写在头行，
+    # 用户才知道这是过滤后的结果、而不是过滤没生效。
+    job_type = normalize_job_type(state.get("job_type"))
+    if job_type:
+        detail_scope += ("，" if detail_scope else "") + f"类型「{job_type}」"
     head = f"共找到 {total} 个相关岗位" + (f"（{detail_scope}）" if detail_scope else "")
     if dropped:
         head += f"\n（已过滤 {dropped} 条重复 / 信息不全的岗位）"

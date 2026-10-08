@@ -269,6 +269,14 @@ def _mock_search(keyword: str, city: Optional[str], limit: int,
             if _match_keyword(j, keyword, match_any=match_any) and _match_city(j, city)
             and _type_matches(j.job_type, wanted, j.platform, j.title)
         ]
+        # 排序必须显式做，且**不能只按 publish_date**：JSON 里的顺序是上一次落盘时的
+        # 顺序，同一天（publish_date 相同）的岗位会跟着上游写入顺序漂移，于是
+        # 「连问两次同一句话」拿到的列表不一样（用户报的 Bug 2）。
+        # 口径与 SQL 路 `ORDER BY publish_date DESC, job_id ASC` 对齐：
+        # 先按二级键 job_id 升序（客观、跨平台唯一、不随抓取顺序变化），
+        # 再按主键 publish_date 降序（空日期沉底）—— 稳定排序，两段式是标准写法。
+        results.sort(key=lambda j: (j.job_id or ""))
+        results.sort(key=lambda j: (bool(j.publish_date), j.publish_date or ""), reverse=True)
         return _apply_limit(results, limit, keyword)
 
     # ---- fallback：真实数据不可用时使用硬编码示例（保留原数据，语义与真实数据一致）----

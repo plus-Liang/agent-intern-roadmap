@@ -387,6 +387,44 @@ def _empty_type_unlimited():
     return f"三种空值都等于不限（{base} 条）"
 
 
+def _json_fallback_order_stable():
+    """兜底 JSON 路：同一天（publish_date 相同）的岗位顺序不随写入顺序漂移。
+
+    Bug 2 的离线复现口径：**同一批数据**打乱顺序写三次 JSON，搜索结果必须逐条一致，
+    且同日期组内按 job_id 升序。只按 publish_date 排序时这里会红（顺序跟着输入走）；
+    空日期的行必须沉到最后。
+    """
+    import json
+    from agent.tools import job_search as JS
+
+    def row(job_id, date):
+        return {"platform": "niuke", "job_id": job_id, "title": f"算法工程师 {job_id}",
+                "company": "信投智联", "city": "广州", "salary": "300-500/天",
+                "url": "u", "description": "x" * 300, "publish_date": date}
+
+    base = [row("455163", "2026-10-05"), row("455160", "2026-10-05"),
+            row("455162", "2026-10-05"), row("455161", "2026-10-05"),
+            row("nodate1", "")]
+    path = _TMP_DIR / f"cleaned_{os.getpid()}.json"
+    original = JS.REAL_JD_PATH
+    try:
+        orders = []
+        for order in (base, list(reversed(base)),
+                      [base[2], base[4], base[0], base[3], base[1]]):
+            path.write_text(json.dumps(order, ensure_ascii=False), encoding="utf-8")
+            JS.REAL_JD_PATH = path                 # ≠ 默认路径 → 强制走 JSON 兜底
+            orders.append([j.job_id for j in JS.search_jobs("算法工程师", "广州", 0)])
+        if len({tuple(o) for o in orders}) != 1:
+            raise AssertionError(f"同日并列顺序不稳定：{orders}")
+        if orders[0] != ["455160", "455161", "455162", "455163", "nodate1"]:
+            raise AssertionError(f"排序口径不符（期望同日升序 + 空日期沉底）：{orders[0]}")
+    finally:
+        JS.REAL_JD_PATH = original
+        if path.exists():
+            path.unlink()
+    return "同一批数据三种写入顺序 → 结果完全一致（publish_date DESC, job_id ASC）"
+
+
 # ---------------------------------------------------------------------------
 section("5. 真库类型分布（只读，不写）")
 
@@ -422,6 +460,7 @@ check("库层：入库自动打标 + 类型过滤", _db_roundtrip)
 check("库层：老库迁移补列 + 回填 + 幂等", _migration_on_legacy_db)
 check("库层：真库逐行类型与分类器一致（防口径漂移）", _db_types_match_classifier)
 check("库层：空/未知类型按不限处理", _empty_type_unlimited)
+check("兜底 JSON 路：同日并列顺序稳定（Bug 2）", _json_fallback_order_stable)
 check("真库：类型分布（0 行未回填）", _real_db_distribution)
 
 print()

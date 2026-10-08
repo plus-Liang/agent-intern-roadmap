@@ -606,7 +606,26 @@ def _search_params_bad_city_rejected():
     return "模型编的城市被丢弃"
 
 
+def _search_output_carries_type():
+    """列表每行都必须标出岗位类型（本轮 Bug 1 的观感来源）。
+
+    牛客实习频道近一半岗位标题不带「实习」（「算法工程师」「大模型算法」），
+    不把 job_type 显示出来，用户会以为「找实习」的过滤没生效。
+    """
+    state = _run_search_graph(_rows(3), question="帮我找广州的 agent 实习岗位")
+    if "· 实习（核心匹配）" not in state["answer"]:
+        raise AssertionError(f"列表行没标岗位类型：{state['answer'][:200]}")
+    if "类型「实习」" not in state["answer"]:
+        raise AssertionError(f"头行没写类型过滤范围：{state['answer'][:120]}")
+    # 类型不限时不该凭空多出「类型」二字（没过滤就别说过滤了）
+    state2 = _run_search_graph(_rows(3), question="帮我找广州的 Agent 岗位")
+    if "类型「" in state2["answer"]:
+        raise AssertionError(f"类型不限却声称过滤了类型：{state2['answer'][:120]}")
+    return "行尾带类型 + 头行写明类型范围"
+
+
 check("搜索图：输出格式与旧版同口径", _search_output_format)
+check("搜索图：列表行标出岗位类型 + 头行写明类型范围", _search_output_carries_type)
 check("搜索图：index 严格升序", _search_index_ascending)
 check("搜索图：筛选去重 / 去残缺 / 重编号", _search_filter_drops_and_renumbers)
 check("搜索图：空结果如实告知", _search_empty_is_honest)
