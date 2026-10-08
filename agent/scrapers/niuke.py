@@ -74,6 +74,7 @@ from typing import Any, Optional
 import requests
 
 from agent.scrapers.base import PlatformScraper, RawJob
+from shared.job_type import classify_job_type
 
 # ---------------------------------------------------------------------------
 # 常量
@@ -393,6 +394,9 @@ class NiukeScraper(PlatformScraper):
             url=DETAIL_URL_TMPL.format(job_id=job_id),
             description=_parse_ext(data.get("ext")),
             publish_date=_fmt_date(data.get("refreshTime"), data.get("createTime")),
+            # recruitType=2 就是实习频道：**不能**按标题里有没有「实习」判
+            # （实测 180 条里只有 51.1% 带「实习」，另一半同样是实习岗）。
+            job_type=classify_job_type(platform=PLATFORM, title=title),
         )
 
     # -- 公开：search ------------------------------------------------------

@@ -767,6 +767,7 @@ class _FunctionScraper(PlatformScraper):
             url=data.get("url") or "",
             description=data.get("description") or "",
             publish_date=data.get("publish_date") or "",
+            job_type=data.get("job_type") or "",
         )
 
 
@@ -1529,6 +1530,9 @@ def _job_to_dict(job) -> dict:
         "url": getattr(job, "url", "") or "",
         "description": getattr(job, "description", "") or "",
         "publish_date": getattr(job, "publish_date", "") or "",
+        # 岗位类型（实习 / 正式 / 兼职）：抓取器已打标的原样带过，没打标的由
+        # cleaner / db 用同一份口径补 —— 不能在这里丢掉，否则落库类型全空。
+        "job_type": getattr(job, "job_type", "") or "",
     }
 
 

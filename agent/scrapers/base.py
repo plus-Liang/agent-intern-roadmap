@@ -27,6 +27,8 @@
     url           岗位详情页链接
     description   JD 正文（岗位职责 + 任职要求），保留 \\n 段落结构
     publish_date  发布时间 "YYYY-MM-DD"（拿不到为 ""）
+    job_type      岗位类型：实习 / 正式 / 兼职；判定不了为 ""
+                  （口径见 shared/job_type.py，**不要**在各抓取器里另写一套）
 """
 
 from __future__ import annotations
@@ -53,6 +55,7 @@ class RawJob:
     url: str
     description: str = ""
     publish_date: str = ""
+    job_type: str = ""      # 实习 / 正式 / 兼职 / ""（口径见 shared/job_type.py）
 
     def to_dict(self) -> dict[str, Any]:
         """转成纯 dict。

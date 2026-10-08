@@ -34,6 +34,11 @@ from pathlib import Path
 QUALITY_DIR = Path(__file__).resolve().parent
 RAG_DIR = QUALITY_DIR.parent
 REPO_DIR = RAG_DIR.parent
+if str(REPO_DIR) not in sys.path:
+    sys.path.insert(0, str(REPO_DIR))
+
+# 岗位类型（实习 / 正式 / 兼职）口径 —— 全项目唯一实现，见 shared/job_type.py
+from shared.job_type import classify_job_type  # noqa: E402
 
 # 默认输入输出路径
 DEFAULT_INPUT = REPO_DIR / "agent" / "scrapers" / "shixiseng_result.json"
@@ -96,7 +101,7 @@ AI_TITLE_MARKER = "ai"
 # 抓取结果里的 description_chars 是抓取器自己的统计字段，不进入清洗结果
 JOB_FIELDS = (
     "platform", "job_id", "title", "company", "city",
-    "salary", "url", "description", "publish_date",
+    "salary", "url", "description", "publish_date", "job_type",
 )
 
 # 城市过滤的"不限城市"占位值
@@ -187,10 +192,22 @@ def _is_fresh(publish_date, today, max_age_days):
 
 
 def _normalize_job(job):
-    """只保留 Job 定义的字段，保证输出结构稳定。"""
+    """只保留 Job 定义的字段，保证输出结构稳定。
+
+    job_type 单独处理：抓取器已打标的原样保留（统一规整成 实习/正式/兼职），
+    没打标的（老数据 / 假数据 / 手写 dict）用 shared/job_type.py 的同一份口径
+    现场推 —— 这样 cleaned_jd.json 里每条都带类型，落库后搜索过滤立刻可用。
+    """
     normalized = {}
     for field in JOB_FIELDS:
+        if field == "job_type":
+            continue
         normalized[field] = _job_field(job, field).strip()
+    normalized["job_type"] = classify_job_type(
+        platform=normalized.get("platform"),
+        title=normalized.get("title"),
+        explicit=_job_field(job, "job_type"),
+    )
     return normalized
 
 

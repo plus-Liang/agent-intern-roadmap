@@ -20,6 +20,7 @@ from agent.tools.resume_match import match_resume_to_jd, Resume
 from agent.resume.tailor import strip_self_praise, tailor_resume
 from shared.llm_client import chat
 from shared import limits
+from shared.job_type import classify_job_type, normalize_job_type
 from shared.user_context import get_current_user, has_current_user
 from agent import state_machine
 from agent import storage
@@ -118,11 +119,11 @@ def _prefer_title_hits(rows, keyword) -> list[dict]:
     return hits + misses
 
 
-def _search_rows(keyword, city=None, limit=20, semantic=False):
+def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
     """工具 search_jobs 的候选检索（编号在 _search 里统一做）。
 
     Round 10 接入 RAG（乙方案：**SQL 先过滤、子集内语义重排**）：
-      1) 先用 SQL 关键词/城市过滤出候选岗位（精确查询行为完全不变）；
+      1) 先用 SQL 关键词/城市/岗位类型过滤出候选岗位（精确查询行为完全不变）；
       2) 只有 `semantic=True` **且** 候选数 <= `SEMANTIC_MAX_CANDIDATES` 时，
          才在**这个子集内**做一次语义重排（BM25 + 向量 RRF），把更贴近意图的
          岗位排到前面。
@@ -132,14 +133,20 @@ def _search_rows(keyword, city=None, limit=20, semantic=False):
     后面的语义重排一条都跑不到。所以 semantic 分支先用 `_semantic_probe`
     抽短词做 **OR 召回**（放宽召回、不放松排序），排序仍然交给语义路。
 
+    Round 12（岗位类型）：`job_type` 一律**下推到 SQL / 候选集阶段**再过滤。
+    原因：若先按 limit 取 20 条再裁类型，正好赶上正式岗排在前面时，实习岗会被
+    截掉，用户看到"搜实习却没有实习岗"。类型不走语义路，也不影响召回。
+
     为什么要卡 80 条：语义重排要跑一次 embedding + BM25，候选太多时
       ① 成本高、② 收益低（"北京 Python"这种精确查询本身没有模糊空间）。
       所以大结果集直接返回 SQL 排序，保持可预期。
     """
+    wanted_type = normalize_job_type(job_type)
     if semantic:
-        rows = _semantic_rows(keyword, city, limit)
+        rows = _semantic_rows(keyword, city, limit, job_type=wanted_type)
     else:
-        rows = _rows_from_jobs(search_jobs(keyword, city, limit, platform="mock"))
+        rows = _rows_from_jobs(search_jobs(keyword, city, limit, platform="mock",
+                                           job_type=wanted_type))
         # 精确路：岗位名命中关键词的排前面，让 index=1 就是用户最该看到的岗位
         # （用户说「第一个」时系统按 index 取，顺序必须与展示顺序一致）
         rows = _prefer_title_hits(rows, keyword)
@@ -206,9 +213,13 @@ def _number_jobs(rows) -> list[dict]:
     return numbered
 
 
-def _search(keyword, city=None, limit=20, semantic=False):
-    """工具 search_jobs 的对外入口：检索 + 编号。"""
-    return _number_jobs(_search_rows(keyword, city, limit, semantic))
+def _search(keyword, city=None, limit=20, semantic=False, job_type=None):
+    """工具 search_jobs 的对外入口：检索 + 编号。
+
+    `job_type` 取 实习 / 正式 / 兼职；空/None 表示不限（「帮我找广州的 agent
+    岗位」按旧行为返回全部）。类型过滤在检索阶段就生效，不是在结果上再裁。
+    """
+    return _number_jobs(_search_rows(keyword, city, limit, semantic, job_type))
 
 
 def lookup_job_ordinal(number):
@@ -246,12 +257,16 @@ def _rows_from_jobs(jobs) -> list[dict]:
             "salary": j.salary,
             "url": j.url or "",
             "tags": j.tags or [],
+            # 岗位类型（实习 / 正式 / 兼职）：用户会问「这个是实习吗」，
+            # 展示层也需要在「不限类型」的列表里区分，所以必须带出来。
+            "job_type": normalize_job_type(getattr(j, "job_type", ""))
+            or classify_job_type(j.platform, j.title),
         }
         for j in jobs
     ]
 
 
-def _semantic_rows(keyword: str, city, limit: int) -> list[dict]:
+def _semantic_rows(keyword: str, city, limit: int, job_type=None) -> list[dict]:
     """semantic 模式的候选召回：抽短词做 **OR** 召回，而不是整句 AND LIKE。
 
     分三级放宽，保证候选池不空（语义路才有东西可排）：
@@ -260,9 +275,13 @@ def _semantic_rows(keyword: str, city, limit: int) -> list[dict]:
       3) 还空 → 退到按时间倒序的近期岗位（**上限 `SEMANTIC_MAX_CANDIDATES`**，
          否则整库都进来，语义重排的代价就失控了）。
     候选集只影响"可选范围"，最终顺序仍由 `_retrieve` 的 RRF 决定。
+
+    `job_type` 一路下推给 `search_jobs`：三级放宽**都**带类型过滤，
+    否则「实习」会被放宽路径（第 3 级整库兜底）重新混进正式岗。
     """
     from agent.tools.job_search import search_jobs as _raw_search
 
+    wanted = normalize_job_type(job_type)
     probe = _semantic_probe(keyword)
     per_term = max(int(limit or 20), 20)
     seen: dict[str, dict] = {}
@@ -277,15 +296,16 @@ def _semantic_rows(keyword: str, city, limit: int) -> list[dict]:
 
     if probe:
         _collect(_rows_from_jobs(_raw_search(probe, city, per_term, platform="mock",
-                                             match_any=True)))
+                                             match_any=True, job_type=wanted)))
     terms = [t for t in probe.split() if t]
     if not seen and terms:
-        _collect(_rows_from_jobs(_raw_search(terms[0], city, per_term, platform="mock")))
+        _collect(_rows_from_jobs(_raw_search(terms[0], city, per_term, platform="mock",
+                                             job_type=wanted)))
     if not seen:
         # 最后兜底：近期岗位（跨平台、不限关键词）。用两倍上限召回再截断，
         # 留一点余量给"截断偏好"。
         _collect(_rows_from_jobs(_raw_search(
-            "", city, SEMANTIC_MAX_CANDIDATES * 2, platform="mock")))
+            "", city, SEMANTIC_MAX_CANDIDATES * 2, platform="mock", job_type=wanted)))
     return list(seen.values())[:SEMANTIC_MAX_CANDIDATES]
 
 
@@ -1508,17 +1528,24 @@ def validate_registry() -> None:
 TOOLS = {
     "search_jobs": {
         "description": (
-            "搜索实习岗位，返回岗位列表。默认走关键词精确匹配（结果可预期、最快）。"
+            "搜索岗位，返回岗位列表。默认走关键词精确匹配（结果可预期、最快）。"
+            "**用户说了岗位类型（实习 / 正式 / 兼职）时必须传 job_type**，"
+            "否则正式岗会混进「找实习」的结果里。"
             "**只有用户的模糊需求才用 semantic**：当用户描述的是「什么样的岗位」"
             "而不是具体关键词时（如「想找偏大模型落地、能写工程代码的实习」"
             "「有没有适合我的 AI 岗」），才把 semantic 传 true —— 此时会在候选集内"
             "做一次语义重排，更贴近意图；候选超过 80 条时自动退回关键词排序。"
             "关键词/城市这类精确查询（如「北京 Python」）**不要**传 semantic。"
+            "注意：语义路也不影响 job_type，两者可以同时传。"
         ),
         "parameters": {
             "keyword": "搜索关键词",
             "city": "城市（可选）",
             "limit": "数量，默认 20",
+            "job_type": (
+                "岗位类型过滤：实习 / 正式 / 兼职。用户说「实习」「正式」「兼职」"
+                "「校招」时按对应值传；用户没提类型时**不传**（返回全部类型）。"
+            ),
             "semantic": (
                 "是否启用语义重排，默认 false。仅在用户的模糊需求（描述『什么样的岗位』、"
                 "没有明确关键词）时传 true；关键词/城市精确查询保持 false。"

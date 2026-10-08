@@ -33,6 +33,29 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
+# 岗位类型口径（实习 / 正式 / 兼职）全项目唯一来源，见 shared/job_type.py
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from shared.job_type import (  # noqa: E402
+    TYPE_FULLTIME,
+    TYPE_INTERN,
+    TYPE_PARTTIME,
+    classify_job_type,
+    normalize_job_type,
+)
+
+# SQL 侧的兜底规则 —— 必须与 shared/job_type.py 的判定表**逐条对齐**。
+# 存在的唯一理由：老库 / 刚建库时 job_type 还没回填（空串），而过滤必须当场生效。
+# 关键词只放已在 classify_job_type 里验证过的短词（中文大小写无差异；用 LOWER
+# 包住 title 让 intern / Intern 也能命中）。含连字符的 "part-time" 不放进 SQL
+# （SQLite 里 '-' 不是通配符，但短词 "兼职" 已足够，留长词只会让规则表两处偏移）。
+_INTERN_SQL_WORDS = ("实习", "intern", "见习", "实训")
+_PARTTIME_SQL_WORDS = ("兼职", "part-time", "part time")
+_FULLTIME_SQL_WORDS = ("社招", "全职", "社会招聘", "正式")
+_PLATFORM_INTERN_SQL = ("shixiseng", "niuke")
+_PLATFORM_FULLTIME_SQL = ("ncss",)
+
 # 数据库文件固定放在 rag/data/ 下（与 cleaned_jd.json 同目录）
 DB_PATH = Path(__file__).resolve().parent / "jobs.db"
 # 兜底用的 JSON 数据源
@@ -52,11 +75,13 @@ CREATE TABLE IF NOT EXISTS jobs (
     description  TEXT NOT NULL DEFAULT '',
     publish_date TEXT NOT NULL DEFAULT '',
     tags         TEXT NOT NULL DEFAULT '',
+    job_type     TEXT NOT NULL DEFAULT '',
     updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_city     ON jobs(city);
 CREATE INDEX IF NOT EXISTS idx_jobs_publish  ON jobs(publish_date DESC);
 CREATE INDEX IF NOT EXISTS idx_jobs_platform ON jobs(platform);
+CREATE INDEX IF NOT EXISTS idx_jobs_type     ON jobs(job_type);
 
 -- 分批滚动抓取的进度表：每个 (平台, 城市, 关键词) 组合一行，
 -- 记录"上次抓取时间"，让调度器每次只抓最久未抓的 N 个组合（见 get_stale_combos）。
@@ -76,9 +101,9 @@ CREATE INDEX IF NOT EXISTS idx_scrape_history_last_run
 
 _UPSERT_SQL = """
 INSERT INTO jobs (job_id, platform, title, company, city, salary, url,
-                  description, publish_date, tags, updated_at)
+                  description, publish_date, tags, job_type, updated_at)
 VALUES (:job_id, :platform, :title, :company, :city, :salary, :url,
-        :description, :publish_date, :tags, datetime('now'))
+        :description, :publish_date, :tags, :job_type, datetime('now'))
 ON CONFLICT(job_id) DO UPDATE SET
     platform     = excluded.platform,
     title        = excluded.title,
@@ -89,12 +114,13 @@ ON CONFLICT(job_id) DO UPDATE SET
     description  = excluded.description,
     publish_date = excluded.publish_date,
     tags         = excluded.tags,
+    job_type     = excluded.job_type,
     updated_at   = datetime('now')
 """
 
 _FIELDS = (
     "job_id", "platform", "title", "company", "city",
-    "salary", "url", "description", "publish_date", "tags",
+    "salary", "url", "description", "publish_date", "tags", "job_type",
 )
 
 # 同一条诊断只打印一次，避免每次查询都往 stderr 刷屏
@@ -154,10 +180,18 @@ def _normalize_job(job: Any) -> Optional[dict]:
         return None
     row = {"job_id": job_id}
     for name in _FIELDS:
-        if name in ("job_id", "tags"):
+        if name in ("job_id", "tags", "job_type"):
             continue
         row[name] = _text(job.get(name))
     row["tags"] = _tags_to_text(job.get("tags"))
+    # 岗位类型：库表存**规范取值**（实习 / 正式 / 兼职 / ""）。
+    # 上游（抓取器 / cleaner）已经打过标就用它；没有就按同一份口径现场推 ——
+    # 这样 json → 库这条路上类型永远不会因为上游漏字段而丢。
+    row["job_type"] = classify_job_type(
+        platform=row.get("platform"),
+        title=row.get("title"),
+        explicit=job.get("job_type"),
+    )
     return row
 
 
@@ -202,6 +236,52 @@ def _existing_ids(conn: sqlite3.Connection, job_ids: list[str]) -> set[str]:
 # --------------------------------------------------------------------------
 # 对外接口
 # --------------------------------------------------------------------------
+
+def migrate_db() -> dict:
+    """幂等迁移：补列 + 回填存量数据的岗位类型。返回统计。
+
+    为什么要单独做 migration：`CREATE TABLE IF NOT EXISTS` 对**已存在**的表
+    是空操作，旧库不会因为改了 _SCHEMA 就多出 job_type 列 —— 必须显式
+    `ALTER TABLE ADD COLUMN`，否则所有 INSERT/SELECT 都会报
+    「no such column: job_type」。回填则保证老数据立刻能按类型过滤，
+    不必等下一轮抓取（判定口径与抓取端共用 shared/job_type.py 同一份实现）。
+    """
+    stats = {"column_added": False, "backfilled": 0}
+    # init_db 里的 _SCHEMA 带 `CREATE INDEX ... ON jobs(job_type)`。表已存在但列还没补时，
+    # 那条索引会抛 "no such column: job_type" —— 这是**预期的一次性**失败（补列后
+    # 重跑 init_db 就正常了），所以这里吞掉它，不能让迁移在第一步就断掉。
+    try:
+        init_db()
+    except sqlite3.OperationalError as exc:
+        if "job_type" not in str(exc):
+            raise
+    with _connect() as conn:
+        columns = {_text(row[1]) for row in conn.execute(f"PRAGMA table_info({TABLE})")}
+        if "job_type" not in columns:
+            conn.execute(f"ALTER TABLE {TABLE} ADD COLUMN job_type TEXT NOT NULL DEFAULT ''")
+            stats["column_added"] = True
+
+        rows = conn.execute(
+            f"SELECT job_id, platform, title FROM {TABLE}"
+            " WHERE TRIM(IFNULL(job_type, '')) = ''"
+        ).fetchall()
+        if rows:
+            # 判定结果**不管是不是空串都写回**：老库刚 ALTER 出来的列全在空态，
+            # 若只写"判出来的那些"，剩下的会一直停在空态 → 每次查询都重复扫描，
+            # 也让「空串」这个信号失去意义（它应当只留给真的判不出来的行）。
+            updates = [
+                (
+                    classify_job_type(_text(row["platform"]), _text(row["title"])),
+                    _text(row["job_id"]),
+                )
+                for row in rows
+            ]
+            conn.executemany(
+                f"UPDATE {TABLE} SET job_type = ? WHERE job_id = ?", updates
+            )
+            stats["backfilled"] = len(updates)
+    return stats
+
 
 def init_db() -> None:
     """建表 + 索引，幂等（IF NOT EXISTS）。"""
@@ -249,14 +329,18 @@ def search_jobs(
     city: Optional[str] = None,
     limit: int = 20,
     match_any: bool = False,
+    job_type: Optional[str] = None,
 ) -> list[dict]:
-    """按关键词/城市查询。
+    """按关键词/城市/岗位类型查询。
 
     * keyword：在 title 或 description 中做 LIKE 匹配（大小写不敏感）；
       含空格时按多个词处理，默认**全部命中**（AND）。None / "" 表示不限。
     * match_any：True 时改为**任一命中**（OR）。给语义检索的候选召回用 ——
       semantic 模式先放宽召回，再在子集内做语义重排；精确查询保持 False。
     * city：城市匹配，支持「广州」和「广州市」归一化；None / "" 表示不限。
+    * job_type：岗位类型过滤，取值为 实习 / 正式 / 兼职（口径见 shared/job_type.py）；
+      None / "" / 认不出来的值一律表示**不限**（旧调用方行为逐字不变）。
+      过滤在 SQL 里做，**不是**取完再裁 —— 否则「实习」会先被 limit 截掉。
     * limit：>0 截断；<=0 或 None 表示不限。
     * 返回按 publish_date 降序排序（空日期排在最后）的 dict 列表。
 
@@ -289,6 +373,28 @@ def search_jobs(
             " OR ? LIKE '%' || REPLACE(city, '市', '') || '%'))"
         )
         params.extend([normalized_city, normalized_city, normalized_city])
+
+    wanted_type = normalize_job_type(job_type)
+    if wanted_type:
+        # 已打标的行直接比 job_type；job_type 为空的脏行（老库 / 未回填）再用
+        # **与 shared/job_type.py 逐条对齐的 SQL 规则**推一次 —— 否则牛客那批
+        # 标题不带「实习」的实习岗（实测占 49%）只有平台兜底能救回来。
+        # 注：SQL 兜底只是防脏数据的护栏，正常路径下每行都有 job_type，
+        # 见 test_job_type.py 的「库内类型与分类器逐行一致」用例。
+        title_lower = "LOWER(IFNULL(title, ''))"
+        if wanted_type == TYPE_INTERN:
+            keywords, platforms = _INTERN_SQL_WORDS, _PLATFORM_INTERN_SQL
+        elif wanted_type == TYPE_PARTTIME:
+            keywords, platforms = _PARTTIME_SQL_WORDS, ()
+        else:
+            keywords, platforms = _FULLTIME_SQL_WORDS, _PLATFORM_FULLTIME_SQL
+        rules = [f"{title_lower} LIKE '%{word}%'" for word in keywords] + [
+            f"LOWER(IFNULL(platform, '')) = '{name}'" for name in platforms
+        ]
+        where.append(
+            f"(job_type = '{wanted_type}'"
+            f" OR (IFNULL(job_type, '') = '' AND ({' OR '.join(rules)})))"
+        )
 
     sql = f"SELECT * FROM {TABLE}"
     if where:
@@ -471,6 +577,9 @@ def ensure_db(source_json: Optional[Path] = None) -> bool:
     """
     source = Path(source_json) if source_json else SOURCE_JSON
     try:
+        # 先迁移：老库缺 job_type 列时补齐并回填存量类型。必须在任何查询之前跑，
+        # 否则旧库上引用 job_type 的 SQL 会直接报「no such column」。
+        migrate_db()
         if not DB_PATH.exists():
             if not source.is_file():
                 return False

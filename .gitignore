@@ -30,6 +30,7 @@ agent/data/chat_history.db
 agent/data/chainlit.db
 agent/data/.chainlit_secret
 agent/tests/_tmp_chat_history/
+agent/tests/_tmp_job_type/
 agent/tests/_tmp_langgraph/
 agent/tests/_tmp_limits/
 agent/tests/_tmp_pin/

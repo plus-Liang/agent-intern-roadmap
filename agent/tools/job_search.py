@@ -16,6 +16,15 @@ from typing import Optional
 
 # 本文件位于 <repo_root>/agent/tools/job_search.py，parents[2] 即仓库根目录
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# 岗位类型（实习 / 正式 / 兼职）口径 —— 全项目唯一实现
+from shared.job_type import (  # noqa: E402
+    classify_job_type,
+    matches as _type_matches,
+    normalize_job_type,
+)
 
 # 兜底 JSON 数据路径：<repo_root>/rag/data/cleaned_jd.json
 REAL_JD_PATH = _REPO_ROOT / "rag" / "data" / "cleaned_jd.json"
@@ -43,6 +52,7 @@ class Job:
 
     publish_date 由具体抓取器填充（实习僧取详情页的刷新时间，格式 YYYY-MM-DD）；
     mock 数据与拿不到日期的平台保持 ""。
+    job_type 岗位类型（实习 / 正式 / 兼职 / ""），口径见 shared/job_type.py。
     """
     platform: str        # 平台名：shixiseng / boss / ...
     job_id: str          # 平台内唯一 ID
@@ -54,6 +64,7 @@ class Job:
     tags: list[str] = None  # 标签
     description: str = ""   # 描述（可选）
     publish_date: str = ""  # 发布时间 "YYYY-MM-DD"，拿不到填 ""
+    job_type: str = ""      # 实习 / 正式 / 兼职；判定不了为 ""
 
 
 def search_jobs(
@@ -62,6 +73,7 @@ def search_jobs(
     limit: int = 50,
     platform: str = "mock",
     match_any: bool = False,
+    job_type: Optional[str] = None,
 ) -> list[Job]:
     """
     搜索岗位。
@@ -76,11 +88,14 @@ def search_jobs(
         match_any: True 时多词改为**任一命中**（OR）。给语义检索的候选召回用：
                   自然语言需求整句 AND 会命中 0 条，先放宽召回再由语义重排排序。
                   精确查询保持 False（调用方不传即为旧行为）。
+        job_type: 岗位类型过滤，取 实习 / 正式 / 兼职；None/"" 表示不限
+                  （口径见 shared/job_type.py，认不出来的值按"不限"处理）。
+                  **在 SQL / 候选集阶段过滤**，不是取回来再裁。
 
     返回：Job 列表（无命中返回空列表）
     """
     if platform in ("mock", "agent"):
-        return _mock_search(keyword, city, limit, match_any=match_any)
+        return _mock_search(keyword, city, limit, match_any=match_any, job_type=job_type)
     elif platform == "shixiseng":
         return _fetch_from_shixiseng(keyword, city, limit)
     else:
@@ -121,6 +136,13 @@ def _load_real_jobs() -> list[Job]:
                 tags=list(item["tags"]) if item.get("tags") else None,
                 description=item.get("description") or "",
                 publish_date=item.get("publish_date") or "",
+                # 存量 cleaned_jd.json 没有 job_type 字段 → 用同一份口径现场推，
+                # 保证「JSON 兜底路」与「SQLite 主路」的类型判定完全一致
+                job_type=classify_job_type(
+                    platform=item.get("platform") or "shixiseng",
+                    title=item.get("title") or "",
+                    explicit=item.get("job_type"),
+                ),
             )
         )
     return jobs
@@ -196,15 +218,19 @@ def _job_from_row(row: dict) -> Job:
         tags=list(row["tags"]) if row.get("tags") else None,
         description=row.get("description") or "",
         publish_date=row.get("publish_date") or "",
+        job_type=normalize_job_type(row.get("job_type"))
+        or classify_job_type(row.get("platform"), row.get("title")),
     )
 
 
 def _search_via_sqlite(keyword: str, city: Optional[str], limit: int,
-                       match_any: bool = False) -> Optional[list[Job]]:
+                       match_any: bool = False,
+                       job_type: Optional[str] = None) -> Optional[list[Job]]:
     """用 SQLite（rag/data/jobs.db）查询；返回 None 表示「库不可用」，调用方回退 JSON。
 
     过滤下推到 SQL：关键词多词默认 AND 命中 title/description（match_any=True 时改 OR），
-    城市按归一化匹配，排序/截断也在库里做，不再把全量数据读进内存。
+    城市按归一化匹配，**岗位类型也在 SQL 里过滤**（否则 limit 可能先把实习岗截掉），
+    排序/截断也在库里做，不再把全量数据读进内存。
     REAL_JD_PATH 被显式改写时（单测 / 临时数据源）直接跳过 DB——谁改了路径就以谁的
     JSON 为准，旧的数据源覆盖行为保持不变。
     """
@@ -215,7 +241,7 @@ def _search_via_sqlite(keyword: str, city: Optional[str], limit: int,
         if not db.ensure_db():
             return None
         rows = db.search_jobs(keyword=keyword, city=city, limit=limit,
-                              match_any=match_any)
+                              match_any=match_any, job_type=job_type)
     except Exception as exc:  # noqa: BLE001 —— 数据源坏了不该让搜索整体挂掉
         print(f"[job_search] SQLite 不可用，回退 JSON：{exc}", file=sys.stderr)
         return None
@@ -223,21 +249,25 @@ def _search_via_sqlite(keyword: str, city: Optional[str], limit: int,
 
 
 def _mock_search(keyword: str, city: Optional[str], limit: int,
-                 match_any: bool = False) -> list[Job]:
+                 match_any: bool = False,
+                 job_type: Optional[str] = None) -> list[Job]:
     """默认实现：优先 SQLite，其次 cleaned_jd.json，都读不到才回退硬编码 mock。
 
     迁移到 SQLite 之前这里会把整份 JSON 解析后全表过滤；1w+ 条时那是瓶颈，
     所以 DB 是主路径，JSON 只是兜底（旧部署 / 单测改写 REAL_JD_PATH / 建库失败）。
     """
-    db_jobs = _search_via_sqlite(keyword, city, limit, match_any=match_any)
+    db_jobs = _search_via_sqlite(keyword, city, limit, match_any=match_any,
+                                 job_type=job_type)
     if db_jobs is not None:
         return _apply_limit(db_jobs, limit, keyword)
 
     real_jobs = _load_real_jobs()
     if real_jobs:
+        wanted = normalize_job_type(job_type)
         results = [
             j for j in real_jobs
             if _match_keyword(j, keyword, match_any=match_any) and _match_city(j, city)
+            and _type_matches(j.job_type, wanted, j.platform, j.title)
         ]
         return _apply_limit(results, limit, keyword)
 

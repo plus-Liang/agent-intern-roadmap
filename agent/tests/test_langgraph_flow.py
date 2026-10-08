@@ -416,16 +416,21 @@ def _rows(n=12):
     return [
         {"job_id": f"job_{i:03d}", "title": f"Agent 开发实习生 {i}",
          "company": f"公司{i}", "city": "广州", "salary": "200-300/天",
-         "url": f"https://example.com/job/{i}", "tags": []}
+         "url": f"https://example.com/job/{i}", "tags": [], "job_type": "实习"}
         for i in range(1, n + 1)
     ]
 
 
 def _run_search_graph(rows, question="帮我找广州的 Agent 岗位", **over):
-    """全部离线：检索用假函数，参数提取强制走规则兜底（不让它打真 LLM）。"""
+    """全部离线：检索用假函数，参数提取强制走规则兜底（不让它打真 LLM）。
+
+    替身签名必须与 `reg._search(keyword, city, limit, semantic, job_type)` 一致 ——
+    参数不匹配会抛 TypeError，而节点里 with try/except 兜着，结果**静默**变成
+    "0 条命中"（历史上就是这样让三条用例假红过的）。
+    """
     initial = {"question": question, "verbose": False, **over}
     with _patched((LF.reg, "_search",
-                   lambda keyword, city=None, limit=20, semantic=False: rows),
+                   lambda keyword, city=None, limit=20, semantic=False, job_type=None: rows),
                   (LF, "_llm_json", _boom_llm)):
         return LF.SEARCH_GRAPH.invoke(initial)
 
@@ -498,14 +503,62 @@ def _search_params_vague_is_semantic():
     p = LF._extract_params_rules("想找偏大模型落地、能写工程代码的实习")
     if not p["semantic"]:
         raise AssertionError(f"模糊需求应走语义路：{p}")
-    return "模糊描述 → semantic=True"
+    if p["job_type"] != "实习":
+        raise AssertionError(f"类型没抽对：{p}")
+    return "模糊描述 → semantic=True 且 job_type=实习"
+
+
+def _search_params_type_from_rules():
+    """本轮核心：用户说了「实习」就必须抽出 job_type，并把它从关键词里摘掉。"""
+    p = LF._extract_params_rules("帮我找广州的 agent 的实习岗位")
+    if p["job_type"] != "实习":
+        raise AssertionError(f"job_type 没抽对：{p}")
+    if p["city"] != "广州":
+        raise AssertionError(f"city 没抽对：{p}")
+    if "实习" in p["keyword"]:
+        raise AssertionError(f"类型词必须从 keyword 里摘掉：{p}")
+    if p["semantic"]:
+        raise AssertionError(f"明确关键词不该走语义路：{p}")
+    plain = LF._extract_params_rules("帮我找广州的 Agent 岗位")
+    if plain["job_type"]:
+        raise AssertionError(f"没提类型时不该过滤：{plain}")
+    return f"keyword={p['keyword']!r} job_type={p['job_type']}；不提类型时 job_type=''"
+
+
+def _search_node_passes_job_type():
+    """搜岗位节点必须把 job_type 真传给检索函数（不是只在 state 里躺着）。"""
+    seen = {}
+
+    def fake(keyword, city=None, limit=20, semantic=False, job_type=None):
+        seen["job_type"] = job_type
+        return _rows(2)
+
+    with _patched((LF.reg, "_search", fake), (LF, "_llm_json", _boom_llm)):
+        state = LF.SEARCH_GRAPH.invoke(
+            {"question": "帮我找广州的 agent 实习岗位", "verbose": False})
+    if seen.get("job_type") != "实习":
+        raise AssertionError(f"检索时没带 job_type：{seen}")
+    if state.get("job_type") != "实习":
+        raise AssertionError(f"state 里 job_type 丢失：{state}")
+    return "节点把 job_type=实习 传给了检索函数"
+
+
+def _filter_keeps_type_intact():
+    """筛选节点只做去重/残缺/城市/重编号，不得改动岗位类型。"""
+    rows = _rows(3)
+    rows[1] = {**rows[1], "job_type": "正式"}
+    state = _run_search_graph(rows, question="帮我找广州的 agent 实习岗位")
+    kinds = {r["job_type"] for r in state["filtered"]}
+    if kinds != {"实习", "正式"}:
+        raise AssertionError(f"筛选改动了类型字段：{kinds}")
+    return "筛选后类型字段原样保留（过滤已在检索阶段完成）"
 
 
 def _search_params_llm_preferred():
     graph = LF.build_search_graph()
     initial = {"question": "帮我搜广州的 Agent 岗位", "verbose": False}
     with _patched((LF.reg, "_search",
-                   lambda keyword, city=None, limit=20, semantic=False: _rows(3)),
+                   lambda keyword, city=None, limit=20, semantic=False, job_type=None: _rows(3)),
                   (LF, "_llm_json", _fake_llm(
                       {"keyword": "Agent", "city": "广州", "limit": 20,
                        "semantic": False}))):
@@ -515,11 +568,35 @@ def _search_params_llm_preferred():
     return "LLM 抽取优先，规则兜底"
 
 
+def _search_params_llm_type_normalized():
+    """模型给 job_type 时统一归一；模型漏给时用规则层的判定补上。"""
+    graph = LF.build_search_graph()
+    llm_says = [
+        # (模型给的 job_type, 期望结果)
+        ("实习", "实习"),
+        ("intern", "实习"),      # 英文写法也要认
+        ("", "实习"),            # 模型漏给 → 规则层从原句认出来
+        ("火星", "实习"),        # 认不出来 → 规则层兜底
+        ("正式", "正式"),        # 模型说的是正式，规则层不该覆盖（本轮回归点）
+    ]
+    for given, want in llm_says:
+        with _patched((LF.reg, "_search",
+                       lambda keyword, city=None, limit=20, semantic=False, job_type=None: _rows(1)),
+                      (LF, "_llm_json", _fake_llm(
+                          {"keyword": "agent", "city": "广州", "limit": 20,
+                           "semantic": False, "job_type": given}))):
+            state = graph.invoke({"question": "帮我找广州的 agent 实习岗位",
+                                  "verbose": False})
+        if state.get("job_type") != want:
+            raise AssertionError(f"模型给 {given!r} 时期望 {want!r}，实际 {state.get('job_type')!r}")
+    return "五档 job_type 归一（含模型漏给/瞎给/说反）"
+
+
 def _search_params_bad_city_rejected():
     graph = LF.build_search_graph()
     initial = {"question": "帮我找火星的 Agent 岗位", "verbose": False}
     with _patched((LF.reg, "_search",
-                   lambda keyword, city=None, limit=20, semantic=False: _rows(1)),
+                   lambda keyword, city=None, limit=20, semantic=False, job_type=None: _rows(1)),
                   (LF, "_llm_json", _fake_llm(
                       {"keyword": "Agent", "city": "火星", "limit": 20,
                        "semantic": False}))):
@@ -537,6 +614,11 @@ check("参数提取：明确关键词（规则兜底）", _search_params_from_ru
 check("参数提取：模糊需求走语义路", _search_params_vague_is_semantic)
 check("参数提取：LLM 优先", _search_params_llm_preferred)
 check("参数提取：拒绝模型编造的城市", _search_params_bad_city_rejected)
+# Round 12：岗位类型（实习 / 正式）必须真的过滤，且不污染关键词
+check("岗位类型：规则层抽出类型并摘掉类型词", _search_params_type_from_rules)
+check("岗位类型：节点真把 job_type 传给检索", _search_node_passes_job_type)
+check("岗位类型：筛选不改动类型字段", _filter_keeps_type_intact)
+check("岗位类型：模型漏给/瞎给时说反了也不放过", _search_params_llm_type_normalized)
 
 
 # ---------------------------------------------------------------------------

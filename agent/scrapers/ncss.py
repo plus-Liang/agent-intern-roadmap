@@ -83,6 +83,7 @@ from typing import Any, Optional
 import requests
 
 from agent.scrapers.base import PlatformScraper, RawJob
+from shared.job_type import classify_job_type
 
 # ---------------------------------------------------------------------------
 # 常量
@@ -433,6 +434,13 @@ class NcssScraper(PlatformScraper):
             url=DETAIL_URL_TMPL.format(job_id=job_id),
             description="",  # 占位：fetch_description=True 时由 _attach_descriptions 补齐
             publish_date=_fmt_date(item.get("publishDate") or item.get("updateDate")),
+            # ncss 的 recruitType 实测恒为 "0"（4 城 × 5 词 400 条全是 0），详情页也
+            # 没有结构化类型字段 → 只能按标题「实习」打标，其余按校招池兜底成"正式"
+            # （理由见 shared/job_type.py 的 docstring，这是有意的取舍）。
+            job_type=classify_job_type(
+                platform=PLATFORM,
+                title=str(item.get("jobName") or "").strip(),
+            ),
         )
 
     # -- 公开：search ------------------------------------------------------

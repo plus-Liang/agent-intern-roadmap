@@ -41,6 +41,8 @@ from langgraph.graph import END, StateGraph
 
 from agent import tools_registry as reg
 from shared import limits
+from shared.job_type import (detect_query_type, normalize_job_type,
+                             strip_query_type_words)
 from shared.llm_client import chat
 from shared.logger import log_event
 
@@ -268,6 +270,7 @@ class SearchState(TypedDict, total=False):
     city: str
     limit: int
     semantic: bool
+    job_type: str
     extract_source: str
     rows: list
     filtered: list
@@ -297,7 +300,13 @@ def receive_search(state: SearchState) -> dict:
 
 
 def _extract_params_rules(question: str) -> dict:
-    """确定性参数提取（LLM 不可用时的兜底，也是 LLM 结果的校验基准）。"""
+    """确定性参数提取（LLM 不可用时的兜底，也是 LLM 结果的校验基准）。
+
+    岗位类型也在这里抽：用户说「实习」就必须只给实习岗（本轮修的 bug 就是
+    类型被忽略、正式岗混进结果）。类型词同时要**从关键词里摘掉** ——
+    否则「广州 agent 实习岗位」会退化成关键词 LIKE '%实习%'，把牛客那批
+    标题不带「实习」的实习岗（实测占 49%）全部漏掉。
+    """
     text = question or ""
     city = ""
     for name in CITY_POOL:
@@ -305,8 +314,9 @@ def _extract_params_rules(question: str) -> dict:
             city = name
             break
     limit = 50 if re.search(r"(全部|所有|列全|完整列表|都列出来)", text) else DEFAULT_LIMIT
+    job_type = detect_query_type(text)
 
-    stripped = text
+    stripped = strip_query_type_words(text)
     if city:
         stripped = stripped.replace(city, " ")
     for filler in sorted(_FILLERS, key=len, reverse=True):
@@ -314,25 +324,31 @@ def _extract_params_rules(question: str) -> dict:
     stripped = re.sub(r"[\s,，。.、；;：:!！?？~～\-—]+", " ", stripped).strip()
 
     if stripped and len(stripped) <= 10:
-        return {"keyword": stripped, "city": city, "limit": limit, "semantic": False}
+        return {"keyword": stripped, "city": city, "limit": limit,
+                "semantic": False, "job_type": job_type}
     # 描述型需求（「想找偏大模型落地、能写工程代码的实习」）没有可直接检索的词 →
     # 交给语义路，整句当 keyword（与旧版 prompt 的语义分流规则同口径）
-    return {"keyword": text.strip(), "city": city, "limit": limit, "semantic": True}
+    return {"keyword": text.strip(), "city": city, "limit": limit,
+            "semantic": True, "job_type": job_type}
 
 
 _EXTRACT_PROMPT = """你是「岗位搜索」工作流的**参数提取节点**。从用户问题里抽出检索参数。
 
 只输出一个 JSON，不要任何其他内容：
-{{"keyword": "检索关键词", "city": "城市或空串", "limit": 20, "semantic": false}}
+{{"keyword": "检索关键词", "city": "城市或空串", "limit": 20, "semantic": false, "job_type": "实习"}}
 
 规则：
 1. keyword 必须是**可直接检索**的技术词 / 岗位词（如 Agent、大模型、Java、算法工程师、产品经理）。
    把「帮我 / 找 / 广州 / 的 / 岗位」这些口语成分全部去掉。
+   **不要**把「实习 / 正式 / 兼职」这类类型词放进 keyword（那是 job_type 的事）。
 2. 用户描述的是「什么样的岗位」而**没有给出具体关键词**时（如「想找偏大模型落地、
    能写工程代码的实习」），keyword 填**用户的整句描述**，并把 semantic 设为 true。
 3. city 只填用户明确说出的城市（如广州 / 北京）；没说不填，**不要**用"全国"。
 4. limit 默认 20；用户说「全部 / 所有 / 列全」时填 50。
 5. 用户只说了城市没说岗位方向时，keyword 填空串。
+6. job_type 只填 **实习 / 正式 / 兼职** 三者之一：用户说要实习岗就填「实习」，
+   说正式岗 / 社招就填「正式」，说兼职填「兼职」；**没提岗位类型时填空串**
+   （空串 = 不限类型）。不要自己推断。
 
 用户问题：{question}"""
 
@@ -358,11 +374,21 @@ def extract_params(state: SearchState) -> dict:
         semantic = bool(data.get("semantic"))
         if city and city not in CITY_POOL:
             city = ""                                   # 只认已知城市，避免模型瞎编地名
+        # 岗位类型：模型给的先按同一套词表归一，认不出来就用规则层的结果
+        # （规则层直接从原句里认「实习 / 正式 / 兼职」，比模型更不容易漏）
+        job_type = normalize_job_type(data.get("job_type")) or fallback["job_type"]
         if not keyword and not city:
             keyword = fallback["keyword"]               # 两者都空 → 退回规则结果
             semantic = fallback["semantic"]
+        # 关键词里若还残留类型词（模型没听话），摘干净，避免 LIKE 把牛客那批
+        # 标题不带「实习」的实习岗滤掉。
+        # ⚠️ 只在**精确路**摘：语义路的 keyword 是用户整句描述
+        # （「想找偏大模型落地、能写工程代码的实习」），摘词会破坏语义。
+        if not semantic:
+            keyword = strip_query_type_words(keyword).strip()
         limit = max(1, min(50, limit))
-        params = {"keyword": keyword, "city": city, "limit": limit, "semantic": semantic}
+        params = {"keyword": keyword, "city": city, "limit": limit, "semantic": semantic,
+                  "job_type": job_type}
         source = "llm"
     except Exception as e:                              # noqa: BLE001 - 抽取失败不该让对话挂掉
         if state.get("verbose"):
@@ -373,14 +399,17 @@ def extract_params(state: SearchState) -> dict:
         "city": params["city"],
         "limit": params["limit"],
         "semantic": params["semantic"],
+        "job_type": params.get("job_type", ""),
         "extract_source": source,
         "steps": _step(
             state, "提取参数",
             f"关键词「{params['keyword']}」，城市「{params['city'] or '不限'}」，"
+            f"类型「{params.get('job_type') or '不限'}」，"
             f"条数 {params['limit']}，语义重排 {'开' if params['semantic'] else '关'}"
             f"（来源：{source}）",
             payload={"keyword": params["keyword"], "city": params["city"],
-                     "limit": params["limit"], "semantic": params["semantic"]},
+                     "limit": params["limit"], "semantic": params["semantic"],
+                     "job_type": params.get("job_type", "")},
         ),
     }
 
@@ -395,12 +424,13 @@ def search_jobs_node(state: SearchState) -> dict:
     city = state.get("city") or None
     limit = int(state.get("limit") or DEFAULT_LIMIT)
     semantic = bool(state.get("semantic"))
+    job_type = normalize_job_type(state.get("job_type"))
     rows: list = []
     error = ""
     try:
-        rows = reg._search(keyword, city, limit, semantic) or []
+        rows = reg._search(keyword, city, limit, semantic, job_type) or []
         if not rows and semantic:
-            rows = reg._search(keyword, city, limit, False) or []
+            rows = reg._search(keyword, city, limit, False, job_type) or []
             semantic = False
     except Exception as e:                              # noqa: BLE001 - 检索失败如实告知
         error = f"{type(e).__name__}: {e}"
@@ -409,16 +439,16 @@ def search_jobs_node(state: SearchState) -> dict:
 
     log_event(state.get("trace_id") or "-", "lg_node", node="search", engine="langgraph",
               graph="search", keyword=keyword, city=city or "", semantic=semantic,
-              hits=len(rows), error=error)
+              job_type=job_type or "", hits=len(rows), error=error)
     return {
         "rows": rows,
         "semantic": semantic,
         "steps": _step(
             state, "搜岗位",
             f"调用 search_jobs(keyword={keyword!r}, city={city!r}, limit={limit}, "
-            f"semantic={semantic})，命中 {len(rows)} 条",
+            f"semantic={semantic}, job_type={job_type or '不限'!r})，命中 {len(rows)} 条",
             payload={"keyword": keyword, "city": city or "", "limit": limit,
-                     "semantic": semantic},
+                     "semantic": semantic, "job_type": job_type or ""},
             observation=error or f"命中 {len(rows)} 条",
         ),
     }

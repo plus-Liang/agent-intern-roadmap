@@ -235,6 +235,27 @@ python -m rag.vector_store --rebuild      # 从 jobs.db 全量重建（约几分
 `jobs.db` 同样不进 git，但**不需要手动建**：`rag/data/db.py:ensure_db()` 会在它不存在时
 自动从 `cleaned_jd.json` 建库（`cleaned_jd.json` 比库新时也会自动增量同步）。
 
+### 岗位类型（实习 / 正式 / 兼职）
+
+`jobs` 表有 `job_type` 列（`实习` / `正式` / `兼职` / 空），`search_jobs` 支持按它过滤：
+用户说「找实习」就只返回实习岗，说「找岗位」则返回全部类型。判定口径集中在
+`shared/job_type.py`（抓取打标、清洗、入库、搜索过滤、老库回填共用同一份实现）：
+
+| 平台 | 类型信号 | 判定 |
+|---|---|---|
+| 实习僧 `shixiseng` | 搜索 URL 固定带 `type=intern` | 平台属性即实习（标题带「兼职」另算） |
+| 牛客 `niuke` | 接口 `recruitType=2`（实习频道） | 平台属性即实习 |
+| 教育部平台 `ncss` | 接口 `recruitType` 恒为 0、详情页无类型字段 | 只能按标题「实习」判断，其余算正式 |
+
+> ⚠️ **不能**用「标题里有没有实习」来判牛客的数据：实测实习频道 180 条里只有 51.1%
+> 的标题带「实习」字样，按标题判会把近一半真实习岗判丢。
+> `ncss` 那 923 条标题不带「实习」的岗位按**正式**兜底（它是校招池），这样搜实习时
+> 不会被混进来；代价是「标题不带实习、其实招实习生」的岗位会被漏判成正式。
+
+**老库升级**：`rag/data/db.py:migrate_db()` 会给已有的 `jobs.db` 补 `job_type` 列并
+回填存量数据（幂等，已挂在 `ensure_db()` 里，`search_jobs` 第一次查询就自动完成）；
+库不存在时从 `cleaned_jd.json` 重建，走同一套判定，不需要手工 SQL。
+
 ### Hugging Face Space 部署
 
 - 顶部 frontmatter 的 `sdk: docker` / `app_port: 7860` 就是 Space 配置，**不能删**。

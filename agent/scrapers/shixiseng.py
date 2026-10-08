@@ -76,6 +76,9 @@ from agent.tools.job_search import Job  # noqa: E402
 # 放在这里不会引入额外的浏览器 / 网络依赖。
 from agent.scrapers.base import PlatformScraper, RawJob  # noqa: E402
 
+# 岗位类型（实习 / 正式 / 兼职）口径 —— 全项目唯一实现，见 shared/job_type.py
+from shared.job_type import classify_job_type  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # 常量
 # ---------------------------------------------------------------------------
@@ -1841,17 +1844,25 @@ class ShixisengScraper(PlatformScraper):
             def get(name: str) -> Any:
                 return getattr(job, name, None)
 
+        title = get("title") or ""
         return RawJob(
             # 抓取器自己写的 platform 优先，兜底用本平台的标识
             platform=get("platform") or PLATFORM,
             job_id=get("job_id") or "",
-            title=get("title") or "",
+            title=title,
             company=get("company") or "",
             city=get("city") or "",
             salary=get("salary") or "",
             url=get("url") or "",
             description=get("description") or "",
             publish_date=get("publish_date") or "",
+            # 本平台搜索 URL 固定带 type=intern（平台属性=实习），但站点也放
+            # 「兼职」与少量正式岗 —— 打标交给统一口径，别在这里另写一套判断。
+            job_type=classify_job_type(
+                platform=get("platform") or PLATFORM,
+                title=title,
+                explicit=get("job_type"),
+            ),
         )
 
     # -- 长驻浏览器 ---------------------------------------------------------
