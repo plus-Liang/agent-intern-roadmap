@@ -573,6 +573,60 @@ python scripts/audit_data.py                 # 数据质量统计
 
 ---
 
+## 8. 评测：Agent 效果量化
+
+「改完 prompt / 换了模型，到底是变好了还是变差了？」——靠感觉答不了这个问题。
+`evaluation/` 下是一套**可重复运行**的分类评测：27 道题、5 类能力，跑完给
+分类准确率 + 总准确率，并逐次留档。
+
+| 类别 | 题数 | 判分方式 | 在测什么 |
+|---|---|---|---|
+| `search` 搜岗位 | 6 | 确定性 | 城市 / 岗位类型有没有被正确提取，过滤是不是真的生效 |
+| `match` 匹配打分 | 5 | LLM 裁判（+ 确定性区间） | 分数是否落在合理区间、反思节点是否触发、理由有没有证据 |
+| `package` 投递包 | 4 | 确定性 | 三件套是否生成、关键字段有没有丢、有没有已知错字 / 模板兜底 |
+| `interview` 模拟面试 | 5 | LLM 裁判 | 连问 3 题，整组题是否贴岗位 JD、有没有串到别家公司 |
+| `boundary` 边界 | 7 | 确定性 | 闲聊不误调工具、搜不到就如实说搜不到 |
+
+```bash
+python evaluation/run_eval.py                       # 全量（约 20-30 分钟，会真调 LLM）
+python evaluation/run_eval.py --category search     # 只跑某一类（改完 prompt 先跑这个）
+python evaluation/run_eval.py --case match-01       # 只跑某几题
+python evaluation/run_eval.py --list                # 只列题，不跑
+python evaluation/run_eval.py --compare evaluation/results/<上次>.json   # 与上次对比
+```
+
+结果怎么看：
+
+- 终端直接打印「分类准确率 + 总准确率 + 每道失败题的原因」；
+- 落到 `evaluation/results/<时间戳>.json`（机器可读，含每题明细）和同名 `.md`（可读表）；
+- 加了 `--compare` 会多打一段「新通过 / 新失败 / 分类准确率变化」——
+  **看回归盯「新失败」，看改进盯「新通过」**。
+
+改题库：
+
+- 只改 `evaluation/test_set.json` 一个文件：加题 = 复制一段改字段。
+  确定性题写 `expect`（城市 / 类型 / 条数 / 区间 / 必须出现或禁止出现的字），
+  LLM 裁判题写 `expect_score_range` 或 `expect_topics` 加 `must_not_mention` 这类硬约束；
+- 题里的 `job_id` 取自 `rag/data/jobs.db`。换库后某条被删，该题会以「岗位查不到」
+  失败并写明原因，**不会静默算通过**。
+
+隔离与前提：
+
+- 评测用一个独立的 `eval_runner` 身份跑，简历库 / 投递包 / 导出目录都指向
+  `evaluation/_artifacts/`，**不动你的真实简历库和投递记录**；
+- 需要 `rag/data/jobs.db` 里已有数据、`.env` 里有可用的 API Key（确定性题不花钱，
+  LLM 裁判题和匹配 / 面试题会真调模型，注意用量）；
+- LLM 裁判用的是**独立的 judge prompt**，和被测的那套 prompt 不是一回事；
+  但裁判目前跑的是**同一个模型**（项目只配了一个），这是已知局限 —— 换模型时
+  裁判的标准也会跟着变，所以跨模型的分数只能看趋势、不能当绝对结论。
+
+与 `agent/evaluation/` 的关系：那一套是「ReAct 工具调用轨迹」的深度评估
+（10 个任务、每题一个独立临时库、LLM-as-Judge、失败归档），看的是**过程**；
+`evaluation/` 这一套看的是**能力准确率**，快、便宜、可对比，适合每轮改动后回归。
+两者互补，不是替代。
+
+---
+
 ## 扩展指南：想改什么，改哪里
 
 按"想改的东西"查表，**大部分需求只动一个文件、不用改代码**：
