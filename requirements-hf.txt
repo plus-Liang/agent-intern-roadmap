@@ -24,3 +24,6 @@ cffi==2.1.1
 pycparser==3.0
 sqlalchemy[asyncio]>=2.0.30
 aiosqlite>=0.20.0
+# LangGraph 工作流（阶段 1：固定「搜岗位」流程 + 反思节点）。
+# 只用到 langgraph.graph（StateGraph / END），图定义见 agent/langgraph_flow.py。
+langgraph==1.2.14

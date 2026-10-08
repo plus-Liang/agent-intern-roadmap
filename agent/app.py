@@ -30,7 +30,12 @@ from agent import data_layer
 from agent import storage
 from agent import user_feedback
 from agent import user_profile
-from agent.react_agent import run as run_agent
+# Agent 入口（阶段 1 起改用 LangGraph 版）：
+#   - 「搜岗位」走固定五步图（接收 → 提取参数 → 搜岗位 → 筛选 → 返回列表）；
+#   - 「匹配打分」走「打分 + 反思」图（不合理就回边重打，最多 2 次）；
+#   - 其余请求（投递 / 投递包 / 面试 / 记忆 / …）原样交回 react_agent 兜底。
+# 想整体切回旧版：.env 里设 AGENT_ENGINE=react（或把下面这行改回 react_agent）。
+from agent.react_agent_lg import run as run_agent
 from agent.resume import extractor
 from agent.tools.job_detail import get_job_detail
 from agent.tools.job_search import search_jobs
