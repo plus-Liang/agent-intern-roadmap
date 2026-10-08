@@ -16,6 +16,7 @@ LangGraph 版 Agent 入口（阶段 1：固定基础流程 + 反思节点）。
 |---|---|---|
 | 「帮我找广州的 Agent 岗位」 | `SEARCH_GRAPH`（固定五步） | 搜岗位是**流程**，不该由模型自决 |
 | 「帮我匹配简历」 | `MATCH_GRAPH`（打分 + 反思） | 打分要能自评，走反思边 |
+| 「看日志 / 系统日志 / docker 日志」 | 确定性引导（提示去终端跑 docker compose logs） | 系统日志不在对话里，也不是投递记录（防误判成 list_tracking） |
 | 投递 / 投递包 / 面试 / 记忆 / 其它 | `react_agent.run` 原样兜底 | 这些是多步决策，本期不动 |
 
 开关
@@ -46,6 +47,33 @@ _BLOCK_WORDS = ("投递", "投了", "已投", "想投", "投个", "投这",
                 "添加", "保存", "提醒", "收藏", "标记", "面试")
 #: 匹配意图也要挡的词（这些是别的流程的入口）
 _MATCH_BLOCK_WORDS = ("投递包", "生成", "简历定制", "删除", "删掉", "清空", "保存")
+#: 「看日志」意图的词表（问题 3）：用户说的日志是**系统运行日志**，
+#: 不是投递记录 —— 以前模型以为「日志」=投递记录，跑去 list_tracking。
+_LOG_WORDS = ("日志", "log", "logs", "log 文件")
+
+
+def is_log_intent(question: str) -> bool:
+    """用户是不是想看**系统运行日志**（docker / 服务端日志）。
+
+    命中后不走 LLM，直接给出「去终端跑 docker compose logs app --tail 50」的引导，
+    避免模型把「日志」理解成投递记录（这是问题 3 的根因：Agent 不知道系统日志是什么）。
+    """
+    text = (question or "").strip().lower()
+    if not text or text.startswith("/"):
+        return False
+    return any(word in text for word in _LOG_WORDS)
+
+
+LOG_GUIDE = (
+    "系统运行日志不在对话里，也不是投递记录 —— 它在**服务端终端**：\n\n"
+    "```\ndocker compose logs app --tail 50\n```\n\n"
+    "常用变体：`docker compose logs -f app`（持续跟踪）、"
+    "`docker compose logs app --tail 200`（多看一些）、"
+    "`docker compose logs app | grep -i error`（只看报错）。\n\n"
+    "本地用 `python start.py` 起的服务，日志直接打在启动它的那个终端窗口，"
+    "另外 `logs/app.log` 里也有落盘副本。\n\n"
+    "（要查投递记录的话，直接说「我的投递记录」，那条走的是投递管理，与日志无关。）"
+)
 
 
 def _engine() -> str:
@@ -83,6 +111,8 @@ def is_match_intent(question: str) -> bool:
 
 
 def _route(question: str) -> str:
+    if is_log_intent(question):
+        return "log"                                   # 看日志：确定性引导，不调 LLM
     if is_match_intent(question):
         return "match"                                   # 先判匹配：它比搜岗位更具体
     if is_search_intent(question):
@@ -122,6 +152,26 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
                                history=history, return_messages=return_messages)
 
     kind = _route(question)
+    if kind == "log":
+        # 问题 3：「看日志」是**系统日志**，确定性回复引导用户去终端，
+        # 既不查投递记录，也不烧一次 LLM 轮次。
+        trace_id = str(uuid.uuid4())[:8]
+        log_event(trace_id, "run_start", question=question[:50], engine="langgraph",
+                  graph="log")
+        steps = [{
+            "turn": 1,
+            "type": "route",
+            "engine": "langgraph",
+            "node": "日志引导",
+            "thought": "用户要看系统日志 → 引导到终端执行 docker compose logs app",
+        }]
+        log_event(trace_id, "run_end", total_turns=1,
+                  final_answer_len=len(LOG_GUIDE), engine="langgraph")
+        result = {"answer": LOG_GUIDE, "steps": steps}
+        if return_messages:
+            result["messages"] = [{"role": "assistant", "content": LOG_GUIDE}]
+            result["trace_id"] = trace_id
+        return result
     if kind == "react":
         # 不在 LangGraph 负责范围内的请求 → 原样交给 ReAct，行为与改造前一致
         result = react_agent.run(question, resume_data=resume_data, verbose=verbose,
@@ -162,5 +212,5 @@ def engine_name(question: str) -> str:
     if _engine() in ("react", "react_agent", "legacy"):
         return "react"
     kind = _route(question)
-    return {"search": "langgraph:search", "match": "langgraph:match"}.get(
-        kind, "react")
+    return {"search": "langgraph:search", "match": "langgraph:match",
+            "log": "langgraph:log"}.get(kind, "react")

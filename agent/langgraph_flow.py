@@ -57,6 +57,12 @@ DISPLAY_LIMIT = 10
 MAX_REFLECTION_RETRIES = 2
 #: 打高分却存在「岗位硬性要求完全没在简历里出现」时的虚高警戒线
 INFLATION_SCORE = int(os.getenv("LG_REFLECT_INFLATION_SCORE", "85") or 85)
+#: 关键项大面积缺失（覆盖 < 50%）时降到的低警戒线（甲：判据按证据强度分档）
+INFLATION_LINE_LOW = int(os.getenv("LG_REFLECT_INFLATION_SCORE_LOW", "70") or 70)
+#: 收敛条件（乙）：建议修正的绝对值小于它就认为分数已经稳定，不再反思重打
+CONVERGENCE_DELTA = int(os.getenv("LG_REFLECT_CONVERGENCE_DELTA", "5") or 5)
+#: 关键项覆盖率高于它 → 用高警戒线；否则用低警戒线
+HARD_COVERAGE_OK = 0.5
 
 #: 城市池（与 config/scraping.yaml 的 cities 保持同口径，另留常用城市做识别）
 CITY_POOL = (
@@ -88,6 +94,12 @@ _CN_TECH_TERMS = (
     "大模型", "向量检索", "向量数据库", "知识库", "微调", "提示词", "智能体",
     "多模态", "机器学习", "深度学习", "推荐系统", "搜索引擎", "分布式", "高并发",
     "数据挖掘", "数据分析", "强化学习", "模型部署", "推理优化", "检索增强",
+)
+
+#: 「硬性要求」的措辞标记：出现这些词的句子里的技术项才算**关键项**（甲的依据）
+_HARD_MARKERS = (
+    "必须", "精通", "熟练掌握", "熟练使用", "熟练", "掌握", "熟悉", "具备",
+    "要求", "硬性", "至少", "会用", "有…经验", "有经验", "相关经验",
 )
 
 _JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
@@ -212,6 +224,37 @@ def _job_blob(detail) -> str:
         str(getattr(detail, "requirements", "") or ""),
         str(getattr(detail, "description", "") or ""),
     ])
+
+
+def _collect_jd_terms(text: str) -> list:
+    """从一段 JD 文本里抽技术项（ASCII 技术词 + 中文技术名词），保序去重。"""
+    terms: list = []
+    for token in _ASCII_TOKEN_RE.findall(text or ""):
+        low = token.lower()
+        if low in _EN_STOPWORDS or low in terms:
+            continue
+        terms.append(low)
+    for term in _CN_TECH_TERMS:
+        if term in (text or "") and term not in terms:
+            terms.append(term)
+    return terms
+
+
+def _hard_text(detail) -> str:
+    """只保留「硬性要求」那部分 JD 文本（甲：关键项从这儿抽）。
+
+    来源两处：① `requirements` 字段（JD 的「任职要求」段，整段都算硬性）；
+    ② description 里带「熟悉 / 必须 / 精通 / 要求」等措辞的句子。
+    两处都抽不到关键项时由调用方退回「全部技术项都算关键项」。
+    """
+    if detail is None:
+        return ""
+    parts = [str(getattr(detail, "requirements", "") or "")]
+    desc = str(getattr(detail, "description", "") or "")
+    for seg in re.split(r"[\n。；;!！?？]+", desc):
+        if any(marker in seg for marker in _HARD_MARKERS):
+            parts.append(seg)
+    return " ".join(p for p in parts if p)
 
 
 # ==========================================================================
@@ -627,7 +670,7 @@ def _extract_job_id(question: str, job_id: str = "") -> str:
 
 
 def locate_job(state: MatchState) -> dict:
-    """[定位岗位] 显式 job_id → 序号提示 → 会话里粘贴的岗位 → 上一次搜索的第 1 条。
+    """[定位岗位] 显式 job_id → 序号提示 → 会话里正在看的岗位 → 上一次搜索的第 1 条。
 
     这一步是确定性的：旧版由模型自己决定匹配哪条岗位，跨轮会让模型「自己数行」，
     历史上既投错过岗也匹配错过岗。这里把优先级写死，拿不到就**如实说拿不到**。
@@ -653,9 +696,12 @@ def locate_job(state: MatchState) -> dict:
             detail = None
 
     if detail is None:
-        detail = reg.get_current_pasted_job()
+        # 「用户当前在看的岗位」优先于「最近一次搜索的第 1 条」：
+        # 投递包生成时会把那条岗位写进会话态 current_job（tools_registry._set_current_job），
+        # 粘贴的 JD 走另一个槽位，两者取更近的那个（get_focus_job）。
+        detail, source = reg.get_focus_job()
         if detail is not None:
-            note = "用会话里粘贴的岗位"
+            note = source or "会话里正在看的岗位"
     if detail is None:
         last = reg.lookup_job_ordinal(1)
         if last and last.get("job_id"):
@@ -746,24 +792,23 @@ def score_node_factory(scorer):
 
 
 def deterministic_check(resume_data: dict, detail, score: int) -> dict:
-    """确定性覆盖检查：岗位硬性要求里，哪些**完全没有**在简历中出现。
+    """确定性覆盖检查：岗位**关键项**里，哪些完全没有在简历中出现。
 
-    这是反思节点的**事实层**，不依赖模型：把 JD 里的技术项（ASCII 技术词 +
-    中文技术名词）逐个在简历文本里找。找不到的记为缺口。
+    这是反思节点的**事实层**，不依赖模型。本轮修的是「判据太严 → 不收敛」：
+
+    - **甲（放宽判据）**：只有 **关键项**（`requirements` 段 / 带「熟悉、必须、精通、
+      要求」等硬性措辞的句子里的技术项）缺失才算数；JD 里顺带提到的非关键项缺失
+      不再单独作为「虚高」理由。而且虚高要求分数**严格高于**警戒线：
+      关键项覆盖 >= 50% 用 `INFLATION_SCORE`(85)，覆盖 < 50% 用
+      `INFLATION_LINE_LOW`(70)；回到线下就不再判虚高（修正目标 = 回到线）。
+    - 这样「判虚高 → 下调到线 → 再判」天然收敛，不需要靠重试上限兜。
     """
     jd_text = _job_blob(detail)
+    hard_text = _hard_text(detail)
     resume_text = _resume_blob(resume_data)
     resume_squeezed = re.sub(r"[\s\-_.]+", "", resume_text)
-    terms: list = []
-    for token in _ASCII_TOKEN_RE.findall(jd_text):
-        low = token.lower()
-        if low in _EN_STOPWORDS or low in terms:
-            continue
-        terms.append(low)
-    for term in _CN_TECH_TERMS:
-        if term in jd_text and term not in terms:
-            terms.append(term)
-    terms = terms[:20]
+    terms = _collect_jd_terms(jd_text)[:20]
+    hard_all = set(_collect_jd_terms(hard_text))
 
     def _covered(term: str) -> bool:
         if term in resume_text:
@@ -772,24 +817,34 @@ def deterministic_check(resume_data: dict, detail, score: int) -> dict:
         return bool(squeezed) and squeezed in resume_squeezed
 
     missing = [t for t in terms if not _covered(t)]
-    inflation = bool(missing) and score >= INFLATION_SCORE
+    # 抽不到硬性段（有些 JD 没有 requirements，描述里也没有硬性措辞）时退回全部技术项，
+    # 保证事实层不会因为「认不出关键项」而整体失效。
+    hard_terms = [t for t in terms if t in hard_all] or list(terms)
+    hard_missing = [t for t in hard_terms if not _covered(t)]
+    covered = len(hard_terms) - len(hard_missing)
+    coverage = (covered / len(hard_terms)) if hard_terms else 1.0
+    line = INFLATION_SCORE if coverage >= HARD_COVERAGE_OK else INFLATION_LINE_LOW
+    inflation = bool(hard_missing) and score > line
 
     if inflation:
-        reason = (f"岗位要求的 {'、'.join(missing[:5])} 在简历里完全找不到证据，"
-                  f"却给了 {score} 分，分数可能虚高")
-    elif missing and score >= 70 and len(missing) * 2 >= len(terms):
-        inflation = True
-        reason = (f"岗位要求中过半（{len(missing)}/{len(terms)}）的技术项在简历里找不到证据，"
-                  f"却给了 {score} 分，分数可能虚高")
-    elif missing:
-        reason = f"有 {len(missing)} 项要求未在简历中体现，但分数未达虚高警戒线"
+        reason = (f"岗位关键项（{'、'.join(hard_missing[:5])}）在简历里找不到证据，"
+                  f"关键项只覆盖 {covered}/{len(hard_terms)}，"
+                  f"分数 {score} 却高于这条证据支持的警戒线 {line}，分数可能虚高")
+    elif hard_missing:
+        reason = (f"关键项有 {len(hard_missing)} 项未在简历中体现"
+                  f"（覆盖 {covered}/{len(hard_terms)}），但 {score} 分未超过警戒线 "
+                  f"{line}，不再下调")
     else:
-        reason = "岗位要求的技术项在简历里都能找到对应证据"
+        reason = "岗位关键项在简历里都能找到对应证据"
 
     return {
         "terms": terms,
         "missing": missing,
-        "covered": [t for t in terms if t not in missing],
+        "hard_terms": hard_terms,
+        "hard_missing": hard_missing,
+        "covered": covered,
+        "coverage": round(coverage, 3),
+        "line": line,
         "inflation": inflation,
         "reason": reason,
     }
@@ -798,22 +853,28 @@ def deterministic_check(resume_data: dict, detail, score: int) -> dict:
 def reflect_node(state: MatchState) -> dict:
     """[反思] 评估「这个分数合理吗？」，输出 {合理, 理由, 建议修正}。
 
-    两层判据：
-      1. **事实层**（`deterministic_check`）：岗位硬性要求与简历证据的覆盖情况。
-         命中「缺硬性要求 + 高分」时，无论模型怎么说都判**不合理** —— 这是可
-         核验的事实，不该被一句话推翻；
-      2. **语义层**（LLM）：补上事实层看不出的分寸（比如简历用同义词写了、
-         分数只是略高），并给出理由与调整量。
+    两层判据 + 一条收敛规则（本轮修复的核心）：
+      1. **事实层**（`deterministic_check`）：只有「**关键项**缺失 + 分数**高于**
+         证据支持的警戒线」才判虚高（甲）；命中时无论模型怎么说都判**不合理**，
+         且修正量至少把分数拉回警戒线 —— 拉回线下之后下一轮不再判虚高，
+         所以**天然收敛**，不是靠重试上限硬停；
+      2. **语义层**（LLM）：补事实层看不出的分寸（学历 / 城市 / 年限等），
+         但只在**本轮还没改过分**（attempts == 0）时允许它单独提出一次修正（乙）；
+         改过一次之后，事实层没判虚高就不再继续下调；
+      3. **收敛条件**：建议修正的绝对值 < `CONVERGENCE_DELTA`(5) 时直接判合理，
+         分数已经稳定，不再重打（`route_after_reflect` 里还有一道同样的闸门）。
     """
     detail = state.get("detail")
     resume_data = state.get("resume_data") or {}
     score = int(state.get("score") or 0)
+    attempts = int(state.get("attempts") or 0)
     det = deterministic_check(resume_data, detail, score)
 
     reason = det["reason"]
     delta = 0
     reasonable = not det["inflation"]
     llm_used = False
+    converged_by = ""
     # 第 2 道闸门在这里也生效：单次预算用尽时不再多打一次 LLM 反思，
     # 直接用确定性证据下结论（与 react_agent 的「降级不拒绝」同口径）。
     budget = limits.run_budget_status()
@@ -833,7 +894,7 @@ def reflect_node(state: MatchState) -> dict:
                 dimensions=json.dumps(state.get("dimensions") or {}, ensure_ascii=False),
                 highlights=json.dumps(state.get("highlights") or [], ensure_ascii=False),
                 gaps=json.dumps(state.get("gaps") or [], ensure_ascii=False),
-                missing="、".join(det["missing"][:10]) or "（无）",
+                missing="、".join(det["hard_missing"][:10]) or "（无）",
                 det_reason=det["reason"],
             )}],
             source="lg_reflect",
@@ -848,23 +909,45 @@ def reflect_node(state: MatchState) -> dict:
             delta = 0
         delta = max(-40, min(40, delta))
         if det["inflation"]:
-            # 事实层已判定虚高 → 不允许被"合理"的措辞翻盘，但保留模型给的下调量
+            # 事实层已判定虚高 → 不允许被"合理"的措辞翻盘；修正量至少要把分数
+            # 拉回警戒线（回到线下就不再判虚高 ⇒ 收敛），但也不会比警戒线更低。
             reasonable = False
-            if delta >= 0:
-                delta = -max(10, min(40, 10 * len(det["missing"])))
+            required = max(CONVERGENCE_DELTA, score - int(det["line"]))
+            step = max(required, abs(delta) if delta < 0 else 0)
+            delta = -min(40, step)
             reason = f"{det['reason']}；{llm_reason}" if llm_reason else det["reason"]
-        else:
-            reasonable = llm_reasonable
+        elif llm_reasonable:
+            reasonable = True
+            delta = 0
             reason = llm_reason or det["reason"]
-            if reasonable:
-                delta = 0
+        elif abs(delta) < CONVERGENCE_DELTA:
+            # 乙：模型想改，但幅度已经小于收敛阈值 → 接受当前分
+            converged_by = f"调整量 {abs(delta)} < {CONVERGENCE_DELTA}"
+            reasonable = True
+            delta = 0
+            reason = (f"{llm_reason}（但建议修正小于收敛阈值 "
+                      f"{CONVERGENCE_DELTA}，按收敛条件接受当前分数）"
+                      if llm_reason else det["reason"])
+        elif attempts == 0:
+            # 首次反思：允许模型基于事实层看不到的维度（学历 / 城市 / 年限）提出一次修正
+            reasonable = False
+            reason = llm_reason or det["reason"]
+        else:
+            # 甲 + 乙：已经改过一次，事实层又没判虚高 → 不再无限 -10
+            reasonable = True
+            delta = 0
+            converged_by = "已修正过一次且事实层未判虚高"
+            reason = (f"{llm_reason}（但关键项覆盖与分数已匹配、本轮已修正过一次，"
+                      f"按收敛条件接受当前分数）" if llm_reason else det["reason"])
     except Exception as e:                              # noqa: BLE001 - 模型不可用走事实层
         if state.get("verbose"):
             print(f"[lg_reflect] LLM 反思不可用，只用确定性证据：{type(e).__name__}: {e}")
         if det["inflation"]:
-            delta = -max(10, min(40, 10 * len(det["missing"])))
+            required = max(CONVERGENCE_DELTA, score - int(det["line"]))
+            delta = -min(40, required)
         else:
             delta = 0
+        reasonable = not det["inflation"]
         reason += f"（LLM 反思不可用，仅确定性证据：{type(e).__name__}）"
 
     reflection = {
@@ -874,19 +957,25 @@ def reflect_node(state: MatchState) -> dict:
         "证据": det,
         "llm_used": llm_used,
         "复核分数": score,
+        "警戒线": int(det["line"]),
+        "收敛依据": converged_by,
     }
     log_event(state.get("trace_id") or "-", "lg_node", node="reflect",
               engine="langgraph", graph="match", score=score,
-              reasonable=reflection["合理"], delta=reflection["建议修正"],
-              missing="、".join(det["missing"][:5]), llm_used=llm_used)
+              line=int(det["line"]), reasonable=reflection["合理"],
+              delta=reflection["建议修正"], converged_by=converged_by,
+              hard_missing="、".join(det["hard_missing"][:5]), llm_used=llm_used)
     return {
         "reflection": reflection,
         "reflections": list(state.get("reflections") or []) + [reflection],
         "steps": _step(
             state, "反思",
-            f"分数 {score} 复核：{'合理' if reflection['合理'] else '不合理'} —— {reason}",
-            payload={"score": score, "missing": det["missing"][:5],
-                     "llm_used": llm_used},
+            f"分数 {score} 复核（警戒线 {det['line']}，关键项覆盖 "
+            f"{det['covered']}/{len(det['hard_terms'])}）："
+            f"{'合理' if reflection['合理'] else '不合理'} —— {reason}"
+            + (f"［收敛判据：{converged_by}］" if converged_by else ""),
+            payload={"score": score, "missing": det["hard_missing"][:5],
+                     "line": det["line"], "llm_used": llm_used},
             observation=reason,
         ),
     }
@@ -918,10 +1007,41 @@ def revise_node(state: MatchState) -> dict:
     }
 
 
+def reflection_converged(state: MatchState) -> str:
+    """乙（收敛条件）：分数已经稳定就不该再走「重新分析」边。
+
+    两个判据，任一成立即认为收敛：
+      1. 本轮反思给的调整量存在且绝对值 < `CONVERGENCE_DELTA`；
+      2. 已经复核过两次，且最近两次复核的分数变化 < `CONVERGENCE_DELTA`
+         （"连续两次修正后分数变化 <5 就接受当前分"）。
+    返回空串表示未收敛。
+    """
+    reflections = list(state.get("reflections") or [])
+    latest = (reflections[-1] if reflections else state.get("reflection")) or {}
+    raw_delta = latest.get("建议修正")
+    if raw_delta is not None:
+        try:
+            if abs(int(raw_delta)) < CONVERGENCE_DELTA:
+                return f"调整量 {abs(int(raw_delta))} < {CONVERGENCE_DELTA}"
+        except (TypeError, ValueError):
+            pass
+    if len(reflections) >= 2:
+        try:
+            now = int(reflections[-1].get("复核分数") or 0)
+            prev = int(reflections[-2].get("复核分数") or 0)
+        except (TypeError, ValueError):
+            return ""
+        if abs(now - prev) < CONVERGENCE_DELTA:
+            return f"连续两次复核分数变化 {abs(now - prev)} < {CONVERGENCE_DELTA}"
+    return ""
+
+
 def route_after_reflect(state: MatchState) -> str:
-    """反思之后走哪条边：合理 → 输出；不合理且还有重试额度 → 重新分析。"""
+    """反思之后走哪条边：合理 / 已收敛 → 输出；否则还有重试额度 → 重新分析。"""
     reflection = state.get("reflection") or {}
     if reflection.get("合理", True):
+        return "respond"
+    if reflection_converged(state):
         return "respond"
     if int(state.get("attempts") or 0) >= MAX_REFLECTION_RETRIES:
         return "respond"

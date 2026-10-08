@@ -304,10 +304,11 @@ def _detail(job_id):
 
 
 def _resolve_match_detail(job_id):
-    """定位要匹配的岗位：显式 job_id（先查库）→ 会话里粘贴的岗位。
+    """定位要匹配的岗位：显式 job_id（先查库）→ 会话里当前在看的岗位 → 正常查库。
 
-    优先级与需求一致：显式 job_id > 会话态粘贴岗位 > 正常查库。
-    显式 id 查不到、而会话里有粘贴岗位时用粘贴岗位（用户多半就是接着说它），
+    优先级与需求一致：显式 job_id > 会话态岗位（投递包写下的 current_job /
+    粘贴的 JD，取更近的那个）> 正常查库。
+    显式 id 查不到、而会话里有会话态岗位时用它（用户多半就是接着说它），
     两边都没有才报错，并把「怎么给我一个岗位」说清楚。
     """
     wanted = str(job_id or "").strip()
@@ -318,11 +319,11 @@ def _resolve_match_detail(job_id):
             problem = "job_id={} 查不到（{}）".format(wanted, type(e).__name__)
     else:
         problem = "没有传 job_id"
-    pasted = get_current_pasted_job()
-    if pasted is not None:
-        return pasted
+    focus, _source = get_focus_job()
+    if focus is not None:
+        return focus
     raise ValueError(
-        problem + "，会话里也没有粘贴过的岗位。"
+        problem + "，会话里也没有正在看的岗位。"
         "请先用 search_jobs 搜一个岗位，或把岗位链接（实习僧 / 牛客 / ncss）"
         "或该岗位的 JD 文本粘贴过来。"
     )
@@ -559,6 +560,12 @@ def _session_state() -> dict:
             # 与 current_resume_id 一样按用户分桶，多用户并发时各看各的。
             "current_pasted_job": None,
             "current_pasted_job_source": "",
+            # 「用户当前正在看的岗位」：投递包生成后写入（见 _set_current_job）。
+            # 与粘贴岗位用同一个自增 seq 排序，取更近的那个（get_focus_job）——
+            # 这是「匹配打分定位到搜索列表第 1 条」的修复点。
+            "current_job": None,
+            "current_job_source": "",
+            "focus_seq": 0,
         }
         _SESSION_STATE[user_id] = state
     return state
@@ -594,11 +601,58 @@ def _set_pasted_job(detail: JobDetail, source: str) -> None:
     state = _session_state()
     state["current_pasted_job"] = detail
     state["current_pasted_job_source"] = source
+    state["current_pasted_job_seq"] = _next_focus_seq(state)
 
 
 def get_current_pasted_job():
     """会话态里的「当前粘贴岗位」（JobDetail）；没有就是 None。"""
     return _session_state().get("current_pasted_job")
+
+
+def _next_focus_seq(state: dict) -> int:
+    """「谁更近」的单调序号：粘贴岗位与投递包岗位共用一个计数器。"""
+    seq = int(state.get("focus_seq") or 0) + 1
+    state["focus_seq"] = seq
+    return seq
+
+
+def _set_current_job(detail, source: str = "") -> None:
+    """把「用户当前正在看的岗位」写进会话态。
+
+    投递包生成后调用（见 generate_application_package）：用户看完第 10 个岗位再
+    说「给简历匹配打分」时，匹配必须对准这一个，而不是最近一次搜索的第 1 条
+    （真实故障：匹配到墨泊可士，而用户看的是新拓云联）。
+    """
+    if detail is None:
+        return
+    state = _session_state()
+    state["current_job"] = detail
+    state["current_job_source"] = source or "当前岗位"
+    state["current_job_seq"] = _next_focus_seq(state)
+
+
+def get_current_job():
+    """会话态里的「当前岗位」（投递包定位到的那条）；没有就是 None。"""
+    return _session_state().get("current_job")
+
+
+def get_focus_job():
+    """会话态里「用户最近在看的岗位」→ `(detail, 说明)`；没有就是 `(None, "")`。
+
+    候选有两个：投递包写下的 `current_job`、粘贴链接/JD 写下的
+    `current_pasted_job`。谁**最近**被设置就用谁（seq 由 `_next_focus_seq` 递增），
+    这样「先粘 JD 再生成投递包」和「先生成投递包再粘 JD」都不会取错。
+    """
+    state = _session_state()
+    current = state.get("current_job")
+    pasted = state.get("current_pasted_job")
+    cur_seq = int(state.get("current_job_seq") or 0)
+    pasted_seq = int(state.get("current_pasted_job_seq") or 0)
+    if current is None and pasted is None:
+        return None, ""
+    if current is not None and (pasted is None or cur_seq >= pasted_seq):
+        return current, str(state.get("current_job_source") or "当前岗位")
+    return pasted, "会话里粘贴的岗位"
 
 
 def find_job_in_library(platform, job_id):
@@ -1291,6 +1345,9 @@ def generate_application_package(company, job_id=None, title=""):
     job_id_used = detail.job_id if detail is not None else (
         str(job_id).strip() if job_id else ""
     )
+    # 投递包 = 用户「正在看的这个岗位」：写进会话态，之后说「给简历匹配打分」
+    # 时优先对准它，而不是最近一次搜索的第 1 条（见 get_focus_job）。
+    _set_current_job(detail, source="投递包定位的岗位")
 
     resume_record = get_current_resume()
     if not resume_record:

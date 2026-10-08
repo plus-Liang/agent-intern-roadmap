@@ -659,6 +659,260 @@ check("预算熔断：反思降级但不失效", _budget_gate_degrades_reflectio
 
 
 # ---------------------------------------------------------------------------
+section("6. 本轮三修：反思收敛（甲+乙）/ current_job 定位 / 看日志引导")
+
+
+def _det_line_is_strict():
+    """甲：分数**严格高于**警戒线才算虚高 —— 回到线上就不再判（收敛的前提）。"""
+    line = None
+    for cand in (60, 65, 70, 75, 80, 85, 90):
+        det = LF.deterministic_check(RESUME_NO_RAG, FakeDetail(), cand)
+        if line is None and not det["inflation"]:
+            line = det["line"]
+        if cand <= det["line"] and det["inflation"]:
+            raise AssertionError(f"分数 {cand} <= 警戒线 {det['line']} 却判虚高")
+        if cand > det["line"] and not det["inflation"]:
+            raise AssertionError(f"分数 {cand} > 警戒线 {det['line']} 却没判虚高")
+    return f"覆盖不足时警戒线 {line}，线上/线下判定一致"
+
+
+def _det_only_hard_terms():
+    """甲：只有**关键项**缺失才算数（非关键的顺带技术项不再单独构成虚高理由）。"""
+    class _SoftOnly:
+        job_id = "j_soft"
+        title = "产品实习生"
+        company = "某公司"
+        city = "广州"
+        education = ""
+        requirements = "任职要求：\n1. 熟悉产品原型设计，会用 Axure。\n"
+        description = "我们也在用 Figma 做设计协作，团队氛围好。"
+
+    det = LF.deterministic_check(RESUME_NO_RAG, _SoftOnly(), 60)
+    if any(t in det["hard_terms"] for t in ("figma",)):
+        raise AssertionError(f"非硬性段的技术项被当成关键项：{det['hard_terms']}")
+    if not det["hard_terms"]:
+        raise AssertionError("没抽出关键项")
+    return f"关键项={det['hard_terms']}，非关键项（figma）不计入"
+
+
+def _reflect_small_delta_converges():
+    """乙：模型坚持不合理但只想改 1 分（< 收敛阈值 5）→ 直接接受当前分。"""
+    state = {
+        "question": "帮我匹配简历", "resume_data": RESUME_WITH_RAG,
+        "detail": FakeDetail(), "score": 80, "dimensions": {},
+        "gaps": [], "highlights": [], "steps": [], "trace_id": "t-small",
+        "attempts": 0,
+    }
+    with _patched((LF, "_llm_json", _fake_llm(
+            {"合理": False, "理由": "感觉还能再低一点", "建议修正": -1}))):
+        out = LF.reflect_node(state)
+    refl = out["reflection"]
+    if not refl["合理"]:
+        raise AssertionError(f"调整量 <5 时应收敛：{refl}")
+    if int(refl["建议修正"]) != 0:
+        raise AssertionError("收敛后不该保留修正量")
+    if not refl["收敛依据"]:
+        raise AssertionError("没有记录收敛依据")
+    return f"收敛依据：{refl['收敛依据']}"
+
+
+def _route_after_reflect_converged():
+    """乙（路由层）：建议修正 <5 或连续两次复核分数变化 <5 → 直接输出。"""
+    small = LF.route_after_reflect({
+        "reflection": {"合理": False, "建议修正": -2}, "attempts": 0})
+    if small != "respond":
+        raise AssertionError(f"小调整量没有收敛：{small}")
+    two = LF.route_after_reflect({
+        "reflection": {"合理": False, "建议修正": -30}, "attempts": 1,
+        "reflections": [{"复核分数": 90, "建议修正": -30},
+                        {"复核分数": 88, "建议修正": -30}]})
+    if two != "respond":
+        raise AssertionError(f"连续两次分数变化 <5 没有收敛：{two}")
+    return "小调整量 / 连续两次几乎没变 → 都收敛到输出"
+
+
+def _e2e_converges_within_two_rounds():
+    """真收敛：LLM **每轮**都判「虚高、-10」也不该无限改（1-2 轮回到线上）。"""
+    state = _run_match_graph(RESUME_NO_RAG, score=95, llm_payload={
+        "合理": False, "理由": "技术项缺失，分数虚高", "建议修正": -10})
+    attempts = int(state.get("attempts") or 0)
+    reflections = list(state.get("reflections") or [])
+    if attempts > 2:
+        raise AssertionError(f"超过 2 轮：{attempts}")
+    if not reflections or not reflections[-1].get("合理"):
+        raise AssertionError("最后一轮反思仍判不合理 → 不是真收敛")
+    line = int(reflections[-1].get("警戒线") or 0)
+    if int(state["score"]) > line:
+        raise AssertionError(f"最终 {state['score']} 仍高于警戒线 {line}")
+    return (f"95 → {state['score']}，重新分析 {attempts} 次后判「合理」（警戒线 {line}）")
+
+
+def _route_table_log_intent():
+    cases = [("看日志", "log"), ("帮我看看系统日志", "log"),
+             ("docker 日志在哪", "log"), ("日志", "log")]
+    for question, want in cases:
+        got = LG._route(question)
+        if got != want:
+            raise AssertionError(f"{question!r} → {got}，应为 {want}")
+    # 不能劫走正常业务
+    for question in ("帮我找广州的 Agent 岗位", "帮我匹配简历", "我的投递记录"):
+        if LG._route(question) == "log":
+            raise AssertionError(f"{question!r} 被误判成看日志")
+    return f"{len(cases)} 句看日志意图识别正确且不误伤业务"
+
+
+def _log_intent_answers_command():
+    """问题 3：说「看日志」→ 引导去终端跑 docker compose logs，且不调 LLM、不查投递记录。"""
+    def _boom(*a, **k):
+        raise AssertionError("看日志不该走 LLM / 不该交回 ReAct")
+
+    with _patched((LG.react_agent, "run", _boom)):
+        result = LG.run("看日志", verbose=False)
+    answer = result["answer"]
+    if "docker compose logs app --tail 50" not in answer:
+        raise AssertionError(f"没有给出日志命令：{answer[:120]}")
+    if "logs/app.log" not in answer:
+        raise AssertionError("没有说明本地日志位置")
+    if LG.engine_name("看日志") != "langgraph:log":
+        raise AssertionError("引擎名不对")
+    return "给出 docker compose logs 命令 + 本地日志位置，0 次 LLM 调用"
+
+
+def _log_prompt_note_exists():
+    from agent import react_agent as RA
+    if "【系统日志" not in RA.STATIC_PREFIX:
+        raise AssertionError("STATIC_PREFIX 缺少【系统日志】说明（ReAct 兜底路径仍会误判）")
+    if "docker compose logs app --tail 50" not in RA.STATIC_PREFIX:
+        raise AssertionError("STATIC_PREFIX 里的日志说明没有给命令")
+    return "ReAct 兜底路径也有【系统日志】说明"
+
+
+# ---- current_job：投递包之后「匹配打分」必须对准那一条 ----
+
+class _FocusDetail:
+    def __init__(self, job_id, company, title):
+        self.job_id = job_id
+        self.company = company
+        self.title = title
+        self.city = "广州"
+        self.salary = ""
+        self.education = ""
+        self.platform = "niuke"
+        self.days_per_week = ""
+        self.duration = ""
+        self.tags = []
+        self.bonus = ""
+        self.url = f"https://www.nowcoder.com/job/{job_id}"
+        self.description = "负责 AI Agent 应用开发与落地。"
+        self.requirements = "任职要求：\n1. 熟悉 Python。\n"
+
+    def __repr__(self):
+        return f"<{self.job_id} {self.company} {self.title}>"
+
+
+def _focus_rows(n=10):
+    return [
+        {"job_id": f"focus_{i:02d}", "title": f"岗位 {i}", "company": f"公司{i}",
+         "city": "广州", "salary": "200/天", "url": f"https://x/{i}", "tags": []}
+        for i in range(1, n + 1)
+    ]
+
+
+def _locate_prefers_current_job():
+    """问题 2：投第 10 个（生成投递包）后说「匹配打分」→ 匹配第 10 个而非列表第 1 个。"""
+    detail10 = _FocusDetail("focus_10", "新拓云联", "岗位 10")
+    detail1 = _FocusDetail("focus_01", "墨泊可士", "岗位 1")
+    seen = {}
+
+    def _resolve(job_id):
+        seen["job_id"] = job_id
+        return detail10 if str(job_id) == "focus_10" else detail1
+
+    graph = LF.build_match_graph(
+        scorer=lambda j, r: {"score": 60, "dimensions": {}, "gaps": [], "highlights": []})
+    with user_scope("focus-case"):
+        reg = LF.reg
+        reg._number_jobs(_focus_rows(10))                 # 最近一次搜索：第 1 条是墨泊可士
+        reg._set_current_job(detail10, source="投递包定位的岗位")
+        with _patched((LF, "_llm_json", _fake_llm(
+                {"合理": True, "理由": "分数与证据匹配", "建议修正": 0}))):
+            state = graph.invoke({
+                "question": "给简历匹配打分", "resume_data": RESUME_WITH_RAG,
+                "verbose": False, "steps": []})
+    got = state.get("detail")
+    if got is not detail10:
+        raise AssertionError(f"定位到 {got}，应为第 10 个 {detail10}")
+    if "投递包" not in (state.get("location_note") or ""):
+        raise AssertionError(f"定位说明没说清来源：{state.get('location_note')}")
+    return f"对准 {detail10.company}（第 10 个），不是列表第 1 条 {detail1.company}"
+
+
+def _locate_falls_back_to_first_row():
+    """没有 current_job 时行为不变：仍然 fallback 到最近一次搜索的第 1 条。"""
+    detail = _FocusDetail("focus_01", "墨泊可士", "岗位 1")
+    graph = LF.build_match_graph(
+        scorer=lambda j, r: {"score": 60, "dimensions": {}, "gaps": [], "highlights": []})
+    with user_scope("focus-fallback"):
+        LF.reg._number_jobs(_focus_rows(10))
+        with _patched((LF.reg, "_resolve_match_detail", lambda job_id: detail),
+                      (LF, "_llm_json", _fake_llm(
+                          {"合理": True, "理由": "ok", "建议修正": 0}))):
+            state = graph.invoke({
+                "question": "给简历匹配打分", "resume_data": RESUME_WITH_RAG,
+                "verbose": False, "steps": []})
+    if state.get("detail") is not detail:
+        raise AssertionError(f"fallback 变了：{state.get('detail')}")
+    if "最近一次搜索的第 1 条" not in (state.get("location_note") or ""):
+        raise AssertionError(f"fallback 说明不对：{state.get('location_note')}")
+    return "无 current_job → 仍 fallback 到搜索列表第 1 条"
+
+
+def _package_writes_current_job():
+    """投递包生成后必须把岗位写进会话态 current_job（问题 2 的写入端）。"""
+    reg = LF.reg
+    detail = _FocusDetail("pkg_job_1", "新拓云联", "AI 应用开发实习生")
+    fake_record = {"company": "新拓云联", "title": "AI 应用开发实习生",
+                   "platform": "niuke", "url": ""}
+    wrote = {}
+
+    def _export(resume, path):
+        wrote["pdf"] = path
+        Path(path).write_bytes(b"%PDF-1.4")
+
+    with user_scope("focus-package"):
+        with _patched((reg, "PACKAGE_DIR", _TMP_DIR / "packages"),
+                      (reg.storage, "find_application", lambda company: None),
+                      (reg, "_record_from_job_library",
+                       lambda company, job_id=None, title="": (fake_record, detail)),
+                      (reg, "get_current_resume",
+                       lambda: {"name": "张三", "skills": ["Python"]}),
+                      (reg, "_tailor_resume", lambda resume, d: (resume, [])),
+                      (reg, "_generate_cover_letter",
+                       lambda resume, record, d: ("自荐信正文", "")),
+                      (reg, "export_resume_pdf", _export)):
+            out = reg.generate_application_package("新拓云联", detail.job_id)
+        current = reg.get_current_job()
+    if current is not detail:
+        raise AssertionError(f"投递包没有写 current_job：{current}")
+    if not out["package_dir"]:
+        raise AssertionError("投递包没有产出目录")
+    return f"current_job = {current.company} · {current.title}"
+
+
+check("甲：只有关键项缺失才算虚高", _det_only_hard_terms)
+check("甲：分数严格高于警戒线才判虚高（回到线上即收敛）", _det_line_is_strict)
+check("乙：调整量 < 5 直接接受当前分", _reflect_small_delta_converges)
+check("乙：路由层收敛闸门", _route_after_reflect_converged)
+check("问题1：反思 1-2 轮内真收敛（LLM 每轮都说 -10）", _e2e_converges_within_two_rounds)
+check("问题2：投递包写入 current_job", _package_writes_current_job)
+check("问题2：匹配打分优先对准 current_job（第 10 个）", _locate_prefers_current_job)
+check("问题2：无 current_job 时仍 fallback 第 1 条", _locate_falls_back_to_first_row)
+check("问题3：看日志意图识别（4 句 + 不误伤）", _route_table_log_intent)
+check("问题3：看日志 → 引导终端命令且不调 LLM", _log_intent_answers_command)
+check("问题3：ReAct 兜底 prompt 也有日志说明", _log_prompt_note_exists)
+
+
+# ---------------------------------------------------------------------------
 print()
 print("=" * 74)
 print(f"结果：{len(PASS)} 通过 / {len(FAIL)} 失败")
