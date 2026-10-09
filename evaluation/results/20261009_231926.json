@@ -1,0 +1,622 @@
+{
+  "run_at": "2026-10-09 23:19:26",
+  "test_set_path": "D:\\agent-intern-roadmap\\evaluation\\test_set.yaml",
+  "test_set_version": "2.0",
+  "engine": "langgraph",
+  "model": "glm-4.5-air",
+  "repeat": 1,
+  "total": 5,
+  "passed": 5,
+  "accuracy": 1.0,
+  "stability": 1.0,
+  "unstable_range": [
+    0.2,
+    0.8
+  ],
+  "unstable_cases": [],
+  "trajectory_cases": [],
+  "elapsed_sec": 318.2,
+  "by_category": {
+    "interview": {
+      "total": 5,
+      "passed": 5,
+      "accuracy": 1.0,
+      "stability": 1.0
+    }
+  },
+  "by_judge": {
+    "llm": {
+      "total": 5,
+      "passed": 5,
+      "accuracy": 1.0,
+      "stability": 1.0
+    }
+  },
+  "plugins": {
+    "metrics": [
+      "deterministic",
+      "llm",
+      "trajectory"
+    ],
+    "providers": [
+      "yaml"
+    ],
+    "reports": [
+      "console",
+      "json",
+      "markdown"
+    ]
+  },
+  "results": [
+    {
+      "id": "interview-01",
+      "category": "interview",
+      "judge_type": "llm",
+      "question": "帮我模拟一下墨泊可士「AI Agent开发（可转正）」的面试",
+      "repeat": 1,
+      "passed_runs": 1,
+      "pass_rate": 1.0,
+      "passed": true,
+      "score": 1.0,
+      "metrics": {
+        "deterministic": {
+          "metric": "deterministic",
+          "score": 1.0,
+          "detail": "4 项确定性检查全过"
+        },
+        "llm": {
+          "metric": "llm",
+          "score": 1.0,
+          "detail": "问题覆盖RAG和Agent要点，无别家公司产品或无关行业。"
+        }
+      },
+      "trajectory": null,
+      "tool_calls": [],
+      "reason": "全部检查通过（1/1）",
+      "checks": [
+        {
+          "name": "岗位解析",
+          "ok": true,
+          "detail": "解析结果 job_id=inn_0bloypnarwkq，期望 命中"
+        },
+        {
+          "name": "出题非空",
+          "ok": true,
+          "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+        },
+        {
+          "name": "不提「自动驾驶」",
+          "ok": true,
+          "detail": "题目里出现了「自动驾驶」"
+        },
+        {
+          "name": "不提「数据产线」",
+          "ok": true,
+          "detail": "题目里出现了「数据产线」"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "问题覆盖RAG和Agent要点，无别家公司产品或无关行业。"
+        }
+      ],
+      "extra": {
+        "job_id": "inn_0bloypnarwkq",
+        "jd_head": "1.负责设计、开发和落地具备自主规划、决策与执行能力的智能体系统;\n2.参与AI智能体系统架构设计，负责智能体规划、决策、记忆、工具调用等核心模块的开发与优化;\n3.研究和应用检索增强生成(RAG)、向量检索及非结构化文档处理技术，将私域知",
+        "questions": [
+          "请简单介绍一下你自己，包括教育背景和技能。",
+          "在智元科技的实习中，你提到用RAG和向量检索把FAQ命中率从62%提到89%，能详细描述一下你的实现过程和关键技术点吗？",
+          "在智能体开发中，你如何使用LangChain来实现记忆功能？能结合你的项目经验说明吗？"
+        ]
+      },
+      "elapsed": 58.8,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "score": 1.0,
+          "metrics": {
+            "deterministic": {
+              "metric": "deterministic",
+              "score": 1.0,
+              "detail": "4 项确定性检查全过"
+            },
+            "llm": {
+              "metric": "llm",
+              "score": 1.0,
+              "detail": "问题覆盖RAG和Agent要点，无别家公司产品或无关行业。"
+            }
+          },
+          "checks": [
+            {
+              "name": "岗位解析",
+              "ok": true,
+              "detail": "解析结果 job_id=inn_0bloypnarwkq，期望 命中"
+            },
+            {
+              "name": "出题非空",
+              "ok": true,
+              "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+            },
+            {
+              "name": "不提「自动驾驶」",
+              "ok": true,
+              "detail": "题目里出现了「自动驾驶」"
+            },
+            {
+              "name": "不提「数据产线」",
+              "ok": true,
+              "detail": "题目里出现了「数据产线」"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "问题覆盖RAG和Agent要点，无别家公司产品或无关行业。"
+            }
+          ],
+          "extra": {
+            "job_id": "inn_0bloypnarwkq",
+            "jd_head": "1.负责设计、开发和落地具备自主规划、决策与执行能力的智能体系统;\n2.参与AI智能体系统架构设计，负责智能体规划、决策、记忆、工具调用等核心模块的开发与优化;\n3.研究和应用检索增强生成(RAG)、向量检索及非结构化文档处理技术，将私域知",
+            "questions": [
+              "请简单介绍一下你自己，包括教育背景和技能。",
+              "在智元科技的实习中，你提到用RAG和向量检索把FAQ命中率从62%提到89%，能详细描述一下你的实现过程和关键技术点吗？",
+              "在智能体开发中，你如何使用LangChain来实现记忆功能？能结合你的项目经验说明吗？"
+            ]
+          },
+          "judge": {
+            "pass": true,
+            "reason": "问题覆盖RAG和Agent要点，无别家公司产品或无关行业。"
+          },
+          "tool_calls": [],
+          "trajectory": null,
+          "elapsed": 58.8,
+          "run": 1
+        }
+      ]
+    },
+    {
+      "id": "interview-02",
+      "category": "interview",
+      "judge_type": "llm",
+      "question": "帮我模拟一下百度「大模型算法」的面试",
+      "repeat": 1,
+      "passed_runs": 1,
+      "pass_rate": 1.0,
+      "passed": true,
+      "score": 1.0,
+      "metrics": {
+        "deterministic": {
+          "metric": "deterministic",
+          "score": 1.0,
+          "detail": "2 项确定性检查全过"
+        },
+        "llm": {
+          "metric": "llm",
+          "score": 1.0,
+          "detail": "所有问题贴切岗位，覆盖RAG和Agents等要点，且基于候选人简历"
+        }
+      },
+      "trajectory": null,
+      "tool_calls": [],
+      "reason": "全部检查通过（1/1）",
+      "checks": [
+        {
+          "name": "岗位解析",
+          "ok": true,
+          "detail": "解析结果 job_id=442790，期望 命中"
+        },
+        {
+          "name": "出题非空",
+          "ok": true,
+          "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "所有问题贴切岗位，覆盖RAG和Agents等要点，且基于候选人简历"
+        }
+      ],
+      "extra": {
+        "job_id": "442790",
+        "jd_head": "1、负责通过基于大语言模型及多模态大模型的微调、prompts调优、指令构建及演化技术，将大模型的生成、理解、交互能力在公司核心业务场景应用落地，包括但不限于AIGC创意生成、视频处理、智能对话、内容理解、质量审核、自进化等；\n2、负责LL",
+        "questions": [
+          "请简单介绍一下你自己，包括你的教育背景、技能和实习经历。",
+          "在实习中，你提到用RAG+向量检索把FAQ命中率从62%提到89%，能详细介绍一下你是如何实现这个提升的吗？",
+          "在项目中，你提到用LangChain编排工具调用以支持多轮追问，能详细介绍一下这个实现吗？"
+        ]
+      },
+      "elapsed": 71.2,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "score": 1.0,
+          "metrics": {
+            "deterministic": {
+              "metric": "deterministic",
+              "score": 1.0,
+              "detail": "2 项确定性检查全过"
+            },
+            "llm": {
+              "metric": "llm",
+              "score": 1.0,
+              "detail": "所有问题贴切岗位，覆盖RAG和Agents等要点，且基于候选人简历"
+            }
+          },
+          "checks": [
+            {
+              "name": "岗位解析",
+              "ok": true,
+              "detail": "解析结果 job_id=442790，期望 命中"
+            },
+            {
+              "name": "出题非空",
+              "ok": true,
+              "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有问题贴切岗位，覆盖RAG和Agents等要点，且基于候选人简历"
+            }
+          ],
+          "extra": {
+            "job_id": "442790",
+            "jd_head": "1、负责通过基于大语言模型及多模态大模型的微调、prompts调优、指令构建及演化技术，将大模型的生成、理解、交互能力在公司核心业务场景应用落地，包括但不限于AIGC创意生成、视频处理、智能对话、内容理解、质量审核、自进化等；\n2、负责LL",
+            "questions": [
+              "请简单介绍一下你自己，包括你的教育背景、技能和实习经历。",
+              "在实习中，你提到用RAG+向量检索把FAQ命中率从62%提到89%，能详细介绍一下你是如何实现这个提升的吗？",
+              "在项目中，你提到用LangChain编排工具调用以支持多轮追问，能详细介绍一下这个实现吗？"
+            ]
+          },
+          "judge": {
+            "pass": true,
+            "reason": "所有问题贴切岗位，覆盖RAG和Agents等要点，且基于候选人简历"
+          },
+          "tool_calls": [],
+          "trajectory": null,
+          "elapsed": 71.2,
+          "run": 1
+        }
+      ]
+    },
+    {
+      "id": "interview-03",
+      "category": "interview",
+      "judge_type": "llm",
+      "question": "帮我模拟一下字节跳动「豆包AI大模型产品解决方案实习生 - 火山方舟」的面试",
+      "repeat": 1,
+      "passed_runs": 1,
+      "pass_rate": 1.0,
+      "passed": true,
+      "score": 1.0,
+      "metrics": {
+        "deterministic": {
+          "metric": "deterministic",
+          "score": 1.0,
+          "detail": "4 项确定性检查全过"
+        },
+        "llm": {
+          "metric": "llm",
+          "score": 1.0,
+          "detail": "问题覆盖大模型、产品、方案技术，且候选人简历项目相关，无无关内容。"
+        }
+      },
+      "trajectory": null,
+      "tool_calls": [],
+      "reason": "全部检查通过（1/1）",
+      "checks": [
+        {
+          "name": "岗位解析",
+          "ok": true,
+          "detail": "解析结果 job_id=inn_t7bwjet5n3xe，期望 命中"
+        },
+        {
+          "name": "出题非空",
+          "ok": true,
+          "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+        },
+        {
+          "name": "不提「自动驾驶」",
+          "ok": true,
+          "detail": "题目里出现了「自动驾驶」"
+        },
+        {
+          "name": "不提「数据产线」",
+          "ok": true,
+          "detail": "题目里出现了「数据产线」"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "问题覆盖大模型、产品、方案技术，且候选人简历项目相关，无无关内容。"
+        }
+      ],
+      "extra": {
+        "job_id": "inn_t7bwjet5n3xe",
+        "jd_head": "团队介绍：火山方舟是火山引擎推出的一站式大模型服务平台，是中国大模型市场产品和份额领跑者。平台提供模型推理、评测、精调等全流程服务。方舟搭载了豆包及业界主流大模型，提供丰富的插件生态和AI应用开发服务，并通过稳定可靠的安全互信方案、专业的算",
+        "questions": [
+          "请简要介绍一下你自己。",
+          "请详细介绍一下你在智元科技实习中负责的岗位问答机器人项目，包括技术实现和成果。",
+          "请分享你在项目中使用LangChain编排工具调用的经验，以及如何实现Multi-Agent的协作。"
+        ]
+      },
+      "elapsed": 70.2,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "score": 1.0,
+          "metrics": {
+            "deterministic": {
+              "metric": "deterministic",
+              "score": 1.0,
+              "detail": "4 项确定性检查全过"
+            },
+            "llm": {
+              "metric": "llm",
+              "score": 1.0,
+              "detail": "问题覆盖大模型、产品、方案技术，且候选人简历项目相关，无无关内容。"
+            }
+          },
+          "checks": [
+            {
+              "name": "岗位解析",
+              "ok": true,
+              "detail": "解析结果 job_id=inn_t7bwjet5n3xe，期望 命中"
+            },
+            {
+              "name": "出题非空",
+              "ok": true,
+              "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+            },
+            {
+              "name": "不提「自动驾驶」",
+              "ok": true,
+              "detail": "题目里出现了「自动驾驶」"
+            },
+            {
+              "name": "不提「数据产线」",
+              "ok": true,
+              "detail": "题目里出现了「数据产线」"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "问题覆盖大模型、产品、方案技术，且候选人简历项目相关，无无关内容。"
+            }
+          ],
+          "extra": {
+            "job_id": "inn_t7bwjet5n3xe",
+            "jd_head": "团队介绍：火山方舟是火山引擎推出的一站式大模型服务平台，是中国大模型市场产品和份额领跑者。平台提供模型推理、评测、精调等全流程服务。方舟搭载了豆包及业界主流大模型，提供丰富的插件生态和AI应用开发服务，并通过稳定可靠的安全互信方案、专业的算",
+            "questions": [
+              "请简要介绍一下你自己。",
+              "请详细介绍一下你在智元科技实习中负责的岗位问答机器人项目，包括技术实现和成果。",
+              "请分享你在项目中使用LangChain编排工具调用的经验，以及如何实现Multi-Agent的协作。"
+            ]
+          },
+          "judge": {
+            "pass": true,
+            "reason": "问题覆盖大模型、产品、方案技术，且候选人简历项目相关，无无关内容。"
+          },
+          "tool_calls": [],
+          "trajectory": null,
+          "elapsed": 70.2,
+          "run": 1
+        }
+      ]
+    },
+    {
+      "id": "interview-04",
+      "category": "interview",
+      "judge_type": "llm",
+      "question": "帮我模拟一下博世中国「前端开发实习生」的面试",
+      "repeat": 1,
+      "passed_runs": 1,
+      "pass_rate": 1.0,
+      "passed": true,
+      "score": 1.0,
+      "metrics": {
+        "deterministic": {
+          "metric": "deterministic",
+          "score": 1.0,
+          "detail": "2 项确定性检查全过"
+        },
+        "llm": {
+          "metric": "llm",
+          "score": 1.0,
+          "detail": "问题3覆盖JavaScript，符合岗位要求"
+        }
+      },
+      "trajectory": null,
+      "tool_calls": [],
+      "reason": "全部检查通过（1/1）",
+      "checks": [
+        {
+          "name": "岗位解析",
+          "ok": true,
+          "detail": "解析结果 job_id=inn_hxnrzxjh1zla，期望 命中"
+        },
+        {
+          "name": "出题非空",
+          "ok": true,
+          "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "问题3覆盖JavaScript，符合岗位要求"
+        }
+      ],
+      "extra": {
+        "job_id": "inn_hxnrzxjh1zla",
+        "jd_head": "【岗位职责】\n\n全程参与从0到1的设计与开发工作，构建基于VS Code沙箱环境及外部HTML环境的电动工具应用门户，推动平台化能力建设，助力产品应用的标准化、高效化落地。\n参与VS Code插件开发，支持应用工程师完成产品软件应用配置界面",
+        "questions": [
+          "请简单介绍一下你自己，包括你的教育背景、技能和实习经历。",
+          "请详细描述你在智元科技实习中，开发岗位问答机器人的技术实现细节，包括使用的工具和遇到的挑战。",
+          "请详细说明JavaScript（ES6+）中的箭头函数、Promise和async/await的使用场景和区别。"
+        ]
+      },
+      "elapsed": 52.1,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "score": 1.0,
+          "metrics": {
+            "deterministic": {
+              "metric": "deterministic",
+              "score": 1.0,
+              "detail": "2 项确定性检查全过"
+            },
+            "llm": {
+              "metric": "llm",
+              "score": 1.0,
+              "detail": "问题3覆盖JavaScript，符合岗位要求"
+            }
+          },
+          "checks": [
+            {
+              "name": "岗位解析",
+              "ok": true,
+              "detail": "解析结果 job_id=inn_hxnrzxjh1zla，期望 命中"
+            },
+            {
+              "name": "出题非空",
+              "ok": true,
+              "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "问题3覆盖JavaScript，符合岗位要求"
+            }
+          ],
+          "extra": {
+            "job_id": "inn_hxnrzxjh1zla",
+            "jd_head": "【岗位职责】\n\n全程参与从0到1的设计与开发工作，构建基于VS Code沙箱环境及外部HTML环境的电动工具应用门户，推动平台化能力建设，助力产品应用的标准化、高效化落地。\n参与VS Code插件开发，支持应用工程师完成产品软件应用配置界面",
+            "questions": [
+              "请简单介绍一下你自己，包括你的教育背景、技能和实习经历。",
+              "请详细描述你在智元科技实习中，开发岗位问答机器人的技术实现细节，包括使用的工具和遇到的挑战。",
+              "请详细说明JavaScript（ES6+）中的箭头函数、Promise和async/await的使用场景和区别。"
+            ]
+          },
+          "judge": {
+            "pass": true,
+            "reason": "问题3覆盖JavaScript，符合岗位要求"
+          },
+          "tool_calls": [],
+          "trajectory": null,
+          "elapsed": 52.1,
+          "run": 1
+        }
+      ]
+    },
+    {
+      "id": "interview-05",
+      "category": "interview",
+      "judge_type": "llm",
+      "question": "帮我模拟一下火星科技XYZ「量子芯片架构实习生」的面试",
+      "repeat": 1,
+      "passed_runs": 1,
+      "pass_rate": 1.0,
+      "passed": true,
+      "score": 1.0,
+      "metrics": {
+        "deterministic": {
+          "metric": "deterministic",
+          "score": 1.0,
+          "detail": "2 项确定性检查全过"
+        },
+        "llm": {
+          "metric": "llm",
+          "score": 1.0,
+          "detail": "所有问题均围绕候选人简历内容，无编造岗位领域或经历。"
+        }
+      },
+      "trajectory": null,
+      "tool_calls": [],
+      "reason": "全部检查通过（1/1）",
+      "checks": [
+        {
+          "name": "岗位解析",
+          "ok": true,
+          "detail": "解析结果 job_id=空，期望 未命中"
+        },
+        {
+          "name": "出题非空",
+          "ok": true,
+          "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "所有问题均围绕候选人简历内容，无编造岗位领域或经历。"
+        }
+      ],
+      "extra": {
+        "job_id": "",
+        "jd_head": "（岗位库里没有收录这个岗位的 JD，下面没有任何岗位要求可参考）",
+        "questions": [
+          "请简单介绍一下你自己。",
+          "在智元科技实习中，你提到用RAG + 向量检索把FAQ命中率从62%提到89%，能具体谈谈这个优化过程吗？",
+          "能详细介绍一下投递追踪助手项目的实现吗？"
+        ]
+      },
+      "elapsed": 66.0,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "score": 1.0,
+          "metrics": {
+            "deterministic": {
+              "metric": "deterministic",
+              "score": 1.0,
+              "detail": "2 项确定性检查全过"
+            },
+            "llm": {
+              "metric": "llm",
+              "score": 1.0,
+              "detail": "所有问题均围绕候选人简历内容，无编造岗位领域或经历。"
+            }
+          },
+          "checks": [
+            {
+              "name": "岗位解析",
+              "ok": true,
+              "detail": "解析结果 job_id=空，期望 未命中"
+            },
+            {
+              "name": "出题非空",
+              "ok": true,
+              "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有问题均围绕候选人简历内容，无编造岗位领域或经历。"
+            }
+          ],
+          "extra": {
+            "job_id": "",
+            "jd_head": "（岗位库里没有收录这个岗位的 JD，下面没有任何岗位要求可参考）",
+            "questions": [
+              "请简单介绍一下你自己。",
+              "在智元科技实习中，你提到用RAG + 向量检索把FAQ命中率从62%提到89%，能具体谈谈这个优化过程吗？",
+              "能详细介绍一下投递追踪助手项目的实现吗？"
+            ]
+          },
+          "judge": {
+            "pass": true,
+            "reason": "所有问题均围绕候选人简历内容，无编造岗位领域或经历。"
+          },
+          "tool_calls": [],
+          "trajectory": null,
+          "elapsed": 66.0,
+          "run": 1
+        }
+      ]
+    }
+  ]
+}

@@ -750,6 +750,23 @@ INTERVIEW_MIN_QUESTIONS = 5
 INTERVIEW_MAX_QUESTIONS = 8
 INTERVIEW_SOURCE = "mock_interview"
 
+#: 岗位库里查不到这个岗位时塞进 session["jd"] 的占位文本（_resolve_job 返回值）。
+#: 它必须**明确说「没有 JD」**：模型只能看见这段字，写成「没找到」它就只是拿不到上下文，
+#: 仍会把【岗位】里的领域词（如「量子芯片架构」）当成岗位的技术要求来讲
+#: —— 实测 interview-05（火星科技XYZ · 量子芯片架构实习生）第 3 题就是这么问出
+#: 「量子芯片知识库构建」的，属于凭空编造技术要求。
+INTERVIEW_NO_JD = "（岗位库里没有收录这个岗位的 JD，下面没有任何岗位要求可参考）"
+
+#: 拿不到 JD 时追加的硬约束（_interview_messages 按 job_id 是否命中注入）。
+#: 关键是把「按岗位名称出题」收窄成「岗位名只当背景」：不许由岗位名反推技术栈。
+INTERVIEW_NO_JD_RULE = """8. **这一场没有 JD**（岗位库里查不到「{company} · {title}」）：
+   只根据上面的【候选人简历】出题 —— 自我介绍、简历里写过的项目/实习细节、
+   简历里出现过的技术栈，再加求职动机 / 职业规划这类**不依赖行业**的通用题。
+   **岗位名称只是背景，不是技术要求**：不许由岗位名里的领域词（例如「量子芯片」）
+   推测这个岗位要考什么技术、业务或行业知识，不许问「你会怎么把简历里的 X 用到
+   <岗位名里的领域> 上」，也不许替候选人假设他有一个该领域的项目或知识库。
+   简历里没写过的领域，一个字都不提。"""
+
 # 面试对话（含出题/点评）统一走这个 prompt；每次把「已经问过什么、用户答过什么」
 # 一起带上，所以不需要额外的会话存储。
 INTERVIEW_PROMPT = """你是一位资深面试官，正在对候选人做一场求职模拟面试。
@@ -764,6 +781,10 @@ INTERVIEW_PROMPT = """你是一位资深面试官，正在对候选人做一场�
 1. 一共问 {min_q}-{max_q} 个问题，一次只问一个，等候选人回答后你再继续。
 2. 出题顺序：自我介绍 → 项目/实习深挖 → 岗位相关技术或业务问题 → 反问/职业规划。
    题目要贴着上面的 JD 和简历出，别问无关的通用题。
+   **简历和 JD 两边都要问到**：项目深挖对着简历问，岗位技术问题对着 JD 问
+   （JD 里写的前端 / 语言 / 框架 / 工具，就是该问的技术栈）；
+   别整组题都停在简历本来的方向上，也别拿「怎么保证代码可扩展性」这类
+   与岗位无关的泛泛题顶替岗位技术题。
 3. 候选人每答完一题，先给一句**简短点评**（指出亮点或漏洞，1-3 句，可以示范怎么答更好），
    再问下一个问题。不要长篇大论。
 4. 问满 {min_q} 题后（最多 {max_q} 题）就收尾：给一段综合评价，
@@ -771,9 +792,14 @@ INTERVIEW_PROMPT = """你是一位资深面试官，正在对候选人做一场�
 5. 绝对不要编造候选人简历里没有的经历。
 6. 只围绕【岗位】里的公司 / 岗位名出题。JD 节选只用来理解业务方向：
    绝不要提 JD 里出现的其它公司名、产品或项目（例如别家的行业系统）；
-   如果 JD 和【岗位】对不上（公司或岗位名不一致），一律以【岗位】为准，
-   宁可只按岗位名称和简历出题。
-
+   如果 JD 和【岗位】对不上（公司或岗位名不一致），一律以【岗位】为准。
+7. **不许编造技术要求**：题目和点评里出现的每个技术名词、工具、框架、业务、行业，
+   都必须能在上面的【候选人简历】或【岗位 JD】原文里找到出处。
+   简历和 JD 里都没有的，一个字都不许问、不许提（候选人没写过量子计算，
+   就别问「量子芯片 / 量子算法」），也不要把【岗位】名称里的领域词当成考点。
+   注意：这条只禁止「凭空编」，**不禁止按 JD 问岗位技术问题** ——
+   JD 里写明的技术栈（例如前端岗的 JavaScript / Vue / HTML）正是该问的，必须问到。
+{jd_rule}
 【已经问过的问题】
 {asked}
 【候选人刚回答的那道题】
@@ -908,7 +934,7 @@ def _resolve_job(company: str, title: str) -> tuple:
                 best, best_score = job, score
 
     if best is None:
-        return "", "（没找到该岗位的 JD，将按岗位名称和简历出题）"
+        return "", INTERVIEW_NO_JD
 
     try:
         detail = get_job_detail("mock", best.job_id)
@@ -941,6 +967,11 @@ def _interview_messages(session: dict) -> list:
     """拼这次出题/点评要发的 messages"""
     asked = session.get("asked") or []
     asked_text = "、".join(asked) if asked else "（还没问过）"
+    # 有没有真 JD 决定要不要注入「无 JD」硬约束（job_id 为空才是真的没命中；
+    # 老会话里可能没有这个键，所以显式判空串）。
+    has_jd = bool(str(session.get("job_id") or "").strip())
+    no_jd_rule = "" if has_jd else INTERVIEW_NO_JD_RULE.format(
+        company=session.get("company", ""), title=session.get("title", ""))
     prompt = INTERVIEW_PROMPT.format(
         company=session.get("company", ""),
         title=session.get("title", ""),
@@ -951,6 +982,7 @@ def _interview_messages(session: dict) -> list:
         asked=asked_text,
         prev_question=session.get("prev_question") or "（这是第一个问题）",
         history=_interview_history_text(session),
+        jd_rule=no_jd_rule,
     )
     # 已经问够最少题数时，明确催一次收尾：靠模型自己数题数不如直接告诉它
     if len(asked) >= INTERVIEW_MIN_QUESTIONS:
@@ -1147,11 +1179,19 @@ async def _begin_interview(company: str, title: str):
     cl.user_session.set(_interview_key(), session)
     cl.user_session.set(_pending_interview_key(), None)   # 开局即清待补槽位
     _save_interview_snapshot(session)
+    if session["job_id"]:
+        opening = "我读了这个岗位的 JD，会结合你的简历来提问"
+    else:
+        # 明确说「库里没有这个岗位」，而不是含糊的「未获取到」：用户才知道
+        # 题目为什么只围着他的简历转，也才知道面试官手里根本没有岗位要求。
+        opening = (
+            f"⚠️ 岗位库里没有「{company} · {title}」这个岗位的 JD。"
+            "我不会凭空假设它要求什么技术，只按你简历上写过的经历来提问"
+        )
     await cl.Message(
         content=(
             f"## 🎤 模拟面试开始：{company} · {title}\n\n"
-            f"我看了岗位 JD（{'已获取' if session['job_id'] else '未获取到，按岗位名出题'}）"
-            f"和你的简历，会问 {INTERVIEW_MIN_QUESTIONS}-{INTERVIEW_MAX_QUESTIONS} 个问题，"
+            f"{opening}，会问 {INTERVIEW_MIN_QUESTIONS}-{INTERVIEW_MAX_QUESTIONS} 个问题，"
             "一次一个，答完我给一句点评。\n\n"
             f"**问题 1**：{session['asked'][0]}"
         )

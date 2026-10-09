@@ -1,0 +1,260 @@
+{
+  "run_at": "2026-10-09 23:22:05",
+  "test_set_path": "D:\\agent-intern-roadmap\\evaluation\\test_set.yaml",
+  "test_set_version": "2.0",
+  "engine": "langgraph",
+  "model": "glm-4.5-air",
+  "repeat": 3,
+  "total": 1,
+  "passed": 1,
+  "accuracy": 1.0,
+  "stability": 1.0,
+  "unstable_range": [
+    0.2,
+    0.8
+  ],
+  "unstable_cases": [],
+  "trajectory_cases": [],
+  "elapsed_sec": 158.2,
+  "by_category": {
+    "interview": {
+      "total": 1,
+      "passed": 1,
+      "accuracy": 1.0,
+      "stability": 1.0
+    }
+  },
+  "by_judge": {
+    "llm": {
+      "total": 1,
+      "passed": 1,
+      "accuracy": 1.0,
+      "stability": 1.0
+    }
+  },
+  "plugins": {
+    "metrics": [
+      "deterministic",
+      "llm",
+      "trajectory"
+    ],
+    "providers": [
+      "yaml"
+    ],
+    "reports": [
+      "console",
+      "json",
+      "markdown"
+    ]
+  },
+  "results": [
+    {
+      "id": "interview-04",
+      "category": "interview",
+      "judge_type": "llm",
+      "question": "帮我模拟一下博世中国「前端开发实习生」的面试",
+      "repeat": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "passed": true,
+      "score": 1.0,
+      "metrics": {
+        "deterministic": {
+          "metric": "deterministic",
+          "score": 1.0,
+          "detail": "2 项确定性检查全过"
+        },
+        "llm": {
+          "metric": "llm",
+          "score": 1.0,
+          "detail": "题目3覆盖JavaScript要点，题目2基于候选人简历允许追问，整体贴岗位且无别家公司产品误用。"
+        }
+      },
+      "trajectory": null,
+      "tool_calls": [],
+      "reason": "全部检查通过（3/3）",
+      "checks": [
+        {
+          "name": "岗位解析",
+          "ok": true,
+          "detail": "解析结果 job_id=inn_hxnrzxjh1zla，期望 命中"
+        },
+        {
+          "name": "出题非空",
+          "ok": true,
+          "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "题目3覆盖JavaScript要点，题目2基于候选人简历允许追问，整体贴岗位且无别家公司产品误用。"
+        }
+      ],
+      "extra": {
+        "job_id": "inn_hxnrzxjh1zla",
+        "jd_head": "【岗位职责】\n\n全程参与从0到1的设计与开发工作，构建基于VS Code沙箱环境及外部HTML环境的电动工具应用门户，推动平台化能力建设，助力产品应用的标准化、高效化落地。\n参与VS Code插件开发，支持应用工程师完成产品软件应用配置界面",
+        "questions": [
+          "请简单介绍一下你自己，包括你的教育背景、技能和实习经历。",
+          "请详细介绍一下你在智元科技实习期间负责的RAG岗位问答机器人项目，包括技术栈、实现细节和遇到的挑战。",
+          "请介绍你对JavaScript（ES6+）的理解，以及如何在实际项目中应用。"
+        ]
+      },
+      "elapsed": 158.2,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "score": 1.0,
+          "metrics": {
+            "deterministic": {
+              "metric": "deterministic",
+              "score": 1.0,
+              "detail": "2 项确定性检查全过"
+            },
+            "llm": {
+              "metric": "llm",
+              "score": 1.0,
+              "detail": "题目3覆盖JavaScript要点，题目2基于候选人简历允许追问，整体贴岗位且无别家公司产品误用。"
+            }
+          },
+          "checks": [
+            {
+              "name": "岗位解析",
+              "ok": true,
+              "detail": "解析结果 job_id=inn_hxnrzxjh1zla，期望 命中"
+            },
+            {
+              "name": "出题非空",
+              "ok": true,
+              "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "题目3覆盖JavaScript要点，题目2基于候选人简历允许追问，整体贴岗位且无别家公司产品误用。"
+            }
+          ],
+          "extra": {
+            "job_id": "inn_hxnrzxjh1zla",
+            "jd_head": "【岗位职责】\n\n全程参与从0到1的设计与开发工作，构建基于VS Code沙箱环境及外部HTML环境的电动工具应用门户，推动平台化能力建设，助力产品应用的标准化、高效化落地。\n参与VS Code插件开发，支持应用工程师完成产品软件应用配置界面",
+            "questions": [
+              "请简单介绍一下你自己，包括你的教育背景、技能和实习经历。",
+              "请详细介绍一下你在智元科技实习期间负责的RAG岗位问答机器人项目，包括技术栈、实现细节和遇到的挑战。",
+              "请介绍你对JavaScript（ES6+）的理解，以及如何在实际项目中应用。"
+            ]
+          },
+          "judge": {
+            "pass": true,
+            "reason": "题目3覆盖JavaScript要点，题目2基于候选人简历允许追问，整体贴岗位且无别家公司产品误用。"
+          },
+          "tool_calls": [],
+          "trajectory": null,
+          "elapsed": 62.2,
+          "run": 1
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "score": 1.0,
+          "metrics": {
+            "deterministic": {
+              "metric": "deterministic",
+              "score": 1.0,
+              "detail": "2 项确定性检查全过"
+            },
+            "llm": {
+              "metric": "llm",
+              "score": 1.0,
+              "detail": "整组题覆盖JavaScript要点，且问题基于候选人真实经历"
+            }
+          },
+          "checks": [
+            {
+              "name": "岗位解析",
+              "ok": true,
+              "detail": "解析结果 job_id=inn_hxnrzxjh1zla，期望 命中"
+            },
+            {
+              "name": "出题非空",
+              "ok": true,
+              "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "整组题覆盖JavaScript要点，且问题基于候选人真实经历"
+            }
+          ],
+          "extra": {
+            "job_id": "inn_hxnrzxjh1zla",
+            "jd_head": "【岗位职责】\n\n全程参与从0到1的设计与开发工作，构建基于VS Code沙箱环境及外部HTML环境的电动工具应用门户，推动平台化能力建设，助力产品应用的标准化、高效化落地。\n参与VS Code插件开发，支持应用工程师完成产品软件应用配置界面",
+            "questions": [
+              "请简单介绍一下你自己，包括你的教育背景、实习经历和相关技能。",
+              "请详细介绍一下你在智元科技实习中负责的岗位问答机器人项目，包括技术栈和主要成果。",
+              "请描述一下你使用JavaScript ES6+特性的经验，或者你如何理解TypeScript在开发中的优势？"
+            ]
+          },
+          "judge": {
+            "pass": true,
+            "reason": "整组题覆盖JavaScript要点，且问题基于候选人真实经历"
+          },
+          "tool_calls": [],
+          "trajectory": null,
+          "elapsed": 50.4,
+          "run": 2
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "score": 1.0,
+          "metrics": {
+            "deterministic": {
+              "metric": "deterministic",
+              "score": 1.0,
+              "detail": "2 项确定性检查全过"
+            },
+            "llm": {
+              "metric": "llm",
+              "score": 1.0,
+              "detail": "所有问题贴着岗位出题，覆盖JavaScript和Vue要点，无违规内容。"
+            }
+          },
+          "checks": [
+            {
+              "name": "岗位解析",
+              "ok": true,
+              "detail": "解析结果 job_id=inn_hxnrzxjh1zla，期望 命中"
+            },
+            {
+              "name": "出题非空",
+              "ok": true,
+              "detail": "期望连出 3 题，实际 3 题（最后一题为空说明输出被截断）"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有问题贴着岗位出题，覆盖JavaScript和Vue要点，无违规内容。"
+            }
+          ],
+          "extra": {
+            "job_id": "inn_hxnrzxjh1zla",
+            "jd_head": "【岗位职责】\n\n全程参与从0到1的设计与开发工作，构建基于VS Code沙箱环境及外部HTML环境的电动工具应用门户，推动平台化能力建设，助力产品应用的标准化、高效化落地。\n参与VS Code插件开发，支持应用工程师完成产品软件应用配置界面",
+            "questions": [
+              "请简单介绍一下你自己，包括教育背景、技能和实习经历。",
+              "请详细介绍一下你在智元科技实习中负责的岗位问答机器人项目，包括你的具体角色、使用的技术栈和遇到的挑战。",
+              "请谈谈你对JavaScript ES6+特性的理解，以及你是否有使用React或Vue框架的经验？"
+            ]
+          },
+          "judge": {
+            "pass": true,
+            "reason": "所有问题贴着岗位出题，覆盖JavaScript和Vue要点，无违规内容。"
+          },
+          "tool_calls": [],
+          "trajectory": null,
+          "elapsed": 45.6,
+          "run": 3
+        }
+      ]
+    }
+  ]
+}
