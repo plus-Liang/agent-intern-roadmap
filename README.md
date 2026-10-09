@@ -591,16 +591,44 @@ python scripts/audit_data.py                 # 数据质量统计
 python evaluation/run_eval.py                       # 全量（约 20-30 分钟，会真调 LLM）
 python evaluation/run_eval.py --category search     # 只跑某一类（改完 prompt 先跑这个）
 python evaluation/run_eval.py --case match-01       # 只跑某几题
+python evaluation/run_eval.py --repeat 3            # 每题跑 3 次，看稳定性
 python evaluation/run_eval.py --list                # 只列题，不跑
 python evaluation/run_eval.py --compare evaluation/results/<上次>.json   # 与上次对比
 ```
+
+### 多次跑：`--repeat N`（LLM 是非确定的）
+
+同一道题、同一个模型、同一套 prompt，也可能一次过、一次不过 —— 这不是"测错了"，
+而是 LLM 的固有抖动。想知道一道题到底有多稳，就得连跑几次：
+
+```bash
+python evaluation/run_eval.py --category match --repeat 3
+```
+
+`--repeat N` 在原来的准确率之外多给三个数：
+
+| 指标 | 含义 |
+|---|---|
+| **单题通过率** | 这道题 N 次里过了几次（如 `4/5 = 80%`）—— 单题稳不稳 |
+| **类别稳定率** | 该类别下所有题「单题通过率」的**平均值**（不是通过/总数，分子是分数、不是 0/1） |
+| **不稳定题** | 单题通过率落在 **20%~80%（含端点）** 的题 —— 这几道是"再跑一次结果就变"的题，最值得盯 |
+
+结果 JSON 保留**每一次**的完整详情（`results[].runs[]`：判词 / 检查项 / extra / 耗时），
+题级 `passed` 取**多数票**（通过率 ≥ 50%），这样 `--repeat 1` 与老口径逐字一致，
+`--repeat N` 也能继续用 `--compare` 对老结果。代价是耗时按 N 倍增长
+（`--category match --repeat 3` 约 25-40 分钟），建议**先 `--repeat 3` 跑抖动大的类别**，
+全量仍用 `--repeat 1`。
 
 结果怎么看：
 
 - 终端直接打印「分类准确率 + 总准确率 + 每道失败题的原因」；
 - 落到 `evaluation/results/<时间戳>.json`（机器可读，含每题明细）和同名 `.md`（可读表）；
 - 加了 `--compare` 会多打一段「新通过 / 新失败 / 分类准确率变化」——
-  **看回归盯「新失败」，看改进盯「新通过」**。
+  **看回归盯「新失败」，看改进盯「新通过」**；
+- 匹配打分的「差距」有一层**确定性溯源过滤**（`agent/tools_registry.split_gaps_by_jd`）：
+  每一项都要能在 JD 原文里找到对应关键词（英文按整词比对、中文按 ≥3 字滑窗），
+  找不到的会被移出 `gaps`、单列为「通用建议」—— 防止把 JD 根本没提的技术栈
+  （典型：JD 没写 TensorFlow / PyTorch，差距里却冒出它们）写成「岗位要求的差距」。
 
 改题库：
 

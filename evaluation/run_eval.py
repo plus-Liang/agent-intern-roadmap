@@ -7,8 +7,21 @@
     python evaluation/run_eval.py                       # 全量
     python evaluation/run_eval.py --category search     # 只跑某一类
     python evaluation/run_eval.py --case match-01       # 只跑某几题（逗号分隔）
+    python evaluation/run_eval.py --repeat 3            # 每题跑 3 次（看稳定性）
     python evaluation/run_eval.py --list                # 只列题
     python evaluation/run_eval.py --compare evaluation/results/20261008_120000.json
+
+--repeat（多次跑）
+-----------------
+LLM 非确定性：同一题、同一模型、同一 prompt，也可能一次过、一次不过
+（基线里的 match-02 就是 4 次跑 3 次不合格）。`--repeat N` 把每题跑 N 次，输出：
+
+* **单题通过率**（如 `4/5 = 80%`）—— 这一题到底有多稳；
+* **类别稳定率** —— 该类别下所有题「单题通过率」的平均值（不是通过/总数）；
+* **不稳定题** —— 单题通过率落在 **20%~80%（含端点）** 的题，是抖动最值得看的题。
+
+结果 JSON 保留**每一次**的详情（`results[].runs[]`：判词 / 检查项 / extra / 耗时），
+题级 `passed` 取多数票（通过率 ≥ 50%），方便和 `--compare` 的老口径对齐。
 
 两类判分
 --------
@@ -66,6 +79,11 @@ from agent.react_agent_lg import run as run_agent              # noqa: E402
 JUDGE_MAX_TOKENS = 4096            # 独立裁判调用：思考模型下 1024 会被思考吃光
 JUDGE_EFFORT = "low"
 SEARCH_SHOW_LIMIT = 20
+
+#: 「不稳定题」的单题通过率区间（含端点）：20%~80% 说明这题一跑一个样，
+#: 绝对值（0% / 100%）反而是稳定结论（稳定失败 / 稳定通过）。
+UNSTABLE_LOW = 0.2
+UNSTABLE_HIGH = 0.8
 
 #: 面试评测里喂给面试官的「候选人回答」（固定文本，保证每一轮题目可比；
 #: 只要求能推动面试官往下问，不涉及任何具体公司的信息）
@@ -403,56 +421,113 @@ def prepare_resume(test_set: dict) -> str:
     return saved["id"]
 
 
-def run_cases(cases: list, test_set: dict, verbose: bool = True) -> list:
+def _run_once(case: dict, ctx: dict, verbose: bool = True) -> dict:
+    """跑一次单题，返回这一次的详情（不抛异常，异常记成失败）。"""
+    runner = RUNNERS[case["category"]]
+    started = time.time()
+    try:
+        c = runner(case, ctx)
+        return {"passed": bool(c.passed), "reason": c.reason, "checks": c.checks,
+                "extra": c.extra, "elapsed": round(time.time() - started, 1)}
+    except Exception as e:                                     # noqa: BLE001 - 单题失败不拖垮整轮
+        import traceback
+        if verbose:
+            traceback.print_exc()
+        return {"passed": False, "reason": f"执行异常：{type(e).__name__}: {e}",
+                "checks": [], "extra": {}, "elapsed": round(time.time() - started, 1)}
+
+
+def merge_runs(case: dict, runs: list) -> dict:
+    """把同一题的 N 次结果合成一条题级记录。
+
+    - `pass_rate` / `passed_runs`：单题通过率（4/5 = 0.8）；
+    - `passed`：**多数票**（通过率 ≥ 50%），这样 --repeat 1 时与原口径逐字一致，
+      N 次时也能和 --compare 的老结果对齐；
+    - `reason`：全过就写「N/N 通过」，否则带上「几次过 + 第一次失败的原因」；
+    - `checks` / `extra`：取第一次**失败**的那次（没有失败就取第一次），
+      方便直接看到失败现场；每一次的详情都留在 `runs[]` 里。
+    """
+    total = len(runs)
+    passed_runs = sum(1 for r in runs if r["passed"])
+    rate = (passed_runs / total) if total else 0.0
+    rep = next((r for r in runs if not r["passed"]), runs[0])
+    if passed_runs == total:
+        reason = f"全部检查通过（{passed_runs}/{total}）"
+    else:
+        reason = f"{passed_runs}/{total} 次通过；失败原因：{rep['reason']}"
+    return {
+        "id": case["id"], "category": case["category"],
+        "judge": JUDGE_KIND[case["category"]],
+        "question": case.get("q") or f"{case.get('company', '')} · {case.get('title', '')}",
+        "repeat": total, "passed_runs": passed_runs, "pass_rate": round(rate, 4),
+        "passed": rate >= 0.5,
+        "reason": reason, "checks": rep["checks"], "extra": rep["extra"],
+        "elapsed": round(sum(r["elapsed"] for r in runs), 1),
+        "runs": runs,
+    }
+
+
+def run_cases(cases: list, test_set: dict, verbose: bool = True, repeat: int = 1) -> list:
+    """逐题跑。repeat > 1 时每题连跑 N 次（LLM 非确定性，见模块 docstring）。"""
     resume_id = prepare_resume(test_set)
     ctx = {"resume": test_set["test_resume"], "resume_id": resume_id}
+    repeat = max(1, int(repeat or 1))
     results = []
-    for i, case in enumerate(cases, 1):
+    counter = 0
+    total_runs = len(cases) * repeat
+    for case in cases:
         rid = case["id"]
-        runner = RUNNERS[case["category"]]
-        started = time.time()
-        print(f"[{i}/{len(cases)}] {rid} ({case['category']}) …", flush=True)
-        try:
-            c = runner(case, ctx)
-            passed, reason, checks, extra = c.passed, c.reason, c.checks, c.extra
-        except Exception as e:                                 # noqa: BLE001 - 单题失败不拖垮整轮
-            import traceback
-            passed, reason, checks, extra = False, f"执行异常：{type(e).__name__}: {e}", [], {}
-            if verbose:
-                traceback.print_exc()
-        elapsed = time.time() - started
-        results.append({
-            "id": rid, "category": case["category"], "judge": JUDGE_KIND[case["category"]],
-            "question": case.get("q") or f"{case.get('company', '')} · {case.get('title', '')}",
-            "passed": bool(passed), "reason": reason, "checks": checks,
-            "extra": extra, "elapsed": round(elapsed, 1),
-        })
-        mark = "PASS" if passed else "FAIL"
-        print(f"    {mark} ({elapsed:.0f}s) {reason}", flush=True)
+        runs = []
+        for k in range(1, repeat + 1):
+            counter += 1
+            head = (f"[{counter}/{total_runs}] {rid} 第 {k}/{repeat} 次"
+                    if repeat > 1 else f"[{counter}/{total_runs}] {rid}")
+            print(f"{head} ({case['category']}) …", flush=True)
+            run = _run_once(case, ctx, verbose=verbose)
+            run["run"] = k
+            runs.append(run)
+            mark = "PASS" if run["passed"] else "FAIL"
+            print(f"    {mark} ({run['elapsed']:.0f}s) {run['reason']}", flush=True)
+        results.append(merge_runs(case, runs))
     return results
 
 
-def summarize(results: list, elapsed: float, test_set: dict) -> dict:
-    """分类准确率 + 判分方式准确率 + 总准确率。"""
+def summarize(results: list, elapsed: float, test_set: dict, repeat: int = 1) -> dict:
+    """分类准确率 + 判分方式准确率 + 总准确率 + 类别稳定率 + 不稳定题。"""
     def bucket(key):
         out = {}
         for r in results:
-            b = out.setdefault(r[key], {"total": 0, "passed": 0})
+            b = out.setdefault(r[key], {"total": 0, "passed": 0, "_rate": 0.0})
             b["total"] += 1
             b["passed"] += 1 if r["passed"] else 0
+            b["_rate"] += float(r.get("pass_rate", 1.0 if r["passed"] else 0.0))
         for b in out.values():
             b["accuracy"] = round(b["passed"] / b["total"], 4)
+            # 稳定率 = 该类别下每题「单题通过率」的平均值（rerun 口径，不是通过/总数）
+            b["stability"] = round(b["_rate"] / b["total"], 4)
+            del b["_rate"]
         return out
 
     total = len(results)
     passed = sum(1 for r in results if r["passed"])
+    rates = [float(r.get("pass_rate", 1.0 if r["passed"] else 0.0)) for r in results]
+    unstable = [
+        {"id": r["id"], "category": r["category"],
+         "passed_runs": r.get("passed_runs", 1 if r["passed"] else 0),
+         "total_runs": r.get("repeat", 1), "pass_rate": r.get("pass_rate", 1.0)}
+        for r in results if UNSTABLE_LOW <= float(r.get("pass_rate", 0.0)) <= UNSTABLE_HIGH
+    ]
     return {
         "run_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "test_set_version": test_set.get("version"),
         "engine": os.getenv("AGENT_ENGINE", "langgraph"),
         "model": os.getenv("ZHIPU_CHAT_MODEL", ""),
+        "repeat": repeat,
         "total": total, "passed": passed,
         "accuracy": round(passed / total, 4) if total else 0.0,
+        "stability": round(sum(rates) / total, 4) if total else 0.0,
+        "unstable_range": [UNSTABLE_LOW, UNSTABLE_HIGH],
+        "unstable_cases": unstable,
         "elapsed_sec": round(elapsed, 1),
         "by_category": bucket("category"),
         "by_judge": bucket("judge"),
@@ -464,16 +539,35 @@ def print_summary(rep: dict) -> None:
     print("\n" + "=" * 62)
     print("评测结果")
     print("=" * 62)
-    print(f"{'类别':<12}{'通过/总数':<12}{'准确率':<10}")
+    if rep.get("repeat", 1) > 1:
+        print(f"每题重复次数：{rep['repeat']}（题级 passed = 多数票，通过率 ≥ 50%）")
+    print(f"{'类别':<12}{'通过/总数':<12}{'准确率':<10}{'稳定率':<10}")
     for name, b in rep["by_category"].items():
-        print(f"{name:<12}{b['passed']}/{b['total']:<10}{b['accuracy'] * 100:.0f}%")
+        print(f"{name:<12}{b['passed']}/{b['total']:<10}{b['accuracy'] * 100:.0f}%"
+              f"{'':<4}{b.get('stability', b['accuracy']) * 100:.0f}%")
     print("-" * 62)
     for name, b in rep["by_judge"].items():
         label = {"deterministic": "确定性判分", "llm": "LLM 裁判"}[name]
-        print(f"{label:<12}{b['passed']}/{b['total']:<10}{b['accuracy'] * 100:.0f}%")
+        print(f"{label:<12}{b['passed']}/{b['total']:<10}{b['accuracy'] * 100:.0f}%"
+              f"{'':<4}{b.get('stability', b['accuracy']) * 100:.0f}%")
     print("-" * 62)
     print(f"总计 {rep['passed']}/{rep['total']} = {rep['accuracy'] * 100:.1f}%"
+          f"    稳定率 {rep.get('stability', rep['accuracy']) * 100:.1f}%"
           f"    耗时 {rep['elapsed_sec'] / 60:.1f} 分钟")
+
+    if rep.get("repeat", 1) > 1:
+        print("\n单题通过率：")
+        for r in rep["results"]:
+            rate = r.get("pass_rate", 1.0 if r["passed"] else 0.0) * 100
+            flag = "  ⚠️ 不稳定" if UNSTABLE_LOW <= r.get("pass_rate", 0.0) <= UNSTABLE_HIGH else ""
+            print(f"  {r['id']:<14}{r.get('passed_runs', 0)}/{r.get('repeat', 1)}"
+                  f" = {rate:.0f}%{flag}")
+        unstable = rep.get("unstable_cases") or []
+        lo, hi = [int(x * 100) for x in (rep.get("unstable_range") or [UNSTABLE_LOW, UNSTABLE_HIGH])]
+        print(f"\n不稳定题（通过率 {lo}%-{hi}%）："
+              + (", ".join(f"{u['id']}（{u['passed_runs']}/{u['total_runs']}）"
+                           for u in unstable) if unstable else "无"))
+
     failed = [r for r in rep["results"] if not r["passed"]]
     if failed:
         print("\n失败题：")
@@ -490,6 +584,9 @@ def print_compare(prev_path: Path, rep: dict) -> None:
     print("=" * 62)
     print(f"总准确率：{prev.get('accuracy', 0) * 100:.1f}% → {rep['accuracy'] * 100:.1f}%"
           f"  ({rep['accuracy'] * 100 - prev.get('accuracy', 0) * 100:+.1f} 个百分点)")
+    if prev.get("stability") is not None or rep.get("repeat", 1) > 1:
+        print(f"稳定率：{(prev.get('stability') or 0) * 100:.1f}% → "
+              f"{rep.get('stability', rep['accuracy']) * 100:.1f}%")
     prev_map = {r["id"]: r for r in prev.get("results", [])}
     newly_pass = [r["id"] for r in rep["results"]
                   if r["passed"] and r["id"] in prev_map and not prev_map[r["id"]]["passed"]]
@@ -514,18 +611,41 @@ def write_report(rep: dict) -> tuple:
 
     lines = [f"# 评测报告 {rep['run_at']}", "",
              f"- 引擎：{rep['engine']}    模型：{rep['model']}",
+             f"- 每题重复次数：**{rep.get('repeat', 1)}**"
+             f"（题级 passed 取多数票；稳定率 = 各题单题通过率的平均）",
              f"- 总计：**{rep['passed']}/{rep['total']} = {rep['accuracy'] * 100:.1f}%**"
+             f"　稳定率 **{rep.get('stability', rep['accuracy']) * 100:.1f}%**"
              f"（耗时 {rep['elapsed_sec'] / 60:.1f} 分钟）", "",
-             "## 分类准确率", "", "| 类别 | 通过/总数 | 准确率 |", "|---|---|---|"]
+             "## 分类准确率 / 稳定率", "",
+             "| 类别 | 通过/总数 | 准确率 | 稳定率 |", "|---|---|---|---|"]
     for name, b in rep["by_category"].items():
-        lines.append(f"| {name} | {b['passed']}/{b['total']} | {b['accuracy'] * 100:.0f}% |")
-    lines += ["", "## 判分方式", "", "| 判分 | 通过/总数 | 准确率 |", "|---|---|---|"]
+        lines.append(f"| {name} | {b['passed']}/{b['total']} | {b['accuracy'] * 100:.0f}% | "
+                     f"{b.get('stability', b['accuracy']) * 100:.0f}% |")
+    lines += ["", "## 判分方式", "", "| 判分 | 通过/总数 | 准确率 | 稳定率 |", "|---|---|---|---|"]
     for name, b in rep["by_judge"].items():
-        lines.append(f"| {name} | {b['passed']}/{b['total']} | {b['accuracy'] * 100:.0f}% |")
-    lines += ["", "## 逐题", "", "| 题号 | 类别 | 判分 | 结果 | 原因 | 耗时 |", "|---|---|---|---|---|---|"]
+        lines.append(f"| {name} | {b['passed']}/{b['total']} | {b['accuracy'] * 100:.0f}% | "
+                     f"{b.get('stability', b['accuracy']) * 100:.0f}% |")
+    unstable = rep.get("unstable_cases") or []
+    lo, hi = [int(x * 100) for x in (rep.get("unstable_range") or [UNSTABLE_LOW, UNSTABLE_HIGH])]
+    lines += ["", f"## 不稳定题（单题通过率 {lo}%-{hi}%）", ""]
+    if unstable:
+        lines += ["| 题号 | 类别 | 通过/次数 | 通过率 |", "|---|---|---|---|"]
+        for u in unstable:
+            lines.append(f"| {u['id']} | {u['category']} | {u['passed_runs']}/{u['total_runs']} | "
+                         f"{u['pass_rate'] * 100:.0f}% |")
+    else:
+        lines.append("无（所有题要么全过、要么全不过）")
+    rep_label = "" if rep.get("repeat", 1) == 1 else "（N 次里过几次）"
+    lines += ["", "## 逐题", "",
+              "| 题号 | 类别 | 判分 | 结果 | 通过率 | 原因 | 耗时 |",
+              "|---|---|---|---|---|---|---|"]
     for r in rep["results"]:
+        rate = f"{r.get('passed_runs', 0)}/{r.get('repeat', 1)} = " \
+               f"{r.get('pass_rate', 0) * 100:.0f}%{rep_label}"
         lines.append(f"| {r['id']} | {r['category']} | {r['judge']} | "
-                     f"{'✅' if r['passed'] else '❌'} | {r['reason'][:120]} | {r['elapsed']}s |")
+                     f"{'✅' if r['passed'] else '❌'} | {rate} | {r['reason'][:120]} | {r['elapsed']}s |")
+    lines += ["", "> 每一次跑的完整详情（判词 / 检查项 / extra / 耗时）见同名 JSON 的 "
+                  "`results[].runs[]`。"]
     md_path = RESULTS_DIR / f"{stamp}.md"
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return json_path, md_path
@@ -537,8 +657,13 @@ def main() -> int:
     parser.add_argument("--case", help="只跑某些题（逗号分隔的 id）")
     parser.add_argument("--compare", help="与上次结果 JSON 对比")
     parser.add_argument("--list", action="store_true", help="只列出题目，不跑")
+    parser.add_argument("--repeat", type=int, default=1,
+                        help="每题重复跑几次（默认 1）；>1 时输出单题通过率 / 稳定率 / 不稳定题")
     parser.add_argument("--quiet", action="store_true", help="不逐题打印")
     args = parser.parse_args()
+    if args.repeat < 1:
+        print("[错误] --repeat 必须 ≥ 1")
+        return 2
 
     if not TEST_SET.is_file():
         print(f"[错误] 找不到评测集：{TEST_SET}")
@@ -564,11 +689,11 @@ def main() -> int:
         return 2
 
     print(f"评测集：{len(cases)} 题 | 引擎 {os.getenv('AGENT_ENGINE', 'langgraph')} | "
-          f"模型 {os.getenv('ZHIPU_CHAT_MODEL', '(未设置)')}")
+          f"模型 {os.getenv('ZHIPU_CHAT_MODEL', '(未设置)')} | 每题 {args.repeat} 次")
     print(f"隔离目录：{ART_DIR}")
     started = time.time()
-    results = run_cases(cases, test_set, verbose=not args.quiet)
-    rep = summarize(results, time.time() - started, test_set)
+    results = run_cases(cases, test_set, verbose=not args.quiet, repeat=args.repeat)
+    rep = summarize(results, time.time() - started, test_set, repeat=args.repeat)
     print_summary(rep)
     json_path, md_path = write_report(rep)
     print(f"\n结果已保存：{json_path}")

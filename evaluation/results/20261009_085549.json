@@ -1,0 +1,460 @@
+{
+  "run_at": "2026-10-09 08:55:49",
+  "test_set_version": "1.0",
+  "engine": "langgraph",
+  "model": "glm-4.5-air",
+  "repeat": 5,
+  "total": 1,
+  "passed": 1,
+  "accuracy": 1.0,
+  "stability": 1.0,
+  "unstable_range": [
+    0.2,
+    0.8
+  ],
+  "unstable_cases": [],
+  "elapsed_sec": 713.9,
+  "by_category": {
+    "match": {
+      "total": 1,
+      "passed": 1,
+      "accuracy": 1.0,
+      "stability": 1.0
+    }
+  },
+  "by_judge": {
+    "llm": {
+      "total": 1,
+      "passed": 1,
+      "accuracy": 1.0,
+      "stability": 1.0
+    }
+  },
+  "results": [
+    {
+      "id": "match-02",
+      "category": "match",
+      "judge": "llm",
+      "question": "帮我用简历匹配这个岗位，看看合不合适",
+      "repeat": 5,
+      "passed_runs": 5,
+      "pass_rate": 1.0,
+      "passed": true,
+      "reason": "全部检查通过（5/5）",
+      "checks": [
+        {
+          "name": "拿到岗位",
+          "ok": true,
+          "detail": "job_id=YWF6i2YnSonM311DyjNd2q 未查到岗位详情"
+        },
+        {
+          "name": "初筛分区间",
+          "ok": true,
+          "detail": "初筛分 70 不在期望区间 [50, 100]（Agent / 大模型方向对口，初筛分应偏高；JD 里 Harness、Java 这些没覆盖的项由反思层去扣）"
+        },
+        {
+          "name": "最终分合法",
+          "ok": true,
+          "detail": "最终分 60"
+        },
+        {
+          "name": "反思节点触发",
+          "ok": true,
+          "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '修正', '匹配打分', '反思', '输出']"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "分数与证据相称，所有亮点和差距都有依据，无编造。"
+        }
+      ],
+      "extra": {
+        "base_score": 70,
+        "score": 60,
+        "nodes": [
+          "接收",
+          "定位岗位",
+          "匹配打分",
+          "反思",
+          "修正",
+          "匹配打分",
+          "反思",
+          "输出"
+        ],
+        "dimensions": {
+          "skills": 15,
+          "experience": 25,
+          "education": 15,
+          "location": 15
+        },
+        "gaps": [
+          "LangGraph, CrewAI",
+          "反思纠错闭环",
+          "推理策略、记忆管理",
+          "行业、供应链、财务等业务场景理解",
+          "观测体系与全链路追踪",
+          "自动化评测与回测机制",
+          "SDK/API封装与组件库构建",
+          "ReAct, CoT, Plan-and-Execute等范式"
+        ],
+        "highlights": [
+          "硕士研究生，人工智能专业，与岗位高度匹配",
+          "实习和项目经历涉及AI Agent开发，使用LangChain、RAG、向量检索",
+          "岗位问答机器人项目：LangChain编排工具调用，支持多轮追问，覆盖2万条JD，检索耗时<5ms",
+          "实习中提升FAQ命中率从62%到89%，接口延迟400ms，展示实际效果",
+          "城市匹配广州"
+        ]
+      },
+      "elapsed": 713.9,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=YWF6i2YnSonM311DyjNd2q 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 70 不在期望区间 [50, 100]（Agent / 大模型方向对口，初筛分应偏高；JD 里 Harness、Java 这些没覆盖的项由反思层去扣）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 60"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '修正', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "分数与证据相称，所有亮点和差距都有依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 70,
+            "score": 60,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "修正",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 15,
+              "experience": 25,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "LangGraph, CrewAI",
+              "反思纠错闭环",
+              "推理策略、记忆管理",
+              "行业、供应链、财务等业务场景理解",
+              "观测体系与全链路追踪",
+              "自动化评测与回测机制",
+              "SDK/API封装与组件库构建",
+              "ReAct, CoT, Plan-and-Execute等范式"
+            ],
+            "highlights": [
+              "硕士研究生，人工智能专业，与岗位高度匹配",
+              "实习和项目经历涉及AI Agent开发，使用LangChain、RAG、向量检索",
+              "岗位问答机器人项目：LangChain编排工具调用，支持多轮追问，覆盖2万条JD，检索耗时<5ms",
+              "实习中提升FAQ命中率从62%到89%，接口延迟400ms，展示实际效果",
+              "城市匹配广州"
+            ]
+          },
+          "elapsed": 133.0,
+          "run": 1
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=YWF6i2YnSonM311DyjNd2q 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 70 不在期望区间 [50, 100]（Agent / 大模型方向对口，初筛分应偏高；JD 里 Harness、Java 这些没覆盖的项由反思层去扣）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 70"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "分数与证据相称，所有亮点和差距均有对应依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 70,
+            "score": 70,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 15,
+              "experience": 25,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "LangGraph",
+              "CrewAI",
+              "意图识别",
+              "任务拆解",
+              "反思纠错",
+              "推理策略",
+              "记忆管理",
+              "业务场景",
+              "观测体系",
+              "全链路追踪",
+              "自动化评测",
+              "回测机制",
+              "SDK/API",
+              "Agent能力组件库",
+              "ReAct",
+              "CoT",
+              "Plan-and-Execute"
+            ],
+            "highlights": [
+              "简历覆盖LangChain和Agent技能，直接匹配JD要求",
+              "项目经历用LangChain编排工具调用，支持多轮追问，相关性强",
+              "实习经历涉及AI应用开发，提高命中率，展示实际能力",
+              "学历硕士研究生，城市匹配"
+            ]
+          },
+          "elapsed": 71.2,
+          "run": 2
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=YWF6i2YnSonM311DyjNd2q 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 60 不在期望区间 [50, 100]（Agent / 大模型方向对口，初筛分应偏高；JD 里 Harness、Java 这些没覆盖的项由反思层去扣）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 60"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有亮点和差距均有简历和JD依据，分数在合理区间内。"
+            }
+          ],
+          "extra": {
+            "base_score": 60,
+            "score": 60,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 10,
+              "experience": 20,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "意图识别、任务拆解、工具调用与反思纠错闭环",
+              "基于LangChain、LangGraph、CrewAI等构建多智能体协同应用",
+              "深入理解行业、供应链、财务等业务场景",
+              "搭建Agent的观测体系与全链路追踪",
+              "封装标准化SDK/API",
+              "跟踪业界Agent技术进展（如ReAct、CoT、Plan-and-Execute等范式）"
+            ],
+            "highlights": [
+              "使用RAG + 向量检索优化FAQ命中率至89%",
+              "基于RAG的岗位问答机器人项目，检索耗时<5ms",
+              "用LangChain编排工具调用，支持多轮追问",
+              "开发投递追踪助手，使用FastAPI"
+            ]
+          },
+          "elapsed": 378.2,
+          "run": 3
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=YWF6i2YnSonM311DyjNd2q 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 65 不在期望区间 [50, 100]（Agent / 大模型方向对口，初筛分应偏高；JD 里 Harness、Java 这些没覆盖的项由反思层去扣）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 65"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "分数合理，所有亮点和差距均有依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 65,
+            "score": 65,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 10,
+              "experience": 25,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "LangGraph",
+              "CrewAI",
+              "ReAct、CoT、Plan-and-Execute等范式",
+              "多智能体协同",
+              "行业、供应链、财务等业务场景",
+              "观测体系与全链路追踪",
+              "自动化评测与回测机制",
+              "封装标准化SDK/API",
+              "技术选型论证"
+            ],
+            "highlights": [
+              "硕士研究生学历，人工智能专业",
+              "实习和项目经验涉及RAG、LangChain、Agent开发",
+              "提高FAQ命中率，优化性能",
+              "项目中用LangChain编排工具调用，支持多轮追问"
+            ]
+          },
+          "elapsed": 63.6,
+          "run": 4
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=YWF6i2YnSonM311DyjNd2q 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 67 不在期望区间 [50, 100]（Agent / 大模型方向对口，初筛分应偏高；JD 里 Harness、Java 这些没覆盖的项由反思层去扣）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 67"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有条件满足：分数合理，亮点和差距都有依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 67,
+            "score": 67,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 12,
+              "experience": 25,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "LangGraph",
+              "CrewAI",
+              "意图识别",
+              "任务拆解",
+              "反思纠错",
+              "推理策略",
+              "记忆管理",
+              "观测体系",
+              "全链路追踪",
+              "自动化评测",
+              "回测机制",
+              "Agent能力组件库",
+              "技术选型"
+            ],
+            "highlights": [
+              "有LangChain和Agent相关项目经验",
+              "RAG和向量检索经验丰富",
+              "FastAPI后端开发能力",
+              "硕士学历，广州城市匹配"
+            ]
+          },
+          "elapsed": 67.9,
+          "run": 5
+        }
+      ]
+    }
+  ]
+}

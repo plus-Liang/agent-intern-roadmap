@@ -1,0 +1,1403 @@
+{
+  "run_at": "2026-10-09 09:24:16",
+  "test_set_version": "1.0",
+  "engine": "langgraph",
+  "model": "glm-4.5-air",
+  "repeat": 3,
+  "total": 5,
+  "passed": 5,
+  "accuracy": 1.0,
+  "stability": 1.0,
+  "unstable_range": [
+    0.2,
+    0.8
+  ],
+  "unstable_cases": [],
+  "elapsed_sec": 1706.0,
+  "by_category": {
+    "match": {
+      "total": 5,
+      "passed": 5,
+      "accuracy": 1.0,
+      "stability": 1.0
+    }
+  },
+  "by_judge": {
+    "llm": {
+      "total": 5,
+      "passed": 5,
+      "accuracy": 1.0,
+      "stability": 1.0
+    }
+  },
+  "results": [
+    {
+      "id": "match-01",
+      "category": "match",
+      "judge": "llm",
+      "question": "帮我用简历匹配一下这个岗位",
+      "repeat": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "passed": true,
+      "reason": "全部检查通过（3/3）",
+      "checks": [
+        {
+          "name": "拿到岗位",
+          "ok": true,
+          "detail": "job_id=inn_qpa38aa45nvn 未查到岗位详情"
+        },
+        {
+          "name": "初筛分区间",
+          "ok": true,
+          "detail": "初筛分 85 不在期望区间 [60, 100]（简历方向高度对口（Agent / RAG / LangChain / Milvus），初筛分应明显偏高）"
+        },
+        {
+          "name": "最终分合法",
+          "ok": true,
+          "detail": "最终分 75"
+        },
+        {
+          "name": "反思节点触发",
+          "ok": true,
+          "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '修正', '匹配打分', '反思', '输出']"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "分数在合理区间，所有亮点和差距都有依据，无编造"
+        }
+      ],
+      "extra": {
+        "base_score": 85,
+        "score": 75,
+        "nodes": [
+          "接收",
+          "定位岗位",
+          "匹配打分",
+          "反思",
+          "修正",
+          "匹配打分",
+          "反思",
+          "输出"
+        ],
+        "dimensions": {
+          "skills": 30,
+          "experience": 25,
+          "education": 15,
+          "location": 15
+        },
+        "gaps": [
+          "LangGraph",
+          "Llamalndex",
+          "非结构化文档处理技术",
+          "模型训练与调优流程",
+          "智能体规划、决策、记忆"
+        ],
+        "highlights": [
+          "具备RAG和向量检索实战经验，提升FAQ命中率至89%",
+          "使用LangChain编排工具调用，支持多轮追问",
+          "Milvus向量库应用，检索耗时<5ms"
+        ]
+      },
+      "elapsed": 581.5,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_qpa38aa45nvn 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 85 不在期望区间 [60, 100]（简历方向高度对口（Agent / RAG / LangChain / Milvus），初筛分应明显偏高）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 75"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '修正', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "分数在合理区间，所有亮点和差距都有依据，无编造"
+            }
+          ],
+          "extra": {
+            "base_score": 85,
+            "score": 75,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "修正",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 30,
+              "experience": 25,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "LangGraph",
+              "Llamalndex",
+              "非结构化文档处理技术",
+              "模型训练与调优流程",
+              "智能体规划、决策、记忆"
+            ],
+            "highlights": [
+              "具备RAG和向量检索实战经验，提升FAQ命中率至89%",
+              "使用LangChain编排工具调用，支持多轮追问",
+              "Milvus向量库应用，检索耗时<5ms"
+            ]
+          },
+          "elapsed": 156.4,
+          "run": 1
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_qpa38aa45nvn 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 77 不在期望区间 [60, 100]（简历方向高度对口（Agent / RAG / LangChain / Milvus），初筛分应明显偏高）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 62"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '修正', '匹配打分', '反思', '修正', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有条件满足：分数与证据相称，亮点和差距都有依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 77,
+            "score": 62,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "修正",
+              "匹配打分",
+              "反思",
+              "修正",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 22,
+              "experience": 25,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "LangGraph",
+              "Llamalndex",
+              "非结构化文档处理",
+              "模型训练与调优"
+            ],
+            "highlights": [
+              "硕士学历，人工智能专业，与岗位高度匹配",
+              "有RAG和向量检索的实际项目经验，提高命中率从62%到89%",
+              "使用LangChain进行工具调用，支持多轮追问，涉及Agent开发",
+              "城市匹配广州"
+            ]
+          },
+          "elapsed": 229.4,
+          "run": 2
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_qpa38aa45nvn 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 85 不在期望区间 [60, 100]（简历方向高度对口（Agent / RAG / LangChain / Milvus），初筛分应明显偏高）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 77"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '修正', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有判定要求满足：分数与证据相称，亮点和差距均有依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 85,
+            "score": 77,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "修正",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 30,
+              "experience": 25,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "非结构化文档处理",
+              "LangGraph",
+              "Llamalndex",
+              "模型训练与调优"
+            ],
+            "highlights": [
+              "RAG项目经验，命中率从62%提升到89%",
+              "LangChain工具调用经验",
+              "Milvus向量检索实现",
+              "系统开发能力（FastAPI, Docker）"
+            ]
+          },
+          "elapsed": 195.7,
+          "run": 3
+        }
+      ]
+    },
+    {
+      "id": "match-02",
+      "category": "match",
+      "judge": "llm",
+      "question": "帮我用简历匹配这个岗位，看看合不合适",
+      "repeat": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "passed": true,
+      "reason": "全部检查通过（3/3）",
+      "checks": [
+        {
+          "name": "拿到岗位",
+          "ok": true,
+          "detail": "job_id=YWF6i2YnSonM311DyjNd2q 未查到岗位详情"
+        },
+        {
+          "name": "初筛分区间",
+          "ok": true,
+          "detail": "初筛分 62 不在期望区间 [50, 100]（Agent / 大模型方向对口，初筛分应偏高；JD 里 Harness、Java 这些没覆盖的项由反思层去扣）"
+        },
+        {
+          "name": "最终分合法",
+          "ok": true,
+          "detail": "最终分 62"
+        },
+        {
+          "name": "反思节点触发",
+          "ok": true,
+          "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "分数相称，所有亮点和差距都有依据，无编造。"
+        }
+      ],
+      "extra": {
+        "base_score": 62,
+        "score": 62,
+        "nodes": [
+          "接收",
+          "定位岗位",
+          "匹配打分",
+          "反思",
+          "输出"
+        ],
+        "dimensions": {
+          "skills": 7,
+          "experience": 25,
+          "education": 15,
+          "location": 15
+        },
+        "gaps": [
+          "意图识别",
+          "任务拆解",
+          "反思纠错闭环",
+          "LangGraph",
+          "CrewAI",
+          "推理策略",
+          "记忆管理",
+          "行业、供应链、财务等业务场景",
+          "观测体系",
+          "全链路追踪",
+          "自动化评测",
+          "回测机制",
+          "SDK/API",
+          "ReAct",
+          "CoT",
+          "Plan-and-Execute",
+          "技术选型"
+        ],
+        "highlights": [
+          "有LangChain经验，与JD中的LangChain要求直接匹配",
+          "有基于RAG和Agent的AI项目经验，涉及工具调用和多轮追问，符合Agent开发相关职责",
+          "城市与JD一致，满分匹配"
+        ]
+      },
+      "elapsed": 339.9,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=YWF6i2YnSonM311DyjNd2q 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 62 不在期望区间 [50, 100]（Agent / 大模型方向对口，初筛分应偏高；JD 里 Harness、Java 这些没覆盖的项由反思层去扣）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 62"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "分数相称，所有亮点和差距都有依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 62,
+            "score": 62,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 7,
+              "experience": 25,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "意图识别",
+              "任务拆解",
+              "反思纠错闭环",
+              "LangGraph",
+              "CrewAI",
+              "推理策略",
+              "记忆管理",
+              "行业、供应链、财务等业务场景",
+              "观测体系",
+              "全链路追踪",
+              "自动化评测",
+              "回测机制",
+              "SDK/API",
+              "ReAct",
+              "CoT",
+              "Plan-and-Execute",
+              "技术选型"
+            ],
+            "highlights": [
+              "有LangChain经验，与JD中的LangChain要求直接匹配",
+              "有基于RAG和Agent的AI项目经验，涉及工具调用和多轮追问，符合Agent开发相关职责",
+              "城市与JD一致，满分匹配"
+            ]
+          },
+          "elapsed": 81.6,
+          "run": 1
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=YWF6i2YnSonM311DyjNd2q 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 65 不在期望区间 [50, 100]（Agent / 大模型方向对口，初筛分应偏高；JD 里 Harness、Java 这些没覆盖的项由反思层去扣）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 65"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有亮点和差距均有依据，分数在合理区间内。"
+            }
+          ],
+          "extra": {
+            "base_score": 65,
+            "score": 65,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 10,
+              "experience": 25,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "LangGraph",
+              "CrewAI",
+              "ReAct",
+              "CoT",
+              "Plan-and-Execute",
+              "意图识别",
+              "任务拆解",
+              "反思纠错",
+              "推理策略",
+              "记忆管理",
+              "观测体系",
+              "全链路追踪",
+              "自动化评测",
+              "Agent能力组件库",
+              "技术选型"
+            ],
+            "highlights": [
+              "硕士研究生学历，人工智能专业",
+              "实习经历：用RAG+向量检索提升FAQ命中率",
+              "项目经历：基于RAG的岗位问答机器人，使用LangChain编排工具调用",
+              "技能：Python, LangChain, Agent, FastAPI",
+              "城市匹配广州"
+            ]
+          },
+          "elapsed": 77.2,
+          "run": 2
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=YWF6i2YnSonM311DyjNd2q 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 75 不在期望区间 [50, 100]（Agent / 大模型方向对口，初筛分应偏高；JD 里 Harness、Java 这些没覆盖的项由反思层去扣）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 65"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '修正', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有亮点和差距均有简历或JD依据，分数与证据相称，无编造经历或要求。"
+            }
+          ],
+          "extra": {
+            "base_score": 75,
+            "score": 65,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "修正",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 25,
+              "experience": 20,
+              "education": 15,
+              "location": 15
+            },
+            "gaps": [
+              "缺少LangGraph和CrewAI等框架经验",
+              "未明确提及意图识别、任务拆解、反思纠错闭环",
+              "未提及推理策略、记忆管理",
+              "未涉及行业、供应链、财务等业务场景",
+              "未搭建观测体系与全链路追踪",
+              "未明确封装标准化SDK/API",
+              "未构建Agent能力组件库",
+              "未跟踪ReAct、CoT等Agent技术进展"
+            ],
+            "highlights": [
+              "具有RAG和Agent开发经验，使用LangChain框架",
+              "实习经历优化了FAQ命中率，显示实际项目能力",
+              "项目经历使用Milvus向量库和FastAPI，与JD部分职责相关",
+              "学历为硕士，城市匹配"
+            ]
+          },
+          "elapsed": 181.1,
+          "run": 3
+        }
+      ]
+    },
+    {
+      "id": "match-03",
+      "category": "match",
+      "judge": "llm",
+      "question": "用我的简历匹配这个岗位",
+      "repeat": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "passed": true,
+      "reason": "全部检查通过（3/3）",
+      "checks": [
+        {
+          "name": "拿到岗位",
+          "ok": true,
+          "detail": "job_id=inn_2sg2ckdy3xq1 未查到岗位详情"
+        },
+        {
+          "name": "初筛分区间",
+          "ok": true,
+          "detail": "初筛分 56 不在期望区间 [40, 95]（大模型方向沾边，但缺微调 / Transformer 训练类证据，分数应中等）"
+        },
+        {
+          "name": "最终分合法",
+          "ok": true,
+          "detail": "最终分 56"
+        },
+        {
+          "name": "反思节点触发",
+          "ok": true,
+          "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "所有亮点和差距均基于简历和JD证据，分数在合理区间内且被反思节点认可"
+        }
+      ],
+      "extra": {
+        "base_score": 56,
+        "score": 56,
+        "nodes": [
+          "接收",
+          "定位岗位",
+          "匹配打分",
+          "反思",
+          "输出"
+        ],
+        "dimensions": {
+          "skills": 16,
+          "experience": 20,
+          "education": 15,
+          "location": 5
+        },
+        "gaps": [
+          "SQL",
+          "机器学习",
+          "深度学习",
+          "AutoGPT",
+          "多智能体协作(MCP/A2A)",
+          "主流大模型",
+          "微调方法",
+          "轻量化模型部署技术",
+          "英语语言能力"
+        ],
+        "highlights": [
+          "有RAG和LangChain项目经验，覆盖JD中的RAG和LangChain要求",
+          "实习经历涉及AI应用开发，使用RAG提升系统性能",
+          "硕士学历，人工智能专业，符合JD学历要求"
+        ]
+      },
+      "elapsed": 293.2,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_2sg2ckdy3xq1 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 56 不在期望区间 [40, 95]（大模型方向沾边，但缺微调 / Transformer 训练类证据，分数应中等）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 56"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有亮点和差距均基于简历和JD证据，分数在合理区间内且被反思节点认可"
+            }
+          ],
+          "extra": {
+            "base_score": 56,
+            "score": 56,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 16,
+              "experience": 20,
+              "education": 15,
+              "location": 5
+            },
+            "gaps": [
+              "SQL",
+              "机器学习",
+              "深度学习",
+              "AutoGPT",
+              "多智能体协作(MCP/A2A)",
+              "主流大模型",
+              "微调方法",
+              "轻量化模型部署技术",
+              "英语语言能力"
+            ],
+            "highlights": [
+              "有RAG和LangChain项目经验，覆盖JD中的RAG和LangChain要求",
+              "实习经历涉及AI应用开发，使用RAG提升系统性能",
+              "硕士学历，人工智能专业，符合JD学历要求"
+            ]
+          },
+          "elapsed": 72.7,
+          "run": 1
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_2sg2ckdy3xq1 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 58 不在期望区间 [40, 95]（大模型方向沾边，但缺微调 / Transformer 训练类证据，分数应中等）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 58"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "分数58在合理区间，所有亮点和差距都有依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 58,
+            "score": 58,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 18,
+              "experience": 25,
+              "education": 15,
+              "location": 0
+            },
+            "gaps": [
+              "SQL",
+              "机器学习算法（分类、聚类）",
+              "深度学习模型（循环神经网络、Transformer）",
+              "多智能体协作（MCP/A2A）",
+              "主流大模型（如GPT、深度求索、LLaMA、文心一言）",
+              "微调方法",
+              "轻量化模型部署（如OLLMA、模型量化）",
+              "良好沟通能力与英语语言能力"
+            ],
+            "highlights": [
+              "熟练掌握Python、RAG、LangChain、Agent等大模型相关技术",
+              "实习和项目经验涉及AI应用开发，使用RAG提升命中率（62%→89%）",
+              "教育背景为人工智能硕士，专业高度相关",
+              "项目中实现高效检索（<5ms）和工具调用（LangChain编排）"
+            ]
+          },
+          "elapsed": 81.3,
+          "run": 2
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_2sg2ckdy3xq1 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 52 不在期望区间 [40, 95]（大模型方向沾边，但缺微调 / Transformer 训练类证据，分数应中等）"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 52"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有亮点和差距均有依据，分数在合理区间。"
+            }
+          ],
+          "extra": {
+            "base_score": 52,
+            "score": 52,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 15,
+              "experience": 15,
+              "education": 15,
+              "location": 7
+            },
+            "gaps": [
+              "SQL",
+              "机器学习（分类、聚类算法）",
+              "深度学习（循环神经网络、Transformer模型）",
+              "AutoGPT",
+              "多智能体协作（MCP/A2A）",
+              "主流大模型（GPT、深度求索、LLaMA、文心一言）",
+              "微调方法",
+              "轻量化模型部署技术（OLLAMA、模型量化）",
+              "供应链业务经验",
+              "英语语言能力"
+            ],
+            "highlights": [
+              "RAG经验丰富，优化FAQ命中率从62%到89%",
+              "向量检索技术高效（耗时<5ms）",
+              "LangChain工具调用能力",
+              "硕士学历（人工智能专业）"
+            ]
+          },
+          "elapsed": 139.2,
+          "run": 3
+        }
+      ]
+    },
+    {
+      "id": "match-04",
+      "category": "match",
+      "judge": "llm",
+      "question": "帮我匹配一下这个岗位",
+      "repeat": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "passed": true,
+      "reason": "全部检查通过（3/3）",
+      "checks": [
+        {
+          "name": "拿到岗位",
+          "ok": true,
+          "detail": "job_id=inn_hxnrzxjh1zla 未查到岗位详情"
+        },
+        {
+          "name": "初筛分区间",
+          "ok": true,
+          "detail": "初筛分 23 不在期望区间 [0, 75]（前端岗 vs 后端 Agent 简历，属于弱匹配，分数应明显低于对口岗位（90+））"
+        },
+        {
+          "name": "最终分合法",
+          "ok": true,
+          "detail": "最终分 23"
+        },
+        {
+          "name": "反思节点触发",
+          "ok": true,
+          "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "所有条件满足：分数与证据相称，亮点和差距均有依据，无编造。"
+        }
+      ],
+      "extra": {
+        "base_score": 23,
+        "score": 23,
+        "nodes": [
+          "接收",
+          "定位岗位",
+          "匹配打分",
+          "反思",
+          "输出"
+        ],
+        "dimensions": {
+          "skills": 0,
+          "experience": 0,
+          "education": 15,
+          "location": 8
+        },
+        "gaps": [
+          "JavaScript（ES6+）语法基础",
+          "TypeScript",
+          "React / Vue",
+          "Three.js项目使用经验",
+          "VS Code插件开发经验",
+          "上位机工具开发经验",
+          "前端工程化相关知识",
+          "云端集成相关知识",
+          "模块化、可扩展设计理念",
+          "英语读写及沟通能力流利"
+        ],
+        "highlights": [
+          "AI应用开发实习经验，负责RAG系统开发",
+          "项目经历包括基于RAG的岗位问答机器人，使用Milvus和LangChain",
+          "掌握Python、FastAPI等后端技术"
+        ]
+      },
+      "elapsed": 212.6,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_hxnrzxjh1zla 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 23 不在期望区间 [0, 75]（前端岗 vs 后端 Agent 简历，属于弱匹配，分数应明显低于对口岗位（90+））"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 23"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有条件满足：分数与证据相称，亮点和差距均有依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 23,
+            "score": 23,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 0,
+              "experience": 0,
+              "education": 15,
+              "location": 8
+            },
+            "gaps": [
+              "JavaScript（ES6+）语法基础",
+              "TypeScript",
+              "React / Vue",
+              "Three.js项目使用经验",
+              "VS Code插件开发经验",
+              "上位机工具开发经验",
+              "前端工程化相关知识",
+              "云端集成相关知识",
+              "模块化、可扩展设计理念",
+              "英语读写及沟通能力流利"
+            ],
+            "highlights": [
+              "AI应用开发实习经验，负责RAG系统开发",
+              "项目经历包括基于RAG的岗位问答机器人，使用Milvus和LangChain",
+              "掌握Python、FastAPI等后端技术"
+            ]
+          },
+          "elapsed": 88.5,
+          "run": 1
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_hxnrzxjh1zla 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 15 不在期望区间 [0, 75]（前端岗 vs 后端 Agent 简历，属于弱匹配，分数应明显低于对口岗位（90+））"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 15"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "分数与证据相称，所有亮点和差距都有依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 15,
+            "score": 15,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 0,
+              "experience": 0,
+              "education": 15,
+              "location": 0
+            },
+            "gaps": [
+              "JavaScript (ES6+)",
+              "TypeScript",
+              "React / Vue",
+              "Three.js",
+              "VS Code插件开发",
+              "上位机工具开发",
+              "前端工程化、云端集成",
+              "英语读写及沟通能力流利",
+              "自驱力强、逻辑思维活跃"
+            ],
+            "highlights": [
+              "硕士研究生学历，人工智能专业符合学历要求",
+              "有AI应用开发实习经验，展示实际开发能力",
+              "项目经历涉及后端系统优化，如提高命中率和降低延迟"
+            ]
+          },
+          "elapsed": 55.2,
+          "run": 2
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_hxnrzxjh1zla 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 20 不在期望区间 [0, 75]（前端岗 vs 后端 Agent 简历，属于弱匹配，分数应明显低于对口岗位（90+））"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 20"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "分数与证据相称，亮点和差距均有依据，无编造"
+            }
+          ],
+          "extra": {
+            "base_score": 20,
+            "score": 20,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 0,
+              "experience": 0,
+              "education": 15,
+              "location": 5
+            },
+            "gaps": [
+              "JavaScript（ES6+）语法基础",
+              "TypeScript",
+              "React / Vue任意一种主流前端框架",
+              "VS Code插件开发经验",
+              "上位机工具开发经验",
+              "前端工程化相关知识",
+              "云端集成相关知识"
+            ],
+            "highlights": [
+              "硕士研究生学历，符合研究生优先要求"
+            ]
+          },
+          "elapsed": 68.9,
+          "run": 3
+        }
+      ]
+    },
+    {
+      "id": "match-05",
+      "category": "match",
+      "judge": "llm",
+      "question": "帮我用简历匹配这个岗位",
+      "repeat": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "passed": true,
+      "reason": "全部检查通过（3/3）",
+      "checks": [
+        {
+          "name": "拿到岗位",
+          "ok": true,
+          "detail": "job_id=inn_k6ljk6h5lc0t 未查到岗位详情"
+        },
+        {
+          "name": "初筛分区间",
+          "ok": true,
+          "detail": "初筛分 33 不在期望区间 [0, 75]（产品岗 vs 技术简历，属于弱匹配，分数应明显低于对口岗位（90+））"
+        },
+        {
+          "name": "最终分合法",
+          "ok": true,
+          "detail": "最终分 33"
+        },
+        {
+          "name": "反思节点触发",
+          "ok": true,
+          "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+        },
+        {
+          "name": "裁判复核",
+          "ok": true,
+          "detail": "三条判定要求均满足"
+        }
+      ],
+      "extra": {
+        "base_score": 33,
+        "score": 33,
+        "nodes": [
+          "接收",
+          "定位岗位",
+          "匹配打分",
+          "反思",
+          "输出"
+        ],
+        "dimensions": {
+          "skills": 5,
+          "experience": 8,
+          "education": 15,
+          "location": 5
+        },
+        "gaps": [
+          "医学背景",
+          "AI大模型部署和运维经验",
+          "英语读写能力",
+          "需求平台日常处理",
+          "项目需求日常管理任务"
+        ],
+        "highlights": [
+          "硕士研究生学历（人工智能专业）",
+          "AI开发经验（RAG、LangChain、Milvus）",
+          "项目经验：岗位问答机器人和投递追踪助手"
+        ]
+      },
+      "elapsed": 278.9,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_k6ljk6h5lc0t 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 33 不在期望区间 [0, 75]（产品岗 vs 技术简历，属于弱匹配，分数应明显低于对口岗位（90+））"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 33"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "三条判定要求均满足"
+            }
+          ],
+          "extra": {
+            "base_score": 33,
+            "score": 33,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 5,
+              "experience": 8,
+              "education": 15,
+              "location": 5
+            },
+            "gaps": [
+              "医学背景",
+              "AI大模型部署和运维经验",
+              "英语读写能力",
+              "需求平台日常处理",
+              "项目需求日常管理任务"
+            ],
+            "highlights": [
+              "硕士研究生学历（人工智能专业）",
+              "AI开发经验（RAG、LangChain、Milvus）",
+              "项目经验：岗位问答机器人和投递追踪助手"
+            ]
+          },
+          "elapsed": 78.2,
+          "run": 1
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_k6ljk6h5lc0t 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 53 不在期望区间 [0, 75]（产品岗 vs 技术简历，属于弱匹配，分数应明显低于对口岗位（90+））"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 53"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有条件满足，亮点和差距都有依据，分数合理。"
+            }
+          ],
+          "extra": {
+            "base_score": 53,
+            "score": 53,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 13,
+              "experience": 20,
+              "education": 15,
+              "location": 5
+            },
+            "gaps": [
+              "医学等相关专业本科及以上学历",
+              "有AI大模型部署和运维经验优先",
+              "有一定的英语读写能力"
+            ],
+            "highlights": [
+              "硕士学历，人工智能专业，符合学历要求",
+              "AI相关技能（Python, RAG, LangChain, Agent, Milvus, Prompt工程）覆盖JD中'搭建AI相关工具链'职责",
+              "实习和项目经历体现AI开发能力，与JD中AI工具链搭建职责相关"
+            ]
+          },
+          "elapsed": 87.5,
+          "run": 2
+        },
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "拿到岗位",
+              "ok": true,
+              "detail": "job_id=inn_k6ljk6h5lc0t 未查到岗位详情"
+            },
+            {
+              "name": "初筛分区间",
+              "ok": true,
+              "detail": "初筛分 25 不在期望区间 [0, 75]（产品岗 vs 技术简历，属于弱匹配，分数应明显低于对口岗位（90+））"
+            },
+            {
+              "name": "最终分合法",
+              "ok": true,
+              "detail": "最终分 20"
+            },
+            {
+              "name": "反思节点触发",
+              "ok": true,
+              "detail": "节点轨迹：['接收', '定位岗位', '匹配打分', '反思', '修正', '匹配打分', '反思', '输出']"
+            },
+            {
+              "name": "裁判复核",
+              "ok": true,
+              "detail": "所有条件满足：分数与证据相称，亮点和差距都有依据，无编造。"
+            }
+          ],
+          "extra": {
+            "base_score": 25,
+            "score": 20,
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "修正",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "dimensions": {
+              "skills": 0,
+              "experience": 20,
+              "education": 0,
+              "location": 5
+            },
+            "gaps": [
+              "医学等相关专业本科及以上学历",
+              "有AI大模型部署和运维经验",
+              "有一定的英语读写能力"
+            ],
+            "highlights": [
+              "AI相关项目经验（如RAG机器人）与JD中的搭建AI相关工具链高度相关",
+              "项目经历展示问题解决能力（如提高FAQ命中率）和工具开发能力"
+            ]
+          },
+          "elapsed": 113.2,
+          "run": 3
+        }
+      ]
+    }
+  ]
+}

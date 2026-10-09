@@ -349,6 +349,102 @@ def _resolve_match_detail(job_id):
     )
 
 
+# ---- gaps 溯源过滤（修 match-02：差距里掺进 JD 根本没有的通用项）-------------
+# 实测故障：金蝶那条 JD 354 字，一个字没提 TensorFlow / PyTorch，
+# 打分却在 gaps 里写了「技能可能缺少某些特定工具（如深度学习框架 TensorFlow/PyTorch）」。
+# 这是模型在"自由发挥"：gaps 在用户眼里等于「**这个岗位要**这些、你没有」，
+# 假差距比漏说差距更糟 —— 用户会去补 JD 根本不要的东西，而且评审判它「无依据」。
+# 这里补一层**确定性后处理**：每一项都要能在 JD 原文里找到对应关键词，
+# 找不到的从 gaps 里摘出来、单独列进 `general_advice`（通用建议），不再冒充岗位差距。
+# 判据刻意"宽进严出"：
+#   - 英文 / 数字词（TensorFlow / Vue / RAG / Java 这类技术栈是主战场）出现即认；
+#   - 中文滑窗最少 3 字 —— 2 字碎片（「岗位」「工具」）几乎在任何 JD 里都能碰上，
+#     拿它当依据等于没过筛；
+#   - 比对前统一小写并去掉空白与常见分隔符（JD 写 "Java、Python"、gaps 写 "java" 也算）。
+_GAP_ASCII_RE = re.compile(r"[A-Za-z][A-Za-z0-9+#.]{1,}")
+_GAP_CJK_RUN_RE = re.compile(r"[\u4e00-\u9fff]{2,}")
+_GAP_MIN_CJK = 3
+_GAP_MAX_WINDOW = 8
+_GAP_SQUEEZE_RE = re.compile(
+    r"[\s\-_/\\、，,。.；;：:！!？?（）()【】\[\]{}<>\"'“”‘’|·]+")
+
+
+def _squeeze_for_gap(text) -> str:
+    """比对用归一化：小写 + 去空白/常见分隔符（只做字形对齐，不改语义）。"""
+    return _GAP_SQUEEZE_RE.sub("", str(text or "").lower())
+
+
+def _jd_grounding_text(detail) -> str:
+    """JD 原文（岗位名 / 公司 / 城市 / 学历 / 职责 / 要求 / 加分项 / 标签）。"""
+    parts = [getattr(detail, name, "") for name in
+             ("company", "title", "city", "salary", "education",
+              "description", "requirements", "bonus")]
+    parts.extend(list(getattr(detail, "tags", None) or []))
+    return " ".join(str(p) for p in parts if p)
+
+
+def _gap_token_match(gap_token: str, jd_tokens: set) -> bool:
+    """英文 / 数字词是否命中 JD（整词比对 + 大小写规则）。
+
+    大小写不同时，只有当某一侧是**全小写或全大写**（说明它没携带大小写信息）才算命中：
+    JD 里的 `ReAct` 不该把差距里的 `React` 认成同一项，而 `java` / `Java` 应当算同一项。
+    """
+    for jd_token in jd_tokens:
+        if gap_token == jd_token:
+            return True
+        if gap_token.lower() != jd_token.lower():
+            continue
+        flat = (gap_token == gap_token.lower() or gap_token == gap_token.upper()
+                or jd_token == jd_token.lower() or jd_token == jd_token.upper())
+        if flat:
+            return True
+    return False
+
+
+def _gap_has_jd_basis(gap, jd_raw: str, jd_squeezed: str) -> bool:
+    """这项差距能不能在 JD 原文里找到对应关键词。
+
+    英文 / 数字词按**整词**比对（先按非字母数字切开、再统一小写）：
+    直接对压缩串做子串匹配，会让 JD 里的 "ReAct" 把差距里的 "React" 也认成有依据。
+    中文按滑窗比对压缩串（JD 写「Java、Python」不影响中文比对），最少 3 字 ——
+    2 字碎片（「岗位」「工具」）几乎在任何 JD 里都能碰上，拿它当依据等于没过筛。
+    """
+    text = str(gap or "")
+    if not text.strip():
+        return False
+    jd_tokens = set(_GAP_ASCII_RE.findall(jd_raw))
+    for token in _GAP_ASCII_RE.findall(text):
+        if _gap_token_match(token, jd_tokens):
+            return True
+    for run in _GAP_CJK_RUN_RE.findall(text):
+        top = min(len(run), _GAP_MAX_WINDOW)
+        for size in range(top, _GAP_MIN_CJK - 1, -1):
+            for start in range(0, len(run) - size + 1):
+                if run[start:start + size] in jd_squeezed:
+                    return True
+    return False
+
+
+def split_gaps_by_jd(gaps, detail) -> tuple:
+    """把打分给出的差距拆成 (有 JD 依据的差距, 通用建议)。
+
+    找不到 JD 依据的**不删除**，只是不再冒充「岗位要求、你没有」——
+    调用方（LangGraph 打分节点）只用第一项，通用建议留给排查与回执。
+    """
+    jd_raw = _jd_grounding_text(detail)
+    jd_squeezed = _squeeze_for_gap(jd_raw)
+    kept, general = [], []
+    for gap in gaps or []:
+        text = str(gap).strip()
+        if not text:
+            continue
+        (kept if _gap_has_jd_basis(text, jd_raw, jd_squeezed) else general).append(text)
+    if general:
+        print(f"[match] gaps 溯源过滤：{len(general)} 项在 JD 里找不到依据，"
+              f"已移出差距、列为通用建议：{general}")
+    return kept, general
+
+
 def _match(job_id, resume_json):
     # 传进来的可能是 storage 的「简历记录外壳」（{id, name, content: {...}}，
     # 模型从 get_resume 抄来的就是这种），也可能是结构化简历本身或 JSON 字符串。
@@ -370,10 +466,16 @@ def _match(job_id, resume_json):
     )
     detail = _resolve_match_detail(job_id)
     result = match_resume_to_jd(resume, detail)
+    # gaps 溯源过滤：模型写的差距必须先过「JD 原文里有对应关键词」这一关，
+    # 过不了的移进 general_advice（通用建议），不再当成岗位差距报给用户。
+    gaps, general = split_gaps_by_jd(result.gaps, detail)
+    # 模型被要求把「JD 没提、但值得提醒」的建议写进 suggestions，一并与通用建议合并
+    general.extend(str(x).strip() for x in (result.suggestions or []) if str(x).strip())
     return {
         "score": result.score,
         "dimensions": result.dimensions,
-        "gaps": result.gaps,
+        "gaps": gaps,
+        "general_advice": general,
         "highlights": result.highlights,
     }
 
