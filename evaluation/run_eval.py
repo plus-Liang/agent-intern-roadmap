@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""求职 Agent 评测脚本：跑 evaluation/test_set.json，输出分类准确率 + 总准确率。
+"""求职 Agent 评测脚本：跑 evaluation/test_set.yaml，输出分类准确率 + 总准确率。
 
 用法
 ----
@@ -9,7 +9,16 @@
     python evaluation/run_eval.py --case match-01       # 只跑某几题（逗号分隔）
     python evaluation/run_eval.py --repeat 3            # 每题跑 3 次（看稳定性）
     python evaluation/run_eval.py --list                # 只列题
-    python evaluation/run_eval.py --compare evaluation/results/20261008_120000.json
+    python evaluation/run_eval.py --compare evaluation/results/20261009_164059.json
+
+本文件现在只负责「跑题」：题库读写 / 判分 / 报告分别交给 evaluation/framework.py 里的
+Provider / Metric / Report 三个插件（见 framework.py 的模块 docstring）。改动带来的两点
+新能力：
+
+* **题库 YAML 化**：`test_set.yaml`（27+3 题）带 `judge_type`，不再把判分方式写死在代码里；
+* **轨迹断言**：`judge_type: trajectory` 的题（以及任何挂了 `trajectory:` 的题）断言
+  **工具调用序列**，而不只是最终文本 —— 例如「搜岗位时可以不出投递包」；
+  调用序列由 framework.TrajectoryRecorder 从现有 trace / 工具入口读，业务代码零改动。
 
 --repeat（多次跑）
 -----------------
@@ -20,16 +29,16 @@ LLM 非确定性：同一题、同一模型、同一 prompt，也可能一次过
 * **类别稳定率** —— 该类别下所有题「单题通过率」的平均值（不是通过/总数）；
 * **不稳定题** —— 单题通过率落在 **20%~80%（含端点）** 的题，是抖动最值得看的题。
 
-结果 JSON 保留**每一次**的详情（`results[].runs[]`：判词 / 检查项 / extra / 耗时），
+结果 JSON 保留**每一次**的详情（`results[].runs[]`：判词 / 检查项 / extra / 耗时 / 指标），
 题级 `passed` 取多数票（通过率 ≥ 50%），方便和 `--compare` 的老口径对齐。
 
-两类判分
---------
-* 确定性：直接查工具 / 图的返回值（城市、岗位类型、条数、分数区间、文件内容、
-  是否误触发工具……），不花一分钱、结果可复现。
-* LLM 裁判：用**独立的 judge prompt**（不是被测的那套 prompt）让 LLM 判
-  「答案是否符合预期」，用于「匹配打分的理由是否站得住」「面试题是否贴 JD」这类
-  没有唯一标准答案的题。
+两类判分（三种 judge_type）
+--------------------------
+* `deterministic`：直接查工具 / 图的返回值（城市、岗位类型、条数、分数区间、文件内容……），
+  不花一分钱、结果可复现。
+* `llm`：用**独立的 judge prompt**（不是被测的那套 prompt）让 LLM 判「答案是否符合预期」，
+  用于「匹配打分的理由是否站得住」「面试题是否贴 JD」这类没有唯一标准答案的题。
+* `trajectory`：只查工具调用序列（calls_tool / not_calls_tool / call_order），不判文本。
 
 隔离
 ----
@@ -37,7 +46,8 @@ LLM 非确定性：同一题、同一模型、同一 prompt，也可能一次过
 `evaluation/_artifacts/`，**不写用户的真实简历库与投递记录**。
 
 为什么不用 ragas / langsmith：本项目只需要「题库 + 跑一遍 + 打勾 + 出报告」，
-引入重框架会带来一堆依赖和抽象，收益还不如 300 行脚本（见 agent/REFLECTION.md）。
+引入重框架会带来一堆依赖和抽象；但判分方式会持续变多（确定性 → LLM → 轨迹），
+所以留了 framework.py 的三个 ABC 当扩展点，而不是把新判分往主流程里塞。
 """
 from __future__ import annotations
 
@@ -47,13 +57,12 @@ import os
 import shutil
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 EVAL_DIR = Path(__file__).resolve().parent
 BASE_DIR = EVAL_DIR.parent
 ART_DIR = EVAL_DIR / "_artifacts"
-TEST_SET = EVAL_DIR / "test_set.json"
+TEST_SET = EVAL_DIR / "test_set.yaml"
 RESULTS_DIR = EVAL_DIR / "results"
 EVAL_USER = "eval_runner"
 
@@ -65,6 +74,7 @@ os.environ.setdefault("EXPORT_DIR", str(ART_DIR / "exports"))
 os.environ.setdefault("AGENT_ENGINE", "langgraph")
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 sys.path.insert(0, str(BASE_DIR))
+sys.path.insert(0, str(EVAL_DIR))
 os.chdir(BASE_DIR)
 
 import json5                                                   # noqa: E402
@@ -77,14 +87,17 @@ from agent import react_agent                                  # noqa: E402
 from agent.langgraph_flow import MATCH_GRAPH, SEARCH_GRAPH     # noqa: E402
 from agent.react_agent_lg import run as run_agent              # noqa: E402
 
+import framework                                               # noqa: E402
+import regression                                              # noqa: E402
+
 JUDGE_MAX_TOKENS = 4096            # 独立裁判调用：思考模型下 1024 会被思考吃光
 JUDGE_EFFORT = "low"
 SEARCH_SHOW_LIMIT = 20
 
 #: 「不稳定题」的单题通过率区间（含端点）：20%~80% 说明这题一跑一个样，
 #: 绝对值（0% / 100%）反而是稳定结论（稳定失败 / 稳定通过）。
-UNSTABLE_LOW = 0.2
-UNSTABLE_HIGH = 0.8
+UNSTABLE_LOW = framework.UNSTABLE_LOW
+UNSTABLE_HIGH = framework.UNSTABLE_HIGH
 
 #: 面试评测里喂给面试官的「候选人回答」（固定文本，保证每一轮题目可比；
 #: 只要求能推动面试官往下问，不涉及任何具体公司的信息）
@@ -133,16 +146,26 @@ def llm_judge(criteria: str, evidence: str) -> tuple:
 
 
 class Case:
-    """一题的判定过程：所有 check 都过才算 pass。"""
+    """一题的判定过程：所有 check 都过才算 pass。
+
+    `judge` 存 LLM 裁判的结论（judge_type=llm 的题），交给 framework.LlmJudgeMetric 打分；
+    `trajectory` 的工具序列由 framework.TrajectoryRecorder 在执行期采集，不在这里管。
+    """
 
     def __init__(self, case: dict):
         self.case = case
         self.checks: list = []
         self.extra: dict = {}
+        self.judge: dict = {}
 
     def check(self, name: str, ok: bool, detail: str = "") -> bool:
         self.checks.append({"name": name, "ok": bool(ok), "detail": str(detail)[:300]})
         return bool(ok)
+
+    def record_judge(self, ok: bool, reason: str) -> None:
+        """记下 LLM 裁判结论：check 给报告看，judge 给 metric 打分。"""
+        self.judge = {"pass": bool(ok), "reason": str(reason or "")[:400]}
+        self.check(framework.JUDGE_CHECK_NAME, bool(ok), reason)
 
     @property
     def passed(self) -> bool:
@@ -156,13 +179,18 @@ class Case:
         return "全部检查通过"
 
 
+def _expect(case: dict) -> dict:
+    """题目的期望值（题库 YAML 里统一收在 expect 下）。"""
+    return case.get("expect") or {}
+
+
 # ============================== 各分类 ==============================
 
 def run_search(case: dict, ctx: dict) -> Case:
     """搜岗位：跑固定的搜岗位图，检查提取出的参数与返回的岗位列表。"""
     c = Case(case)
-    expect = case.get("expect") or {}
-    state = SEARCH_GRAPH.invoke({"question": case["q"], "verbose": False})
+    expect = _expect(case)
+    state = SEARCH_GRAPH.invoke({"question": case["question"], "verbose": False})
     rows = state.get("filtered") or []
     city = (state.get("city") or "").strip()
     job_type = normalize_job_type(state.get("job_type"))
@@ -191,8 +219,9 @@ def run_search(case: dict, ctx: dict) -> Case:
 def run_match(case: dict, ctx: dict) -> Case:
     """匹配打分：初筛分落在合理区间 + 反思节点确实触发 + 裁判检查理由有依据。"""
     c = Case(case)
-    lo, hi = case["expect_score_range"]
-    state = MATCH_GRAPH.invoke({"question": case.get("q") or "帮我匹配这个岗位",
+    expect = _expect(case)
+    lo, hi = expect["score_range"]
+    state = MATCH_GRAPH.invoke({"question": case.get("question") or "帮我匹配这个岗位",
                                 "job_id": case["job_id"],
                                 "resume_data": ctx["resume"], "verbose": False})
     base = state.get("base_score")
@@ -206,7 +235,7 @@ def run_match(case: dict, ctx: dict) -> Case:
     c.check("拿到岗位", detail is not None, f"job_id={case['job_id']} 未查到岗位详情")
     c.check("初筛分区间", isinstance(base, int) and lo <= base <= hi,
             f"初筛分 {base} 不在期望区间 [{lo}, {hi}]"
-            + (f"（{case.get('expect_note')}）" if case.get("expect_note") else ""))
+            + (f"（{expect.get('note')}）" if expect.get("note") else ""))
     c.check("最终分合法", isinstance(score, int) and 0 <= score <= 100, f"最终分 {score}")
     c.check("反思节点触发", "反思" in nodes, f"节点轨迹：{nodes}")
 
@@ -231,13 +260,14 @@ def run_match(case: dict, ctx: dict) -> Case:
         "【给用户的回答】" + str(state.get("answer") or "")[:1200],
     ])
     ok, reason = llm_judge(criteria, evidence)
-    c.check("裁判复核", ok, reason)
+    c.record_judge(ok, reason)
     return c
 
 
 def run_package(case: dict, ctx: dict) -> Case:
     """投递包：三件套生成 + 关键字段在 + 已知错字/兜底不在。"""
     c = Case(case)
+    expect = _expect(case)
     kwargs = {"company": case["company"], "job_id": case.get("job_id") or "",
               "title": case.get("title") or ""}
     with user_scope(EVAL_USER):
@@ -258,11 +288,11 @@ def run_package(case: dict, ctx: dict) -> Case:
     cover_text = Path(files["cover_letter.md"]).read_text(encoding="utf-8")
     info_text = Path(files["job_info.txt"]).read_text(encoding="utf-8")
 
-    for word in case.get("must_include_in_resume") or []:
+    for word in expect.get("must_include_in_resume") or []:
         c.check(f"简历含「{word}」", word in pdf_text, "resume.pdf 里找不到，定制时被丢了")
     # 只在**生成出来的**两份产物上查错字：job_info.txt 是从岗位库原样抄的 JD，
     # 源数据里本来就写着 Llamalndex 这类拼写（实测命中），不该算到 Agent 头上。
-    for word in case.get("must_not_include") or []:
+    for word in expect.get("must_not_include") or []:
         where = [n for n, t in (("resume.pdf", pdf_text), ("cover_letter.md", cover_text))
                  if word in t]
         c.check(f"无错字「{word}」", not where, f"出现在 {where}")
@@ -271,7 +301,7 @@ def run_package(case: dict, ctx: dict) -> Case:
     c.check("岗位信息带 job_id", str(case.get("job_id")) in info_text, "job_info.txt 里没有该 job_id")
     c.check("自荐信非兜底", "模板兜底" not in cover_text and "生成失败" not in cover_text,
             "自荐信是模板兜底版")
-    min_chars = int(case.get("min_cover_letter_chars") or 0)
+    min_chars = int(expect.get("min_cover_letter_chars") or 0)
     c.check("自荐信长度", len(cover_text) >= min_chars,
             f"自荐信 {len(cover_text)} 字，要求 ≥ {min_chars}")
 
@@ -292,10 +322,11 @@ def run_interview(case: dict, ctx: dict) -> Case:
     连问 3 题，对**整组题**判「是否贴岗位 / 覆盖要点」。
     """
     c = Case(case)
+    expect = _expect(case)
     import agent.app as app                                    # noqa: PLC0415 - 重依赖懒加载
 
     job_id, jd = app._resolve_job(case["company"], case["title"])
-    expect_resolved = case.get("expect_job_resolved")
+    expect_resolved = expect.get("job_resolved")
     if expect_resolved is not None:
         c.check("岗位解析", bool(job_id) == bool(expect_resolved),
                 f"解析结果 job_id={job_id or '空'}，期望 {'命中' if expect_resolved else '未命中'}")
@@ -303,7 +334,7 @@ def run_interview(case: dict, ctx: dict) -> Case:
                "job_id": job_id, "jd": jd, "resume": app._format_resume(ctx["resume"]),
                "asked": [], "history": [], "count": 0, "prev_question": ""}
 
-    rounds = int(case.get("rounds") or 3)
+    rounds = int(expect.get("rounds") or 3)
     questions = []
     for answer in CANNED_ANSWERS[:rounds]:
         reply = app._ask_interviewer(session)
@@ -320,12 +351,12 @@ def run_interview(case: dict, ctx: dict) -> Case:
     c.check("出题非空", len(questions) == rounds,
             f"期望连出 {rounds} 题，实际 {len(questions)} 题（最后一题为空说明输出被截断）")
     joined = "\n".join(questions)
-    for word in case.get("must_not_mention") or []:
+    for word in expect.get("must_not_mention") or []:
         c.check(f"不提「{word}」", word not in joined, f"题目里出现了「{word}」")
     if not questions:
         return c
 
-    topics = case.get("expect_topics") or []
+    topics = expect.get("topics") or []
     if topics:
         criteria = (
             f"这是一场模拟面试**前 {len(questions)} 道题**的实录（面试官按「自我介绍 → 项目深挖 → "
@@ -363,17 +394,18 @@ def run_interview(case: dict, ctx: dict) -> Case:
         "【面试官的问题（按顺序）】\n" + "\n".join(f"{i}. {q}" for i, q in enumerate(questions, 1)),
     ])
     ok, reason = llm_judge(criteria, evidence)
-    c.check("裁判复核", ok, reason)
+    c.record_judge(ok, reason)
     return c
 
 
 def run_boundary(case: dict, ctx: dict) -> Case:
     """边界：不该调工具就不调；搜不到就如实说搜不到。"""
     c = Case(case)
-    kind = case.get("check") or "no_tool_call"
+    expect = _expect(case)
+    kind = expect.get("check") or "no_tool_call"
 
     if kind == "search_no_result":
-        state = SEARCH_GRAPH.invoke({"question": case["q"], "verbose": False})
+        state = SEARCH_GRAPH.invoke({"question": case["question"], "verbose": False})
         answer = str(state.get("answer") or "")
         total = state.get("total")
         c.extra = {"total": total, "answer_head": answer[:200]}
@@ -382,7 +414,7 @@ def run_boundary(case: dict, ctx: dict) -> Case:
                 f"答案没有如实说搜不到：{answer[:120]}")
         return c
 
-    result = run_agent(case["q"], resume_data=ctx["resume"], verbose=False)
+    result = run_agent(case["question"], resume_data=ctx["resume"], verbose=False)
     steps = result.get("steps") or []
     actions = [str(s.get("action")) for s in steps if s.get("type") == "action"]
     answer = str(result.get("answer") or "")
@@ -391,7 +423,7 @@ def run_boundary(case: dict, ctx: dict) -> Case:
     if kind == "no_tool_call":
         c.check("未误触发工具", not actions, f"调了 {actions}")
     else:                                                      # no_write_tool
-        forbid = set(case.get("forbid_tools") or [])
+        forbid = set(expect.get("forbid_tools") or [])
         hit = sorted(set(actions) & forbid)
         c.check("未误触发写类工具", not hit, f"调了 {hit}；本轮全部调用：{actions}")
     c.check("有回复", bool(answer.strip()), "answer 为空")
@@ -419,9 +451,12 @@ def run_complex(case: dict, ctx: dict) -> Case:
       3. 需要出包时：三件套齐全且非空 —— **或者**回答里如实说明了「跳过 / 降级 /
          未生成」（分数没到阈值而跳过是设计内行为，不算失败）；
       4. 没生成包时不许谎报（回答里不能出现「投递包已生成 / 可以下载」）。
+
+    调用顺序本身不在这里判 —— 那是 `trajectory:` 断言的事（framework.TrajectoryMetric），
+    本函数外层的 TrajectoryRecorder 已经记下了完整序列。
     """
     c = Case(case)
-    expect = case.get("expect") or {}
+    expect = _expect(case)
     seen = {"search_jobs": None, "match_resume": None,
             "generate_application_package": None}
     real_call = reg.call_tool
@@ -454,7 +489,7 @@ def run_complex(case: dict, ctx: dict) -> Case:
         reg._search = spy_search
         with user_scope(EVAL_USER):
             reg.use_resume(ctx["resume_id"])
-            result = run_agent(case["q"], resume_data=ctx["resume"], verbose=False,
+            result = run_agent(case["question"], resume_data=ctx["resume"], verbose=False,
                                return_messages=True)
     finally:
         reg.call_tool = real_call
@@ -508,10 +543,6 @@ RUNNERS = {
     "complex": run_complex,
 }
 
-JUDGE_KIND = {"search": "deterministic", "package": "deterministic",
-              "boundary": "deterministic", "complex": "deterministic",
-              "match": "llm", "interview": "llm"}
-
 
 # ============================== 编排 ==============================
 
@@ -525,19 +556,33 @@ def prepare_resume(test_set: dict) -> str:
 
 
 def _run_once(case: dict, ctx: dict, verbose: bool = True) -> dict:
-    """跑一次单题，返回这一次的详情（不抛异常，异常记成失败）。"""
+    """跑一次单题：执行（含轨迹采集）→ 交 framework 按插件判分（不抛异常）。"""
     runner = RUNNERS[case["category"]]
     started = time.time()
     try:
-        c = runner(case, ctx)
-        return {"passed": bool(c.passed), "reason": c.reason, "checks": c.checks,
-                "extra": c.extra, "elapsed": round(time.time() - started, 1)}
+        with framework.TrajectoryRecorder() as recorder:
+            c = runner(case, ctx)
+        calls = list(recorder.calls)
+        verdict = framework.evaluate_case(
+            case, {"checks": c.checks, "judge": c.judge, "trajectory": {"calls": calls}})
+        trajectory = None
+        if case.get("trajectory"):
+            metric = (verdict.get("metrics") or {}).get("trajectory") or {}
+            trajectory = {"calls": calls, "ok": metric.get("score", 0.0) >= 1.0,
+                          "detail": metric.get("detail", "")}
+        return {"passed": bool(verdict["passed"]), "reason": verdict["reason"],
+                "score": verdict["score"], "metrics": verdict["metrics"],
+                "checks": c.checks, "extra": c.extra, "judge": c.judge,
+                "tool_calls": calls, "trajectory": trajectory,
+                "elapsed": round(time.time() - started, 1)}
     except Exception as e:                                     # noqa: BLE001 - 单题失败不拖垮整轮
         import traceback
         if verbose:
             traceback.print_exc()
         return {"passed": False, "reason": f"执行异常：{type(e).__name__}: {e}",
-                "checks": [], "extra": {}, "elapsed": round(time.time() - started, 1)}
+                "score": 0.0, "metrics": {}, "checks": [], "extra": {}, "judge": {},
+                "tool_calls": [], "trajectory": None,
+                "elapsed": round(time.time() - started, 1)}
 
 
 def merge_runs(case: dict, runs: list) -> dict:
@@ -547,8 +592,8 @@ def merge_runs(case: dict, runs: list) -> dict:
     - `passed`：**多数票**（通过率 ≥ 50%），这样 --repeat 1 时与原口径逐字一致，
       N 次时也能和 --compare 的老结果对齐；
     - `reason`：全过就写「N/N 通过」，否则带上「几次过 + 第一次失败的原因」；
-    - `checks` / `extra`：取第一次**失败**的那次（没有失败就取第一次），
-      方便直接看到失败现场；每一次的详情都留在 `runs[]` 里。
+    - `checks` / `extra` / `metrics` / `trajectory`：取第一次**失败**的那次
+      （没有失败就取第一次），方便直接看到失败现场；每一次的详情都留在 `runs[]` 里。
     """
     total = len(runs)
     passed_runs = sum(1 for r in runs if r["passed"])
@@ -560,10 +605,12 @@ def merge_runs(case: dict, runs: list) -> dict:
         reason = f"{passed_runs}/{total} 次通过；失败原因：{rep['reason']}"
     return {
         "id": case["id"], "category": case["category"],
-        "judge": JUDGE_KIND[case["category"]],
-        "question": case.get("q") or f"{case.get('company', '')} · {case.get('title', '')}",
+        "judge_type": case.get("judge_type", "deterministic"),
+        "question": case.get("question") or f"{case.get('company', '')} · {case.get('title', '')}",
         "repeat": total, "passed_runs": passed_runs, "pass_rate": round(rate, 4),
         "passed": rate >= 0.5,
+        "score": rep.get("score", 0.0), "metrics": rep.get("metrics") or {},
+        "trajectory": rep.get("trajectory"), "tool_calls": rep.get("tool_calls") or [],
         "reason": reason, "checks": rep["checks"], "extra": rep["extra"],
         "elapsed": round(sum(r["elapsed"] for r in runs), 1),
         "runs": runs,
@@ -585,7 +632,7 @@ def run_cases(cases: list, test_set: dict, verbose: bool = True, repeat: int = 1
             counter += 1
             head = (f"[{counter}/{total_runs}] {rid} 第 {k}/{repeat} 次"
                     if repeat > 1 else f"[{counter}/{total_runs}] {rid}")
-            print(f"{head} ({case['category']}) …", flush=True)
+            print(f"{head} ({case['category']}/{case.get('judge_type', '')}) …", flush=True)
             run = _run_once(case, ctx, verbose=verbose)
             run["run"] = k
             runs.append(run)
@@ -596,189 +643,55 @@ def run_cases(cases: list, test_set: dict, verbose: bool = True, repeat: int = 1
 
 
 def summarize(results: list, elapsed: float, test_set: dict, repeat: int = 1) -> dict:
-    """分类准确率 + 判分方式准确率 + 总准确率 + 类别稳定率 + 不稳定题。"""
-    def bucket(key):
-        out = {}
-        for r in results:
-            b = out.setdefault(r[key], {"total": 0, "passed": 0, "_rate": 0.0})
-            b["total"] += 1
-            b["passed"] += 1 if r["passed"] else 0
-            b["_rate"] += float(r.get("pass_rate", 1.0 if r["passed"] else 0.0))
-        for b in out.values():
-            b["accuracy"] = round(b["passed"] / b["total"], 4)
-            # 稳定率 = 该类别下每题「单题通过率」的平均值（rerun 口径，不是通过/总数）
-            b["stability"] = round(b["_rate"] / b["total"], 4)
-            del b["_rate"]
-        return out
-
-    total = len(results)
-    passed = sum(1 for r in results if r["passed"])
-    rates = [float(r.get("pass_rate", 1.0 if r["passed"] else 0.0)) for r in results]
-    unstable = [
-        {"id": r["id"], "category": r["category"],
-         "passed_runs": r.get("passed_runs", 1 if r["passed"] else 0),
-         "total_runs": r.get("repeat", 1), "pass_rate": r.get("pass_rate", 1.0)}
-        for r in results if UNSTABLE_LOW <= float(r.get("pass_rate", 0.0)) <= UNSTABLE_HIGH
-    ]
-    return {
-        "run_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "test_set_version": test_set.get("version"),
-        "engine": os.getenv("AGENT_ENGINE", "langgraph"),
-        "model": os.getenv("ZHIPU_CHAT_MODEL", ""),
-        "repeat": repeat,
-        "total": total, "passed": passed,
-        "accuracy": round(passed / total, 4) if total else 0.0,
-        "stability": round(sum(rates) / total, 4) if total else 0.0,
-        "unstable_range": [UNSTABLE_LOW, UNSTABLE_HIGH],
-        "unstable_cases": unstable,
-        "elapsed_sec": round(elapsed, 1),
-        "by_category": bucket("category"),
-        "by_judge": bucket("judge"),
-        "results": results,
-    }
+    """汇总成报告 dict（实现搬到 framework.build_report）。"""
+    return framework.build_report(results, elapsed, test_set, repeat=repeat,
+                                  test_set_path=str(TEST_SET))
 
 
 def print_summary(rep: dict) -> None:
-    print("\n" + "=" * 62)
-    print("评测结果")
-    print("=" * 62)
-    if rep.get("repeat", 1) > 1:
-        print(f"每题重复次数：{rep['repeat']}（题级 passed = 多数票，通过率 ≥ 50%）")
-    print(f"{'类别':<12}{'通过/总数':<12}{'准确率':<10}{'稳定率':<10}")
-    for name, b in rep["by_category"].items():
-        print(f"{name:<12}{b['passed']}/{b['total']:<10}{b['accuracy'] * 100:.0f}%"
-              f"{'':<4}{b.get('stability', b['accuracy']) * 100:.0f}%")
-    print("-" * 62)
-    for name, b in rep["by_judge"].items():
-        label = {"deterministic": "确定性判分", "llm": "LLM 裁判"}[name]
-        print(f"{label:<12}{b['passed']}/{b['total']:<10}{b['accuracy'] * 100:.0f}%"
-              f"{'':<4}{b.get('stability', b['accuracy']) * 100:.0f}%")
-    print("-" * 62)
-    print(f"总计 {rep['passed']}/{rep['total']} = {rep['accuracy'] * 100:.1f}%"
-          f"    稳定率 {rep.get('stability', rep['accuracy']) * 100:.1f}%"
-          f"    耗时 {rep['elapsed_sec'] / 60:.1f} 分钟")
-
-    if rep.get("repeat", 1) > 1:
-        print("\n单题通过率：")
-        for r in rep["results"]:
-            rate = r.get("pass_rate", 1.0 if r["passed"] else 0.0) * 100
-            flag = "  ⚠️ 不稳定" if UNSTABLE_LOW <= r.get("pass_rate", 0.0) <= UNSTABLE_HIGH else ""
-            print(f"  {r['id']:<14}{r.get('passed_runs', 0)}/{r.get('repeat', 1)}"
-                  f" = {rate:.0f}%{flag}")
-        unstable = rep.get("unstable_cases") or []
-        lo, hi = [int(x * 100) for x in (rep.get("unstable_range") or [UNSTABLE_LOW, UNSTABLE_HIGH])]
-        print(f"\n不稳定题（通过率 {lo}%-{hi}%）："
-              + (", ".join(f"{u['id']}（{u['passed_runs']}/{u['total_runs']}）"
-                           for u in unstable) if unstable else "无"))
-
-    failed = [r for r in rep["results"] if not r["passed"]]
-    if failed:
-        print("\n失败题：")
-        for r in failed:
-            print(f"  - {r['id']} [{r['category']}/{r['judge']}]：{r['reason'][:150]}")
-    else:
-        print("\n失败题：无")
-
-
-def print_compare(prev_path: Path, rep: dict) -> None:
-    prev = json.loads(Path(prev_path).read_text(encoding="utf-8"))
-    print("\n" + "=" * 62)
-    print(f"与上次结果对比：{Path(prev_path).name}")
-    print("=" * 62)
-    print(f"总准确率：{prev.get('accuracy', 0) * 100:.1f}% → {rep['accuracy'] * 100:.1f}%"
-          f"  ({rep['accuracy'] * 100 - prev.get('accuracy', 0) * 100:+.1f} 个百分点)")
-    if prev.get("stability") is not None or rep.get("repeat", 1) > 1:
-        print(f"稳定率：{(prev.get('stability') or 0) * 100:.1f}% → "
-              f"{rep.get('stability', rep['accuracy']) * 100:.1f}%")
-    prev_map = {r["id"]: r for r in prev.get("results", [])}
-    newly_pass = [r["id"] for r in rep["results"]
-                  if r["passed"] and r["id"] in prev_map and not prev_map[r["id"]]["passed"]]
-    newly_fail = [r["id"] for r in rep["results"]
-                  if not r["passed"] and r["id"] in prev_map and prev_map[r["id"]]["passed"]]
-    print(f"新通过（{len(newly_pass)}）：{', '.join(newly_pass) or '无'}")
-    print(f"新失败（{len(newly_fail)}）：{', '.join(newly_fail) or '无'}")
-    for name, b in rep["by_category"].items():
-        old = (prev.get("by_category") or {}).get(name)
-        if old:
-            print(f"  {name:<10}{old['accuracy'] * 100:.0f}% → {b['accuracy'] * 100:.0f}%")
-    only_prev = [r["id"] for r in prev.get("results", []) if r["id"] not in {x["id"] for x in rep["results"]}]
-    if only_prev:
-        print(f"本次未跑的题（{len(only_prev)}）：{', '.join(only_prev)}")
+    print(framework.make_report("console").render(rep), end="")
 
 
 def write_report(rep: dict) -> tuple:
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    json_path = RESULTS_DIR / f"{stamp}.json"
-    json_path.write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
+    """落盘（走 Provider 插件，默认写 results/<时间戳>.json + .md）。"""
+    paths = make_provider().save_report(rep)
+    return paths[0], paths[1]
 
-    lines = [f"# 评测报告 {rep['run_at']}", "",
-             f"- 引擎：{rep['engine']}    模型：{rep['model']}",
-             f"- 每题重复次数：**{rep.get('repeat', 1)}**"
-             f"（题级 passed 取多数票；稳定率 = 各题单题通过率的平均）",
-             f"- 总计：**{rep['passed']}/{rep['total']} = {rep['accuracy'] * 100:.1f}%**"
-             f"　稳定率 **{rep.get('stability', rep['accuracy']) * 100:.1f}%**"
-             f"（耗时 {rep['elapsed_sec'] / 60:.1f} 分钟）", "",
-             "## 分类准确率 / 稳定率", "",
-             "| 类别 | 通过/总数 | 准确率 | 稳定率 |", "|---|---|---|---|"]
-    for name, b in rep["by_category"].items():
-        lines.append(f"| {name} | {b['passed']}/{b['total']} | {b['accuracy'] * 100:.0f}% | "
-                     f"{b.get('stability', b['accuracy']) * 100:.0f}% |")
-    lines += ["", "## 判分方式", "", "| 判分 | 通过/总数 | 准确率 | 稳定率 |", "|---|---|---|---|"]
-    for name, b in rep["by_judge"].items():
-        lines.append(f"| {name} | {b['passed']}/{b['total']} | {b['accuracy'] * 100:.0f}% | "
-                     f"{b.get('stability', b['accuracy']) * 100:.0f}% |")
-    unstable = rep.get("unstable_cases") or []
-    lo, hi = [int(x * 100) for x in (rep.get("unstable_range") or [UNSTABLE_LOW, UNSTABLE_HIGH])]
-    lines += ["", f"## 不稳定题（单题通过率 {lo}%-{hi}%）", ""]
-    if unstable:
-        lines += ["| 题号 | 类别 | 通过/次数 | 通过率 |", "|---|---|---|---|"]
-        for u in unstable:
-            lines.append(f"| {u['id']} | {u['category']} | {u['passed_runs']}/{u['total_runs']} | "
-                         f"{u['pass_rate'] * 100:.0f}% |")
-    else:
-        lines.append("无（所有题要么全过、要么全不过）")
-    rep_label = "" if rep.get("repeat", 1) == 1 else "（N 次里过几次）"
-    lines += ["", "## 逐题", "",
-              "| 题号 | 类别 | 判分 | 结果 | 通过率 | 原因 | 耗时 |",
-              "|---|---|---|---|---|---|---|"]
-    for r in rep["results"]:
-        rate = f"{r.get('passed_runs', 0)}/{r.get('repeat', 1)} = " \
-               f"{r.get('pass_rate', 0) * 100:.0f}%{rep_label}"
-        lines.append(f"| {r['id']} | {r['category']} | {r['judge']} | "
-                     f"{'✅' if r['passed'] else '❌'} | {rate} | {r['reason'][:120]} | {r['elapsed']}s |")
-    lines += ["", "> 每一次跑的完整详情（判词 / 检查项 / extra / 耗时）见同名 JSON 的 "
-                  "`results[].runs[]`。"]
-    md_path = RESULTS_DIR / f"{stamp}.md"
-    md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return json_path, md_path
+
+def make_provider():
+    return framework.make_provider("yaml", test_set_path=TEST_SET, results_dir=RESULTS_DIR)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="求职 Agent 评测")
-    parser.add_argument("--category", help="只跑某一类：search/match/package/interview/boundary")
+    parser.add_argument("--category", help="只跑某一类：search/match/package/interview/boundary/complex")
     parser.add_argument("--case", help="只跑某些题（逗号分隔的 id）")
-    parser.add_argument("--compare", help="与上次结果 JSON 对比")
+    parser.add_argument("--compare", help="与上次结果 JSON 对比（bootstrap 95% 置信区间，见 regression.py）")
     parser.add_argument("--list", action="store_true", help="只列出题目，不跑")
     parser.add_argument("--repeat", type=int, default=1,
                         help="每题重复跑几次（默认 1）；>1 时输出单题通过率 / 稳定率 / 不稳定题")
     parser.add_argument("--quiet", action="store_true", help="不逐题打印")
+    parser.add_argument("--bootstrap", type=int, default=2000,
+                        help="--compare 时 bootstrap 重采样次数（默认 2000）")
     args = parser.parse_args()
     if args.repeat < 1:
         print("[错误] --repeat 必须 ≥ 1")
         return 2
 
-    if not TEST_SET.is_file():
-        print(f"[错误] 找不到评测集：{TEST_SET}")
+    provider = make_provider()
+    try:
+        test_set = provider.load_test_set()
+    except (FileNotFoundError, ValueError) as e:
+        print(f"[错误] 题库不可用：{e}")
         return 2
-    test_set = json.loads(TEST_SET.read_text(encoding="utf-8"))
     cases = test_set["cases"]
 
     if args.list:
+        print(f"{'题号':<14}{'类别':<10}{'判分':<14}题目")
         for c in cases:
-            print(f"{c['id']:<14}{c['category']:<10}{JUDGE_KIND[c['category']]:<14}"
-                  f"{c.get('q') or (c.get('company', '') + ' · ' + c.get('title', ''))}")
-        print(f"共 {len(cases)} 题")
+            q = c.get("question") or f"{c.get('company', '')} · {c.get('title', '')}"
+            print(f"{c['id']:<14}{c['category']:<10}{c['judge_type']:<14}{q}")
+        print(f"共 {len(cases)} 题；判分插件：{sorted(framework.METRICS)}")
         return 0
 
     if args.category:
@@ -791,7 +704,7 @@ def main() -> int:
         print("[错误] 没有匹配到任何题目")
         return 2
 
-    print(f"评测集：{len(cases)} 题 | 引擎 {os.getenv('AGENT_ENGINE', 'langgraph')} | "
+    print(f"题库：{TEST_SET.name} | {len(cases)} 题 | 引擎 {os.getenv('AGENT_ENGINE', 'langgraph')} | "
           f"模型 {os.getenv('ZHIPU_CHAT_MODEL', '(未设置)')} | 每题 {args.repeat} 次")
     print(f"隔离目录：{ART_DIR}")
     started = time.time()
@@ -802,7 +715,7 @@ def main() -> int:
     print(f"\n结果已保存：{json_path}")
     print(f"可读摘要：{md_path}")
     if args.compare:
-        print_compare(Path(args.compare), rep)
+        regression.compare(Path(args.compare), rep, iterations=args.bootstrap, echo=True)
     return 0
 
 

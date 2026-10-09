@@ -650,24 +650,69 @@ python scripts/audit_data.py                 # 数据质量统计
 ## 8. 评测：Agent 效果量化
 
 「改完 prompt / 换了模型，到底是变好了还是变差了？」——靠感觉答不了这个问题。
-`evaluation/` 下是一套**可重复运行**的分类评测：27 道题、5 类能力，跑完给
+`evaluation/` 下是一套**可重复运行**的分类评测：30 道题、6 类能力，跑完给
 分类准确率 + 总准确率，并逐次留档。
 
-| 类别 | 题数 | 判分方式 | 在测什么 |
+| 类别 | 题数 | judge_type | 在测什么 |
 |---|---|---|---|
-| `search` 搜岗位 | 6 | 确定性 | 城市 / 岗位类型有没有被正确提取，过滤是不是真的生效 |
-| `match` 匹配打分 | 5 | LLM 裁判（+ 确定性区间） | 分数是否落在合理区间、反思节点是否触发、理由有没有证据 |
-| `package` 投递包 | 4 | 确定性 | 三件套是否生成、关键字段有没有丢、有没有已知错字 / 模板兜底 |
-| `interview` 模拟面试 | 5 | LLM 裁判 | 连问 3 题，整组题是否贴岗位 JD、有没有串到别家公司 |
-| `boundary` 边界 | 7 | 确定性 | 闲聊不误调工具、搜不到就如实说搜不到 |
+| `search` 搜岗位 | 6 | `deterministic` | 城市 / 岗位类型有没有被正确提取，过滤是不是真的生效 |
+| `match` 匹配打分 | 5 | `llm`（+ 确定性区间） | 分数是否落在合理区间、反思节点是否触发、理由有没有证据 |
+| `package` 投递包 | 4 | `deterministic` | 三件套是否生成、关键字段有没有丢、有没有已知错字 / 模板兜底 |
+| `interview` 模拟面试 | 5 | `llm` | 连问 3 题，整组题是否贴岗位 JD、有没有串到别家公司 |
+| `boundary` 边界 | 7 | `trajectory`（6）+ `deterministic`（1） | 闲聊不误调工具（断言的是**工具调用序列**）、搜不到就如实说 |
+| `complex` 复杂任务 | 3 | `deterministic`（+ 轨迹断言） | 多智能体的三步协作有没有真的产出，搜索 / 匹配 / 出包的**顺序**对不对 |
+
+### 目录与三层插件
+
+| 文件 | 角色 |
+|---|---|
+| `evaluation/test_set.yaml` | **唯一题库**（题目 / 期望 / `judge_type` / 轨迹断言） |
+| `evaluation/framework.py` | 三个 ABC：`BaseMetric`、`BaseProvider`、`BaseReport` + 内置插件与注册表 |
+| `evaluation/run_eval.py` | 跑题（只负责执行 + 编排，判分 / 存储 / 渲染都交插件） |
+| `evaluation/regression.py` | bootstrap 回归门控（两次结果的 delta + 95% 置信区间） |
+| `evaluation/test_framework.py` | 框架自测（18 项，不调 LLM、不花钱） |
+
+判分方式是**插件**，不是 if-else：`judge_type` 指向 `framework.METRICS` 里的实现，
+新加一种判分 = 写一个 `BaseMetric` 子类加 `@register_metric`，主流程不用改。
+题库与报告的读写走 `BaseProvider`（默认 `YamlProvider`），终端 / MD / JSON 三种呈现走
+`BaseReport`。
+
+### 轨迹断言（只看工具调用序列，不看最终文本）
+
+`judge_type: trajectory` 的题，或任何在 `case.trajectory` 下写了断言的题，都会检查
+**调用序列**（序列由 `framework.TrajectoryRecorder` 从现有工具入口采集，业务代码零改动）：
+
+```yaml
+trajectory:
+  calls_tool: [search_jobs, match_resume]        # 必须调过（顺序无关）
+  not_calls_tool: [generate_application_package] # 一次都不能调；写 "*" = 任何工具都不许调
+  call_order: [[search_jobs, match_resume]]      # 先后顺序；任一端没调用则不算违规
+```
+
+典型用例：搜岗位时断言 `not_calls_tool: generate_application_package`（别顺手出包）；
+多智能体出包前断言 `call_order: [[match_resume, generate_application_package]]`
+（**先打分再出包**，顺序反了就是真 bug，最终文本再漂亮也没用）。
+
+### bootstrap 回归门控：只在「下降超过噪声」时标红
+
+`--compare` 不再只比两个百分数（30 题里掉 1 题就是 -3.3pp，可能只是 LLM 抖了一下），
+而是对 delta 做**两级 bootstrap**（题级重采样 + 题内 run 级重采样）给出 95% 置信区间：
+
+* CI 上界 < 0 → 🔴 回归；CI 下界 > 0 → 🟢 进步；区间跨 0 → ⚪ 噪声内，不下结论。
+* 想让 CI 把 LLM 抖动也算进去，先用 `--repeat 3` 跑；`--repeat 1` 的 CI 只反映题库采样噪声。
+* `regression.py --gate` 有回归时退出码为 1，可以直接当 CI 门禁用。
+* 两次都跑过的题才参与 delta（题目增删单独列出，不算能力变化）。
 
 ```bash
-python evaluation/run_eval.py                       # 全量（约 20-30 分钟，会真调 LLM）
+python evaluation/run_eval.py                       # 全量（30 题，会真调 LLM，约 1-2 小时）
 python evaluation/run_eval.py --category search     # 只跑某一类（改完 prompt 先跑这个）
 python evaluation/run_eval.py --case match-01       # 只跑某几题
 python evaluation/run_eval.py --repeat 3            # 每题跑 3 次，看稳定性
 python evaluation/run_eval.py --list                # 只列题，不跑
-python evaluation/run_eval.py --compare evaluation/results/<上次>.json   # 与上次对比
+python evaluation/run_eval.py --compare evaluation/results/<上次>.json   # 与上次对比 + CI
+python evaluation/regression.py --compare a.json --current b.json        # 单独跑回归门控
+python evaluation/regression.py --compare a.json --gate                  # CI 门控（有回归则退出 1）
+python evaluation/test_framework.py                                      # 框架自测（不调 LLM）
 ```
 
 ### 多次跑：`--repeat N`（LLM 是非确定的）
@@ -695,10 +740,10 @@ python evaluation/run_eval.py --category match --repeat 3
 
 结果怎么看：
 
-- 终端直接打印「分类准确率 + 总准确率 + 每道失败题的原因」；
-- 落到 `evaluation/results/<时间戳>.json`（机器可读，含每题明细）和同名 `.md`（可读表）；
-- 加了 `--compare` 会多打一段「新通过 / 新失败 / 分类准确率变化」——
-  **看回归盯「新失败」，看改进盯「新通过」**；
+- 终端直接打印「分类准确率 + 总准确率 + 每道失败题的原因 + 轨迹断言序列」；
+- 落到 `evaluation/results/<时间戳>.json`（机器可读，含每题明细与插件口径）和同名 `.md`（可读表）；
+- 加了 `--compare` 会多打一段 bootstrap 回归报告（总体 / 分类 / 判分方式 / 逐题的 delta +
+  95% CI + 🔴🟢⚪ 判定）——**不再用「掉了几题」当结论**；
 - 匹配打分的「差距」有一层**确定性溯源过滤**（`agent/tools_registry.split_gaps_by_jd`）：
   每一项都要能在 JD 原文里找到对应关键词（英文按整词比对、中文按 ≥3 字滑窗），
   找不到的会被移出 `gaps`、单列为「通用建议」—— 防止把 JD 根本没提的技术栈
@@ -706,9 +751,12 @@ python evaluation/run_eval.py --category match --repeat 3
 
 改题库：
 
-- 只改 `evaluation/test_set.json` 一个文件：加题 = 复制一段改字段。
-  确定性题写 `expect`（城市 / 类型 / 条数 / 区间 / 必须出现或禁止出现的字），
-  LLM 裁判题写 `expect_score_range` 或 `expect_topics` 加 `must_not_mention` 这类硬约束；
+- 只改 `evaluation/test_set.yaml` 一个文件：加题 = 复制一段改字段，每题必带
+  `id / category / question / expect / judge_type`；`judge_type` 必须能在
+  `framework.METRICS` 里找到插件，否则加载时直接报错（早失败好过跑一半炸）；
+- 确定性题把期望写进 `expect`（城市 / 类型 / 条数 / 区间 / 必须出现或禁止出现的字），
+  LLM 裁判题写 `expect.score_range` 或 `expect.topics` 加 `must_not_mention` 这类硬约束，
+  轨迹题写 `trajectory.calls_tool / not_calls_tool / call_order`；
 - 题里的 `job_id` 取自 `rag/data/jobs.db`。换库后某条被删，该题会以「岗位查不到」
   失败并写明原因，**不会静默算通过**。
 
