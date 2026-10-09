@@ -83,6 +83,15 @@ def reset_collection(collection=None):
         client.delete_collection(name=COLLECTION_NAME)
     except Exception:  # noqa: BLE001 - 集合本来就不存在（或并发被删）时忽略
         pass
+    # 通知检索层丢掉缓存过期的集合句柄：retriever 为了性能会缓存
+    # get_collection() 的结果（单次构造 ~11ms，热路径上会被调几千次），
+    # 而这里刚把集合删掉重建 —— 不清缓存的话旧句柄指向一个已删除的集合。
+    # 函数内 import 避免 retriever <-> vector_store 的模块级循环依赖。
+    try:
+        from rag import retriever as _retriever
+        _retriever.reset_collection_cache()
+    except Exception:  # noqa: BLE001 - 检索层没被加载 / 老版本没有该函数，都不该影响重建
+        pass
     if collection is not None:
         return collection
     return client.get_or_create_collection(

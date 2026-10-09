@@ -1,6 +1,7 @@
 """
 工具注册中心。
 """
+import asyncio
 import contextvars
 import json
 import os
@@ -1443,6 +1444,41 @@ def _record_from_job_library(company, job_id=None, title=""):
     )
 
 
+# 互不依赖的产物**并行**生成用的常驻线程池（当前只有投递包的「简历定制 ∥ 自荐信」）。
+# 固定 2 个 worker：正好对应两个独立任务，也避免并发用户把线程数放大。
+_PACKAGE_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pkg")
+
+
+async def _gather_jobs(jobs: list) -> list:
+    """`asyncio.gather` 并行跑一组无参函数，结果**保序**返回。"""
+    loop = asyncio.get_running_loop()
+    futures = [loop.run_in_executor(_PACKAGE_POOL, job) for job in jobs]
+    return list(await asyncio.gather(*futures))
+
+
+def _run_jobs_parallel(jobs: list) -> list:
+    """`_gather_jobs` 的同步入口（用法与 `rag.retriever._recall_legs` 同款）。
+
+    为什么必须 `copy_context()`：任务跑在子线程里，而子线程**不继承**调用方的
+    ContextVar（`call_tool` 里踩过同一个坑）。不复制的话 `shared.token_tracker`
+    读到的当前用户是兜底值 `local` —— 用量会记错人，日额度 / 单次预算也会拿错桶。
+
+    没在事件循环里（工具子线程 / 脚本 / Streamlit）→ `asyncio.run` 真正走
+    `asyncio.gather`；已经在事件循环里 → 不能再 `asyncio.run`（会 RuntimeError），
+    改在同一个常驻池里并行提交。两条路径都是并行。
+    """
+    wrapped = []
+    for job in jobs:
+        ctx = contextvars.copy_context()
+        wrapped.append(lambda _ctx=ctx, _job=job: _ctx.run(_job))
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(_gather_jobs(wrapped))
+    futures = [_PACKAGE_POOL.submit(job) for job in wrapped]
+    return [f.result() for f in futures]
+
+
 def generate_application_package(company, job_id=None, title=""):
     """生成一键投递包：简历 PDF + 自荐信 + 岗位信息。
 
@@ -1476,19 +1512,30 @@ def generate_application_package(company, job_id=None, title=""):
         raise ValueError("还没有简历，无法生成投递包（先 save_resume 保存一份）")
     resume_data = normalize_resume(resume_record)
 
+    # 简历定制与自荐信**互不依赖**：两者都只读 resume_data / record / detail，
+    # 谁先跑完都不影响另一个，串行执行等于白等一次 LLM 往返（实测各约 6s，
+    # 见交接单 5.11 / 5.16）。改成并行 —— 与 rag.retriever 的双路召回同一套做法。
+    def _tailor_job():
+        return _tailor_resume(resume_data, detail)
+
+    def _cover_job():
+        return _generate_cover_letter(resume_data, record, detail)
+
     tailored = False
-    if detail is None:
-        final_resume = resume_data or resume_record
-        warnings.append("没有岗位详情，简历按原样导出（未做定制）")
-    elif "_plain" in resume_data:
-        final_resume = resume_data
-        warnings.append("当前简历是纯文本，跳过按岗位定制（PDF 仍会导出原文）")
-    else:
-        final_resume, tailor_warnings = _tailor_resume(resume_data, detail)
+    if detail is not None and "_plain" not in resume_data:
+        (final_resume, tailor_warnings), (cover_letter, cover_warning) = \
+            _run_jobs_parallel([_tailor_job, _cover_job])
         tailored = final_resume is not resume_data
         warnings += tailor_warnings
+    else:
+        if detail is None:
+            final_resume = resume_data or resume_record
+            warnings.append("没有岗位详情，简历按原样导出（未做定制）")
+        else:
+            final_resume = resume_data
+            warnings.append("当前简历是纯文本，跳过按岗位定制（PDF 仍会导出原文）")
+        cover_letter, cover_warning = _cover_job()
 
-    cover_letter, cover_warning = _generate_cover_letter(resume_data, record, detail)
     if cover_warning:
         warnings.append(cover_warning)
 

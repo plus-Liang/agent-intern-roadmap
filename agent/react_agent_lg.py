@@ -16,6 +16,7 @@ LangGraph 版 Agent 入口（阶段 1：固定基础流程 + 反思节点）。
 |---|---|---|
 | 「帮我找广州的 Agent 岗位」 | `SEARCH_GRAPH`（固定五步） | 搜岗位是**流程**，不该由模型自决 |
 | 「帮我匹配简历」 | `MATCH_GRAPH`（打分 + 反思） | 打分要能自评，走反思边 |
+| 「找岗位 + 匹配 + 生成投递包」这类**一次说了多个需求**的话 | `COMPLEX_TASK_GRAPH`（批次 1 多智能体） | 单条链路装不下，需要 Planner 拆步骤、Executor 执行、Critic 审查打回 |
 | 「看日志 / 系统日志 / docker 日志」 | 确定性引导（提示去终端跑 docker compose logs） | 系统日志不在对话里，也不是投递记录（防误判成 list_tracking） |
 | 投递 / 投递包 / 面试 / 记忆 / 其它 | `react_agent.run` 原样兜底 | 这些是多步决策，本期不动 |
 
@@ -30,6 +31,7 @@ import os
 import uuid
 
 from agent import react_agent
+from agent import complex_task_flow as ma
 from agent.langgraph_flow import MATCH_GRAPH, SEARCH_GRAPH
 from shared import limits
 from shared.logger import log_event
@@ -113,6 +115,10 @@ def is_match_intent(question: str) -> bool:
 def _route(question: str) -> str:
     if is_log_intent(question):
         return "log"                                   # 看日志：确定性引导，不调 LLM
+    # 复杂任务放在最前面判：它是"多种意图的并集"，必须先于单意图分流，
+    # 否则「找岗位 + 匹配 + 出投递包」会被 is_match_intent 抢走、只做匹配那一步。
+    if ma.is_complex_task(question):
+        return "complex"
     if is_match_intent(question):
         return "match"                                   # 先判匹配：它比搜岗位更具体
     if is_search_intent(question):
@@ -191,6 +197,14 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
     limits.start_run_budget()
     limits.reset_truncated()
 
+    if kind == "complex":
+        # 复杂任务编排图：Planner 拆计划 → Executor 逐步执行 → Critic 审查（可打回重做）
+        return _run_graph(
+            ma.COMPLEX_TASK_GRAPH,
+            {"question": question, "history": history, "verbose": verbose,
+             "resume_data": resume_data, "_graph_name": "complex"},
+            question, verbose, return_messages,
+        )
     if kind == "search":
         return _run_graph(
             SEARCH_GRAPH,
@@ -213,4 +227,4 @@ def engine_name(question: str) -> str:
         return "react"
     kind = _route(question)
     return {"search": "langgraph:search", "match": "langgraph:match",
-            "log": "langgraph:log"}.get(kind, "react")
+            "log": "langgraph:log", "complex": "multi_agent:complex"}.get(kind, "react")

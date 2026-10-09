@@ -73,6 +73,7 @@ from shared.job_type import normalize_job_type                 # noqa: E402
 from shared.llm_client import chat                             # noqa: E402
 from shared.user_context import user_scope                     # noqa: E402
 from agent import tools_registry as reg                        # noqa: E402
+from agent import react_agent                                  # noqa: E402
 from agent.langgraph_flow import MATCH_GRAPH, SEARCH_GRAPH     # noqa: E402
 from agent.react_agent_lg import run as run_agent              # noqa: E402
 
@@ -398,16 +399,118 @@ def run_boundary(case: dict, ctx: dict) -> Case:
     return c
 
 
+def run_complex(case: dict, ctx: dict) -> Case:
+    """复杂任务（多智能体协作）：判「三个子任务是不是真的产出了东西」。
+
+    为什么 spy 工具而不是看答案文本：多智能体与 ReAct 兜底两条路径的**回答措辞
+    完全不同**（前者是结构化的步骤清单，后者是自由文本），拿文本做判据等于在比
+    排版而不是比能力。工具返回值是两条路径共有的、可核对的产出。
+
+    ⚠️ **必须同时拦四个入口**，否则「改造前」的对照会假失败（本轮实测踩过）：
+      * `reg.call_tool` —— 多智能体图走这个（`execute_node` 用模块属性调用）；
+      * `react_agent.call_tool` —— ReAct 兜底在**导入时**就绑定了名字，
+        改 `reg.call_tool` 对它无效；
+      * `reg._match` —— 匹配图（`MATCH_GRAPH`）直接调它，不经过 `call_tool`；
+      * `reg._search` —— 搜岗位图（`SEARCH_GRAPH`）直接调它。
+
+    判据（每条都必须过）：
+      1. 搜岗位真的返回了岗位（≥ search_min 条）；
+      2. 匹配打分真的拿到了 0-100 的分数；
+      3. 需要出包时：三件套齐全且非空 —— **或者**回答里如实说明了「跳过 / 降级 /
+         未生成」（分数没到阈值而跳过是设计内行为，不算失败）；
+      4. 没生成包时不许谎报（回答里不能出现「投递包已生成 / 可以下载」）。
+    """
+    c = Case(case)
+    expect = case.get("expect") or {}
+    seen = {"search_jobs": None, "match_resume": None,
+            "generate_application_package": None}
+    real_call = reg.call_tool
+    real_react_call = react_agent.call_tool
+    real_match = reg._match
+    real_search = reg._search
+
+    def _record(name, result):
+        if name in seen and seen[name] is None:
+            seen[name] = result
+        return result
+
+    def spy(name, args=None, confirmed=False):
+        return _record(name, real_call(name, args, confirmed=confirmed))
+
+    def spy_react(name, args=None, confirmed=False):
+        return _record(name, real_react_call(name, args, confirmed=confirmed))
+
+    def spy_match(job_id, resume_json):
+        return _record("match_resume", real_match(job_id, resume_json))
+
+    def spy_search(keyword, city=None, limit=20, semantic=False, job_type=None):
+        return _record("search_jobs",
+                       real_search(keyword, city, limit, semantic, job_type))
+
+    try:
+        reg.call_tool = spy
+        react_agent.call_tool = spy_react
+        reg._match = spy_match
+        reg._search = spy_search
+        with user_scope(EVAL_USER):
+            reg.use_resume(ctx["resume_id"])
+            result = run_agent(case["q"], resume_data=ctx["resume"], verbose=False,
+                               return_messages=True)
+    finally:
+        reg.call_tool = real_call
+        react_agent.call_tool = real_react_call
+        reg._match = real_match
+        reg._search = real_search
+
+    answer = str(result.get("answer") or "")
+    nodes = [s.get("node") for s in (result.get("steps") or [])]
+    c.extra = {"nodes": nodes, "answer_head": answer[:400],
+               "called": [k for k, v in seen.items() if v is not None]}
+
+    rows = seen["search_jobs"]
+    count = len(rows) if isinstance(rows, list) else 0
+    c.check("搜岗位有产出", count >= int(expect.get("search_min") or 1),
+            f"search_jobs 返回 {count} 条（第一份结果）")
+
+    matched = seen["match_resume"]
+    score = matched.get("score") if isinstance(matched, dict) else None
+    c.check("匹配打分有产出", isinstance(score, int) and 0 <= score <= 100,
+            f"score={score!r}")
+
+    pkg = seen["generate_application_package"]
+    files = (pkg or {}).get("files") if isinstance(pkg, dict) else None
+    empty = [n for n, p in (files or {}).items()
+             if not p or not Path(p).is_file() or Path(p).stat().st_size == 0]
+    generated = bool(files) and len(files) >= 3 and not empty
+    disclosed = any(word in answer for word in ("跳过", "降级", "未生成", "没有生成",
+                                                "没生成", "未做", "没做"))
+
+    if expect.get("need_package"):
+        reason = (f"三件套 {sorted(files or {})}，缺失/空：{empty or '无'}"
+                  if generated else f"未生成投递包；回答里{'有' if disclosed else '没有'}如实说明")
+        c.check("投递包：生成齐全 或 如实说明未生成", generated or disclosed, reason)
+        if not generated:
+            c.check("没出包时不谎报", "投递包已生成" not in answer
+                    and "可以下载" not in answer, "回答里没有虚假的「已生成」")
+    else:
+        c.check("本题不要求出包", "generate_application_package" not in c.extra["called"]
+                or generated or disclosed,
+                f"调用了：{c.extra['called']}")
+    return c
+
+
 RUNNERS = {
     "search": run_search,
     "match": run_match,
     "package": run_package,
     "interview": run_interview,
     "boundary": run_boundary,
+    "complex": run_complex,
 }
 
 JUDGE_KIND = {"search": "deterministic", "package": "deterministic",
-              "boundary": "deterministic", "match": "llm", "interview": "llm"}
+              "boundary": "deterministic", "complex": "deterministic",
+              "match": "llm", "interview": "llm"}
 
 
 # ============================== 编排 ==============================

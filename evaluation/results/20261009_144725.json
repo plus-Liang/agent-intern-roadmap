@@ -1,0 +1,279 @@
+{
+  "run_at": "2026-10-09 14:47:25",
+  "test_set_version": "1.0",
+  "engine": "langgraph",
+  "model": "glm-4.5-air",
+  "repeat": 1,
+  "total": 3,
+  "passed": 2,
+  "accuracy": 0.6667,
+  "stability": 0.6667,
+  "unstable_range": [
+    0.2,
+    0.8
+  ],
+  "unstable_cases": [],
+  "elapsed_sec": 217.6,
+  "by_category": {
+    "complex": {
+      "total": 3,
+      "passed": 2,
+      "accuracy": 0.6667,
+      "stability": 0.6667
+    }
+  },
+  "by_judge": {
+    "deterministic": {
+      "total": 3,
+      "passed": 2,
+      "accuracy": 0.6667,
+      "stability": 0.6667
+    }
+  },
+  "results": [
+    {
+      "id": "complex-01",
+      "category": "complex",
+      "judge": "deterministic",
+      "question": "帮我找广州的 Agent 岗位，再用我的简历匹配打分",
+      "repeat": 1,
+      "passed_runs": 0,
+      "pass_rate": 0.0,
+      "passed": false,
+      "reason": "0/1 次通过；失败原因：搜岗位有产出：search_jobs 返回 0 条（第一份结果）；匹配打分有产出：score=None",
+      "checks": [
+        {
+          "name": "搜岗位有产出",
+          "ok": false,
+          "detail": "search_jobs 返回 0 条（第一份结果）"
+        },
+        {
+          "name": "匹配打分有产出",
+          "ok": false,
+          "detail": "score=None"
+        },
+        {
+          "name": "本题不要求出包",
+          "ok": true,
+          "detail": "调用了：[]"
+        }
+      ],
+      "extra": {
+        "nodes": [
+          "接收",
+          "定位岗位",
+          "匹配打分",
+          "反思",
+          "输出"
+        ],
+        "answer_head": "我还不知道要匹配哪个岗位。请先让我搜一个岗位（例如「帮我找广州的 Agent 岗位」），或者把岗位链接 / JD 文本粘贴过来，然后说「帮我匹配简历」。",
+        "called": []
+      },
+      "elapsed": 15.2,
+      "runs": [
+        {
+          "passed": false,
+          "reason": "搜岗位有产出：search_jobs 返回 0 条（第一份结果）；匹配打分有产出：score=None",
+          "checks": [
+            {
+              "name": "搜岗位有产出",
+              "ok": false,
+              "detail": "search_jobs 返回 0 条（第一份结果）"
+            },
+            {
+              "name": "匹配打分有产出",
+              "ok": false,
+              "detail": "score=None"
+            },
+            {
+              "name": "本题不要求出包",
+              "ok": true,
+              "detail": "调用了：[]"
+            }
+          ],
+          "extra": {
+            "nodes": [
+              "接收",
+              "定位岗位",
+              "匹配打分",
+              "反思",
+              "输出"
+            ],
+            "answer_head": "我还不知道要匹配哪个岗位。请先让我搜一个岗位（例如「帮我找广州的 Agent 岗位」），或者把岗位链接 / JD 文本粘贴过来，然后说「帮我匹配简历」。",
+            "called": []
+          },
+          "elapsed": 15.2,
+          "run": 1
+        }
+      ]
+    },
+    {
+      "id": "complex-02",
+      "category": "complex",
+      "judge": "deterministic",
+      "question": "帮我找广州的 Agent 岗位，用我的简历匹配打分，分数够 70 就生成投递包",
+      "repeat": 1,
+      "passed_runs": 1,
+      "pass_rate": 1.0,
+      "passed": true,
+      "reason": "全部检查通过（1/1）",
+      "checks": [
+        {
+          "name": "搜岗位有产出",
+          "ok": true,
+          "detail": "search_jobs 返回 20 条（第一份结果）"
+        },
+        {
+          "name": "匹配打分有产出",
+          "ok": true,
+          "detail": "score=85"
+        },
+        {
+          "name": "投递包：生成齐全 或 如实说明未生成",
+          "ok": true,
+          "detail": "三件套 ['cover_letter.md', 'job_info.txt', 'resume.pdf']，缺失/空：无"
+        }
+      ],
+      "extra": {
+        "nodes": [
+          null,
+          null,
+          null,
+          null,
+          "路由"
+        ],
+        "answer_head": "本轮消耗已达上限，先给到这里。如果需要更完整的结果，可以把问题拆成几步、或换个更具体的问法再问。",
+        "called": [
+          "search_jobs",
+          "match_resume",
+          "generate_application_package"
+        ]
+      },
+      "elapsed": 108.5,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "搜岗位有产出",
+              "ok": true,
+              "detail": "search_jobs 返回 20 条（第一份结果）"
+            },
+            {
+              "name": "匹配打分有产出",
+              "ok": true,
+              "detail": "score=85"
+            },
+            {
+              "name": "投递包：生成齐全 或 如实说明未生成",
+              "ok": true,
+              "detail": "三件套 ['cover_letter.md', 'job_info.txt', 'resume.pdf']，缺失/空：无"
+            }
+          ],
+          "extra": {
+            "nodes": [
+              null,
+              null,
+              null,
+              null,
+              "路由"
+            ],
+            "answer_head": "本轮消耗已达上限，先给到这里。如果需要更完整的结果，可以把问题拆成几步、或换个更具体的问法再问。",
+            "called": [
+              "search_jobs",
+              "match_resume",
+              "generate_application_package"
+            ]
+          },
+          "elapsed": 108.5,
+          "run": 1
+        }
+      ]
+    },
+    {
+      "id": "complex-03",
+      "category": "complex",
+      "judge": "deterministic",
+      "question": "我想一次性走完整流程：找广州的算法实习岗位、匹配得分、写出投递包",
+      "repeat": 1,
+      "passed_runs": 1,
+      "pass_rate": 1.0,
+      "passed": true,
+      "reason": "全部检查通过（1/1）",
+      "checks": [
+        {
+          "name": "搜岗位有产出",
+          "ok": true,
+          "detail": "search_jobs 返回 20 条（第一份结果）"
+        },
+        {
+          "name": "匹配打分有产出",
+          "ok": true,
+          "detail": "score=60"
+        },
+        {
+          "name": "投递包：生成齐全 或 如实说明未生成",
+          "ok": true,
+          "detail": "三件套 ['cover_letter.md', 'job_info.txt', 'resume.pdf']，缺失/空：无"
+        }
+      ],
+      "extra": {
+        "nodes": [
+          null,
+          null,
+          null,
+          null,
+          "路由"
+        ],
+        "answer_head": "本轮消耗已达上限，先给到这里。如果需要更完整的结果，可以把问题拆成几步、或换个更具体的问法再问。",
+        "called": [
+          "search_jobs",
+          "match_resume",
+          "generate_application_package"
+        ]
+      },
+      "elapsed": 93.9,
+      "runs": [
+        {
+          "passed": true,
+          "reason": "全部检查通过",
+          "checks": [
+            {
+              "name": "搜岗位有产出",
+              "ok": true,
+              "detail": "search_jobs 返回 20 条（第一份结果）"
+            },
+            {
+              "name": "匹配打分有产出",
+              "ok": true,
+              "detail": "score=60"
+            },
+            {
+              "name": "投递包：生成齐全 或 如实说明未生成",
+              "ok": true,
+              "detail": "三件套 ['cover_letter.md', 'job_info.txt', 'resume.pdf']，缺失/空：无"
+            }
+          ],
+          "extra": {
+            "nodes": [
+              null,
+              null,
+              null,
+              null,
+              "路由"
+            ],
+            "answer_head": "本轮消耗已达上限，先给到这里。如果需要更完整的结果，可以把问题拆成几步、或换个更具体的问法再问。",
+            "called": [
+              "search_jobs",
+              "match_resume",
+              "generate_application_package"
+            ]
+          },
+          "elapsed": 93.9,
+          "run": 1
+        }
+      ]
+    }
+  ]
+}

@@ -239,6 +239,27 @@
       "category": "boundary",
       "q": "帮我找广州的量子芯片架构师实习岗位",
       "check": "search_no_result"
+    },
+    {
+      "id": "complex-01",
+      "category": "complex",
+      "q": "帮我找广州的 Agent 岗位，再用我的简历匹配打分",
+      "expect": {"search_min": 1, "need_package": false},
+      "note": "两个需求：搜岗位 + 匹配打分（不出包）"
+    },
+    {
+      "id": "complex-02",
+      "category": "complex",
+      "q": "帮我找广州的 Agent 岗位，用我的简历匹配打分，分数够 70 就生成投递包",
+      "expect": {"search_min": 1, "need_package": true, "threshold": 70},
+      "note": "三个需求 + 条件步骤：分数达到 70 才出包；没达到也必须如实说「跳过」"
+    },
+    {
+      "id": "complex-03",
+      "category": "complex",
+      "q": "我想一次性走完整流程：找广州的算法实习岗位、匹配得分、写出投递包",
+      "expect": {"search_min": 1, "need_package": true},
+      "note": "「一条龙」说法 + 三个需求，验证入口判定与三步协作"
     }
   ]
 }
