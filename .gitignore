@@ -60,3 +60,7 @@ backups/
 # 评测（evaluation/）的一次性产物：隔离的简历库 / 投递包 / 导出 PDF
 # 结果报告 evaluation/results/ 要进版本库（基线要留档），所以只忽略 _artifacts/
 evaluation/_artifacts/
+
+evaluation/results/
+agent/tests/_tmp_*/
+.files/
