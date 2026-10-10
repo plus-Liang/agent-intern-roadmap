@@ -28,11 +28,13 @@ LangGraph 版 Agent 入口（阶段 1：固定基础流程 + 反思节点）。
 from __future__ import annotations
 
 import os
+import re
 import uuid
 
 from agent import react_agent
+from agent import tools_registry
 from agent import complex_task_flow as ma
-from agent.langgraph_flow import MATCH_GRAPH, SEARCH_GRAPH
+from agent.langgraph_flow import FOLLOWUP_GRAPH, MATCH_GRAPH, SEARCH_GRAPH
 from shared import limits
 from shared.logger import log_event
 
@@ -52,6 +54,79 @@ _MATCH_BLOCK_WORDS = ("投递包", "生成", "简历定制", "删除", "删掉",
 #: 「看日志」意图的词表（问题 3）：用户说的日志是**系统运行日志**，
 #: 不是投递记录 —— 以前模型以为「日志」=投递记录，跑去 list_tracking。
 _LOG_WORDS = ("日志", "log", "logs", "log 文件")
+
+#: 追问的**指代**词（Bug 1）：用户指着上文那条岗位说事，而不是要一份新列表。
+#: 两类：① 序号指代「第 N 个 / 第一条」；② 指示代词「这个 / 它 / 该岗位 / 上面那个」。
+_FOLLOWUP_REF_WORDS = (
+    "这个", "这条", "这份", "这款", "这家", "此岗位", "该岗位", "该职位",
+    "该条", "它", "上面那", "刚才那", "刚才说", "前面那", "这一条", "这一个",
+)
+_FOLLOWUP_REF_RE = re.compile(
+    r"第\s*([0-9]{1,2}|[一二三四五六七八九十两])\s*(?:个|条|份|家|款)")
+#: 追问的**问点**词：问这条岗位「要什么 / 干什么 / 怎么样」。
+_FOLLOWUP_ASK_WORDS = (
+    "要求", "技术要求", "技能", "技术栈", "需要", "职责", "做什么", "干什么",
+    "负责", "会什么", "内容", "详情", "介绍", "怎么样", "是什么", "怎么投",
+    "多少", "薪资", "待遇", "学历", "门槛", "加分", "出勤", "时长",
+)
+#: 命中这些**动作**词说明用户在要一份新列表（不是追问）。
+_SEARCH_ACTION_WORDS = ("找", "搜", "查", "看看", "有没有", "推荐", "列出",
+                        "列一下", "还有", "另外", "换个", "再来")
+#: app 侧追加的「系统提示」块（`agent/app.py` 的 `_ordinal_job_hint` / `_pasted_entry_hint`）。
+#: ⚠️ 判意图前**必须剥掉**：这些提示里写着「不要重新搜索」「不要再调 search_jobs 重搜」，
+#: 其中的「搜」字会被动作词表命中，把每一句追问都判成新搜索（真实链路必踩）。
+_HINT_BLOCK_RE = re.compile(r"\[系统提示[^\]]*\][^\[]*")
+
+
+def _user_text(question: str) -> str:
+    """用户原话（剥掉 app 追加的系统提示块）。判意图只看这一部分。"""
+    return _HINT_BLOCK_RE.sub(" ", question or "")
+
+
+def is_followup_intent(question: str) -> bool:
+    """用户是不是在**追问某一条已有岗位**（而不是要一份新列表）。
+
+    Bug 1 的入口判据。以前「第 1 个岗位要求什么技术？」同时命中了
+    `is_search_intent`（有「岗位」名词 + 短句兜底），于是又搜一遍列表；
+    追问分支必须**在搜索之前**判，且要卡两道：
+
+      1. 必须先有上文：会话态 `last_job_list` 非空（没搜过就没什么可追问的，
+         此时让搜索/ReAct 按老路走）；
+      2. 必须同时有**指代**（「第 1 个」/「这个」…）**或**明确的**问点**词
+         （「要求什么技术」），只有指代词而没有问点的短语（如「这个」）不算 ——
+         那是待补充的输入，交回 ReAct 更合适。
+
+    「找 / 搜 / 推荐 / 还有」这类要列表的动作词一出，直接判成新搜索，避免把
+    「再找广州的岗位」这种话误当追问。
+    """
+    text = (question or "").strip()
+    if not text or text.startswith("/"):
+        return False
+    user_text = _user_text(text)                          # 只判用户原话，不判系统提示
+    if any(word in user_text for word in _SEARCH_ACTION_WORDS):
+        return False
+    if any(word in user_text for word in _MATCH_WORDS):   # 匹配打分走匹配图
+        return False
+    if any(word in user_text for word in _BLOCK_WORDS):   # 投递包 / 面试等走原路
+        return False
+    try:
+        if not (tools_registry._session_state().get("last_job_list") or []):
+            return False
+    except Exception:                                     # noqa: BLE001
+        return False
+    has_ref = bool(_FOLLOWUP_REF_RE.search(user_text)) or any(
+        word in user_text for word in _FOLLOWUP_REF_WORDS)
+    has_ask = any(word in user_text for word in _FOLLOWUP_ASK_WORDS)
+    if has_ref:
+        return True
+    # 没有指代词但有明确问点、且提到了岗位类名词：也算追问（如「这些岗位要求什么技术」）
+    return has_ask and any(noun in user_text for noun in _JOB_NOUNS)
+
+
+def _resolve_search_verb_followup(question: str) -> bool:
+    """`is_search_intent` 里的例外：带指代的追问优先于「长度兜底」的搜索判据。"""
+    return is_followup_intent(question)
+
 
 
 def is_log_intent(question: str) -> bool:
@@ -121,6 +196,10 @@ def _route(question: str) -> str:
         return "complex"
     if is_match_intent(question):
         return "match"                                   # 先判匹配：它比搜岗位更具体
+    # 追问必须**先于**搜岗位判（Bug 1）：有指代时「第 1 个岗位要求什么技术？」
+    # 会被 is_search_intent 的短句兜底抢走，于是又返回一遍列表、不回答技术问题。
+    if is_followup_intent(question):
+        return "followup"
     if is_search_intent(question):
         return "search"
     return "react"
@@ -212,6 +291,15 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
              "_graph_name": "search"},
             question, verbose, return_messages,
         )
+    if kind == "followup":
+        # Bug 1：追问「第 1 个岗位要求什么技术？」→ 不重新搜索，
+        # 从会话态 last_job_list 按序号取 job_id → 读该岗位 JD → LLM 生成回答（带引用）。
+        return _run_graph(
+            FOLLOWUP_GRAPH,
+            {"question": question, "history": history, "verbose": verbose,
+             "_graph_name": "followup"},
+            question, verbose, return_messages,
+        )
     return _run_graph(
         MATCH_GRAPH,
         {"question": question, "history": history,
@@ -227,4 +315,5 @@ def engine_name(question: str) -> str:
         return "react"
     kind = _route(question)
     return {"search": "langgraph:search", "match": "langgraph:match",
-            "log": "langgraph:log", "complex": "multi_agent:complex"}.get(kind, "react")
+            "log": "langgraph:log", "followup": "langgraph:followup",
+            "complex": "multi_agent:complex"}.get(kind, "react")

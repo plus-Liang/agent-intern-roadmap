@@ -52,6 +52,8 @@ rag/data/jobs.db
 agent/data/profiles/
 agent/data/resumes/local/
 agent/data/packages/
+# Bug 2 的修法：搜索结果 / 参数提取的跨对话一致性缓存（运行期文件，不同机器各不相同）
+agent/data/search_cache.db
 *.bak
 *.bak2
 

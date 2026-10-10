@@ -3,9 +3,12 @@
 """
 import asyncio
 import contextvars
+import hashlib
 import json
 import os
 import re
+import sqlite3
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
@@ -175,6 +178,242 @@ def last_citation_pack():
     return _session_state().get("last_citation_pack")
 
 
+# ---------------------------------------------------------------------------
+# 搜索结果稳定化（Bug 2：两次搜同一个 query，列表完全不同）
+# ---------------------------------------------------------------------------
+# 根因不在 SQL（库里已经是 `ORDER BY publish_date DESC, job_id ASC`），而在**语义重排路**：
+# `_retrieve` 默认会先做一次「查询理解」（LLM 重写 + 拆子查询，见 rag/query_understanding.py），
+# 重写文本与子查询**每次调用都不一样**，RRF 融合的输入随之改变 —— 实测同一个 query
+# 连跑三次，前 6 条岗位三份都不一样（进程内缓存只在同一进程内有效，跨对话 / 跨进程无效）。
+#
+# 两道修法，缺一不可：
+#   1) **确定性排序键**：语义重排结果除了 `-score` 还必须有客观二级键 `job_id`，
+#      否则同分岗位的顺序取决于 RRF 的迭代顺序，等于随机（见 `_stable_rank`）；
+#   2) **跨进程结果缓存**：同一个归一化 query + 同一份岗位库 → 直接复用上一次的
+#      列表（落磁盘 SQLite，对话边界与进程边界都挡不住）。岗位库更新时签名变化自动失效。
+#
+# 清缓存：`python -c "from agent import tools_registry as r; print(r.clear_search_cache())"`
+# 或直接删 `agent/data/search_cache.db`；设 `SEARCH_CACHE_TTL=0` 整体关掉缓存。
+
+SEARCH_CACHE_TTL = float(os.getenv("SEARCH_CACHE_TTL", "86400") or 86400)   # 24 小时
+SEARCH_CACHE_MAX_ROWS = 100          # 单条缓存最多存多少行（覆盖 limit=50 的调用）
+_CACHE_SIG_TTL = 5.0                 # 岗位库签名（mtime/size）缓存时长，避免每次 stat
+
+SEARCH_CACHE_PATH = Path(os.getenv(
+    "SEARCH_CACHE_DB", str(Path(__file__).resolve().parent / "data" / "search_cache.db")))
+
+_CACHE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS search_rows_cache (
+    key        TEXT PRIMARY KEY,
+    signature  TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    payload    TEXT NOT NULL
+)
+"""
+#: 通用键值缓存表（当前用于「参数提取结果」，见 langgraph_flow 的 _param_cache_*）
+_KV_SCHEMA = """
+CREATE TABLE IF NOT EXISTS kv_cache (
+    key        TEXT PRIMARY KEY,
+    created_at REAL NOT NULL,
+    payload    TEXT NOT NULL
+)
+"""
+_CACHE_READY = False
+_sig_cache: dict = {}
+
+
+def _data_signature() -> str:
+    """岗位库指纹（文件 mtime + size）。
+
+    缓存必须跟数据版本绑定：夜间增量入库后 `jobs.db` 变了，签名就变，旧缓存自然失效
+    —— 否则「缓存稳定」就变成「一直给过期列表」。
+    """
+    now = time.time()
+    cached = _sig_cache.get("at")
+    if cached is not None and now - cached < _CACHE_SIG_TTL:
+        return _sig_cache.get("sig") or "none"
+    parts = []
+    for get_path in (_db_file_path, _json_file_path):
+        try:
+            path = get_path()
+            stat = path.stat()
+            parts.append(f"{path.name}:{int(stat.st_mtime)}:{stat.st_size}")
+        except Exception:                               # noqa: BLE001
+            parts.append("missing")
+    sig = "|".join(parts)
+    _sig_cache["at"] = now
+    _sig_cache["sig"] = sig
+    return sig
+
+
+def _db_file_path() -> Path:
+    from rag.data import db as _db
+    return Path(_db.DB_PATH)
+
+
+def _json_file_path() -> Path:
+    from agent.tools import job_search as _js
+    return Path(_js.REAL_JD_PATH)
+
+
+def _search_cache_key(keyword, city, semantic, job_type) -> str:
+    """缓存键：四个检索参数归一化后的哈希（**不含 limit**，读时再截断）。"""
+    raw = "|".join([
+        str(keyword or "").strip().lower(),
+        str(city or "").strip(),
+        "semantic" if semantic else "exact",
+        normalize_job_type(job_type) or "",
+    ])
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+
+def _cache_connect():
+    """打开缓存库并**确保两张表都在**。
+
+    建表每次连接都做（`CREATE TABLE IF NOT EXISTS` 的代价可以忽略），
+    而不是只在首次连接做：缓存文件路径会在测试 / 排查时被切到临时库，
+    只在首次建表会让新库缺表，缓存静默失效（历史故障：`no such table: kv_cache`）。
+    """
+    global _CACHE_READY
+    try:
+        SEARCH_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:                            # noqa: BLE001 - 建目录失败就走异常分支
+        if not _CACHE_READY:
+            print(f"[search_cache] 不可用（不影响搜索）：{exc}")
+            _CACHE_READY = True
+        raise
+    conn = sqlite3.connect(str(SEARCH_CACHE_PATH))
+    try:
+        conn.execute(_CACHE_SCHEMA)
+        conn.execute(_KV_SCHEMA)
+    except Exception as exc:                            # noqa: BLE001 - 建表失败不阻断调用方
+        if not _CACHE_READY:
+            print(f"[search_cache] 建表失败（不影响搜索）：{exc}")
+        _CACHE_READY = True
+        raise
+    _CACHE_READY = True
+    return conn
+
+
+def _cache_read(key: str, signature: str):
+    """读缓存；过期 / 签名不符 / 任何异常都返回 None（视为未命中）。"""
+    if SEARCH_CACHE_TTL <= 0:
+        return None
+    try:
+        conn = _cache_connect()
+        try:
+            row = conn.execute(
+                "SELECT signature, created_at, payload FROM search_rows_cache WHERE key = ?",
+                (key,)).fetchone()
+        finally:
+            conn.close()
+    except Exception:                                   # noqa: BLE001
+        return None
+    if not row:
+        return None
+    sig, created_at, payload = row
+    if sig != signature or (time.time() - float(created_at)) > SEARCH_CACHE_TTL:
+        return None
+    try:
+        data = json.loads(payload)
+    except (ValueError, TypeError):
+        return None
+    return data if isinstance(data, list) else None
+
+
+def _cache_write(key: str, signature: str, rows: list) -> None:
+    """写缓存（只写非空结果）；失败只打印一行，绝不影响搜索本身。"""
+    if SEARCH_CACHE_TTL <= 0 or not rows:
+        return
+    payload = json.dumps(rows[:SEARCH_CACHE_MAX_ROWS], ensure_ascii=False)
+    try:
+        conn = _cache_connect()
+        try:
+            conn.execute("DELETE FROM search_rows_cache WHERE key = ?", (key,))
+            conn.execute(
+                "INSERT INTO search_rows_cache (key, signature, created_at, payload)"
+                " VALUES (?, ?, ?, ?)", (key, signature, time.time(), payload))
+            conn.execute("DELETE FROM search_rows_cache WHERE created_at < ?",
+                         (time.time() - max(SEARCH_CACHE_TTL, 60.0) * 2,))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:                            # noqa: BLE001
+        print(f"[search_cache] 写入失败（不影响搜索）：{exc}")
+
+
+def clear_search_cache() -> int:
+    """清空搜索结果缓存，返回删除行数（排查 / 数据更新后用）。"""
+    try:
+        conn = _cache_connect()
+        try:
+            cur = conn.execute("DELETE FROM search_rows_cache")
+            conn.commit()
+            return int(cur.rowcount or 0)
+        finally:
+            conn.close()
+    except Exception as exc:                            # noqa: BLE001
+        print(f"[search_cache] 清理失败：{exc}")
+        return 0
+
+
+def kv_cache_get(key: str, ttl: float = None) -> dict:
+    """通用键值缓存读（过期 / 任何异常 → 空 dict，调用方按未命中处理）。"""
+    ttl = SEARCH_CACHE_TTL if ttl is None else ttl
+    if ttl <= 0 or not key:
+        return {}
+    try:
+        conn = _cache_connect()
+        try:
+            row = conn.execute(
+                "SELECT created_at, payload FROM kv_cache WHERE key = ?", (key,)).fetchone()
+        finally:
+            conn.close()
+    except Exception:                                   # noqa: BLE001
+        return {}
+    if not row:
+        return {}
+    created_at, payload = row
+    if (time.time() - float(created_at)) > ttl:
+        return {}
+    try:
+        data = json.loads(payload)
+    except (ValueError, TypeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def kv_cache_set(key: str, value: dict, ttl: float = None) -> None:
+    """通用键值缓存写；失败只打印一行（缓存是增强，不能影响主流程）。"""
+    ttl = SEARCH_CACHE_TTL if ttl is None else ttl
+    if ttl <= 0 or not key or not value:
+        return
+    try:
+        conn = _cache_connect()
+        try:
+            conn.execute("DELETE FROM kv_cache WHERE key = ?", (key,))
+            conn.execute("INSERT INTO kv_cache (key, created_at, payload) VALUES (?, ?, ?)",
+                         (key, time.time(), json.dumps(value, ensure_ascii=False)))
+            conn.execute("DELETE FROM kv_cache WHERE created_at < ?",
+                         (time.time() - max(ttl, 60.0) * 2,))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:                            # noqa: BLE001
+        print(f"[kv_cache] 写入失败（不影响主流程）：{exc}")
+
+
+def _stable_rank(rows: list) -> list:
+    """确定性排序：`-score` 降序（无分当 0，即排最后）+ `job_id` 升序。
+
+    为什么必须有二级键：语义重排的 `score` 是 RRF 融合分，**同分很常见**
+    （不同 chunk 拿到相同的 1/(60+rank)），只按分数排的话顺序由 dict 迭代顺序决定
+    —— 那就等于随机。`job_id` 跨平台唯一、不随抓取顺序变化，作二级键最稳。
+    """
+    return sorted(rows or [],
+                  key=lambda r: (-float(r.get("score") or 0.0), str(r.get("job_id") or "")))
+
+
 def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
     """工具 search_jobs 的候选检索（编号在 _search 里统一做）。
 
@@ -196,8 +435,21 @@ def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
     为什么要卡 80 条：语义重排要跑一次 embedding + BM25，候选太多时
       ① 成本高、② 收益低（"北京 Python"这种精确查询本身没有模糊空间）。
       所以大结果集直接返回 SQL 排序，保持可预期。
+
+    Round 14（Bug 2）：结果**跨对话必须一致**。语义路要经过 LLM 查询理解，
+    重写 / 子查询每次都不一样 → 同一个 query 的列表会漂。这里加一层
+    「检索参数 + 岗位库指纹」的磁盘缓存，并给排序补上 `job_id` 二级键
+    （见 `_stable_rank`）。
     """
     wanted_type = normalize_job_type(job_type)
+    key = _search_cache_key(keyword, city, semantic, wanted_type)
+    signature = _data_signature()
+    cached = _cache_read(key, signature)
+    if cached is not None:
+        # 命中即返回**上一次那份列表**：跨对话 / 跨进程都一致（Bug 2 的修法本体）
+        print(f"[search_cache] 命中 {key[:8]}（{len(cached)} 条，参数相同 → 复用上次结果）")
+        return [dict(r) for r in cached[:max(1, int(limit or 20))]]
+
     if semantic:
         rows = _semantic_rows(keyword, city, limit, job_type=wanted_type)
     else:
@@ -208,16 +460,19 @@ def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
         rows = _prefer_title_hits(rows, keyword)
 
     if not semantic or not rows or len(rows) > SEMANTIC_MAX_CANDIDATES:
+        _cache_write(key, signature, rows)
         return rows
 
     allowed = [r["job_id"] for r in rows if r.get("job_id")]
     if not allowed:
+        _cache_write(key, signature, rows)
         return rows
     # 语义查询用「原句」去检索（要的就是整句的语义），候选池由 probe 提供
     try:
         hits = _retrieve(keyword, top_k=len(rows), allowed_job_ids=allowed)
     except Exception as exc:                    # noqa: BLE001 —— 检索坏了就退回 SQL 结果
         print(f"[search_jobs] 语义重排不可用，退回 SQL 排序：{type(exc).__name__}: {exc}")
+        _cache_write(key, signature, rows)
         return rows
 
     by_id = {r["job_id"]: r for r in rows}
@@ -239,6 +494,8 @@ def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
         reranked.append(row)
     # 语义路没覆盖到的候选挂在后面（不能因为重排把岗位弄丢）
     reranked.extend(r for r in rows if r.get("job_id") not in seen_ids)
+    # Bug 2 的排序收口：二级键固定成 job_id，同分不再取决于 RRF 的迭代顺序
+    reranked = _stable_rank(reranked)
     # 【引用溯源】只在语义分支触发（本函数的 semantic 分支走到这里才算数）。
     # 故意放在**拼完最终列表之后**：答案的依据要与用户看到的列表口径一致，
     # 不能只对去重后的前几条生成答案、却把其余候选也挂上引用。
@@ -262,6 +519,10 @@ def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
             reranked.citation_pack = pack
         except AttributeError:                      # 极端情况下不是普通 list
             pass
+    # 缓存存的是**去掉引用批注**的干净行：引用是「本轮答案的批注」，
+    # 下一轮要按新问题重新生成，缓存整包会让下一次追问复述上一轮的引用编号。
+    _cache_write(key, signature, [
+        {k: v for k, v in r.items() if k != "citation"} for r in reranked])
     return reranked
 
 

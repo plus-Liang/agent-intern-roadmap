@@ -31,6 +31,7 @@ State / 节点函数 / 边 / 编译好的图；对外入口在 `agent/react_agen
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -365,58 +366,110 @@ _EXTRACT_PROMPT = """你是「岗位搜索」工作流的**参数提取节点**�
 用户问题：{question}"""
 
 
+def _param_cache_enabled() -> bool:
+    """参数缓存开关（`LG_PARAM_CACHE=0` 关掉；离线单测可据此绕开缓存）。"""
+    return str(os.getenv("LG_PARAM_CACHE", "1")).strip().lower() not in (
+        "0", "false", "no", "off", "disable", "disabled")
+
+
+def _param_cache_key(question: str) -> str:
+    """按**用户原句 + 提取 prompt 版本**做键。
+
+    为什么键是原句而不是关键词：Bug 2 的另一半根因就在这一步 —— 同一个问题喂给
+    `glm` 思考模型，抽出来的 keyword 会漂（实测同一个问题三次里有一次把
+    「偏大模型落地、能写工程代码的实习」整句留下、另两次只留「偏大模型落地…」），
+    关键词一变，SQL 候选池就变，后面排序再稳也没用。把结论按原句钉住，
+    同一句话在**任何对话、任何进程**里都得到同一组检索参数。
+    prompt 版本与**模型名**都进哈希：改 prompt / 换模型都不会读到旧结论。
+    """
+    try:
+        from shared.llm_client import ZHIPU_CHAT_MODEL as _model
+    except Exception:                                    # noqa: BLE001
+        _model = ""
+    raw = hashlib.md5((_EXTRACT_PROMPT + str(_model)).encode("utf-8")).hexdigest()[:8]
+    return "extract:" + raw + ":" + hashlib.md5(
+        (question or "").strip().encode("utf-8")).hexdigest()
+
+
+def _param_cache_get(question: str) -> dict:
+    if not _param_cache_enabled() or not (question or "").strip():
+        return {}
+    try:
+        return reg.kv_cache_get(_param_cache_key(question)) or {}
+    except Exception:                                    # noqa: BLE001 - 缓存不可用就现算
+        return {}
+
+
+def _param_cache_set(question: str, params: dict) -> None:
+    if not _param_cache_enabled() or not (question or "").strip():
+        return
+    try:
+        reg.kv_cache_set(_param_cache_key(question), dict(params))
+    except Exception as exc:                             # noqa: BLE001 - 缓存写失败不是错误
+        print(f"[lg_extract_params] 参数缓存写入失败（忽略）：{type(exc).__name__}: {exc}")
+
+
 def extract_params(state: SearchState) -> dict:
-    """[提取参数] LLM 抽取 + 确定性规则兜底 + 合法性校验。"""
+    """[提取参数] 按问题查缓存 → LLM 抽取 + 确定性规则兜底 + 合法性校验。"""
     question = state.get("question") or ""
     fallback = _extract_params_rules(question)
     source = "rules"
     params = dict(fallback)
-    try:
-        data = _llm_json(
-            [{"role": "user", "content": _EXTRACT_PROMPT.format(question=question)}],
-            source="lg_extract_params",
-            verbose=bool(state.get("verbose")),
-        )
-        keyword = str(data.get("keyword") or "").strip()
-        city = str(data.get("city") or "").strip()
+    cached_params = _param_cache_get(question)
+    if cached_params.get("keyword") is not None:
+        params = dict(cached_params)
+        source = "cache"
+    else:
         try:
-            limit = int(data.get("limit") or DEFAULT_LIMIT)
-        except (TypeError, ValueError):
-            limit = DEFAULT_LIMIT
-        semantic = bool(data.get("semantic"))
-        if city and city not in CITY_POOL:
-            # 模型给了库外地名（实测「石景山区」）：不能直接清空城市 ——
-            # 用户问题里往往还写着真实城市（「石景山区…给我找广州的 Agent 实习」）。
-            # 先退回规则层扫出来的城市，再退到空串（空串 = 不限城市）。
-            city = fallback["city"]
-        elif not city:
-            city = fallback["city"]                     # 模型漏抽城市时也兜一下规则层
-        # 岗位类型：模型给的先按同一套词表归一，认不出来就用规则层的结果
-        # （规则层直接从原句里认「实习 / 正式 / 兼职」，比模型更不容易漏）
-        job_type = normalize_job_type(data.get("job_type")) or fallback["job_type"]
-        if not keyword and not city:
-            keyword = fallback["keyword"]               # 两者都空 → 退回规则结果
-            semantic = fallback["semantic"]
-        if not semantic and len(str(keyword).split()) > 1:
-            # 模型把多个方向拼成了一个 keyword（实测长句下的 "Agent RAG Milvus"）：
-            # 精确路是 LIKE '%整串%'，岗位库里没有这串字 → 0 命中。改成「首词 + 语义路」：
-            # 既保住一个可精确检索的主词，又让整句进查询理解（重写 + 多子查询），
-            # 其余概念不会被丢掉。单关键词的题完全不受影响（split 后长度为 1）。
-            keyword = str(keyword).split()[0]
-            semantic = True
-        # 关键词里若还残留类型词（模型没听话），摘干净，避免 LIKE 把牛客那批
-        # 标题不带「实习」的实习岗滤掉。
-        # ⚠️ 只在**精确路**摘：语义路的 keyword 是用户整句描述
-        # （「想找偏大模型落地、能写工程代码的实习」），摘词会破坏语义。
-        if not semantic:
-            keyword = strip_query_type_words(keyword).strip()
-        limit = max(1, min(50, limit))
-        params = {"keyword": keyword, "city": city, "limit": limit, "semantic": semantic,
-                  "job_type": job_type}
-        source = "llm"
-    except Exception as e:                              # noqa: BLE001 - 抽取失败不该让对话挂掉
-        if state.get("verbose"):
-            print(f"[lg_extract_params] 退回规则提取：{type(e).__name__}: {e}")
+            data = _llm_json(
+                [{"role": "user", "content": _EXTRACT_PROMPT.format(question=question)}],
+                source="lg_extract_params",
+                verbose=bool(state.get("verbose")),
+            )
+            keyword = str(data.get("keyword") or "").strip()
+            city = str(data.get("city") or "").strip()
+            try:
+                limit = int(data.get("limit") or DEFAULT_LIMIT)
+            except (TypeError, ValueError):
+                limit = DEFAULT_LIMIT
+            semantic = bool(data.get("semantic"))
+            if city and city not in CITY_POOL:
+                # 模型给了库外地名（实测「石景山区」）：不能直接清空城市 ——
+                # 用户问题里往往还写着真实城市（「石景山区…给我找广州的 Agent 实习」）。
+                # 先退回规则层扫出来的城市，再退到空串（空串 = 不限城市）。
+                city = fallback["city"]
+            elif not city:
+                city = fallback["city"]                     # 模型漏抽城市时也兜一下规则层
+            # 岗位类型：模型给的先按同一套词表归一，认不出来就用规则层的结果
+            # （规则层直接从原句里认「实习 / 正式 / 兼职」，比模型更不容易漏）
+            job_type = normalize_job_type(data.get("job_type")) or fallback["job_type"]
+            if not keyword and not city:
+                keyword = fallback["keyword"]               # 两者都空 → 退回规则结果
+                semantic = fallback["semantic"]
+            if not semantic and len(str(keyword).split()) > 1:
+                # 模型把多个方向拼成了一个 keyword（实测长句下的 "Agent RAG Milvus"）：
+                # 精确路是 LIKE '%整串%'，岗位库里没有这串字 → 0 命中。改成「首词 + 语义路」：
+                # 既保住一个可精确检索的主词，又让整句进查询理解（重写 + 多子查询），
+                # 其余概念不会被丢掉。单关键词的题完全不受影响（split 后长度为 1）。
+                keyword = str(keyword).split()[0]
+                semantic = True
+            # 关键词里若还残留类型词（模型没听话），摘干净，避免 LIKE 把牛客那批
+            # 标题不带「实习」的实习岗滤掉。
+            # ⚠️ 只在**精确路**摘：语义路的 keyword 是用户整句描述
+            # （「想找偏大模型落地、能写工程代码的实习」），摘词会破坏语义。
+            if not semantic:
+                keyword = strip_query_type_words(keyword).strip()
+            limit = max(1, min(50, limit))
+            params = {"keyword": keyword, "city": city, "limit": limit, "semantic": semantic,
+                      "job_type": job_type}
+            source = "llm"
+        except Exception as e:                              # noqa: BLE001 - 抽取失败不该让对话挂掉
+            if state.get("verbose"):
+                print(f"[lg_extract_params] 退回规则提取：{type(e).__name__}: {e}")
+        # 只在**真的调过 LLM 并成功**时落缓存（退回规则 / 临时代理的兜底结果不落，
+        # 否则一次网络抖动会把「规则兜底」钉死 24 小时）
+        if source == "llm":
+            _param_cache_set(question, params)
 
     return {
         "keyword": params["keyword"],
@@ -1227,3 +1280,237 @@ def build_match_graph(scorer=None):
 
 
 MATCH_GRAPH = build_match_graph()
+
+
+# ==========================================================================
+# 图 3：追问岗位（Bug 1 修复）
+# [接收] → [定位岗位] → [读 JD + 生成回答（带引用）]
+#
+# 故障：用户看完列表后问「第 1 个岗位要求什么技术？」——
+# `is_search_intent` 只看「岗位」这类名词 + 长度兜底就判成「要列表」，于是**又搜一遍**，
+# 用户的问题（第 1 个要什么技术）一个字都没回答。
+#
+# 这条图与搜索图的根本区别：**不重新检索**。岗位从会话态 `last_job_list` 里按序号取
+# （`reg.lookup_job_ordinal`，与「我想投第 3 个」同一条确定性链路），
+# 正文从库里按 job_id 读，回答交给 LLM 生成并挂 [n] 引用（复用 RAG 层引用溯源）。
+# ==========================================================================
+
+class FollowupState(TypedDict, total=False):
+    question: str
+    history: list
+    job_id: str
+    detail: Any
+    location_note: str
+    hits: list
+    answer: str
+    steps: list
+    trace_id: str
+    verbose: bool
+
+
+def receive_followup(state: FollowupState) -> dict:
+    """[接收] 归一化输入 + 记 trace（与搜索图的 receive 同形，只换 graph 名）。"""
+    question = (state.get("question") or "").strip()
+    trace_id = state.get("trace_id") or str(uuid.uuid4())[:8]
+    log_event(trace_id, "lg_node", node="receive", engine="langgraph",
+              graph="followup", question=question[:50])
+    return {
+        "question": question,
+        "trace_id": trace_id,
+        "steps": _step(state, "接收", f"收到追问：{question[:40]}（不重新搜索）"),
+    }
+
+
+#: 命中这些词说明用户在问「这条岗位要什么 / 干什么」——追问的分析对象
+_ANALYSIS_WORDS = (
+    "要求", "技术要求", "技能", "技术栈", "需要", "职责", "做什么", "干什么",
+    "负责", "会什么", "内容", "详情", "介绍", "怎么样", "是什么", "怎么投",
+    "多少", "薪资", "待遇", "学历", "门槛", "加分", "出勤", "实习时长",
+)
+
+
+def _followup_target_from_prompt(text: str, job_id: str = "") -> str:
+    """把「第 N 个」翻成 job_id：显式 job_id > 系统提示里的 index=N > 序号提示。"""
+    if job_id:
+        return str(job_id).strip()
+    match = _JOB_ID_HINT_RE.search(text or "")
+    if match:
+        return match.group(1)
+    ordinal = _ORDINAL_HINT_RE.search(text or "")
+    if ordinal:
+        entry = reg.lookup_job_ordinal(int(ordinal.group(1)))
+        if entry and entry.get("job_id"):
+            return str(entry["job_id"])
+    return ""
+
+
+def _jd_blob_zh(detail) -> str:
+    """JD 全文（给 LLM 当唯一依据）：公司 / 岗位 / 城市 / 薪资 / 学历 / 职责 / 要求。"""
+    if detail is None:
+        return ""
+    parts = [
+        f"公司：{getattr(detail, 'company', '') or '（未知）'}",
+        f"岗位：{getattr(detail, 'title', '') or '（未知）'}",
+        f"城市：{getattr(detail, 'city', '') or '（未知）'}",
+        f"薪资：{getattr(detail, 'salary', '') or '（未写）'}",
+        f"学历：{getattr(detail, 'education', '') or '（未写）'}",
+        f"链接：{getattr(detail, 'url', '') or '（无）'}",
+    ]
+    desc = str(getattr(detail, "description", "") or "").strip()
+    req = str(getattr(detail, "requirements", "") or "").strip()
+    bonus = str(getattr(detail, "bonus", "") or "").strip()
+    if desc:
+        parts.append(f"岗位职责：\n{desc}")
+    if req:
+        parts.append(f"任职要求：\n{req}")
+    if bonus:
+        parts.append(f"加分项：\n{bonus}")
+    return "\n".join(parts)
+
+
+#: 结构性句子（小标题 / 客套收尾）——它们**不是事实断言**，不该进「⚠️无依据」名单。
+#: `split_sentences` 按换行切句，所以这些句子能逐字对上；归一化只去空白与标点，
+#: 长度 <= 14 的门槛保证「技术要求」这类小标题命中、而正文长句不会被误排。
+_STRUCTURAL_LINES = (
+    "技术要求", "技术要求如下", "岗位职责", "任职要求", "加分项", "岗位要求",
+    "职责要求", "技能要求", "学历要求", "薪资待遇", "依据来自这条jd",
+    "依据来自这条岗位jd", "依据来自该岗位jd", "以上依据来自这条岗位的jd",
+    "以上依据来自岗位jd", "以上依据均来自该岗位的jd", "以下依据来自该岗位的jd",
+    "以上信息来自该岗位的jd", "依据这条岗位的jd", "依据来自上面这条岗位的jd",
+)
+_JUNK_RE = re.compile(r"[\s，。、：:；;！!？?（）()\[\]【】]+")
+
+
+def _followup_is_junk(text: str) -> bool:
+    """小标题 / 客套收尾句（`⚠️无依据` 名单只该放真正的事实断言）。"""
+    squeezed = _JUNK_RE.sub("", str(text or "")).replace("JD", "jd").lower()
+    return len(squeezed) <= 14 and squeezed in _STRUCTURAL_LINES
+
+
+_ANSWERING_PROMPT = """你是「岗位解读助手」。用户刚看完一份岗位列表，现在针对**其中一条**追问。
+
+只依据下面这份 JD 原文回答，**不要引入 JD 里没有的信息**（不要编造技术栈、薪资、学历）。
+JD 里没写到的，直接说「JD 里没有写」。
+
+写法：
+1. 第一行先点明你回答的是哪个岗位（公司 · 岗位名），**只写这一行、不加句号**；
+2. 再分点列出用户问的内容（技术要求 / 职责 / 薪资 / 学历等），每点都是 JD 里的原话或紧贴原话的概括；
+3. **不要**写「依据来自这条 JD」这类收尾说明（系统会自动附来源表）。
+4. 直接输出回答正文，不要输出 JSON、不要写「根据你提供的资料」这类客套话。
+
+用户的问题：{question}
+
+JD 原文：
+{jd}"""
+
+
+def answer_followup(state: FollowupState) -> dict:
+    """[读 JD + 生成回答] 按 job_id 读正文 → LLM 生成答案 → 挂 [n] 引用。
+
+    引用走 RAG 层现成的链路（`rag.citation`）：
+      `retrieve(追问原句, allowed_job_ids=[job_id])` 只在这条岗位的 chunk 里召回，
+      再用 `build_citation_pack` 做句级引用标注 + faithfulness 核验。
+    检索/引用任何一步失败都只降级成「无引用的回答」，不能把追问带崩。
+    """
+    detail = state.get("detail")
+    job_id = str(state.get("job_id") or getattr(detail, "job_id", "") or "")
+    question = state.get("question") or ""
+    label = f"{getattr(detail, 'company', '')} · {getattr(detail, 'title', '')}"
+
+    jd = _jd_blob_zh(detail)
+    if not jd:
+        return {
+            "answer": "我没能读到这条岗位的 JD 正文，换个说法再试一次（或把 JD 文本粘贴给我）。",
+            "steps": _step(state, "生成回答", "JD 正文为空，如实告知用户",
+                           observation="无 JD 正文"),
+        }
+
+    hits = []
+    try:
+        hits = reg._retrieve(question, top_k=5, allowed_job_ids=[job_id]) or []
+    except Exception as e:                              # noqa: BLE001 - 引用是增强
+        if state.get("verbose"):
+            print(f"[lg_followup] 取引用片段失败（不影响回答）：{type(e).__name__}: {e}")
+        hits = []
+
+    try:
+        answer = str(chat(
+            [{"role": "user", "content": _ANSWERING_PROMPT.format(question=question, jd=jd)}],
+            source="lg_followup_answer",
+            max_tokens=limits.react_long_max_tokens(),
+            reasoning_effort=limits.react_reasoning_effort(),
+        ) or "").strip()
+    except Exception as e:                              # noqa: BLE001 - 生成失败如实说
+        log_event(state.get("trace_id") or "-", "lg_node", node="followup_answer",
+                  engine="langgraph", graph="followup", error=f"{type(e).__name__}: {e}"[:200])
+        return {
+            "answer": f"读到了岗位「{label}」，但生成回答失败（{type(e).__name__}）。请再试一次。",
+            "steps": _step(state, "生成回答", f"LLM 生成失败：{type(e).__name__}",
+                           observation=f"失败：{e}"),
+        }
+    if not answer:
+        answer = "\n".join(l for l in (jd.splitlines()) if l.strip())
+
+    cited = False
+    if hits:
+        try:
+            from rag.citation import (build_citation_pack, coverage_ok, enabled,
+                                      render_citation_block)
+
+            if enabled() and coverage_ok():
+                pack = build_citation_pack(answer, hits)
+                answer = str(pack.get("answer_with_citations") or answer).strip()
+                # faithfulness 的「无依据句子」提示与搜索路同一口径（纯文本通道用 ⚠️ 代替标红）,
+                # 但**小标题 / 客套收尾**不是事实断言（如第一行「公司 · 岗位名」、
+                # 「技术要求：」），把它们列进「无依据」是误报 —— 这里先滤掉。
+                report = dict(pack.get("faithfulness") or {})
+                report["unsupported"] = [
+                    r for r in (report.get("unsupported") or [])
+                    if not _followup_is_junk(r.get("text"))
+                ]
+                tail = render_citation_block({"answer_with_citations": "",
+                                              "faithfulness": report,
+                                              "sources": pack.get("sources") or {},
+                                              "sentences": pack.get("sentences") or []})
+                if tail.strip():
+                    answer = f"{answer}\n\n{tail.strip()}"
+                cited = True
+        except Exception as e:                          # noqa: BLE001 - 引用坏了不阻断
+            if state.get("verbose"):
+                print(f"[lg_followup] 引用溯源不可用（不影响回答）：{type(e).__name__}: {e}")
+
+    note = state.get("location_note") or "会话里最近一次搜索的岗位"
+    log_event(state.get("trace_id") or "-", "lg_node", node="followup_answer",
+              engine="langgraph", graph="followup", job_id=job_id,
+              hits=len(hits), cited=cited)
+    return {
+        "hits": hits,
+        "answer": answer,
+        "steps": _step(
+            state, "生成回答",
+            f"按 {job_id} 读 JD 原文（{len(jd)} 字）→ LLM 生成回答"
+            f"（{'带引用' if cited else '无引用'}，检索片段 {len(hits)} 条）",
+            payload={"job_id": job_id, "citations": cited},
+            observation=f"{label}",
+        ),
+    }
+
+
+def build_followup_graph():
+    """编译追问图：3 个节点，全程无色 —— 追问只有一条正确路径。
+
+    节点顺序要紧：`locate_job` 里那句「job_id 优先、其次序号、其次会话态岗位」
+    与「我想投第 N 个」用的是同一份实现，两条路径不可能给出不同的岗位。
+    """
+    graph = StateGraph(FollowupState)
+    graph.add_node("receive", receive_followup)
+    graph.add_node("locate", locate_job)
+    graph.add_node("answer", answer_followup)
+    graph.set_entry_point("receive")
+    graph.add_edge("receive", "locate")
+    graph.add_edge("locate", "answer")
+    graph.add_edge("answer", END)
+    return graph.compile()
+
+
+FOLLOWUP_GRAPH = build_followup_graph()

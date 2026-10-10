@@ -42,6 +42,13 @@ os.environ["RESUME_ROOT"] = str(_TMP_DIR / "resumes")
 os.environ.setdefault("ZHIPU_API_KEY", "test-key")
 os.environ["RATE_LIMIT_ENABLED"] = "true"
 os.environ["CHAT_AUTH_ENABLED"] = "false"
+# 参数 / 搜索结果缓存是**跨进程持久**的（Bug 2 的修法）：离线单测里同一个问题会用
+# 不同假 LLM 反复跑，缓存会把上一档结论串到下一档 —— 这里把**参数缓存**显式关掉
+# （`LG_PARAM_CACHE` 每次调用现读，所以用例内可以临时打开来专门验证缓存行为）。
+os.environ["LG_PARAM_CACHE"] = "0"
+# 结果缓存的路径/新写入由各用例自己定向到临时库；TTL 保持正值，
+# 否则「关掉」的同时也把缓存机制本身关死了，就没法验证它。
+os.environ["SEARCH_CACHE_TTL"] = "3600"
 # 反思的虚高警戒线显式钉住（与默认值一致），避免宿主机 .env 干扰
 os.environ["LG_REFLECT_INFLATION_SCORE"] = "85"
 
@@ -1004,6 +1011,226 @@ check("甲：只有关键项缺失才算虚高", _det_only_hard_terms)
 check("甲：分数严格高于警戒线才判虚高（回到线上即收敛）", _det_line_is_strict)
 check("乙：调整量 < 5 直接接受当前分", _reflect_small_delta_converges)
 check("乙：路由层收敛闸门", _route_after_reflect_converged)
+# ---------------------------------------------------------------------------
+section("7. Bug 1：追问「第 N 个 / 这个岗位」不重新搜索 + Bug 2：结果跨对话一致")
+
+
+def _followup_intent_route():
+    """有会话态岗位时，指代 + 问点 → 走追问；要列表 / 匹配 / 投递仍走原路。"""
+    cases = [("第 1 个岗位要求什么技术？", "langgraph:followup"),
+             ("这个岗位要求什么技术", "langgraph:followup"),
+             ("该岗位需要什么技能", "langgraph:followup"),
+             ("它负责做什么", "langgraph:followup"),
+             ("第2个岗位的JD是什么", "langgraph:followup"),
+             # 要新列表 / 别的流程：不能被追问劫走
+             ("帮我找广州的岗位", "langgraph:search"),
+             ("再找几个深圳的岗位", "langgraph:search"),
+             ("帮我匹配简历", "langgraph:match")]
+    with user_scope("followup-route"):
+        LF.reg._number_jobs(_focus_rows(3))
+        for question, want in cases:
+            got = LG.engine_name(question)
+            if got != want:
+                raise AssertionError(f"{question!r} → {got}，应为 {want}")
+    return f"{len(cases)} 句分流正确（追问不落搜索）"
+
+
+def _followup_with_real_app_hint():
+    """真实链路：追问走的是「用户原话 + app 追加的系统提示」，提示里那句
+    「不要再调 search_jobs 重搜」含「搜」字 —— 判意图时必须先剥掉提示块。"""
+    with user_scope("followup-hint"):
+        LF.reg._number_jobs(_focus_rows(3))
+        hint = ("\n\n[系统提示 · 岗位序号] 用户说的「第 1 个」= 上一次 search_jobs "
+                "结果里 index=1 的那条岗位：job_id=focus_01，公司=公司1，岗位=岗位 1。"
+                "请**直接用它**，不要重新搜索，也不要换成别的岗位。")
+        got = LG.engine_name("第 1 个岗位要求什么技术？" + hint)
+        if got != "langgraph:followup":
+            raise AssertionError(f"带系统提示的追问被误判成 {got}")
+        # 要新列表时仍必须是搜索（提示块不能把搜索判成追问）
+        got2 = LG.engine_name("帮我找广州的岗位" + hint)
+        if got2 != "langgraph:search":
+            raise AssertionError(f"带系统提示的新搜索被误判成 {got2}")
+    return "提示块被剥掉：追问→followup，新搜索→search"
+
+
+def _followup_intent_needs_context():
+    """没有上文（没搜过岗位）时不判追问 —— 此时没什么可指的。"""
+    with user_scope("followup-no-context"):
+        LF.reg._session_state()["last_job_list"] = []
+        if LG.is_followup_intent("第 1 个岗位要求什么技术？"):
+            raise AssertionError("没有 last_job_list 也判成了追问")
+        if LG.engine_name("第 1 个岗位要求什么技术？") == "langgraph:followup":
+            raise AssertionError("无上文时不该进追问图")
+    return "无 last_job_list → 不判追问"
+
+
+def _followup_edge_no_search_no_llm_error():
+    """端到端：追问**不调检索**，回答里出现该岗位 JD 的技术项 + [1] 引用。"""
+    detail = FakeDetail()                         # job_id=job_rag_1，JD 要求 RAG/LangGraph
+    hit = {
+        "id": "niuke:job_rag_1:0",
+        "text": (f"{detail.company} {detail.title} 任职要求：熟悉 RAG 检索增强生成、"
+                 "熟悉 LangGraph 编排、熟悉 Python。"),
+        "metadata": {"job_id": detail.job_id, "company": detail.company,
+                     "title": detail.title, "city": detail.city, "platform": "niuke"},
+        "score": 0.9,
+    }
+    searched = {"called": False, "query": ""}
+    prompts = {"text": ""}
+
+    def _fake_chat(messages, **kwargs):
+        prompts["text"] = messages[0]["content"]
+        return (f"{detail.company} · {detail.title}\n"
+                "该岗位要求熟悉 RAG 检索增强生成与 LangGraph 编排，熟悉 Python。")
+
+    def _boom_search(*a, **k):
+        searched["called"] = True
+        raise AssertionError("追问不该重新搜索岗位")
+
+    with user_scope("followup-e2e"):
+        LF.reg._number_jobs(_focus_rows(3))
+        with _patched((LF.reg, "_resolve_match_detail", lambda job_id: detail),
+                      (LF.reg, "_retrieve", lambda *a, **k: [hit]),
+                      (LF.reg, "_search", _boom_search),
+                      (LF, "chat", _fake_chat)):
+            state = LF.FOLLOWUP_GRAPH.invoke({
+                "question": "第 1 个岗位要求什么技术？", "verbose": False, "steps": []})
+    answer = state.get("answer") or ""
+    if searched["called"]:
+        raise AssertionError("追问触发了检索")
+    if "RAG" not in answer or "LangGraph" not in answer:
+        raise AssertionError(f"回答没落到该岗位 JD 上：{answer[:160]}")
+    if "[1]" not in answer:
+        raise AssertionError(f"回答没有带 [1] 引用：{answer[:160]}")
+    if "任职要求" not in prompts["text"] or detail.company not in prompts["text"]:
+        raise AssertionError("给模型的 prompt 里没有该岗位 JD 原文")
+    return "第 1 个 → job_id=job_rag_1 的 JD，带 [1] 引用，0 次检索"
+
+
+def _followup_graph_shape():
+    g = LF.FOLLOWUP_GRAPH.get_graph()
+    nodes = set(g.nodes) - {"__start__", "__end__"}
+    if nodes != {"receive", "locate", "answer"}:
+        raise AssertionError(f"追问图节点不符：{sorted(nodes)}")
+    return "接收 → 定位岗位 → 生成回答（无检索节点）"
+
+
+def _tuning_temp_dataset(rows):
+    """把岗位库换成临时 JSON（`REAL_JD_PATH` 一变，DB 路与缓存签名都跟着走临时数据）。"""
+    import json
+    from agent.tools import job_search as JS
+
+    path = _TMP_DIR / f"cleaned_followup_{os.getpid()}.json"
+    path.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+    return JS, path
+
+
+def _cross_conversation_rows_stable():
+    """Bug 2：同一 query 在**另一个进程 / 对话**里必须拿到同一份列表。
+
+    这里用「缓存文件跨进程可读」来近似：新会话 = 清空本轮的内存态与集合句柄缓存，
+    再搜一次；结果（顺序 + 条数）必须与上一次逐条一致。
+    """
+    import json
+    from agent.tools import job_search as JS
+    from rag import retriever
+
+    rows = [
+        {"platform": "niuke", "job_id": f"gz{i:03d}", "title": "大模型算法工程师",
+         "company": f"公司{i}", "city": "广州", "salary": "300-500/天", "url": f"u{i}",
+         "description": "大模型 Agent 工程落地，熟悉 Python。" * 6,
+         "publish_date": "2026-10-05"}
+        for i in range(1, 26)
+    ]
+    JS_mod, path = _tuning_temp_dataset(rows)
+    original = JS_mod.REAL_JD_PATH
+    original_cache = LF.reg.SEARCH_CACHE_PATH
+    real_ttl = LF.reg.SEARCH_CACHE_TTL
+    cache_path = _TMP_DIR / f"search_cache_{os.getpid()}.db"
+    try:
+        if cache_path.exists():
+            cache_path.unlink()
+        JS_mod.REAL_JD_PATH = path                     # ≠ 默认路径 → 强制走 JSON 兜底
+        LF.reg.SEARCH_CACHE_PATH = cache_path
+        LF.reg.SEARCH_CACHE_TTL = 3600.0               # 用例内显式打开缓存
+        LF.reg.clear_search_cache()
+        first = LF.reg._search("大模型", "广州", 20, False, "")
+        # 模拟「新开一个对话」：清掉进程内一切上下文，只留磁盘缓存
+        with user_scope("conversation-b"):
+            LF.reg._SESSION_STATE.pop("conversation-b", None)
+            retriever._BM25_CACHE.clear()
+            retriever._META_CACHE.clear()
+            retriever.reset_collection_cache()
+            LF.reg._sig_cache.clear()
+            second = LF.reg._search("大模型", "广州", 20, False, "")
+        ids_a = [r["job_id"] for r in first]
+        ids_b = [r["job_id"] for r in second]
+        if ids_a != ids_b:
+            raise AssertionError(f"跨对话列表不一致：\nA={ids_a[:6]}\nB={ids_b[:6]}")
+        if [r["index"] for r in first] != list(range(1, len(first) + 1)):
+            raise AssertionError("序号不是从 1 起的连续整数")
+        # 缓存表里应正好留下这条 query 的一行（证明走的不是「两次都现算」）
+        import sqlite3 as _sq
+        con = _sq.connect(str(cache_path))
+        n = con.execute("SELECT COUNT(*) FROM search_rows_cache").fetchone()[0]
+        con.close()
+        if n < 1:
+            raise AssertionError("没有写入搜索结果缓存")
+    finally:
+        JS_mod.REAL_JD_PATH = original
+        LF.reg.SEARCH_CACHE_PATH = original_cache
+        LF.reg.SEARCH_CACHE_TTL = real_ttl
+        if path.exists():
+            path.unlink()
+        try:
+            if cache_path.exists():
+                cache_path.unlink()
+        except OSError:                                 # Windows 上句柄可能还没释放
+            pass
+    return f"{len(ids_a)} 条列表 + 序号在「新对话」里逐条一致（缓存行 {n}）"
+
+
+def _param_cache_pins_extraction():
+    """Bug 2 的另一半根因：LLM 抽关键词会漂 → 同一个问题必须复用第一次的参数。"""
+    seen = []
+
+    def _flaky_llm(messages, source, verbose=False, **kwargs):
+        # 第一次抽「Agent」，第二次抽「Agent RAG Milvus」（真模型的漂移行为）
+        seen.append(1)
+        return {"keyword": "Agent" if len(seen) == 1 else "Agent RAG Milvus",
+                "city": "广州", "limit": 20, "semantic": False}
+
+    cache_path = _TMP_DIR / f"kv_cache_{os.getpid()}.db"
+    old_path, old_ttl = LF.reg.SEARCH_CACHE_PATH, LF.reg.SEARCH_CACHE_TTL
+    old_flag = os.environ.get("LG_PARAM_CACHE")
+    try:
+        if cache_path.exists():
+            cache_path.unlink()
+        LF.reg.SEARCH_CACHE_PATH = cache_path
+        LF.reg.SEARCH_CACHE_TTL = 3600.0
+        os.environ["LG_PARAM_CACHE"] = "1"
+        with _patched((LF, "_llm_json", _flaky_llm)):
+            first = LF.extract_params({"question": "帮我找广州的 Agent 岗位",
+                                       "verbose": False, "steps": []})
+            second = LF.extract_params({"question": "帮我找广州的 Agent 岗位",
+                                        "verbose": False, "steps": []})
+    finally:
+        LF.reg.SEARCH_CACHE_PATH = old_path
+        LF.reg.SEARCH_CACHE_TTL = old_ttl
+        if old_flag is None:
+            os.environ.pop("LG_PARAM_CACHE", None)
+        else:
+            os.environ["LG_PARAM_CACHE"] = old_flag
+        if cache_path.exists():
+            cache_path.unlink()
+    if first.get("keyword") != second.get("keyword"):
+        raise AssertionError(f"同一问题的参数两次不一致："
+                             f"{first.get('keyword')!r} vs {second.get('keyword')!r}")
+    if second.get("extract_source") != "cache":
+        raise AssertionError(f"第二次没有命中参数缓存：{second.get('extract_source')}")
+    return f"同问题两次都取 {first.get('keyword')!r}（第二次来源=cache，LLM 只调 1 次）"
+
+
 check("问题1：反思 1-2 轮内真收敛（LLM 每轮都说 -10）", _e2e_converges_within_two_rounds)
 check("问题2：投递包写入 current_job", _package_writes_current_job)
 check("问题2：匹配打分优先对准 current_job（第 10 个）", _locate_prefers_current_job)
@@ -1011,6 +1238,13 @@ check("问题2：无 current_job 时仍 fallback 第 1 条", _locate_falls_back_
 check("问题3：看日志意图识别（4 句 + 不误伤）", _route_table_log_intent)
 check("问题3：看日志 → 引导终端命令且不调 LLM", _log_intent_answers_command)
 check("问题3：ReAct 兜底 prompt 也有日志说明", _log_prompt_note_exists)
+check("问题4：追问图结构（无检索节点）", _followup_graph_shape)
+check("问题4：追问意图分流（含不误伤新搜索）", _followup_intent_route)
+check("问题4：带 app 系统提示的追问仍走追问", _followup_with_real_app_hint)
+check("问题4：无 last_job_list 时不判追问", _followup_intent_needs_context)
+check("问题4：追问「第 1 个」→ 该岗位 JD + [1] 引用，不重新搜索", _followup_edge_no_search_no_llm_error)
+check("Bug2：同一 query 在「新对话」里结果逐条一致", _cross_conversation_rows_stable)
+check("Bug2：参数提取按问题钉住（跨对话不再漂）", _param_cache_pins_extraction)
 
 
 # ---------------------------------------------------------------------------
