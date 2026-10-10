@@ -111,6 +111,12 @@ _JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 _ASCII_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9+#._\-]{2,}")
 _ORDINAL_HINT_RE = re.compile(r"\[系统提示 · 岗位序号\][^\n]*?index=(\d+)")
 _JOB_ID_HINT_RE = re.compile(r"job_id=([A-Za-z0-9_\-]+)")
+#: 系统提示块（`[系统提示 · xxx]` 到下一个空行/行尾）：只给「意图识别 / 定位岗位」用，
+#: **不能进检索与生成** —— 它让问句从 11 字变 59 字，越过查询理解的长度门槛后被重写成
+#: 子查询、走 `_retrieve_merged` 的**岗位级去重**，同一条 JD 只留一个 chunk（实测只剩
+#: 「岗位职责」那段），答案里引用的「任职要求」原文没有证据可核 → 被判「无依据」。见
+#: `answer_followup`。
+_HINT_BLOCK_RE = re.compile(r"\[系统提示 · [^\]]*\][^\n]*(\n\s*)*")
 
 
 def _clamp(value: int, low: int = 0, high: int = 100) -> int:
@@ -1329,6 +1335,17 @@ _ANALYSIS_WORDS = (
 )
 
 
+def _strip_hints(text: str) -> str:
+    """去掉注入的 ``[系统提示 · ...]`` 块，只留用户真正说的那句话。
+
+    追问链路里系统提示是**给定位岗位用的**（`locate_job` 已经消费掉），但它会把
+    问句从 11 字撑到 59 字：越过查询理解的门槛 → 触发重写 + 子查询 →
+    `_retrieve_merged` 按 job_id 去重，同一条 JD 只留一个 chunk。于是「任职要求」
+    那段永远进不了证据集，答案里逐字引用的句子没有可比对的原文，被判「无依据」。
+    """
+    return _HINT_BLOCK_RE.sub("", str(text or "")).strip()
+
+
 def _followup_target_from_prompt(text: str, job_id: str = "") -> str:
     """把「第 N 个」翻成 job_id：显式 job_id > 系统提示里的 index=N > 序号提示。"""
     if job_id:
@@ -1414,7 +1431,8 @@ def answer_followup(state: FollowupState) -> dict:
     """
     detail = state.get("detail")
     job_id = str(state.get("job_id") or getattr(detail, "job_id", "") or "")
-    question = state.get("question") or ""
+    # 用户的原始问句（去系统提示）：检索 / 生成 / 引用标注**都用它** —— 见 `_strip_hints`。
+    question = _strip_hints(state.get("question") or "")
     label = f"{getattr(detail, 'company', '')} · {getattr(detail, 'title', '')}"
 
     jd = _jd_blob_zh(detail)
@@ -1427,7 +1445,9 @@ def answer_followup(state: FollowupState) -> dict:
 
     hits = []
     try:
-        hits = reg._retrieve(question, top_k=5, allowed_job_ids=[job_id]) or []
+        # 候选池给大一点（8）：追问已经用 job_id 限定了岗位，多取几条只是让
+        # 「任职要求 / 岗位职责」两段都能进证据集，避免答案引用了却没有可比对的原文。
+        hits = reg._retrieve(question, top_k=8, allowed_job_ids=[job_id]) or []
     except Exception as e:                              # noqa: BLE001 - 引用是增强
         if state.get("verbose"):
             print(f"[lg_followup] 取引用片段失败（不影响回答）：{type(e).__name__}: {e}")

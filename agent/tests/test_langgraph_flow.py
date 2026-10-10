@@ -1107,6 +1107,46 @@ def _followup_edge_no_search_no_llm_error():
     return "第 1 个 → job_id=job_rag_1 的 JD，带 [1] 引用，0 次检索"
 
 
+def _followup_retrieval_query_is_clean():
+    """回归：追问的**检索问句**必须是用户原话，不能带 app 追加的系统提示。
+
+    根因：提示块把问句撑到 50+ 字 → 触发查询理解重写 + 子查询 → `_retrieve_merged`
+    按 job_id 去重，同一条 JD 只剩一个 chunk（现场只剩「岗位职责」）→ 答案里逐字引用
+    「任职要求」的句子没有可比对的原文，被 faithfulness 判成「无依据」。
+    """
+    detail = FakeDetail()
+    hit = {
+        "id": "niuke:job_rag_1:0",
+        "text": "职位要求：熟悉 RAG 检索增强生成、熟悉 LangGraph 编排。",
+        "metadata": {"job_id": detail.job_id, "company": detail.company,
+                     "title": detail.title, "city": detail.city, "platform": "niuke"},
+        "score": 0.9,
+    }
+    seen = {"queries": [], "top_k": []}
+
+    def _fake_retrieve(query, **kwargs):
+        seen["queries"].append(query)
+        seen["top_k"].append(kwargs.get("top_k"))
+        return [hit]
+
+    hint = ("\n\n[系统提示 · 岗位序号] 用户说的「第 1 个」= 上一次 search_jobs "
+            "结果里 index=1 的那条岗位：job_id=job_rag_1，公司=公司1，岗位=岗位 1。"
+            "请**直接用它**，不要重新搜索，也不要换成别的岗位。")
+    with user_scope("followup-clean-query"):
+        LF.reg._number_jobs(_focus_rows(3))
+        with _patched((LF.reg, "_resolve_match_detail", lambda job_id: detail),
+                      (LF.reg, "_retrieve", _fake_retrieve),
+                      (LF, "chat", lambda *a, **k: "公司1 · 岗位 1\n要求熟悉 RAG。")):
+            LF.FOLLOWUP_GRAPH.invoke({
+                "question": "第 1 个岗位要求什么技术？" + hint,
+                "verbose": False, "steps": []})
+    if seen["queries"] != ["第 1 个岗位要求什么技术？"]:
+        raise AssertionError(f"检索问句没剥掉系统提示：{seen['queries']}")
+    if min(seen["top_k"] or [0]) < 5:
+        raise AssertionError(f"追问检索的候选池太小：{seen['top_k']}")
+    return "检索问句 = 用户原话（提示块已剥）"
+
+
 def _followup_graph_shape():
     g = LF.FOLLOWUP_GRAPH.get_graph()
     nodes = set(g.nodes) - {"__start__", "__end__"}
@@ -1243,6 +1283,7 @@ check("问题4：追问意图分流（含不误伤新搜索）", _followup_inten
 check("问题4：带 app 系统提示的追问仍走追问", _followup_with_real_app_hint)
 check("问题4：无 last_job_list 时不判追问", _followup_intent_needs_context)
 check("问题4：追问「第 1 个」→ 该岗位 JD + [1] 引用，不重新搜索", _followup_edge_no_search_no_llm_error)
+check("问题4：追问检索问句剥离系统提示（faithfulness 误判根因）", _followup_retrieval_query_is_clean)
 check("Bug2：同一 query 在「新对话」里结果逐条一致", _cross_conversation_rows_stable)
 check("Bug2：参数提取按问题钉住（跨对话不再漂）", _param_cache_pins_extraction)
 
