@@ -10,6 +10,7 @@
     python evaluation/run_eval.py --repeat 3            # 每题跑 3 次（看稳定性）
     python evaluation/run_eval.py --list                # 只列题
     python evaluation/run_eval.py --compare evaluation/results/20261009_164059.json
+    python evaluation/run_eval.py --diff 旧.json 新.json   # 轨迹 diff（不跑题）
 
 本文件现在只负责「跑题」：题库读写 / 判分 / 报告分别交给 evaluation/framework.py 里的
 Provider / Metric / Report 三个插件（见 framework.py 的模块 docstring）。改动带来的两点
@@ -213,9 +214,15 @@ def run_search(case: dict, ctx: dict) -> Case:
     c.check("类型过滤生效", not bad,
             f"混入 {forbid} 类型 {len(bad)} 条："
             + "、".join(f"{r.get('title')}" for r in bad[:3]))
-    wrong = [r for r in rows if (r.get("city") or "") not in (expect.get("city"), "全国")]
-    c.check("城市过滤生效", not wrong,
-            "出现其它城市：" + "、".join(str(r.get("city")) for r in wrong[:3]))
+    # 题库没给城市（expect["city"] 是空串）= 期望「城市不限」：此时城市过滤这一项
+    # 不适用，不能拿「结果里有别的城市」判失败 —— 那等于把「不限」当成「什么都没搜到」。
+    if expect.get("city"):
+        wrong = [r for r in rows if (r.get("city") or "") not in (expect["city"], "全国")]
+        c.check("城市过滤生效", not wrong,
+                "出现其它城市：" + "、".join(str(r.get("city")) for r in wrong[:3]))
+    else:
+        c.check("城市不限（题库未指定城市）", bool(city or not expect.get("city")),
+                f"提取到城市「{city or '不限'}」，题库期望不限城市")
     c.extra["sample"] = [f"{r.get('company')} · {r.get('title')} · {r.get('city')} · "
                          f"{normalize_job_type(r.get('job_type'))}" for r in rows[:3]]
     return c
@@ -411,10 +418,27 @@ def run_interview(case: dict, ctx: dict) -> Case:
 
 
 def run_boundary(case: dict, ctx: dict) -> Case:
-    """边界：不该调工具就不调；搜不到就如实说搜不到。"""
+    """边界：不该调工具就不调；搜不到就如实说搜不到；查不到的岗位不许编造。"""
     c = Case(case)
     expect = _expect(case)
     kind = expect.get("check") or "no_tool_call"
+
+    # 对抗题：题库里给了 company + title，先确认「库里的确没有这个岗位」——
+    # 否则「不许编造」就成了伪命题（岗位真在库里的话应该去用它的 JD）。
+    if case.get("company") and case.get("title"):
+        import agent.app as app                                # noqa: PLC0415
+        job_id, jd = app._resolve_job(case["company"], case["title"])
+        c.extra["job_id"] = job_id
+        c.extra["jd_head"] = (jd or "")[:120]
+        if expect.get("job_resolved") is not None:
+            c.check("岗位解析符合预期", bool(job_id) == bool(expect["job_resolved"]),
+                    f"解析结果 job_id={job_id or '空'}，期望 "
+                    f"{'命中' if expect['job_resolved'] else '未命中'}")
+
+    # 超长 / 带干扰地名的输入：判据与 search 类完全一致（同一套城市 / 类型 / 条数
+    # 检查），只是题面拉到 5 倍长 —— 这样「失败」只能归因于输入形态，不是判据变了。
+    if kind == "search_params":
+        return run_search(case, ctx)
 
     if kind == "search_no_result":
         state = SEARCH_GRAPH.invoke({"question": case["question"], "verbose": False})
@@ -434,12 +458,28 @@ def run_boundary(case: dict, ctx: dict) -> Case:
 
     if kind == "no_tool_call":
         c.check("未误触发工具", not actions, f"调了 {actions}")
+    elif kind == "job_not_found":
+        # 诱导编造题：不判工具调用（它本来就该去查岗位库，查不到才看回答），
+        # 判的是「回答里有没有编造」—— 由题级的 judge_llm 交给独立裁判看。
+        pass
     else:                                                      # no_write_tool
         forbid = set(expect.get("forbid_tools") or [])
         hit = sorted(set(actions) & forbid)
         c.check("未误触发写类工具", not hit, f"调了 {hit}；本轮全部调用：{actions}")
     c.check("有回复", bool(answer.strip()), "answer 为空")
     c.check("无工具失败", "工具调用失败" not in answer, "回复里出现「工具调用失败」")
+
+    # 对抗 / 编造类：题库在题级写了 judge_llm 才调裁判（默认不调，老的 boundary 题不多花一分钱）
+    criteria = case.get("judge_llm")
+    if criteria:
+        evidence = "\n".join([
+            f"【用户原话】{case['question']}",
+            f"【岗位库里的情况】没有「{case.get('company', '')} · {case.get('title', '')}」"
+            f"这个岗位（job_id={c.extra.get('job_id') or '空'}，JD={'有' if c.extra.get('jd_head') else '没有'}）",
+            f"【Agent 的回复】{answer[:1500]}",
+        ])
+        ok, reason = llm_judge(criteria, evidence)
+        c.record_judge(ok, reason)
     return c
 
 
@@ -610,14 +650,48 @@ def prepare_resume(test_set: dict) -> str:
     return saved["id"]
 
 
+# ---- 成本快照：一题烧了多少 token / 几次 LLM 调用（轨迹 diff 的成本那一栏）----
+
+def _usage_snapshot():
+    """当前用户当日累积用量快照；(tokens, 调用次数) 或 None（记账库不可用）。"""
+    try:
+        import sqlite3
+        from datetime import datetime
+        from shared import token_tracker as tracker
+        since = datetime.now().strftime("%Y-%m-%d 00:00:00")
+        conn = sqlite3.connect(str(tracker.DB_PATH))
+        try:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(total_tokens),0), COUNT(*) FROM token_usage "
+                "WHERE timestamp >= ? AND user_id = ?",
+                (since, EVAL_USER)).fetchone()
+        finally:
+            conn.close()
+        return int(row[0] or 0), int(row[1] or 0)
+    except Exception:                                          # noqa: BLE001
+        return None
+        # noqa: 记账库不可用时返回 None，成本栏记成「未记录」，不影响评测本身
+
+
+
+def _usage_delta(before, after):
+    """两次快照之差：记账不可用时返回 {}（结果 JSON 里就是「成本未记录」）。"""
+    if not before or not after:
+        return {}
+    return {"tokens": max(0, after[0] - before[0]),
+            "calls": max(0, after[1] - before[1])}
+
+
 def _run_once(case: dict, ctx: dict, verbose: bool = True) -> dict:
     """跑一次单题：执行（含轨迹采集）→ 交 framework 按插件判分（不抛异常）。"""
     runner = RUNNERS[case["category"]]
     started = time.time()
+    usage_before = _usage_snapshot()
     try:
         with framework.TrajectoryRecorder() as recorder:
             c = runner(case, ctx)
         calls = list(recorder.calls)
+        call_log = [r.as_dict() for r in recorder.calls_detail]
         verdict = framework.evaluate_case(
             case, {"checks": c.checks, "judge": c.judge, "trajectory": {"calls": calls},
                    # extra 里放的是 runner 的原始产出（检索题的三指标就在这），
@@ -628,10 +702,13 @@ def _run_once(case: dict, ctx: dict, verbose: bool = True) -> dict:
             metric = (verdict.get("metrics") or {}).get("trajectory") or {}
             trajectory = {"calls": calls, "ok": metric.get("score", 0.0) >= 1.0,
                           "detail": metric.get("detail", "")}
+        cost = _usage_delta(usage_before, _usage_snapshot())
+        cost["tool_calls"] = len(calls)
         return {"passed": bool(verdict["passed"]), "reason": verdict["reason"],
                 "score": verdict["score"], "metrics": verdict["metrics"],
                 "checks": c.checks, "extra": c.extra, "judge": c.judge,
-                "tool_calls": calls, "trajectory": trajectory,
+                "tool_calls": calls, "tool_call_log": call_log,
+                "cost": cost, "trajectory": trajectory,
                 "elapsed": round(time.time() - started, 1)}
     except Exception as e:                                     # noqa: BLE001 - 单题失败不拖垮整轮
         import traceback
@@ -639,7 +716,8 @@ def _run_once(case: dict, ctx: dict, verbose: bool = True) -> dict:
             traceback.print_exc()
         return {"passed": False, "reason": f"执行异常：{type(e).__name__}: {e}",
                 "score": 0.0, "metrics": {}, "checks": [], "extra": {}, "judge": {},
-                "tool_calls": [], "trajectory": None,
+                "tool_calls": [], "tool_call_log": [], "cost": {},
+                "trajectory": None,
                 "elapsed": round(time.time() - started, 1)}
 
 
@@ -669,6 +747,10 @@ def merge_runs(case: dict, runs: list) -> dict:
         "passed": rate >= 0.5,
         "score": rep.get("score", 0.0), "metrics": rep.get("metrics") or {},
         "trajectory": rep.get("trajectory"), "tool_calls": rep.get("tool_calls") or [],
+        # 轨迹 diff 的两栏证据：调用明细（参数）与成本（token / LLM 调用次数）。
+        # 与 checks/metrics 同口径：取第一次失败的那次（没失败就取第一次），
+        # 每一次跑的明细都在 runs[] 里。
+        "tool_call_log": rep.get("tool_call_log") or [], "cost": rep.get("cost") or {},
         "reason": reason, "checks": rep["checks"], "extra": rep["extra"],
         "elapsed": round(sum(r["elapsed"] for r in runs), 1),
         "runs": runs,
@@ -731,10 +813,35 @@ def main() -> int:
     parser.add_argument("--quiet", action="store_true", help="不逐题打印")
     parser.add_argument("--bootstrap", type=int, default=2000,
                         help="--compare 时 bootstrap 重采样次数（默认 2000）")
+    parser.add_argument("--diff", nargs=2, metavar=("旧结果", "新结果"),
+                        help="只做轨迹 diff（不跑题）：对比两次结果的工具调用序列 / 参数 / 成本，"
+                             "断言无结构性漂移、无成本飙升（见 evaluation/trajectory_diff.py）")
+    parser.add_argument("--diff-top", type=int, default=5,
+                        help="--diff 时逐题展开前 N 题（默认 5）")
+    parser.add_argument("--diff-json", help="--diff 时把结论也写成 JSON")
     args = parser.parse_args()
     if args.repeat < 1:
         print("[错误] --repeat 必须 ≥ 1")
         return 2
+
+    # --diff：纯对比模式，不跑题（跑题见 --compare / 正常模式）
+    if args.diff:
+        import trajectory_diff                                   # noqa: PLC0415
+        try:
+            old, new = (trajectory_diff.load_report(args.diff[0]),
+                        trajectory_diff.load_report(args.diff[1]))
+        except (FileNotFoundError, ValueError) as e:
+            print(f"[错误] {e}")
+            return 2
+        diff = trajectory_diff.diff_reports(old, new)
+        print(trajectory_diff.render_text(diff, top=max(0, args.diff_top)), end="")
+        if args.diff_json:
+            payload = {k: v for k, v in diff.items() if k != "cases"}
+            payload["cases"] = [c.as_dict() for c in diff["cases"]]
+            Path(args.diff_json).write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            print(f"diff 结论已保存：{args.diff_json}")
+        return 0 if diff["ok"] else 1
 
     provider = make_provider()
     try:

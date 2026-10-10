@@ -693,9 +693,27 @@ trajectory:
 多智能体出包前断言 `call_order: [[match_resume, generate_application_package]]`
 （**先打分再出包**，顺序反了就是真 bug，最终文本再漂亮也没用）。
 
+### 轨迹 diff：`--diff <旧结果> <新结果>`
+
+准确率一样、推理路径却变了，是最难发现的一类回归（DProvenanceKit 的说法：
+"answer didn't change, reasoning path did"）。`--diff` 只读两份结果 JSON、不跑题：
+
+* **工具调用序列**：新增 / 丢失的步骤、顺序漂移（LCS 对齐，同一工具在别处仍存在就不算丢）；
+* **参数**：同一次调用的参数值变化（如 `city` 从「广州」变「火星城市」）；
+* **成本**：token → LLM 调用次数 → 工具调用次数 → 耗时，按可比性取第一个两次都记了的。
+
+两条断言：**无结构性漂移**（序列不变、重试次数不变、参数不变）、**无成本飙升**（涨幅 ≤ 20%）。
+有漂移时退出码 1，可直接当门控。
+
+```bash
+python evaluation/run_eval.py --diff 旧.json 新.json          # 详细报告
+python evaluation/run_eval.py --diff 旧.json 新.json --diff-top 10 --diff-json out.json
+python evaluation/trajectory_diff.py 旧.json 新.json --cost-limit 0.1
+```
+
 ### bootstrap 回归门控：只在「下降超过噪声」时标红
 
-`--compare` 不再只比两个百分数（30 题里掉 1 题就是 -3.3pp，可能只是 LLM 抖了一下），
+`--compare` 不再只比两个百分数（34 题里掉 1 题就是 -3pp，可能只是 LLM 抖了一下），
 而是对 delta 做**两级 bootstrap**（题级重采样 + 题内 run 级重采样）给出 95% 置信区间：
 
 * CI 上界 < 0 → 🔴 回归；CI 下界 > 0 → 🟢 进步；区间跨 0 → ⚪ 噪声内，不下结论。
@@ -704,7 +722,7 @@ trajectory:
 * 两次都跑过的题才参与 delta（题目增删单独列出，不算能力变化）。
 
 ```bash
-python evaluation/run_eval.py                       # 全量（30 题，会真调 LLM，约 1-2 小时）
+python evaluation/run_eval.py                       # 全量（34 题，会真调 LLM，约 25 分钟）
 python evaluation/run_eval.py --category search     # 只跑某一类（改完 prompt 先跑这个）
 python evaluation/run_eval.py --case match-01       # 只跑某几题
 python evaluation/run_eval.py --repeat 3            # 每题跑 3 次，看稳定性

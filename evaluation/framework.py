@@ -227,6 +227,68 @@ def evaluate_case(case: dict, result: dict) -> dict:
     }
 
 
+# ============================== 调用明细 ==============================
+
+#: 参数值在轨迹里最多留多少字符（轨迹是证据，不是全文备份）
+ARG_TEXT_LIMIT = 200
+
+#: 哪些参数值会被记下来（避免把整份简历 / JD 塞进结果 JSON）
+DEFAULT_ARG_KEYS = ("keyword", "city", "job_type", "limit", "semantic", "job_id",
+                    "company", "title", "name", "resume_id", "ids", "new_status", "url")
+
+
+def _safe_value(value, limit: int = ARG_TEXT_LIMIT):
+    """把参数值转成可 JSON 序列化的短形式（长文本截断，未知类型退化成 type:...）。"""
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value if len(value) <= limit else value[:limit] + "…"
+    if isinstance(value, (list, tuple)):
+        return [_safe_value(v, limit) for v in list(value)[:10]]
+    if isinstance(value, dict):
+        return {str(k): _safe_value(v, limit) for k, v in list(value.items())[:10]}
+    text = str(value)
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+class CallRecord:
+    """一次工具调用的明细：调用序号 + 工具名 + 参数。
+
+    第 4 周的轨迹 diff 要回答「**参数**有没有变」（例如 city 从「广州」变
+    「火星城市」）与「成本有没有飙升」，光有工具名不够，所以这里在**不改业务代码**
+    的前提下把实参记下来：
+
+    * 位置参数按工具名映射（`_match(job_id, resume_json)` → job_id / resume_json）；
+    * 只留白名单键（`DEFAULT_ARG_KEYS`）+ 工具名本身，长文本截断 ——
+      评测结果 JSON 本来就要进 git，不能把整份简历 / JD 抄进去；
+    * 未知参数的键名照记，值用 `_safe_value` 兜底。
+    """
+
+    #: 工具名 → 位置参数名（覆盖 TrajectoryRecorder 拦的四个入口 + 常用工具）
+    POSITIONAL = {
+        "match_resume": ("job_id", "resume_json"),
+        "search_jobs": ("keyword", "city", "limit", "semantic", "job_type"),
+        "generate_application_package": ("company", "job_id", "title"),
+        "add_tracking": ("company", "title", "platform", "url", "status"),
+        "update_tracking_status": ("company", "new_status", "note"),
+        "save_resume_tool": ("name", "content"),
+        "export_resume_pdf_tool": ("resume_id",),
+        "job_detail": ("job_id",),
+        "resume_match": ("job_id", "resume_json"),
+    }
+
+    def __init__(self, index: int, name: str, args: dict, arg_keys: tuple = DEFAULT_ARG_KEYS):
+        self.index = int(index)
+        self.name = str(name or "?")
+        full = {str(k): _safe_value(v) for k, v in (args or {}).items()}
+        self.args = {k: v for k, v in full.items() if k in set(arg_keys)}
+        self.arg_keys = sorted(full)
+
+    def as_dict(self) -> dict:
+        return {"index": self.index, "name": self.name,
+                "args": self.args, "arg_keys": self.arg_keys}
+
+
 # ============================== 轨迹记录器 ==============================
 
 class TrajectoryRecorder:
@@ -248,11 +310,17 @@ class TrajectoryRecorder:
     ]
 
     def __init__(self) -> None:
-        self.calls: list = []
+        self.calls: list = []          # 工具名序列（轨迹断言用，保持原口径）
+        self.calls_detail: list = []   # CallRecord 明细（轨迹 diff 用）
         self._patched: list = []
 
-    def record(self, name: str) -> None:
+    def record(self, name: str, args: dict = None) -> None:
         self.calls.append(str(name or "?"))
+        try:
+            self.calls_detail.append(CallRecord(len(self.calls), str(name or "?"), args or {}))
+        except Exception:                                      # noqa: BLE001
+            # 明细是加分项：记不下来也不该把这次评测带走（断言只依赖 calls）
+            self.calls_detail.append(CallRecord(len(self.calls), str(name or "?"), {}))
 
     def _wrap(self, alias, orig):
         def wrapper(*args, **kwargs):
@@ -262,9 +330,37 @@ class TrajectoryRecorder:
                     name = args[0]
                 else:
                     name = kwargs.get("name")
-            self.record(name)
+            self.record(name, self._extract_args(name, args, kwargs))
             return orig(*args, **kwargs)
         return wrapper
+
+    @staticmethod
+    def _extract_args(name, args, kwargs) -> dict:
+        """把一次调用的实参收成 {参数名: 值}。
+
+        三种入口的实参形态不一样，必须分开处理（否则参数记错，轨迹 diff 的参数栏全废）：
+
+        * `reg.call_tool("search_jobs", {"keyword": ...})` —— **第一个**实参是工具名，
+          **第二个**是 kwargs 字典，要摊平成参数，不能按位置参数逐个映射
+          （否则 keyword 会被写成工具名、city 会被写成整个字典）；
+        * `reg._match(job_id, resume_json)` —— 真·位置参数，按 POSITIONAL 映射；
+        * `reg._search(keyword, city=...)` —— 位置参数 + 关键字参数混用，两者都要收。
+        """
+        out = dict(kwargs or {})
+        pos = CallRecord.POSITIONAL.get(str(name), ())
+        rest = list(args or ())
+        # 入口形态一：`call_tool("search_jobs", {"keyword": ...}, confirmed=True)` ——
+        # 第一个实参就是工具名，剥掉；紧随其后的字典才是真正的参数。
+        if rest and isinstance(rest[0], str) and str(rest[0]) == str(name):
+            rest = rest[1:]
+        if rest and isinstance(rest[0], dict):
+            out.update(rest[0])
+            rest = rest[1:]
+        # 入口形态二：`_match(job_id, resume_json)` 这类真·位置参数，按工具名映射。
+        for i, value in enumerate(rest):
+            if i < len(pos):
+                out.setdefault(pos[i], value)
+        return out
 
     def __enter__(self):
         import importlib
@@ -293,7 +389,8 @@ class TrajectoryRecorder:
         return False
 
     def as_dict(self) -> dict:
-        return {"calls": list(self.calls), "count": len(self.calls)}
+        return {"calls": list(self.calls), "count": len(self.calls),
+                "calls_detail": [c.as_dict() for c in self.calls_detail]}
 
 
 # ============================== BaseProvider ==============================
@@ -375,7 +472,10 @@ class YamlProvider(BaseProvider):
                 raise ValueError(f"题 {case['id']} 的 category={case['category']!r} 没有对应 runner")
             expect = case.get("expect") or {}
             miss_case = [k for k in need["case"] if not case.get(k)]
-            miss_expect = [k for k in need["expect"] if expect.get(k) in (None, "")]
+            # 判存在性而不是判真假：expect 里的空串是**合法期望**（新增的
+            # search-07「找能远程的 AI 实习」就要求城市为空 = 不限城市），按真值
+            # 判会把这类题直接挡在题库外，等于把「故意难倒」的题删掉。
+            miss_expect = [k for k in need["expect"] if k not in expect]
             if miss_case or miss_expect:
                 raise ValueError(f"题 {case['id']}（{case['category']}）缺字段："
                                  f"case{miss_case} expect{miss_expect}")

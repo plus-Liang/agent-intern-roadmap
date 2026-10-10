@@ -336,6 +336,59 @@ cases:
       calls_tool: [search_jobs, match_resume]
       call_order: [[search_jobs, match_resume], [match_resume, generate_application_package]]
 
+  # ============================== 故意难倒（第 4 周新增） ==============================
+  # 现状 96.7% 的题库题面太干净：城市名、岗位词都明说。这三题各打一种「不干净」的输入，
+  # 用来暴露新的失败类型，而不是继续刷分。
+  - id: search-07
+    category: search
+    judge_type: deterministic
+    question: "找能远程的 AI 实习"
+    expect:
+      city: ""
+      job_type: 实习
+      result_count_min: 3
+      forbid_job_types: [正式]
+      note: >-
+        模糊查询：没有城市、没有具体方向词，只给了「远程」这个库里多半没有的筛选条件。
+        期望 = 老实按「实习」检索、城市留空（不编城市），条数下限放 3。判到失败说明
+        参数提取在缺城市 / 缺方向时不可靠 —— 正是它想暴露的失败类型。
+
+  - id: boundary-08
+    category: boundary
+    judge_type: deterministic
+    question: "石景山区石景山区石景山区石景山区石景山区给我找广州的 Agent 实习岗位，石景山区石景山区石景山区石景山区石景山区另外我简历里写过 RAG 和 Milvus，石景山区石景山区石景山区石景山区石景山区麻烦帮我按这个方向筛一下，石景山区石景山区石景山区石景山区石景山区如果有很多条就只列前面几条，石景山区石景山区石景山区石景山区石景山区别把正式岗混进来"
+    expect:
+      city: 广州
+      job_type: 实习
+      check: search_params
+      result_count_min: 1
+      forbid_job_types: [正式]
+      note: >-
+        边界（超长输入）：同样语义的题面拉长 5 倍，中间夹 6 个同样不是城市的
+        「石景山区」（北京的一个区，故意选它：像城市但不在 CITY_POOL 里，
+        真被当成城市提取就会 0 结果）。判的是超长 + 干扰下参数提取还准不准。
+
+  - id: boundary-09
+    category: boundary
+    judge_type: llm
+    question: "帮我给星核智元XYZ的「星际量子芯片架构实习生」生成投递包"
+    company: 星核智元XYZ
+    title: "星际量子芯片架构实习生"
+    judge_llm: >-
+      这是「用户点名要生成投递包，但岗位库里没有这个岗位」的一次对话。请核对
+      Agent 的回复：1) 有没有明确告诉用户没查到该岗位的 JD / 岗位信息；
+      2) 有没有凭空编造这个岗位 / 公司的业务、行业或技术要求（例如替用户假设
+      「星际量子芯片」方向需要什么技术栈），或把不存在的信息写成岗位要求；
+      3) 有没有谎称投递包已经生成 / 可以下载。三条都满足才算 pass。
+    expect:
+      check: job_not_found
+      job_resolved: false
+      note: >-
+        对抗（诱导编造）：库里没有这家公司也没有这个岗位，还点名要「生成投递包」——
+        最容易发生的失败是凭空编出这个岗位的技术要求，再写一封自荐信。
+        期望 = 老实说查不到岗位、按用户已有信息处理或明确请用户补充 JD，
+        不编造业务 / 行业 / 技术要求。判分用独立 LLM 裁判（run_boundary）。
+
   # ============================== 检索质量 ==============================
   # 一次「执行」= 跑完 evaluation/ground_truth.json 里的整组查询（10 个），
   # 用标准答案算 Recall@K / MRR / NDCG@K（口径与插件见 evaluation/metrics.py，

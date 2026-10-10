@@ -35,6 +35,8 @@ os.environ.setdefault("AGENT_ENGINE", "langgraph")
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 import framework                                                # noqa: E402
+sys.path.insert(0, str(EVAL_DIR.parent))                       # 轨迹 diff 要 import agent.*
+import trajectory_diff                                          # noqa: E402
 import metrics                                                  # noqa: E402
 import regression                                               # noqa: E402
 
@@ -449,6 +451,150 @@ def test_regression_render_text():
 
 
 # ============================== 跑 ==============================
+
+# ============================== 8. 轨迹 diff ==============================
+
+def _rep(cases: list, stamp: str, accuracy: float = 1.0) -> dict:
+    """造一份最小的评测结果（够 trajectory_diff 用）。"""
+    return {"stamp": stamp, "accuracy": accuracy, "results": cases}
+
+
+def _rec(cid: str, calls: list, log: list = None, cost: dict = None,
+         elapsed: float = 10.0) -> dict:
+    return {"id": cid, "category": "search", "question": "q", "tool_calls": calls,
+            "tool_call_log": log or [], "cost": cost or {}, "elapsed": elapsed}
+
+
+@test
+def test_trajectory_diff_align_marks_moves_not_losses():
+    """同一工具在别处仍存在 = 顺序漂移，不是「丢了」；真丢的才叫丢。"""
+    ops = trajectory_diff.align(["a", "b"], ["b", "a"])
+    assert [op for op, _, _ in ops].count("moved") == 2, ops
+    assert not [op for op, _, _ in ops if op == "removed"], ops
+    ops = trajectory_diff.align(["a", "b"], ["b"])
+    assert ("removed", 0, None) in ops, ops
+    assert trajectory_diff.align([], []) == []
+
+
+@test
+def test_trajectory_diff_detects_lost_step_and_param_change():
+    """丢失调用 / 参数变化（city 广州→火星城市）都要判成结构性漂移。"""
+    old = _rep([_rec("t-01", ["search_jobs", "match_resume"],
+                     log=[{"index": 1, "name": "search_jobs", "args": {"city": "广州"}},
+                          {"index": 2, "name": "match_resume", "args": {"job_id": "j1"}}],
+                     cost={"tokens": 1000, "calls": 3})], "old")
+    new = _rep([_rec("t-01", ["search_jobs"],
+                     log=[{"index": 1, "name": "search_jobs", "args": {"city": "火星城市"}}],
+                     cost={"tokens": 1010, "calls": 3})], "new")
+    diff = trajectory_diff.diff_reports(old, new)
+    case = diff["cases"][0]
+    assert case.removed == ["match_resume"], case.removed
+    assert case.arg_changes and case.arg_changes[0]["key"] == "city", case.arg_changes
+    assert not diff["structure_ok"] and not diff["ok"]
+    assert diff["drifted_cases"] == ["t-01"]
+    assert "丢失" in trajectory_diff.render_text(diff)
+
+
+@test
+def test_trajectory_diff_cost_spike_and_retry_count():
+    """token 涨超 20% 判飙升；同类调用次数变化（重试）也算漂移；同序同参+成本持平则通过。"""
+    base = _rec("t-01", ["search_jobs", "search_jobs"], cost={"tokens": 1000, "calls": 5})
+    same = _rec("t-01", ["search_jobs", "search_jobs"], cost={"tokens": 1100, "calls": 5})
+    diff = trajectory_diff.diff_reports(_rep([base], "old"), _rep([same], "new"))
+    assert diff["ok"], diff
+    assert diff["total_cost"]["ratio"] == 0.1
+
+    spiked = _rec("t-01", ["search_jobs", "search_jobs"], cost={"tokens": 2000, "calls": 9})
+    diff = trajectory_diff.diff_reports(_rep([base], "old"), _rep([spiked], "new"))
+    assert diff["cost_spike_cases"] == ["t-01"] and not diff["ok"], diff
+
+    retried = _rec("t-01", ["search_jobs"] * 3, cost={"tokens": 1000, "calls": 5})
+    diff = trajectory_diff.diff_reports(_rep([base], "old"), _rep([retried], "new"))
+    assert not diff["structure_ok"], diff
+    assert any("调用次数" in n for n in diff["cases"][0].notes), diff["cases"][0].notes
+
+
+@test
+def test_trajectory_diff_new_case_is_not_drift():
+    """题库新增的题只算「新增题」，不能把整份 diff 判成漂移（否则加题=回归）。"""
+    old = _rep([_rec("t-01", ["search_jobs"])], "old")
+    new = _rep([_rec("t-01", ["search_jobs"]),
+                _rec("t-09", ["search_jobs"], cost={"tokens": 10, "calls": 1})], "new")
+    diff = trajectory_diff.diff_reports(old, new)
+    assert diff["only_new"] == ["t-09"] and diff["ok"], diff
+    assert diff["cases"][-1].status == "added"
+    text = trajectory_diff.render_text(diff)
+    assert "新增题 1 道" in text
+    assert any("不计入漂移" in n for n in diff["cases"][-1].notes), diff["cases"][-1].notes
+
+
+@test
+def test_trajectory_diff_old_report_without_detail_still_works():
+    """旧结果（框架升级前）没有 tool_call_log / cost 也要能比：序列照比，成本退回代理量。"""
+    old = _rep([{"id": "t-01", "category": "search", "tool_calls": ["search_jobs"],
+                 "elapsed": 10.0}], "old")
+    new = _rep([_rec("t-01", ["search_jobs"], cost={"tokens": 900, "calls": 2},
+                     elapsed=12.0)], "new")
+    diff = trajectory_diff.diff_reports(old, new)
+    # 序列与参数照比（旧结果没有 tool_call_log，所以参数无从比 → 空）
+    assert diff["structure_ok"] and diff["cases"][0].arg_changes == []
+    # 旧结果没记 token：成本口径退到「工具调用次数」，绝不能拿 0 当 token 基准
+    # 算出「0 → 900」的 +∞ 假飙升
+    assert diff["total_cost"]["basis"] != "tokens", diff["total_cost"]
+    assert diff["total_cost"]["basis"] == "tool_calls", diff["total_cost"]
+    assert "代理" in diff["cost_note"], diff["cost_note"]
+    assert diff["ok"], "工具调用次数没变，就不该判漂移或飙升"
+    # 次数真涨了（1 → 2 = +100%）时，同一条断言必须判红
+    more = _rep([_rec("t-01", ["search_jobs", "match_resume"],
+                      cost={"tokens": 900, "calls": 2}, elapsed=12.0)], "new")
+    d2 = trajectory_diff.diff_reports(old, more)
+    assert d2["total_cost"]["basis"] == "tool_calls" and not d2["cost_ok"], d2["total_cost"]
+
+
+@test
+def test_trajectory_diff_cli_gate():
+    """CLI：一致返回 0；有漂移返回 1（可直接当门控）；文件不存在返回 2。"""
+    import json
+    import shutil
+    d = EVAL_DIR / "_artifacts" / "_diff_tmp"
+    shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True, exist_ok=True)
+    a, b, c = d / "a.json", d / "b.json", d / "c.json"
+    a.write_text(json.dumps(_rep([_rec("t-01", ["search_jobs"])], "a")), encoding="utf-8")
+    b.write_text(json.dumps(_rep([_rec("t-01", ["search_jobs"])], "b")), encoding="utf-8")
+    c.write_text(json.dumps(_rep([_rec("t-01", ["search_jobs", "match_resume"])], "c")),
+                 encoding="utf-8")
+    assert trajectory_diff.main([str(a), str(b), "--quiet"]) == 0
+    assert trajectory_diff.main([str(a), str(c), "--quiet"]) == 1
+    assert trajectory_diff.main([str(a), str(d / "nope.json"), "--quiet"]) == 2
+    out = d / "diff.json"
+    assert trajectory_diff.main([str(a), str(c), "--json", str(out), "--quiet"]) == 1
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["structure_ok"] is False and payload["cases"][0]["status"] == "drift"
+    shutil.rmtree(d, ignore_errors=True)
+
+
+@test
+def test_recorder_keeps_call_detail_with_arguments():
+    """Recorder 除了名字序列，还要留参数明细（轨迹 diff 的「参数变化」靠它）。"""
+    import importlib
+    reg = importlib.import_module("agent.tools_registry")
+
+    def fake_search(keyword, city=None, limit=20, semantic=False, job_type=None):
+        return []
+
+    original = reg._search
+    try:
+        reg._search = fake_search
+        with framework.TrajectoryRecorder() as rec:
+            reg._search("Agent", city="广州", limit=20)
+    finally:
+        reg._search = original
+    assert rec.calls == ["search_jobs"], rec.calls
+    detail = rec.as_dict()["calls_detail"]
+    assert detail and detail[0]["name"] == "search_jobs", detail
+    assert detail[0]["args"].get("city") == "广州", detail
+
 
 def main() -> int:
     print(f"框架自测：{len(CHECKS)} 项")
