@@ -14,6 +14,15 @@ Round 13 改动（工具并行调用 + 48 秒性能修复）：
   * **修掉 48 秒真凶**：`_job_id_of()` 以前每个 chunk 都重新 `get_collection()`
     （Chroma 客户端构造 ~11ms × 4392 chunk ≈ 48s）。现改为缓存集合句柄 +
     预计算扁平 `{chunk_id: job_id}` 映射，热循环退化成纯 dict 查表。
+
+第 2 周改动（RAG 查询理解）：
+  * **模糊查询先重写 + 拆子查询**（`rag/query_understanding.py`），每个子查询
+    各召回一次，`2 × 查询数` 条排名一起进 RRF —— 被越多子查询召回的 chunk
+    融合分越高（「共识」即相关性）；
+  * **多查询路径按 job_id 去重**：同一 JD 的多个 chunk 不再挤占 top_k，
+    返回的是岗位级结果（精确查询仍走 chunk 级原路径，行为逐字节一致）；
+  * `retrieve(..., use_understanding=...)` 给了显式开关：`None` 自动按触发规则、
+    `False` 强制原路径（回归对比）、`True` 强制查询理解（验证脚本）。
 """
 import asyncio
 import threading
@@ -41,6 +50,10 @@ _RECALL_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="recall")
 # 集合句柄缓存（见 _get_collection 的长注释：这是 48 秒的真凶）。
 _COLLECTION = None
 _COLLECTION_LOCK = threading.Lock()
+
+# 单条查询的**每条腿**召回深度：融合前先宽召回 20 条，再靠 RRF 收敛。
+# 多查询路径里每条查询各自按这个深度召回，最后一起融合。
+RECALL_DEPTH = 20
 
 
 def _get_collection():
@@ -236,34 +249,21 @@ def _rrf_fuse(rankings: list[list[str]], k: int = 60) -> dict:
     return scores
 
 
-def retrieve(query: str, top_k: int = 12, allowed_job_ids=None) -> list[dict]:
-    """检索 JD 片段。
+def _legs(query: str, top_k: int, allowed) -> tuple:
+    """一次单查询召回：BM25 / 向量两条腿并行，返回各自的 chunk id 排名。
 
-    参数：
-        query:           自然语言查询
-        top_k:           返回条数上限
-        allowed_job_ids: 可选的岗位 id 集合；给定时**只在这些岗位的 chunk 里召回**
-                         （乙方案的「SQL 先过滤、子集内语义重排」）。None = 不限制。
-
-    返回：[{id, text, metadata, score}]，**按 score 降序**。
+    向量路的子集过滤放在这里；BM25 的子集过滤在 `_bm25_search` 内部做
+    （它必须**在子集内打分**，全量打分再过滤会漏掉子集里的匹配项）。
     """
-    allowed = None
-    if allowed_job_ids is not None:
-        allowed = {str(x) for x in allowed_job_ids if str(x).strip()}
-        if not allowed:
-            # 空子集：明确返回空，不要退化成"全库检索"（那会把不在子集里的岗位
-            # 也召回，反而违背调用方的过滤意图）。
-            return []
-
-    # 两条腿并行（asyncio.gather），融合在两边都到齐之后做
-    bm25_ids, vector_ids = _recall_legs(query, 20, allowed)
+    bm25_ids, vector_ids = _recall_legs(query, top_k, allowed)
     if allowed is not None:
         job_ids = _job_ids()
         vector_ids = [cid for cid in vector_ids if job_ids.get(cid, "") in allowed]
+    return bm25_ids, vector_ids
 
-    fused = _rrf_fuse([bm25_ids, vector_ids])
-    ranked = sorted(fused.keys(), key=lambda x: fused[x], reverse=True)
-    unique_ids = ranked[:top_k]
+
+def _materialize(unique_ids: list, fused: dict) -> list[dict]:
+    """把 chunk id 取回正文 + metadata，并补上 RRF 融合分（保持入参顺序）。"""
     if not unique_ids:
         # 子集过滤后可能一条都不剩（allowed 里的岗位还没有 chunk）。
         # 必须在这里返回：Chroma 的 collection.get(ids=[]) 会抛
@@ -271,7 +271,7 @@ def retrieve(query: str, top_k: int = 12, allowed_job_ids=None) -> list[dict]:
         return []
 
     collection = get_collection()
-    data = collection.get(ids=unique_ids)
+    data = collection.get(ids=list(unique_ids))
     id_to_pos = {id_: i for i, id_ in enumerate(data["ids"])}
 
     hits = []
@@ -286,6 +286,120 @@ def retrieve(query: str, top_k: int = 12, allowed_job_ids=None) -> list[dict]:
             "score": fused[id_],
         })
     return hits
+
+
+def _retrieve_single(query: str, top_k: int, allowed) -> list[dict]:
+    """改造前的原路径：单查询双路召回 → RRF → 取 top_k（**chunk 级**返回）。
+
+    精确查询走这条；它的行为必须与查询理解上线前逐字节一致。
+    """
+    bm25_ids, vector_ids = _legs(query, RECALL_DEPTH, allowed)
+    fused = _rrf_fuse([bm25_ids, vector_ids])
+    ranked = sorted(fused.keys(), key=lambda x: fused[x], reverse=True)
+    return _materialize(ranked[:top_k], fused)
+
+
+def _merge_queries(plan: dict) -> list:
+    """要检索的查询列表：**重写后的问题在前、子查询在后**，去重保序。"""
+    queries: list = []
+    candidates = [plan.get("rewritten") or ""] + list(plan.get("sub_queries") or [])
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if text and text not in queries:
+            queries.append(text)
+    if not queries:
+        fallback = str(plan.get("question") or "").strip()
+        queries = [fallback] if fallback else []
+    return queries
+
+
+def _dedupe_hits_by_job(hits: list, top_k: int) -> list:
+    """按 job_id 合并去重：同一岗位只留融合分最高的那个 chunk。
+
+    hits 已经按融合分降序，所以「某个 job_id 第一次出现」就是它的最优 chunk。
+    没有 job_id 的 chunk（理论上不会有）用 chunk id 兜底，不会被误合并掉。
+    """
+    seen = set()
+    out = []
+    for hit in hits:
+        job_id = str((hit.get("metadata") or {}).get("job_id") or "") or hit["id"]
+        if job_id in seen:
+            continue
+        seen.add(job_id)
+        out.append(hit)
+        if len(out) >= top_k:
+            break
+    return out
+
+
+def _retrieve_merged(plan: dict, top_k: int, allowed) -> list[dict]:
+    """多查询检索：重写后的问题 + 每个子查询各召回一次，一起参与 RRF 融合。
+
+    与单查询路径的两点不同：
+      * RRF 的输入从 2 条排名变成 `2 × 查询数` 条 —— 一个 chunk 被越多子查询
+        召回，融合分越高（「共识」即相关性）；
+      * 返回**岗位级**结果（按 job_id 去重）而不是 chunk 级：多条子查询会让
+        同一条 JD 的多个 chunk 一起挤进 top_k，不去重的话覆盖到的岗位反而变少
+        （Agent 侧本来也要按 job_id 去重一遍）。
+    """
+    queries = _merge_queries(plan)
+    rankings: list = []
+    for query in queries:
+        bm25_ids, vector_ids = _legs(query, RECALL_DEPTH, allowed)
+        rankings.append(bm25_ids)
+        rankings.append(vector_ids)
+
+    fused = _rrf_fuse(rankings)
+    # 同分时按 chunk id 兜底排序：多路融合下同分很常见，顺序必须可复现
+    ranked = sorted(fused.keys(), key=lambda x: (-fused[x], x))
+    return _dedupe_hits_by_job(_materialize(ranked, fused), top_k)
+
+
+def retrieve(query: str, top_k: int = 12, allowed_job_ids=None,
+             use_understanding: bool = None) -> list[dict]:
+    """检索 JD 片段。
+
+    参数：
+        query:            自然语言查询
+        top_k:            返回条数上限
+        allowed_job_ids:  可选的岗位 id 集合；给定时**只在这些岗位的 chunk 里召回**
+                          （乙方案的「SQL 先过滤、子集内语义重排」）。None = 不限制。
+        use_understanding: 查询理解开关。
+                          None（默认）= 按触发规则自动决定（模糊 / 复杂查询才重写）；
+                          False = 强制走改造前的原路径（回归对比 / 排查用）；
+                          True  = 强制走一次重写 + 分解（验证脚本做前后对比用）。
+
+    返回：[{id, text, metadata, score}]，**按 score 降序**。
+
+    模糊 / 复杂查询（判定见 `rag.query_understanding.should_understand`）会先重写 +
+    拆子查询，每个子查询各召回一次、一起参与 RRF，最后**按 job_id 去重**返回；
+    精确查询与 `use_understanding=False` 时走原路径，行为与改造前一致。
+    """
+    allowed = None
+    if allowed_job_ids is not None:
+        allowed = {str(x) for x in allowed_job_ids if str(x).strip()}
+        if not allowed:
+            # 空子集：明确返回空，不要退化成"全库检索"（那会把不在子集里的岗位
+            # 也召回，反而违背调用方的过滤意图）。
+            return []
+
+    if use_understanding is not False:
+        try:
+            # 延迟导入：query_understanding 会拉起 shared.llm_client（httpx），
+            # 精确查询根本用不到它，不该为它付 import 成本。
+            from rag.query_understanding import enabled as _qu_enabled, plan_queries
+            if _qu_enabled():
+                plan = plan_queries(query, force=use_understanding is True)
+                if plan.get("triggered"):
+                    try:
+                        return _retrieve_merged(plan, top_k, allowed)
+                    except Exception as e:      # noqa: BLE001 —— 融合坏了就退回原路径
+                        print(f"[query_understanding] 多查询融合失败，退回单查询："
+                              f"{type(e).__name__}: {e}")
+        except Exception as e:                  # noqa: BLE001 —— 查询理解不可用不影响检索
+            print(f"[query_understanding] 不可用，走原检索路径：{type(e).__name__}: {e}")
+
+    return _retrieve_single(query, top_k, allowed)
 
 
 def format_context(hits: list[dict]) -> str:
