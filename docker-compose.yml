@@ -29,6 +29,11 @@ services:
       # 写在这里而不是 .env —— environment 的优先级高于 env_file，不会被 .env 里的
       # TZ 覆盖掉；镜像基于 debian（自带 tzdata），Asia/Shanghai 直接可用。
       - TZ=Asia/Shanghai
+      # 容器内 Python 一律按 UTF-8 写 stdout/stderr（uvicorn / Chainlit 日志）。
+      # 不加这两行，容器按环境 locale 输出，Windows 终端再按 GBK 解码，
+      # docker compose logs 里中文就是乱码。PYTHONUTF8=1 = UTF-8 模式（PEP 540）。
+      - PYTHONIOENCODING=utf-8
+      - PYTHONUTF8=1
     ports:
       - "8000:7860"
     volumes:
@@ -62,6 +67,9 @@ services:
       - .env
     environment:
       - TZ=Asia/Shanghai
+      # 同 app：Streamlit 日志也按 UTF-8 输出，避免 compose logs 中文乱码
+      - PYTHONIOENCODING=utf-8
+      - PYTHONUTF8=1
     ports:
       # 只绑回环：http://localhost:8501 能开，局域网访问不到。
       # 要让同网段设备访问，改成 "8501:8501"，但先想清楚「无认证」这件事。
