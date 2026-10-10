@@ -147,10 +147,10 @@ def _llm_json(messages: list, source: str, verbose: bool = False) -> dict:
     """一次结构化 LLM 调用。
 
     **必须带额度与思考档**：`glm-5.3-flash` 是思考模型，`reasoning_content`
-    与正文共用 `max_tokens`，不传就是全局默认 1024 —— 真实简历下必然被思考
-    吃光、正文为空（交接单 5.6 / 5.7 / 5.11 反复踩过）。这里复用 ReAct 的
-    「长输出档」getter：`RATE_LIMIT_ENABLED=false` 时它返回 0/""，
-    payload 形状与改造前一致。
+    与正文共用 `max_tokens`，当年不传就是全局默认 1024（现全局兜底已抬到 4096
+    + low）—— 真实简历下思考照样能把额度吃掉大半，所以这里不依赖兜底，
+    直接复用 ReAct 的「长输出档」getter：`RATE_LIMIT_ENABLED=false` 时它
+    返回 0/""，payload 形状与改造前一致。
     """
     raw = chat(
         messages,

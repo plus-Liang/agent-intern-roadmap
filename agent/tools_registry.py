@@ -1295,7 +1295,7 @@ def _generate_cover_letter(resume_data, record, detail) -> tuple:
     )
 
     try:
-        # 必须显式带额度与思考档：chat() 不传就是全局默认 1024，而
+        # 必须显式带额度与思考档：chat() 不传就是全局默认额度（现为 4096），而
         # glm-5.3-flash 是思考模型、思考与正文共用 max_tokens —— 实测 1024 档
         # finish_reason=length、正文只写出 168 字（自荐信都没写完），
         # 4096 + low 一次出全（术语见 shared/limits.cover_letter_max_tokens）。

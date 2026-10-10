@@ -89,7 +89,8 @@ def tailor_resume(resume: Resume, job_detail) -> dict:
 
     for attempt in range(1, 4):
         try:
-            # 必须显式带额度与思考档：chat() 不传就是全局默认 1024，思考模型
+            # 仍然显式带额度与思考档（不依赖全局兜底）：chat() 不传现在虽是
+            # 4096 + low，但这里要的是「投递包这一档」的明确契约。思考模型
             # （glm-5.3-flash）的思考与正文共用 max_tokens —— 实测默认档
             # finish_reason=length 且正文为空，json.loads 报
             # `Expecting value: line 1 column 1 (char 0)`，投递包只能退回原简历

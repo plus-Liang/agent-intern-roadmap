@@ -332,13 +332,16 @@ def t_parse_text_still_works():
 def t_parse_budget_wired():
     """本轮修复钉住：简历解析必须带大额度 + low 思考档。
 
-    思考模型下 max_tokens 同时卡思考与正文，实测默认 1024 会 content 为空、
+    思考模型下 max_tokens 同时卡思考与正文，1024 会 content 为空、
     JSON 解析报 `Expecting value: line 1 column 1 (char 0)`。
     """
     saved = {k: os.environ.get(k)
-             for k in ("RATE_LIMIT_ENABLED", "RESUME_LLM_REASONING_EFFORT")}
+             for k in ("RATE_LIMIT_ENABLED", "RESUME_LLM_REASONING_EFFORT",
+                       "LLM_MAX_TOKENS", "LLM_DEFAULT_REASONING_EFFORT")}
     os.environ["RATE_LIMIT_ENABLED"] = "true"
     os.environ.pop("RESUME_LLM_REASONING_EFFORT", None)
+    os.environ.pop("LLM_MAX_TOKENS", None)
+    os.environ.pop("LLM_DEFAULT_REASONING_EFFORT", None)
     try:
         from shared import limits
         from shared import llm_client as LC
@@ -351,8 +354,19 @@ def t_parse_budget_wired():
                                     "m", False, 4096, "low")
         _expect(payload.get("max_tokens") == 4096, f"payload 没带额度：{payload}")
         _expect(payload.get("reasoning_effort") == "low", f"payload 没带档位：{payload}")
+
+        # 全局兜底契约（本轮治本的那条）：**什么都不传**也必须拿到够用的额度
+        # 与低思考档 —— 调用方漏传不再是 bug。
         plain = LC._build_payload([{"role": "user", "content": "x"}], "m", False, None)
-        _expect("reasoning_effort" not in plain, f"不传时不该注入：{plain}")
+        _expect(plain.get("max_tokens", 0) >= 4096,
+                f"裸调用没拿到全局兜底额度：{plain}")
+        _expect(plain.get("reasoning_effort") == "low",
+                f"裸调用没拿到全局默认思考档：{plain}")
+        # 显式传空串 = 主动 opt-out，不能被全局默认覆盖
+        opted_out = LC._build_payload([{"role": "user", "content": "x"}],
+                                      "m", False, None, "")
+        _expect("reasoning_effort" not in opted_out,
+                f"显式空串没生效（调用方失去 opt-out）：{opted_out}")
     finally:
         for k, v in saved.items():
             if v is None:

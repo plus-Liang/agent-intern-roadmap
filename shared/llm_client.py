@@ -9,9 +9,13 @@
   所以本模块所有日志都走 _safe_print，异常对象一律先过 _safe_str。
 
 成本控制（第 1 道闸门）：`chat()` / `chat_stream()` 会带上 `max_tokens`
-（默认取 shared.limits.default_max_tokens()，即 LLM_MAX_TOKENS，调用方可覆盖），
-并读取 `choices[0].finish_reason == "length"` 识别「输出被截断」——
-截断不是正常答案，在 shared.limits 里打个标记让 react_agent 按解析失败处理。
+（默认取 shared.limits.default_max_tokens()，即 LLM_MAX_TOKENS，调用方可覆盖）
+与 `reasoning_effort`（默认取 shared.limits.llm_default_reasoning_effort()，
+即 LLM_DEFAULT_REASONING_EFFORT，调用方可覆盖）——
+**两个参数是一起兜底的**：思考模型的 max_tokens 同时卡住思考与正文，
+只兜额度不兜档位照样会被思考吃光。并读取 `choices[0].finish_reason == "length"`
+识别「输出被截断」—— 截断不是正常答案，在 shared.limits 里打个标记让
+react_agent 按解析失败处理。
 
 换模型自适配（reasoning_effort）：思考档位参数不是所有 OpenAI 兼容网关都认
 （DeepSeek / Moonshot / OpenAI 等多数会直接 400 invalid_request_error）。
@@ -144,13 +148,30 @@ def _resolve_max_tokens(max_tokens) -> int:
         return limits.default_max_tokens()
 
 
+def _resolve_reasoning_effort(reasoning_effort) -> str:
+    """定出本次调用的思考档位：显式参数优先，否则取**全局**默认档位。
+
+    与 `_resolve_max_tokens` 同构，因为它们是同一个 bug 的两个变量：
+    思考模型下 `max_tokens` 同时卡住思考（`reasoning_content`）与正文 ——
+    只兜额度、不兜档位，思考照样能把额度吃光、正文变空。
+
+    与 max_tokens 的唯一区别：**显式传空串 = 调用方主动要求不注入**，
+    此时不回退到全局默认（保留「这个调用方就要默认档」的表达能力），
+    只有传 `None`（完全没表态）才回退。返回空串 = 不注入该字段。
+    """
+    if reasoning_effort is None:
+        return limits.llm_default_reasoning_effort()
+    return str(reasoning_effort).strip().lower()
+
+
 def _build_payload(messages: list, model: str, stream: bool, max_tokens,
                    reasoning_effort=None) -> dict:
     """拼请求体：max_tokens 为 0 时不带这个键（保持旧 payload 形状）。
 
     reasoning_effort: 思考档位（low / high / max）。glm-5.3-flash 是思考模型，
         `max_tokens` 同时卡住思考（reasoning_content）与正文，抽取类任务用 low
-        才不会被思考吃光额度。空值不注入 —— payload 形状与老版本一致。
+        才不会被思考吃光额度。不传取全局默认 `LLM_DEFAULT_REASONING_EFFORT`
+        （默认 low）；空值不注入 —— payload 形状与老版本一致。
 
     换模型自适配：该模型已被判定不吃 reasoning_effort 时（见
     reasoning_effort_unsupported），这里直接不注入，省掉一次注定失败的请求。
@@ -159,8 +180,9 @@ def _build_payload(messages: list, model: str, stream: bool, max_tokens,
     limit = _resolve_max_tokens(max_tokens)
     if limit > 0:
         payload["max_tokens"] = limit
-    if reasoning_effort and not reasoning_effort_unsupported(model):
-        payload["reasoning_effort"] = reasoning_effort
+    effort = _resolve_reasoning_effort(reasoning_effort)
+    if effort and not reasoning_effort_unsupported(model):
+        payload["reasoning_effort"] = effort
     return payload
 
 
@@ -242,11 +264,13 @@ def chat(messages: list, model: str = None, retries: int = 3, source: str = "unk
     """非流式调用，失败重试。
 
     source: 调用方标记（如 "react_agent"），用于 token 用量按来源聚合，默认 "unknown"。
-    max_tokens: 单次输出上限；不传取 LLM_MAX_TOKENS（默认 1024）。
+    max_tokens: 单次输出上限；不传取 LLM_MAX_TOKENS（**全局默认 4096**）。
         输出被截断时 finish_reason 会是 "length"，这里打标记、react_agent 当解析
         失败处理（截断的 JSON 静默变成「格式错误」非常难排查）。
-    reasoning_effort: 思考档位（low / high / max），不传不注入。
-        思考模型下 max_tokens **同时**卡思考与正文，长思考会把额度吃光、正文变空。
+    reasoning_effort: 思考档位（low / high / max），不传取全局默认
+        LLM_DEFAULT_REASONING_EFFORT（默认 low）；显式传空串 = 不注入。
+        思考模型下 max_tokens **同时**卡思考与正文，长思考会把额度吃光、正文变空 ——
+        额度和档位必须一起兜底，只调其中一个都治不住。
     """
     model = model or ZHIPU_CHAT_MODEL
     headers = _headers()                    # 顺便校验 Key，缺了直接抛 ConfigError

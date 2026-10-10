@@ -103,7 +103,8 @@ def match_resume_to_jd(resume: Resume, job_detail) -> MatchResult:
 """
     for attempt in range(1, 4):
         try:
-            # 这里**必须**显式带上额度与思考档：chat() 不传就是全局默认 1024，
+            # 仍然显式带上额度与思考档（不依赖全局兜底）：chat() 不传现在虽是
+            # 4096 + low，但这里要的是「匹配这一档」的明确契约。
             # 而 glm-5.3-flash 是思考模型，思考（reasoning_content）与正文共用
             # max_tokens —— 真实 PDF 简历下思考必超 1024，正文要么被截断成
             # `Unterminated string starting at: line 19 column 5`，要么整段为空

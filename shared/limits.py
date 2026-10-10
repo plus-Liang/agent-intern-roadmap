@@ -66,13 +66,46 @@ def rate_burst() -> int:
 
 
 def llm_max_tokens() -> int:
-    """单次 LLM 输出的 token 上限；0 = 不注入该参数（不限）。"""
-    return _env_int("LLM_MAX_TOKENS", 1024, 0)
+    """单次 LLM 输出的 token 上限（= chat() 的全局默认额度）；0 = 不注入（不限）。
+
+    为什么默认是 4096 而不是 1024：这是**唯一**一个「调用方不用管」的兜底额度，
+    `glm-5.3-flash` 是思考模型，`max_tokens` 同时卡住思考（`reasoning_content`）
+    与正文 —— 1024 在多个调用点被思考吃光、正文为空（同一 bug 修过 5 次：
+    5.11/5.16/5.20/5.28 + verify_citation）。每个调用方各自传额度必然会漏，
+    所以把兜底值本身抬到实测够用的一档，让「忘传」不再是 bug。
+
+    抬到 4096 不多花 token：`max_tokens` 只是**上限**，模型说完就停
+    （`finish_reason=stop`），真正计费的是生成出来的内容（日常工具调用轮
+    实测 176 token 就收尾）。这一档与 resume / match / cover_letter /
+    RAG 查询理解 / 引用闸门各自的显式额度一致（都是 4096 实测够用）。
+    """
+    return _env_int("LLM_MAX_TOKENS", 4096, 0)
 
 
 def default_max_tokens() -> int:
     """chat() 未显式传 max_tokens 时用的默认值；总开关关闭时为 0（不注入）。"""
     return llm_max_tokens() if rate_limit_enabled() else 0
+
+
+def llm_default_reasoning_effort() -> str:
+    """chat() 未显式传 reasoning_effort 时用的**全局**思考档位，默认 low。
+
+    为什么必须有全局兜底（而不是只靠各调用方自己传）：`max_tokens` 同时卡住
+    思考与正文，所以「思考吃光额度」有两个变量 —— 额度**和**档位。只把额度
+    抬大、档位仍默认 `high`，思考照样可能把 4096 吃光（实测简历解析 1024 档下
+    思考超 3139 字符）。把默认档位统一压到 `low`，两个变量一起兜住。
+
+    为什么 low 不伤质量：抽取 / 复述 / 打分 / 判定这类固定形状的输出，
+    实测 low 把思考从 ~3.1k 字符压到 ~100 字符，结果条数与默认档位一致
+    （见 resume_reasoning_effort 的实测记录）。
+
+    空串 = 不注入该参数（payload 与老版本一致）；总开关关闭时也返回空串。
+    LLM_DEFAULT_REASONING_EFFORT 显式设为空串即关闭全局默认。
+    """
+    if not rate_limit_enabled():
+        return ""
+    raw = os.getenv("LLM_DEFAULT_REASONING_EFFORT", "low")
+    return str(raw).strip().lower()
 
 
 def resume_max_tokens() -> int:
@@ -106,7 +139,8 @@ def match_max_tokens() -> int:
 
     为什么要单独给：与简历解析同源 —— `glm-5.3-flash` 是思考模型，
     `max_tokens` 同时卡住思考（`reasoning_content`）与正文。**工具内部
-    的 chat() 不经过 ReAct 的分档逻辑**，不显式传就是全局默认 1024。
+    的 chat() 不经过 ReAct 的分档逻辑**，不显式传就是全局默认额度
+    （LLM_MAX_TOKENS，现为 4096 —— 当年是 1024）。
     实测（真实 PDF 简历 + 出问题的两个 JD，各跑 2 遍）：默认档单次就要
     23.8~24.3s、finish_reason 100% 是 length —— 要么正文被砍成
     `Unterminated string starting at: line 19 column 5`，要么正文 0 字
@@ -135,7 +169,8 @@ def cover_letter_max_tokens() -> int:
 
     为什么要单独给：与简历解析 / 匹配同源 —— `glm-5.3-flash` 是思考模型，
     `max_tokens` 同时卡住思考（`reasoning_content`）与正文，且**工具内部的
-    chat() 不经过 ReAct 的分档逻辑**，不显式传就是全局默认 1024。
+    chat() 不经过 ReAct 的分档逻辑**，不显式传就是全局默认额度
+    （LLM_MAX_TOKENS，现为 4096 —— 当年是 1024）。
     实测（真实简历 + 真实岗位 466364，容器内）：
     - 自荐信：默认 1024 档 `finish_reason=length`、正文只有 168 字（连称呼都没写完）；
       4096 + `low` 一次出全、`finish_reason=stop`；
@@ -168,7 +203,8 @@ def react_long_max_tokens() -> int:
 
     为什么不是全局提高：`max_tokens` 只是**上限**，模型说完就停（finish=stop），
     上限本身不花 token —— 真正花 token 的是生成出来的内容。所以这里给足
-    （8192 这一档在上一轮简历解析里实测够用），日常短工具调用轮仍走 1024 那一档。
+    （8192 这一档在上一轮简历解析里实测够用），日常短工具调用轮仍走全局默认
+    那一档（LLM_MAX_TOKENS，现为 4096）。
     总开关关闭时为 0（不注入），与改造前行为一致。
     """
     return _env_int("REACT_LLM_LONG_MAX_TOKENS", 8192, 0) if rate_limit_enabled() else 0

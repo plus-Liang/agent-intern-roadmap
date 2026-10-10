@@ -40,14 +40,16 @@ def generate(question: str, context: str, source: str = None,
              max_tokens: int = None, reasoning_effort: str = None) -> str:
     """生成答案。
 
-    三个新增的透传参数（第 3 周加；**都不传时行为与改造前完全一致**）：
+    三个新增的透传参数（第 3 周加；**都不传时走 ``chat()`` 的全局兜底**）：
         source:            token 用量归因（引用溯源传自己的来源标记）
-        max_tokens:        单次输出上限；默认仍走 ``chat()`` 的 1024
-        reasoning_effort:  思考档位；默认不注入
+        max_tokens:        单次输出上限；不传取 LLM_MAX_TOKENS（现为 4096）
+        reasoning_effort:  思考档位；不传取 LLM_DEFAULT_REASONING_EFFORT（现为 low），
+                           显式传空串则走全局默认 —— 本函数只在真值时才透传
 
     为什么需要它们：引用溯源要用同一份 prompt 生成**带依据的长答案**，
-    默认 1024 会被截断（截断的答案最后一句是半句，标不准引用，还必然被判无依据）。
-    调用方（``rag.citation.generate_answer``）显式给足额度并压低思考档位。
+    当年的全局默认 1024 会被截断（截断的答案最后一句是半句，标不准引用，
+    还必然被判无依据）。调用方（``rag.citation.generate_answer``）仍然显式
+    给足额度并压低思考档位 —— 但即便它忘了传，全局兜底也已经够用。
     """
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},

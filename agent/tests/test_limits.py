@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import sys
 from contextlib import contextmanager
@@ -51,7 +52,10 @@ os.environ["RESUME_ROOT"] = str(_TMP_DIR / "resumes")
 os.environ["RATE_LIMIT_ENABLED"] = "true"
 os.environ["RATE_PER_MIN"] = "6"
 os.environ["RATE_BURST"] = "3"
-os.environ["LLM_MAX_TOKENS"] = "1024"
+os.environ["LLM_MAX_TOKENS"] = "4096"      # 与新的全局默认一致；**代码里的默认值**
+                                          # 由 _global_default_is_safe 单独钉（它会把
+                                          # 这个环境变量摘掉再断言），这里钉住只为让
+                                          # 下面的分档断言有确定的基准。
 os.environ["RUN_TOKEN_BUDGET"] = "30000"
 os.environ["DAILY_TOKENS_PER_USER"] = "200000"
 os.environ["GLOBAL_DAILY_TOKENS"] = "2000000"
@@ -452,14 +456,14 @@ def _max_tokens_default():
     with _fake_http(_resp()) as fake:
         content = LC.chat([{"role": "user", "content": "hi"}], source="t")
     payload = fake.calls[0]["payload"]
-    if payload.get("max_tokens") != 1024:
-        _fail(f"默认没注入 1024：{payload.get('max_tokens')}")
+    if payload.get("max_tokens") != L.llm_max_tokens():
+        _fail(f"默认没注入 LLM_MAX_TOKENS：{payload.get('max_tokens')}")
     if content != '{"thought":"t","final_answer":"ok"}':
         _fail("返回值不对")
     if L.run_tokens_used() != 15:
         _fail(f"用量没累加进预算：{L.run_tokens_used()}")
     L.reset_run_budget()
-    return "payload.max_tokens=1024，用量 15 已入预算"
+    return f"payload.max_tokens={L.llm_max_tokens()}，用量 15 已入预算"
 
 
 def _max_tokens_override():
@@ -511,10 +515,96 @@ def _agent_truncation_not_answer():
     return "截断轮被丢弃，重发请求后取到真答案"
 
 
-check("chat() 默认注入 max_tokens=1024 并累加用量", _max_tokens_default)
+def _global_default_is_safe():
+    """**治本的那条不变量**：裸 chat()（不传任何额度/档位）也必须够用。
+
+    同一 bug（思考吃光 max_tokens、正文为空）修过 5 次，每次都是某个调用方
+    忘了传额度 —— 说明「靠每个调用方自觉」这个前提本身是错的。所以这里不看
+    任何调用点，直接把 llm_client 的兜底行为钉住：把 LLM_MAX_TOKENS 从环境里
+    摘掉，裸调 chat()，payload 必须自带足够大的 max_tokens **且**带低思考档。
+
+    为什么额度与档位要一起断：思考模型下 max_tokens 同时卡思考与正文，
+    只兜额度、档位仍是默认高思考，照样会被吃光。
+    """
+    saved = os.environ.pop("LLM_MAX_TOKENS", None)
+    saved_effort = os.environ.pop("LLM_DEFAULT_REASONING_EFFORT", None)
+    try:
+        base = L.llm_max_tokens()
+        if base < 4096:
+            _fail(f"全局兜底额度太小：{base} < 4096（思考模型会吃光、正文为空）")
+        if L.llm_default_reasoning_effort() != "low":
+            _fail(f"全局默认思考档不是 low：{L.llm_default_reasoning_effort()!r}")
+
+        if LC._resolve_max_tokens(None) != base:
+            _fail("_resolve_max_tokens(None) 没走新的全局兜底")
+        if LC._resolve_reasoning_effort(None) != "low":
+            _fail("_resolve_reasoning_effort(None) 没走全局默认档")
+        # 显式传空串 = 调用方主动不注入，不能被全局默认覆盖（保留退出能力）
+        if LC._resolve_reasoning_effort("") != "":
+            _fail("显式传空串被全局默认覆盖了，调用方失去了 opt-out")
+
+        with _fake_http(_resp()) as fake:
+            LC.chat([{"role": "user", "content": "hi"}], source="t")
+        payload = fake.calls[0]["payload"]
+        if payload.get("max_tokens") != base:
+            _fail(f"裸 chat() 没拿到全局兜底额度：{payload.get('max_tokens')}")
+        if payload.get("reasoning_effort") != "low":
+            _fail(f"裸 chat() 没拿到全局默认思考档：{payload.get('reasoning_effort')}")
+
+        with _fake_http(_resp()) as fake:
+            LC.chat([{"role": "user", "content": "hi"}], source="t",
+                    max_tokens=1024, reasoning_effort="high")
+        payload = fake.calls[0]["payload"]
+        if payload.get("max_tokens") != 1024 or payload.get("reasoning_effort") != "high":
+            _fail(f"调用方显式传参没优先：{payload}")
+        return f"裸 chat() → max_tokens={base} + reasoning_effort=low"
+    finally:
+        if saved is not None:
+            os.environ["LLM_MAX_TOKENS"] = saved
+        if saved_effort is not None:
+            os.environ["LLM_DEFAULT_REASONING_EFFORT"] = saved_effort
+
+
+#: 静态扫描时跳过的目录（第三方 / 历史备份 / 非生产代码）
+_SCAN_SKIP = (".git", "backups", "site-packages", ".venv", "chroma_db",
+              "node_modules", "__pycache__")
+
+
+def _no_undersized_explicit_budget():
+    """静态扫描：生产代码里**显式**传的 max_tokens 不得小于全局兜底值。
+
+    忘传已经被全局兜底治住；剩下唯一能把同一个 bug 带回来的路径，就是某个
+    调用方**显式**传一个小额度 —— 历史上正是这么漏的。比「启动时打警告」硬：
+    警告会被忽略，测试挂了不会。故意要小额度的地方只在 tests/ 下（假响应），
+    不在扫描范围。
+    """
+    pattern = re.compile(r"max_tokens\s*=\s*(\d+)")
+    bad, scanned = [], 0
+    for path in sorted(REPO.rglob("*.py")):
+        rel = path.relative_to(REPO).as_posix()
+        if "/tests/" in f"/{rel}" or any(p in rel for p in _SCAN_SKIP):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except Exception:                                   # noqa: BLE001
+            continue
+        scanned += 1
+        for lineno, line in enumerate(text.splitlines(), 1):
+            for value in pattern.findall(line):
+                if int(value) < 4096:
+                    bad.append(f"{rel}:{lineno} max_tokens={value}")
+    if bad:
+        _fail("显式额度小于全局兜底 4096（思考会吃光正文）：\n    "
+              + "\n    ".join(bad))
+    return f"扫了 {scanned} 个生产文件，无 < 4096 的显式 max_tokens"
+
+
+check("chat() 默认注入全局额度并累加用量", _max_tokens_default)
 check("调用方可覆盖 max_tokens", _max_tokens_override)
 check("finish_reason=length 被识别为截断", _truncation_marked)
 check("react_agent 不把截断当正常答案", _agent_truncation_not_answer)
+check("裸 chat() 自带 4096+low（治本）", _global_default_is_safe)
+check("无 < 4096 的显式额度（防复发）", _no_undersized_explicit_budget)
 
 # ---------------------------------------------------------------------------
 section("7. RATE_LIMIT_ENABLED=false：四道闸门全关，行为与改造前逐字一致")
@@ -681,7 +771,7 @@ check("入口闸门：全局日 token 超限被拒", _gate_global_rejects)
 check("入口闸门：开关关闭时全放行", _gate_disabled_allows)
 
 # ---------------------------------------------------------------------------
-section("9. react_agent 两档额度：日常轮 1024 / 长输出轮给足")
+section("9. react_agent 两档额度：日常轮走全局默认 / 长输出轮给足")
 # ---------------------------------------------------------------------------
 
 
@@ -708,15 +798,18 @@ def _agent_turn_budget_rule():
     os.environ.pop("REACT_LLM_LONG_MAX_TOKENS", None)
     os.environ.pop("REACT_LLM_REASONING_EFFORT", None)
     long_budget = L.react_long_max_tokens()
+    base_budget = L.default_max_tokens()
     if long_budget < 4096:
         _fail(f"长输出额度太小：{long_budget}")
+    if base_budget >= long_budget:
+        _fail(f"两档塌成一档（base={base_budget} >= long={long_budget}）")
     if L.react_reasoning_effort() != "low":
         _fail(f"ReAct 思考档默认不是 low：{L.react_reasoning_effort()!r}")
 
-    if RA._turn_budget("你好", []) != (1024, "low"):
+    if RA._turn_budget("你好", []) != (base_budget, "low"):
         _fail(f"短问题该走 base：{RA._turn_budget('你好', [])}")
     small = [{"turn": 1, "type": "action", "action": "x", "observation": "{}"}]
-    if RA._turn_budget("帮我找岗位", small) != (1024, "low"):
+    if RA._turn_budget("帮我找岗位", small) != (base_budget, "low"):
         _fail(f"短 observation 该走 base：{RA._turn_budget('帮我找岗位', small)}")
     big = [{"turn": 1, "type": "action", "action": "x",
             "observation": "x" * (RA.LONG_OBSERVATION_CHARS + 1)}]
@@ -726,7 +819,7 @@ def _agent_turn_budget_rule():
         _fail("要求完整内容的问题该走 long")
     if RA._turn_budget("你好", [], retry_after_truncation=True) != (long_budget, "low"):
         _fail("上一轮被截断时必须提额，否则重试必然再截断")
-    return f"base=1024 / long={long_budget}，思考档=low"
+    return f"base={base_budget} / long={long_budget}，思考档=low"
 
 
 def _agent_chat_gets_budget():
@@ -754,9 +847,9 @@ def _agent_chat_gets_budget():
         _fail(f"答案不对：{result['answer']!r}")
     if len(calls) != 2:
         _fail(f"该调 2 次 chat，实际 {len(calls)}")
-    if calls[0].get("max_tokens") != 1024:
+    if calls[0].get("max_tokens") != L.default_max_tokens():
         _fail(f"第 1 轮（尚无工具结果）该走 base：{calls[0]}")
-    if calls[1].get("max_tokens") != 1024:
+    if calls[1].get("max_tokens") != L.default_max_tokens():
         _fail(f"短工具结果后仍该走 base：{calls[1]}")
     if calls[0].get("reasoning_effort") != "low":
         _fail(f"没带低思考档：{calls[0]}")
@@ -792,8 +885,8 @@ def _agent_truncation_escalates():
         _fail(f"截断后没重来：{result['answer']!r}")
     if len(seen) != 2:
         _fail(f"该调 2 次 chat，实际 {len(seen)}")
-    if seen[0].get("max_tokens") != 1024:
-        _fail(f"被截断的那轮该走 base(1024)：{seen[0]}")
+    if seen[0].get("max_tokens") != L.default_max_tokens():
+        _fail(f"被截断的那轮该走 base：{seen[0]}")
     if seen[1].get("max_tokens") != long_budget:
         _fail(f"重试没提额：{seen[1]} vs {long_budget}")
     if seen[1].get("reasoning_effort") != "low":
@@ -801,12 +894,21 @@ def _agent_truncation_escalates():
 
 
 def _short_reply_not_inflated():
-    """短回复不浪费：全局默认额度没被改大，短问题仍走 1024。"""
-    if L.llm_max_tokens() != 1024:
-        _fail(f"全局默认被改大了：{L.llm_max_tokens()}")
-    if RA._turn_budget("你好", [])[0] != 1024:
+    """短回复不浪费：`max_tokens` 只是**上限**，短问题不会因此多花钱。
+
+    这条断言过去写的是「全局默认额度没被改大（仍 1024）」—— 而那个断言本身
+    正是同一 bug 修过 5 次的根因：它把「兜底额度够大」当成了要守的不变量，
+    于是每次都得靠调用方自己记得传额度。真正的不变量是**短问题不走长输出档**
+    （两档不塌成一档），而多出来的上限额度一分钱不花 —— 模型说完就停
+    （finish_reason=stop，日常工具轮实测 176 token 收尾）。
+    """
+    base = L.default_max_tokens()
+    long_budget = L.react_long_max_tokens()
+    if RA._turn_budget("你好", [])[0] != base:
         _fail("「你好」不该预先进长输出档")
-    return "LLM_MAX_TOKENS 仍 1024，「你好」走 1024"
+    if base >= long_budget:
+        _fail(f"两档塌成一档：base={base} >= long={long_budget}")
+    return f"「你好」走 base={base}（< long={long_budget}，上限不花 token）"
 
 
 check("长输出轮判据：base / long 两档", _agent_turn_budget_rule)

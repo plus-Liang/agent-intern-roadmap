@@ -777,8 +777,8 @@ def _long_output_turn(question: str, steps: list, retry_after_truncation: bool) 
 
     ReAct 每轮输出的 JSON 形状固定，但**长度差别很大**：工具调用轮只有几十个
     字（实测 176 token 就收尾），而「查看我的完整简历」「把 20 条岗位列全」这种
-    轮次要复述一长段内容，默认 1024 的额度会被思考（reasoning_content）吃光
-    → finish_reason=length、正文为空（本轮真复现的现象）。
+    轮次要复述一长段内容，日常档（历史默认 1024，现全局默认 4096）的额度会被
+    思考（`reasoning_content`）吃光 → finish_reason=length、正文为空（真复现过）。
 
     三条判据都指向「这轮会写长文本」：
       - 上一轮刚被截断：同样的额度必然再被截断（重试必须提额，否则白等一轮）；
@@ -805,7 +805,8 @@ def _turn_budget(question: str, steps: list,
     """定出本轮 chat() 的 (max_tokens, reasoning_effort)。
 
     两档（理由见 limits.react_long_max_tokens / react_reasoning_effort）：
-      - 日常轮：LLM_MAX_TOKENS（1024）+ 低思考档，工具调用轮够用（176 token 实测）；
+      - 日常轮：直接走**全局默认** limits.default_max_tokens()（LLM_MAX_TOKENS，
+        默认 4096）+ 低思考档 —— 工具调用轮实测 176 token 就收尾，4096 只是上限；
       - 长输出轮：REACT_LLM_LONG_MAX_TOKENS（8192）+ 低思考档。
     只回一个标量不够用：llm_client 的 _resolve_max_tokens 把「显式传 None」
     当成「用全局默认」，所以这里必须**同时**返回额度与档位。
@@ -927,7 +928,8 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
                 f"len={len(static_prefix)}"
             )
 
-        # 额度按档位走：日常轮 1024（工具调用够用、不浪费），长输出轮给足
+        # 额度按档位走：日常轮走全局默认（LLM_MAX_TOKENS=4096，工具调用实测 176 token
+        # 收尾、上限不花 token），长输出轮给足
         # （否则思考吃光额度 → 正文为空）。上一轮被截断时也必须进长输出档：
         # 同样的额度再试一次必然再截断，白等一轮。
         turn_max_tokens, turn_effort = _turn_budget(

@@ -571,8 +571,9 @@ def format_hits(hits: list[dict]) -> str:
 def generate_answer(question: str, hits: list[dict]) -> str:
     """基于检索片段生成答案（引用溯源里「第一次 LLM 调用」的那一步）。
 
-    为什么不直接用 ``rag.generator.generate`` 的默认参数：它走 ``chat()`` 的默认
-    ``max_tokens``（1024），而答案常是「多个岗位 + 每个岗位的依据」这种长输出，
+    为什么不直接用 ``rag.generator.generate`` 的默认参数：当年代码里 ``chat()`` 的
+    默认 ``max_tokens`` 只有 1024（现全局兜底已抬到 4096），而答案常是
+    「多个岗位 + 每个岗位的依据」这种长输出，
     **实测会被截断**（``finish_reason=length``）—— 截断的答案没法做引用溯源：
     最后一句永远是半句，标不准引用、还必然被判无依据。
 
