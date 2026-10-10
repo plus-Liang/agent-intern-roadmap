@@ -35,6 +35,7 @@ os.environ.setdefault("AGENT_ENGINE", "langgraph")
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 import framework                                                # noqa: E402
+import metrics                                                  # noqa: E402
 import regression                                               # noqa: E402
 
 CHECKS: list = []
@@ -186,6 +187,58 @@ def test_trajectory_primitives():
                  ["match_resume"])[0] is True
     assert check({"call_order": [["a", "b"]]}, ["b", "a", "b"])[0] is False
     assert check({"calls_tool": ["a", "a"]}, ["a"])[0] is True, "同一工具调两次也算调用过"
+
+
+@test
+def test_retrieval_metric_math():
+    """检索三指标的口径（Recall@K / MRR / NDCG@K）：纯函数，不花一分钱。"""
+    assert metrics.recall_at_k(["a", "b", "c", "d"], ["x", "a", "y", "b", "z", "c"], k=5) == 0.5
+    assert metrics.recall_at_k(["a", "b"], ["a", "b"], k=5) == 1.0
+    assert metrics.recall_at_k([], ["a"], k=5) == 0.0, "没有相关岗位时不该算「完美召回」"
+    assert metrics.recall_at_k(["a"], ["x", "y", "a"], k=2) == 0.0, "K 之外的不算"
+
+    assert abs(metrics.mrr(["c"], ["a", "b", "c"]) - 1 / 3) < 1e-9
+    assert metrics.mrr(["a"], ["a", "b"]) == 1.0
+    assert metrics.mrr(["z"], ["a", "b"]) == 0.0, "一个都没命中记 0"
+    assert abs(metrics.mrr([{"job_id": "a"}], [{"job_id": "b"}, {"job_id": "a"}]) - 0.5) < 1e-9, \
+        "检索结果 dict 直接喂也要能算"
+
+    import math
+    want = (1 + 1 / math.log2(4)) / (1 + 1 / math.log2(3))
+    assert abs(metrics.ndcg_at_k(["a", "b"], ["a", "x", "b"], k=10) - want) < 1e-9
+    assert metrics.ndcg_at_k(["a"], ["a"], k=10) == 1.0
+    assert metrics.ndcg_at_k(["a"], ["x", "y"], k=10) == 0.0
+    assert metrics.ndcg_at_k([], ["a"], k=10) == 0.0
+
+    got = metrics.score_retrieval(["a", "b", "c"], ["x", "a", "b", "c"])
+    assert got["evaluable"] and got["relevant_count"] == 3 and got["hit_count"] == 3
+    assert got["first_rank"] == 2 and abs(got["mrr"] - 0.5) < 1e-9
+    assert metrics.score_retrieval([], ["x"])["evaluable"] is False
+
+
+@test
+def test_retrieval_metric_plugins():
+    """三个指标插件 + suite 插件都注册了，并且真的按阈值判过/不过。"""
+    assert {"recall_at_k", "mrr", "ndcg_at_k", "retrieval"} <= set(framework.METRICS)
+    spec = {"recall_k": 5, "ndcg_k": 10, "min_recall_at_k": 0.5, "min_mrr": 0.4,
+            "min_ndcg_at_k": 0.6}
+    case = _case(judge_type="retrieval", category="retrieval", expect=spec)
+    good = {"retrieval": {"recall_at_k": 0.5, "mrr": 0.5, "ndcg_at_k": 0.6,
+                          "hit_count": 1, "relevant_count": 2, "first_rank": 1}}
+    assert framework.METRICS["recall_at_k"]().evaluate(case, good) == 1.0
+    assert framework.METRICS["mrr"]().evaluate(case, good) == 1.0
+    assert framework.METRICS["ndcg_at_k"]().evaluate(case, good) == 1.0
+    assert framework.METRICS["retrieval"]().evaluate(case, good) == 1.0
+
+    bad = {"retrieval": {"recall_at_k": 0.2, "mrr": 0.5, "ndcg_at_k": 0.6,
+                         "hit_count": 1, "relevant_count": 5, "first_rank": 1}}
+    metric = framework.METRICS["retrieval"]()
+    assert metric.evaluate(case, bad) == 0.0 and "Recall@5" in metric.detail, metric.detail
+    assert framework.METRICS["recall_at_k"]().evaluate(case, bad) == 0.0
+    # run_eval 的 Case.extra 里也是同一个口径（result.retrieval 缺失时回退 extra）
+    assert framework.METRICS["retrieval"]().evaluate(case, {"extra": {"retrieval": bad["retrieval"]}}) == 0.0
+    # 不可评（ground truth 里没有相关岗位）必须判不过，不能静默当满分
+    assert framework.METRICS["retrieval"]().evaluate(case, {"retrieval": {"skipped": True}}) == 0.0
 
 
 @test

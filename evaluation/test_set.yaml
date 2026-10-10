@@ -335,3 +335,24 @@ cases:
     trajectory:
       calls_tool: [search_jobs, match_resume]
       call_order: [[search_jobs, match_resume], [match_resume, generate_application_package]]
+
+  # ============================== 检索质量 ==============================
+  # 一次「执行」= 跑完 evaluation/ground_truth.json 里的整组查询（10 个），
+  # 用标准答案算 Recall@K / MRR / NDCG@K（口径与插件见 evaluation/metrics.py，
+  # 独立脚本 evaluation/run_retrieval_eval.py 跑的是同一套）。
+  # expect 里的阈值 = 2026-10-10 首次基线（取整留 0.01~0.02 余量，避免换库后
+  # 一点数据抖动就集体变红）：Recall@5 0.202 / MRR 0.809 / NDCG@10 0.578。
+  - id: retrieval-01
+    category: retrieval
+    judge_type: retrieval
+    question: "检索质量：10 个检索类查询的 Recall@5 / MRR / NDCG@10"
+    expect:
+      top: 50
+      recall_k: 5
+      ndcg_k: 10
+      min_recall_at_k: 0.19
+      min_mrr: 0.79
+      min_ndcg_at_k: 0.56
+    note: >-
+      基线取自 evaluation/results/<stamp>_retrieval.json；换库或改检索参数后
+      Recall 会因为「每个查询的相关岗位数 R」变化而变化，阈值要跟着基线一起更新。

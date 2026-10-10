@@ -42,7 +42,8 @@ EVAL_DIR = Path(__file__).resolve().parent
 JUDGE_CHECK_NAME = "裁判复核"
 
 #: by_judge / 报表里的中文标签
-JUDGE_LABELS = {"deterministic": "确定性判分", "llm": "LLM 裁判", "trajectory": "轨迹断言"}
+JUDGE_LABELS = {"deterministic": "确定性判分", "llm": "LLM 裁判", "trajectory": "轨迹断言",
+                "retrieval": "检索指标"}
 
 #: 单题通过率落在 [0.2, 0.8] 视为「不稳定」（绝对值 0% / 100% 反而是稳定结论）
 UNSTABLE_LOW = 0.2
@@ -331,8 +332,9 @@ class YamlProvider(BaseProvider):
         "interview": {"case": ("company", "title"), "expect": ()},
         "boundary": {"case": (), "expect": ("check",)},
         "complex": {"case": (), "expect": ("search_min",)},
+        # 检索类：一次「执行」跑整个 ground truth 查询集，expect 里给指标阈值
+        "retrieval": {"case": (), "expect": ("min_recall_at_k",)},
     }
-
     def __init__(self, test_set_path=None, results_dir=None) -> None:
         self.test_set_path = Path(test_set_path or EVAL_DIR / "test_set.yaml")
         self.results_dir = Path(results_dir or EVAL_DIR / "results")

@@ -39,6 +39,9 @@ LLM 非确定性：同一题、同一模型、同一 prompt，也可能一次过
 * `llm`：用**独立的 judge prompt**（不是被测的那套 prompt）让 LLM 判「答案是否符合预期」，
   用于「匹配打分的理由是否站得住」「面试题是否贴 JD」这类没有唯一标准答案的题。
 * `trajectory`：只查工具调用序列（calls_tool / not_calls_tool / call_order），不判文本。
+* `retrieval`：检索质量 —— 拿 `evaluation/ground_truth.json` 里的相关岗位，
+  对真实检索路径算 Recall@K / MRR / NDCG@K（实现见 evaluation/metrics.py，
+  独立脚本见 evaluation/run_retrieval_eval.py）。没有 ground truth 时这类题会被跳过。
 
 隔离
 ----
@@ -89,6 +92,8 @@ from agent.react_agent_lg import run as run_agent              # noqa: E402
 
 import framework                                               # noqa: E402
 import regression                                              # noqa: E402
+import metrics as metrics_mod                                  # noqa: E402
+import run_retrieval_eval as retrieval_eval                    # noqa: E402
 
 JUDGE_MAX_TOKENS = 4096            # 独立裁判调用：思考模型下 1024 会被思考吃光
 JUDGE_EFFORT = "low"
@@ -541,6 +546,48 @@ def run_complex(case: dict, ctx: dict) -> Case:
     return c
 
 
+def run_retrieval(case: dict, ctx: dict) -> Case:
+    """检索质量：拿 ground truth 里的查询集合跑一遍检索，算 Recall@K / MRR / NDCG@K。
+
+    与别的 runner 不同，这一题的「一次执行」是**整个检索评测集合**：逐个查询跑
+    `tools_registry._search`（用户看到的那个列表），再按 `evaluation/ground_truth.json`
+    里的相关岗位算三个指标。指标口径与插件都在 `evaluation/metrics.py`（不新建体系）。
+
+    判分：三个指标**各按题库给的阈值**判（Recall@5 ≥ min_recall_at_k、MRR ≥ min_mrr、
+    NDCG@10 ≥ min_ndcg_at_k），全过才算过 —— 阈值来自第一次实测的基线，写死在题里。
+    """
+    c = Case(case)
+    expect = _expect(case)
+    query_ids = [str(x).strip() for x in (case.get("queries") or []) if str(x).strip()]
+    top = int(expect.get("top") or case.get("top") or 50)
+    recall_k = int(expect.get("recall_k") or case.get("recall_k") or metrics_mod.DEFAULT_RECALL_K)
+    ndcg_k = int(expect.get("ndcg_k") or case.get("ndcg_k") or metrics_mod.DEFAULT_NDCG_K)
+
+    report = retrieval_eval.run_suite(top=top, recall_k=recall_k, ndcg_k=ndcg_k)
+    per_query = [q for q in report["per_query"] if not query_ids or q["id"] in set(query_ids)]
+    if not per_query:
+        c.check("ground truth 有可用查询", False,
+                f"queries={query_ids or '全部'} 一条都没匹配上")
+        return c
+    agg = retrieval_eval.aggregate(per_query, recall_k, ndcg_k)
+    agg["evaluable"] = agg["evaluable_count"] > 0
+    c.extra = {"retrieval": agg, "per_query": per_query,
+               "ground_truth_path": report["ground_truth_path"]}
+
+    c.check("ground truth 可用", agg["evaluable_count"] > 0,
+            f"{agg['evaluable_count']}/{agg['query_count']} 个查询在库里能标出相关岗位"
+            "（其余记 0 分）")
+    for label, value, key in ((f"Recall@{recall_k}", agg["recall_at_k"], "min_recall_at_k"),
+                              ("MRR", agg["mrr"], "min_mrr"),
+                              (f"NDCG@{ndcg_k}", agg["ndcg_at_k"], "min_ndcg_at_k")):
+        base = f"{value:.3f}（{agg['query_count']} 个查询的平均"
+        if key == "min_recall_at_k":
+            base += f"，可评 {agg['evaluable_count']}"
+        c.check(label, value >= float(expect.get(key) or 0.0),
+                base + (f"；要求 ≥ {expect[key]}）" if expect.get(key) is not None else "）"))
+    return c
+
+
 RUNNERS = {
     "search": run_search,
     "match": run_match,
@@ -548,6 +595,7 @@ RUNNERS = {
     "interview": run_interview,
     "boundary": run_boundary,
     "complex": run_complex,
+    "retrieval": run_retrieval,
 }
 
 
@@ -571,7 +619,10 @@ def _run_once(case: dict, ctx: dict, verbose: bool = True) -> dict:
             c = runner(case, ctx)
         calls = list(recorder.calls)
         verdict = framework.evaluate_case(
-            case, {"checks": c.checks, "judge": c.judge, "trajectory": {"calls": calls}})
+            case, {"checks": c.checks, "judge": c.judge, "trajectory": {"calls": calls},
+                   # extra 里放的是 runner 的原始产出（检索题的三指标就在这），
+                   # 不传下去的话 retrieval 插件读不到数，会判成「没拿到检索结果」
+                   "extra": c.extra})
         trajectory = None
         if case.get("trajectory"):
             metric = (verdict.get("metrics") or {}).get("trajectory") or {}
@@ -707,6 +758,13 @@ def main() -> int:
     if args.case:
         want = {x.strip() for x in args.case.split(",") if x.strip()}
         cases = [c for c in cases if c["id"] in want]
+    # 检索质量题要标准答案（ground truth）：文件不在就先跳过并说清楚，
+    # 别让 27+ 题的整轮评测因为一个附属题集体失败（构建命令见函数 docstring）。
+    if any(c["category"] == "retrieval" for c in cases) and not retrieval_eval.GT_PATH.is_file():
+        skipped = [c["id"] for c in cases if c["category"] == "retrieval"]
+        cases = [c for c in cases if c["category"] != "retrieval"]
+        print(f"[警告] 没有 {retrieval_eval.GT_PATH}，跳过检索题 {skipped}；"
+              "先跑 python evaluation/build_ground_truth.py 生成标准答案")
     if not cases:
         print("[错误] 没有匹配到任何题目")
         return 2

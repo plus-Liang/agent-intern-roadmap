@@ -1,0 +1,7276 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-10-10 13:58:11",
+  "generator": "evaluation/build_ground_truth.py（LLM 逐条判定 + 人工抽查）",
+  "judged_by": "glm-4.5-air",
+  "relevance": "binary：岗位名 / JD 里出现查询所指的技术、职能、方向即算相关；城市与岗位类型已在检索阶段过滤。",
+  "metric_convention": {
+    "recall_at_k": "|relevant ∩ retrieved[:K]| / |relevant|（默认 K=5）",
+    "mrr": "1 / 第一个相关结果的排名（未命中记 0）",
+    "ndcg_at_k": "DCG@K / IDCG@K，binary gain（默认 K=10）"
+  },
+  "note": "relevant_job_ids 是评测口径的唯一真相；candidates / judgments 保留现场，供人工抽查与复查（换库后 job_id 可能消失，检索不到时该题不可评）。",
+  "queries": [
+    {
+      "id": "q1",
+      "query": "帮我找广州的 Agent 实习岗位",
+      "search": {
+        "keyword": "Agent",
+        "city": "广州",
+        "job_type": "实习",
+        "top": 50
+      },
+      "candidate_count": 50,
+      "relevant_job_ids": [
+        "inn_qpa38aa45nvn",
+        "inn_2hjojyjddbxj",
+        "inn_ct9k5tle1quk",
+        "inn_ckfvcvy9hsxl",
+        "inn_u01y1yci5ucw",
+        "SG35Vp4H4e6QZDoPES9xwQ",
+        "inn_yjjat0k7fkwn",
+        "inn_ztqeixo1j38k",
+        "460796"
+      ],
+      "relevant_count": 9,
+      "unjudged_count": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "job_id": "inn_qpa38aa45nvn",
+          "title": "AI Agent开发（可转正）",
+          "company": "墨泊可士",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_2hjojyjddbxj",
+          "title": "Ai应用开发",
+          "company": "信投智联科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 3,
+          "job_id": "455160",
+          "title": "算法工程师",
+          "company": "上海信投智联科技有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_noqxgzilw4jg",
+          "title": "大模型算法",
+          "company": "信投智联科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_9j3knkthf4n8",
+          "title": "大模型算法（可转正）",
+          "company": "墨泊可士",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_ct9k5tle1quk",
+          "title": "AI应用开发（可转正）",
+          "company": "墨泊可士",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 7,
+          "job_id": "455594",
+          "title": "算法工程师",
+          "company": "杭州数云信息技术有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 8,
+          "job_id": "455614",
+          "title": "算法工程师",
+          "company": "新拓云联",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 9,
+          "job_id": "455634",
+          "title": "算法工程师",
+          "company": "咕咚网络",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 10,
+          "job_id": "455674",
+          "title": "算法工程师",
+          "company": "4399游戏",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 11,
+          "job_id": "455933",
+          "title": "算法工程师",
+          "company": "数兴网络",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 12,
+          "job_id": "466364",
+          "title": "大模型算法",
+          "company": "快手",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 13,
+          "job_id": "466401",
+          "title": "大模型算法工程师",
+          "company": "滴滴",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 14,
+          "job_id": "466427",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 15,
+          "job_id": "466437",
+          "title": "大模型算法（实习）",
+          "company": "京东",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 16,
+          "job_id": "467698",
+          "title": "大模型算法",
+          "company": "阿里巴巴集团",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 17,
+          "job_id": "468025",
+          "title": "大模型算法工程师",
+          "company": "北京集翔信息技术集团有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 18,
+          "job_id": "469302",
+          "title": "算法工程师",
+          "company": "商汤科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 19,
+          "job_id": "469352",
+          "title": "算法工程师",
+          "company": "广州尚动计算机科技有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 20,
+          "job_id": "469372",
+          "title": "算法工程师",
+          "company": "顶辉数字",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 21,
+          "job_id": "469393",
+          "title": "算法工程师",
+          "company": "金点数据",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 22,
+          "job_id": "469546",
+          "title": "大模型算法工程师",
+          "company": "杭州数知梦科技有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_ckfvcvy9hsxl",
+          "title": "Ai应用开发",
+          "company": "信投智联科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_u01y1yci5ucw",
+          "title": "Ai应用开发",
+          "company": "信投智联科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 25,
+          "job_id": "467657",
+          "title": "大模型算法",
+          "company": "小红书",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 26,
+          "job_id": "inn_y4aj2qvbst77",
+          "title": "AI渗透测试实习生(A59685A)",
+          "company": "小鹏汽车",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 27,
+          "job_id": "454869",
+          "title": "算法工程师",
+          "company": "赛目",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 28,
+          "job_id": "454913",
+          "title": "算法工程师",
+          "company": "理想汽车",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 29,
+          "job_id": "454964",
+          "title": "算法工程师",
+          "company": "新绪元",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 30,
+          "job_id": "454985",
+          "title": "大模型算法工程师",
+          "company": "上海趋视信息科技有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 31,
+          "job_id": "455049",
+          "title": "算法工程师",
+          "company": "网易",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 32,
+          "job_id": "455070",
+          "title": "算法工程师",
+          "company": "上海得物信息集团有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 33,
+          "job_id": "455203",
+          "title": "算法工程师",
+          "company": "海康威视",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 34,
+          "job_id": "467769",
+          "title": "大模型算法工程师",
+          "company": "洽客科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 35,
+          "job_id": "467829",
+          "title": "大模型算法工程师",
+          "company": "美团金融",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 36,
+          "job_id": "468168",
+          "title": "大模型算法",
+          "company": "比庐信息",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 37,
+          "job_id": "468229",
+          "title": "大模型算法",
+          "company": "度小满",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 38,
+          "job_id": "468981",
+          "title": "算法工程师",
+          "company": "北京飞书网络技术有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 39,
+          "job_id": "469111",
+          "title": "算法工程师",
+          "company": "北京正生科技集团有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 40,
+          "job_id": "inn_upfme7gwwesc",
+          "title": "电商内容运营实习生 - TikTok Shop",
+          "company": "字节跳动",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 41,
+          "job_id": "SG35Vp4H4e6QZDoPES9xwQ",
+          "title": "AI助手产品经理实习生(A243860)",
+          "company": "广州小鹏汽车科技有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 42,
+          "job_id": "inn_yjjat0k7fkwn",
+          "title": "AI助手产品经理实习生(A243860)",
+          "company": "小鹏汽车",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 43,
+          "job_id": "inn_ztqeixo1j38k",
+          "title": "AI应用开发实习生（法律科技方向）",
+          "company": "小律同学",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_gsj6tmeguaum",
+          "title": "科大讯飞华南人工智能研究院NLP实习生",
+          "company": "科大讯飞",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 45,
+          "job_id": "inn_eftzlgz3frca",
+          "title": "海外增长运营实习生【线上可转正】",
+          "company": "Nemovideo",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 46,
+          "job_id": "455881",
+          "title": "算法工程师",
+          "company": "安克创新",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 47,
+          "job_id": "460796",
+          "title": "ai算法工程师工程师",
+          "company": "字节跳动",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_dskksgw5iv29",
+          "title": "产品经理实习",
+          "company": "故新智能",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_wk3jsvktapjz",
+          "title": "VLA大模型算法实习生(A198111)",
+          "company": "小鹏汽车",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 50,
+          "job_id": "H1MCk6sQVULcHzYDpeT9cA",
+          "title": "管理咨询实习生",
+          "company": "深圳伟略达产业服务有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        }
+      ],
+      "judgments": [
+        {
+          "index": 1,
+          "job_id": "inn_qpa38aa45nvn",
+          "title": "AI Agent开发（可转正）",
+          "company": "墨泊可士",
+          "relevant": true,
+          "reason": "岗位名含 Agent 开发，与查询直接对应"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_2hjojyjddbxj",
+          "title": "Ai应用开发",
+          "company": "信投智联科技",
+          "relevant": true,
+          "reason": "岗位名含 AI 应用开发，Agent 属于 AI 应用开发方向"
+        },
+        {
+          "index": 3,
+          "job_id": "455160",
+          "title": "算法工程师",
+          "company": "上海信投智联科技有限公司",
+          "relevant": false,
+          "reason": "岗位名是算法工程师，未明确涉及Agent方向"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_noqxgzilw4jg",
+          "title": "大模型算法",
+          "company": "信投智联科技",
+          "relevant": false,
+          "reason": "岗位名是大模型算法，未明确涉及Agent"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_9j3knkthf4n8",
+          "title": "大模型算法（可转正）",
+          "company": "墨泊可士",
+          "relevant": false,
+          "reason": "岗位名是大模型算法，方向不符Agent"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_ct9k5tle1quk",
+          "title": "AI应用开发（可转正）",
+          "company": "墨泊可士",
+          "relevant": true,
+          "reason": "岗位名含AI应用开发，被视为Agent的同义方向"
+        },
+        {
+          "index": 7,
+          "job_id": "455594",
+          "title": "算法工程师",
+          "company": "杭州数云信息技术有限公司",
+          "relevant": false,
+          "reason": "算法工程师方向不明确匹配Agent，泛泛AI岗位"
+        },
+        {
+          "index": 8,
+          "job_id": "455614",
+          "title": "算法工程师",
+          "company": "新拓云联",
+          "relevant": false,
+          "reason": "算法工程师方向不明确匹配Agent，泛泛AI岗位"
+        },
+        {
+          "index": 9,
+          "job_id": "455634",
+          "title": "算法工程师",
+          "company": "咕咚网络",
+          "relevant": false,
+          "reason": "算法工程师方向不明确匹配Agent，泛泛AI岗位"
+        },
+        {
+          "index": 10,
+          "job_id": "455674",
+          "title": "算法工程师",
+          "company": "4399游戏",
+          "relevant": false,
+          "reason": "算法工程师在游戏公司可能涉及游戏AI，但岗位名未明确Agent"
+        },
+        {
+          "index": 11,
+          "job_id": "455933",
+          "title": "算法工程师",
+          "company": "数兴网络",
+          "relevant": false,
+          "reason": "岗位名算法工程师，未明确提到 Agent 或相关术语，方向不明确"
+        },
+        {
+          "index": 12,
+          "job_id": "466364",
+          "title": "大模型算法",
+          "company": "快手",
+          "relevant": false,
+          "reason": "岗位名大模型算法，方向为基础模型开发，与 Agent 应用不符"
+        },
+        {
+          "index": 13,
+          "job_id": "466401",
+          "title": "大模型算法工程师",
+          "company": "滴滴",
+          "relevant": false,
+          "reason": "岗位名大模型算法工程师，方向为基础模型开发，与 Agent 应用不符"
+        },
+        {
+          "index": 14,
+          "job_id": "466427",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "relevant": false,
+          "reason": "岗位名大模型算法工程师，方向为基础模型开发，与 Agent 应用不符"
+        },
+        {
+          "index": 15,
+          "job_id": "466437",
+          "title": "大模型算法（实习）",
+          "company": "京东",
+          "relevant": false,
+          "reason": "岗位名大模型算法，方向为基础模型开发，与 Agent 应用不符"
+        },
+        {
+          "index": 16,
+          "job_id": "467698",
+          "title": "大模型算法",
+          "company": "阿里巴巴集团",
+          "relevant": false,
+          "reason": "岗位名为大模型算法，未明确涉及Agent方向"
+        },
+        {
+          "index": 17,
+          "job_id": "468025",
+          "title": "大模型算法工程师",
+          "company": "北京集翔信息技术集团有限公司",
+          "relevant": false,
+          "reason": "岗位名为大模型算法工程师，未明确涉及Agent方向"
+        },
+        {
+          "index": 18,
+          "job_id": "469302",
+          "title": "算法工程师",
+          "company": "商汤科技",
+          "relevant": false,
+          "reason": "岗位名为算法工程师，方向泛泛，不特指Agent"
+        },
+        {
+          "index": 19,
+          "job_id": "469352",
+          "title": "算法工程师",
+          "company": "广州尚动计算机科技有限公司",
+          "relevant": false,
+          "reason": "岗位名为算法工程师，方向泛泛，不特指Agent"
+        },
+        {
+          "index": 20,
+          "job_id": "469372",
+          "title": "算法工程师",
+          "company": "顶辉数字",
+          "relevant": false,
+          "reason": "岗位名为算法工程师，方向泛泛，不特指Agent"
+        },
+        {
+          "index": 21,
+          "job_id": "469393",
+          "title": "算法工程师",
+          "company": "金点数据",
+          "relevant": false,
+          "reason": "泛泛的算法岗，方向不符"
+        },
+        {
+          "index": 22,
+          "job_id": "469546",
+          "title": "大模型算法工程师",
+          "company": "杭州数知梦科技有限公司",
+          "relevant": false,
+          "reason": "大模型算法，与Agent方向不同"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_ckfvcvy9hsxl",
+          "title": "Ai应用开发",
+          "company": "信投智联科技",
+          "relevant": true,
+          "reason": "岗位名含AI应用开发，Agent算相关"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_u01y1yci5ucw",
+          "title": "Ai应用开发",
+          "company": "信投智联科技",
+          "relevant": true,
+          "reason": "岗位名含AI应用开发，Agent算相关"
+        },
+        {
+          "index": 25,
+          "job_id": "467657",
+          "title": "大模型算法",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "大模型算法，方向不符"
+        },
+        {
+          "index": 26,
+          "job_id": "inn_y4aj2qvbst77",
+          "title": "AI渗透测试实习生(A59685A)",
+          "company": "小鹏汽车",
+          "relevant": false,
+          "reason": "岗位名未提及Agent相关技术，仅AI渗透测试，方向不符"
+        },
+        {
+          "index": 27,
+          "job_id": "454869",
+          "title": "算法工程师",
+          "company": "赛目",
+          "relevant": false,
+          "reason": "岗位名泛泛算法工程师，未指定Agent相关技术"
+        },
+        {
+          "index": 28,
+          "job_id": "454913",
+          "title": "算法工程师",
+          "company": "理想汽车",
+          "relevant": false,
+          "reason": "岗位名泛泛算法工程师，未指定Agent相关技术"
+        },
+        {
+          "index": 29,
+          "job_id": "454964",
+          "title": "算法工程师",
+          "company": "新绪元",
+          "relevant": false,
+          "reason": "岗位名泛泛算法工程师，未指定Agent相关技术"
+        },
+        {
+          "index": 30,
+          "job_id": "454985",
+          "title": "大模型算法工程师",
+          "company": "上海趋视信息科技有限公司",
+          "relevant": false,
+          "reason": "岗位名大模型算法工程师，大模型与Agent方向不同，未直接提及"
+        },
+        {
+          "index": 31,
+          "job_id": "455049",
+          "title": "算法工程师",
+          "company": "网易",
+          "relevant": false,
+          "reason": "岗位名未提及 Agent 或相关方向，仅泛泛算法工程师，方向不符"
+        },
+        {
+          "index": 32,
+          "job_id": "455070",
+          "title": "算法工程师",
+          "company": "上海得物信息集团有限公司",
+          "relevant": false,
+          "reason": "岗位名未提及 Agent 或相关方向，仅泛泛算法工程师，方向不符"
+        },
+        {
+          "index": 33,
+          "job_id": "455203",
+          "title": "算法工程师",
+          "company": "海康威视",
+          "relevant": false,
+          "reason": "岗位名未提及 Agent 或相关方向，仅泛泛算法工程师，方向不符"
+        },
+        {
+          "index": 34,
+          "job_id": "467769",
+          "title": "大模型算法工程师",
+          "company": "洽客科技",
+          "relevant": false,
+          "reason": "岗位名是大模型算法工程师，与 Agent 方向不同，大模型不直接对应 Agent 开发"
+        },
+        {
+          "index": 35,
+          "job_id": "467829",
+          "title": "大模型算法工程师",
+          "company": "美团金融",
+          "relevant": false,
+          "reason": "岗位名是大模型算法工程师，与 Agent 方向不同，大模型不直接对应 Agent 开发"
+        },
+        {
+          "index": 36,
+          "job_id": "468168",
+          "title": "大模型算法",
+          "company": "比庐信息",
+          "relevant": false,
+          "reason": "岗位名是「大模型算法」，未明确涉及 Agent 开发"
+        },
+        {
+          "index": 37,
+          "job_id": "468229",
+          "title": "大模型算法",
+          "company": "度小满",
+          "relevant": false,
+          "reason": "岗位名是「大模型算法」，未明确涉及 Agent 开发"
+        },
+        {
+          "index": 38,
+          "job_id": "468981",
+          "title": "算法工程师",
+          "company": "北京飞书网络技术有限公司",
+          "relevant": false,
+          "reason": "岗位名是「算法工程师」，未出现 Agent 或相关技术"
+        },
+        {
+          "index": 39,
+          "job_id": "469111",
+          "title": "算法工程师",
+          "company": "北京正生科技集团有限公司",
+          "relevant": false,
+          "reason": "岗位名是「算法工程师」，未出现 Agent 或相关技术"
+        },
+        {
+          "index": 40,
+          "job_id": "inn_upfme7gwwesc",
+          "title": "电商内容运营实习生 - TikTok Shop",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位是电商内容运营，方向与 Agent 技术不符"
+        },
+        {
+          "index": 41,
+          "job_id": "SG35Vp4H4e6QZDoPES9xwQ",
+          "title": "AI助手产品经理实习生(A243860)",
+          "company": "广州小鹏汽车科技有限公司",
+          "relevant": true,
+          "reason": "岗位名含AI助手，与Agent直接相关"
+        },
+        {
+          "index": 42,
+          "job_id": "inn_yjjat0k7fkwn",
+          "title": "AI助手产品经理实习生(A243860)",
+          "company": "小鹏汽车",
+          "relevant": true,
+          "reason": "岗位名含AI助手，与Agent直接相关"
+        },
+        {
+          "index": 43,
+          "job_id": "inn_ztqeixo1j38k",
+          "title": "AI应用开发实习生（法律科技方向）",
+          "company": "小律同学",
+          "relevant": true,
+          "reason": "岗位名含AI应用开发，Agent属于该方向"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_gsj6tmeguaum",
+          "title": "科大讯飞华南人工智能研究院NLP实习生",
+          "company": "科大讯飞",
+          "relevant": false,
+          "reason": "岗位名是NLP实习生，未明确涉及Agent，方向不符"
+        },
+        {
+          "index": 45,
+          "job_id": "inn_eftzlgz3frca",
+          "title": "海外增长运营实习生【线上可转正】",
+          "company": "Nemovideo",
+          "relevant": false,
+          "reason": "岗位名是海外增长运营，与Agent方向明显不同"
+        },
+        {
+          "index": 46,
+          "job_id": "455881",
+          "title": "算法工程师",
+          "company": "安克创新",
+          "relevant": false,
+          "reason": "方向不符，算法工程师不特指Agent"
+        },
+        {
+          "index": 47,
+          "job_id": "460796",
+          "title": "ai算法工程师工程师",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含AI，是Agent的上位概念"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_dskksgw5iv29",
+          "title": "产品经理实习",
+          "company": "故新智能",
+          "relevant": false,
+          "reason": "方向不符，产品经理与Agent无关"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_wk3jsvktapjz",
+          "title": "VLA大模型算法实习生(A198111)",
+          "company": "小鹏汽车",
+          "relevant": false,
+          "reason": "方向对不上，大模型算法不直接是Agent"
+        },
+        {
+          "index": 50,
+          "job_id": "H1MCk6sQVULcHzYDpeT9cA",
+          "title": "管理咨询实习生",
+          "company": "深圳伟略达产业服务有限公司",
+          "relevant": false,
+          "reason": "方向不符，管理咨询与Agent无关"
+        }
+      ]
+    },
+    {
+      "id": "q2",
+      "query": "帮我在北京找大模型的实习",
+      "search": {
+        "keyword": "大模型",
+        "city": "北京",
+        "job_type": "实习",
+        "top": 50
+      },
+      "candidate_count": 50,
+      "relevant_job_ids": [
+        "440840",
+        "inn_5m4kyoyc9aj3",
+        "inn_j0k4dbfdfrui",
+        "442790",
+        "inn_7iduj6uhojum",
+        "inn_7yy33fbglyjw",
+        "inn_a6zhalc24n9k",
+        "inn_lbc2ejtjoy6b",
+        "inn_vpcqnztiva6u",
+        "inn_wq1ozyb2sfyj",
+        "inn_zqgy7dozbdhb",
+        "inn_6pszipkdwcyj",
+        "inn_86eh63rfm62o",
+        "inn_arhzq3ncpdlu",
+        "464738",
+        "466425",
+        "inn_1cyb7tce9pwl",
+        "inn_2sg2ckdy3xq1",
+        "inn_3zh78xvkcycg",
+        "inn_a8v1vdnpb1gu",
+        "inn_at193zst20sz",
+        "inn_ijw68ezwgcs1",
+        "inn_jp8il8kq4zia",
+        "inn_lvboxrtue524",
+        "inn_t0w7q2mfsiwd",
+        "434663",
+        "453842",
+        "inn_l7mra80lffvx",
+        "inn_scnfqqicv45x",
+        "inn_yjdxmjia2yzr",
+        "inn_za8on3ppgft5",
+        "466747",
+        "inn_0neumlfauinu",
+        "inn_bmopjpumw4ss",
+        "inn_tqlm8ajblbo3",
+        "inn_py1hkw0wds9o"
+      ],
+      "relevant_count": 36,
+      "unjudged_count": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "job_id": "440840",
+          "title": "【快Star-X实习】大模型应用算法工程师工程师",
+          "company": "快手",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_5m4kyoyc9aj3",
+          "title": "大模型算法",
+          "company": "腾讯",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_j0k4dbfdfrui",
+          "title": "大模型MaaS推理系统研发实习生",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 4,
+          "job_id": "442790",
+          "title": "大模型算法实习生",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_7iduj6uhojum",
+          "title": "大模型算法",
+          "company": "麦穗科技",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_7yy33fbglyjw",
+          "title": "大模型算法",
+          "company": "荷叶健康",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_a6zhalc24n9k",
+          "title": "大模型数据产品实习生",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_lbc2ejtjoy6b",
+          "title": "大模型算法",
+          "company": "长擎软件",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_vpcqnztiva6u",
+          "title": "英语大模型翻译评测实习生",
+          "company": "网易有道",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_wq1ozyb2sfyj",
+          "title": "大模型算法（可转正）",
+          "company": "蜀俊博凌",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_zqgy7dozbdhb",
+          "title": "大模型算法实习生",
+          "company": "北京赛博",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_6pszipkdwcyj",
+          "title": "大模型算法",
+          "company": "飞书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_86eh63rfm62o",
+          "title": "大模型算法",
+          "company": "美团",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 14,
+          "job_id": "inn_arhzq3ncpdlu",
+          "title": "大模型算法实习生",
+          "company": "寒序科技",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 15,
+          "job_id": "464738",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 16,
+          "job_id": "466425",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_1cyb7tce9pwl",
+          "title": "大模型算法",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_2sg2ckdy3xq1",
+          "title": "大模型算法",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_3zh78xvkcycg",
+          "title": "大模型算法",
+          "company": "小米智能科技",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_a8v1vdnpb1gu",
+          "title": "大模型算法",
+          "company": "腾讯",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 21,
+          "job_id": "inn_at193zst20sz",
+          "title": "大模型算法",
+          "company": "荷叶健康",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_ijw68ezwgcs1",
+          "title": "大模型算法",
+          "company": "洞悉网络",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_jp8il8kq4zia",
+          "title": "大模型算法",
+          "company": "飞书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_lvboxrtue524",
+          "title": "大模型算法",
+          "company": "长擎软件",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 25,
+          "job_id": "inn_t0w7q2mfsiwd",
+          "title": "大模型算法",
+          "company": "美团",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 26,
+          "job_id": "434663",
+          "title": "多模态大模型算法实习生",
+          "company": "蚂蚁集团",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 27,
+          "job_id": "453842",
+          "title": "【快Star】多模态大模型算法工程师-Keye-【可灵AI专项】（实习）",
+          "company": "快手",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 28,
+          "job_id": "inn_l7mra80lffvx",
+          "title": "大模型算法",
+          "company": "小米智能科技",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_scnfqqicv45x",
+          "title": "大模型算法",
+          "company": "飞书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_yjdxmjia2yzr",
+          "title": "大模型算法",
+          "company": "美团",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 31,
+          "job_id": "inn_za8on3ppgft5",
+          "title": "大模型知识工程实习生",
+          "company": "数智院",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 32,
+          "job_id": "466747",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 33,
+          "job_id": "inn_0neumlfauinu",
+          "title": "大模型实习生",
+          "company": "新浪",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 34,
+          "job_id": "inn_bmopjpumw4ss",
+          "title": "大模型算法工程师（实习）(J106176)",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 35,
+          "job_id": "inn_tqlm8ajblbo3",
+          "title": "AI大模型应用实习生",
+          "company": "西门子",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 36,
+          "job_id": "164845",
+          "title": "【阿里基因-深象智能实习生】视觉&多模态算法工程师",
+          "company": "阿里巴巴集团",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 37,
+          "job_id": "inn_0dereuhntrzw",
+          "title": "Agent 开发实习生（AI工具方向）— 快手主站",
+          "company": "快手",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 38,
+          "job_id": "inn_dvefvl4wewzx",
+          "title": "国际化搜推算法工程师",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 39,
+          "job_id": "inn_iypvifeu1trc",
+          "title": "AI Agent开发（可转正）",
+          "company": "蜀俊博凌",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 40,
+          "job_id": "inn_psimwuuzs2fr",
+          "title": "Agent评测与工程实习生 - AI数据与安全",
+          "company": "字节跳动",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 41,
+          "job_id": "inn_ya2l3cendpvw",
+          "title": "Agent评测数据实习生 - AI数据与安全",
+          "company": "字节跳动",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 42,
+          "job_id": "inn_hfafgasj8tnt",
+          "title": "Agent策略实习生",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 43,
+          "job_id": "inn_yqqcgfc9xdzl",
+          "title": "售前工程师（实习）",
+          "company": "格尔国信",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 44,
+          "job_id": "454911",
+          "title": "算法工程师",
+          "company": "理想汽车",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 45,
+          "job_id": "455047",
+          "title": "算法工程师",
+          "company": "网易",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 46,
+          "job_id": "455201",
+          "title": "算法工程师",
+          "company": "海康威视",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 47,
+          "job_id": "inn_b8v3nq4hujoo",
+          "title": "战略运营管理部PMO实习生",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_mcbmswya1cex",
+          "title": "语言学实习生-Data 语音",
+          "company": "字节跳动",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_py1hkw0wds9o",
+          "title": "Agent研发工程师（实习生）",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 50,
+          "job_id": "468679",
+          "title": "算法工程师",
+          "company": "百度（中国）有限公司",
+          "city": "北京",
+          "job_type": "实习"
+        }
+      ],
+      "judgments": [
+        {
+          "index": 1,
+          "job_id": "440840",
+          "title": "【快Star-X实习】大模型应用算法工程师工程师",
+          "company": "快手",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_5m4kyoyc9aj3",
+          "title": "大模型算法",
+          "company": "腾讯",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_j0k4dbfdfrui",
+          "title": "大模型MaaS推理系统研发实习生",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含大模型，且MaaS是大模型应用方向"
+        },
+        {
+          "index": 4,
+          "job_id": "442790",
+          "title": "大模型算法实习生",
+          "company": "百度",
+          "relevant": true,
+          "reason": "岗位名含大模型，直接匹配查询"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_7iduj6uhojum",
+          "title": "大模型算法",
+          "company": "麦穗科技",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_7yy33fbglyjw",
+          "title": "大模型算法",
+          "company": "荷叶健康",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接匹配查询关键词"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_a6zhalc24n9k",
+          "title": "大模型数据产品实习生",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'大模型数据产品实习生'，涉及大模型"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_lbc2ejtjoy6b",
+          "title": "大模型算法",
+          "company": "长擎软件",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接匹配查询关键词"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_vpcqnztiva6u",
+          "title": "英语大模型翻译评测实习生",
+          "company": "网易有道",
+          "relevant": true,
+          "reason": "岗位名含'英语大模型翻译评测'，直接涉及大模型"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_wq1ozyb2sfyj",
+          "title": "大模型算法（可转正）",
+          "company": "蜀俊博凌",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接匹配查询关键词"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_zqgy7dozbdhb",
+          "title": "大模型算法实习生",
+          "company": "北京赛博",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_6pszipkdwcyj",
+          "title": "大模型算法",
+          "company": "飞书",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_86eh63rfm62o",
+          "title": "大模型算法",
+          "company": "美团",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 14,
+          "job_id": "inn_arhzq3ncpdlu",
+          "title": "大模型算法实习生",
+          "company": "寒序科技",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 15,
+          "job_id": "464738",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 16,
+          "job_id": "466425",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "relevant": true,
+          "reason": "岗位名含大模型，与查询直接对应"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_1cyb7tce9pwl",
+          "title": "大模型算法",
+          "company": "百度",
+          "relevant": true,
+          "reason": "岗位名含大模型，与查询直接对应"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_2sg2ckdy3xq1",
+          "title": "大模型算法",
+          "company": "百度",
+          "relevant": true,
+          "reason": "岗位名含大模型，与查询直接对应"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_3zh78xvkcycg",
+          "title": "大模型算法",
+          "company": "小米智能科技",
+          "relevant": true,
+          "reason": "岗位名含大模型，与查询直接对应"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_a8v1vdnpb1gu",
+          "title": "大模型算法",
+          "company": "腾讯",
+          "relevant": true,
+          "reason": "岗位名含大模型，与查询直接对应"
+        },
+        {
+          "index": 21,
+          "job_id": "inn_at193zst20sz",
+          "title": "大模型算法",
+          "company": "荷叶健康",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_ijw68ezwgcs1",
+          "title": "大模型算法",
+          "company": "洞悉网络",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_jp8il8kq4zia",
+          "title": "大模型算法",
+          "company": "飞书",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_lvboxrtue524",
+          "title": "大模型算法",
+          "company": "长擎软件",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 25,
+          "job_id": "inn_t0w7q2mfsiwd",
+          "title": "大模型算法",
+          "company": "美团",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 26,
+          "job_id": "434663",
+          "title": "多模态大模型算法实习生",
+          "company": "蚂蚁集团",
+          "relevant": true,
+          "reason": "岗位名含'多模态大模型算法'，明确匹配'大模型'方向"
+        },
+        {
+          "index": 27,
+          "job_id": "453842",
+          "title": "【快Star】多模态大模型算法工程师-Keye-【可灵AI专项】（实习）",
+          "company": "快手",
+          "relevant": true,
+          "reason": "岗位名含'多模态大模型算法工程师'，明确匹配'大模型'方向"
+        },
+        {
+          "index": 28,
+          "job_id": "inn_l7mra80lffvx",
+          "title": "大模型算法",
+          "company": "小米智能科技",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接匹配查询方向"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_scnfqqicv45x",
+          "title": "大模型算法",
+          "company": "飞书",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接匹配查询方向"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_yjdxmjia2yzr",
+          "title": "大模型算法",
+          "company": "美团",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接匹配查询方向"
+        },
+        {
+          "index": 31,
+          "job_id": "inn_za8on3ppgft5",
+          "title": "大模型知识工程实习生",
+          "company": "数智院",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，直接匹配查询关键词"
+        },
+        {
+          "index": 32,
+          "job_id": "466747",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，直接匹配查询关键词"
+        },
+        {
+          "index": 33,
+          "job_id": "inn_0neumlfauinu",
+          "title": "大模型实习生",
+          "company": "新浪",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，直接匹配查询关键词"
+        },
+        {
+          "index": 34,
+          "job_id": "inn_bmopjpumw4ss",
+          "title": "大模型算法工程师（实习）(J106176)",
+          "company": "百度",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，直接匹配查询关键词"
+        },
+        {
+          "index": 35,
+          "job_id": "inn_tqlm8ajblbo3",
+          "title": "AI大模型应用实习生",
+          "company": "西门子",
+          "relevant": true,
+          "reason": "岗位名含'AI大模型'，同义匹配查询关键词"
+        },
+        {
+          "index": 36,
+          "job_id": "164845",
+          "title": "【阿里基因-深象智能实习生】视觉&多模态算法工程师",
+          "company": "阿里巴巴集团",
+          "relevant": false,
+          "reason": "岗位名是视觉&多模态算法工程师，未提及大模型或相关术语，方向不符"
+        },
+        {
+          "index": 37,
+          "job_id": "inn_0dereuhntrzw",
+          "title": "Agent 开发实习生（AI工具方向）— 快手主站",
+          "company": "快手",
+          "relevant": false,
+          "reason": "岗位名含 Agent 开发，但未明确提及大模型，方向不符"
+        },
+        {
+          "index": 38,
+          "job_id": "inn_dvefvl4wewzx",
+          "title": "国际化搜推算法工程师",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "岗位名是国际化搜推算法工程师，未提及大模型，方向不符"
+        },
+        {
+          "index": 39,
+          "job_id": "inn_iypvifeu1trc",
+          "title": "AI Agent开发（可转正）",
+          "company": "蜀俊博凌",
+          "relevant": false,
+          "reason": "岗位名含 AI Agent 开发，但未明确提及大模型，方向不符"
+        },
+        {
+          "index": 40,
+          "job_id": "inn_psimwuuzs2fr",
+          "title": "Agent评测与工程实习生 - AI数据与安全",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名含 Agent 评测与工程，但未明确提及大模型，方向不符"
+        },
+        {
+          "index": 41,
+          "job_id": "inn_ya2l3cendpvw",
+          "title": "Agent评测数据实习生 - AI数据与安全",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名含Agent，但未明确大模型方向"
+        },
+        {
+          "index": 42,
+          "job_id": "inn_hfafgasj8tnt",
+          "title": "Agent策略实习生",
+          "company": "百度",
+          "relevant": false,
+          "reason": "岗位名含Agent，但未明确大模型方向"
+        },
+        {
+          "index": 43,
+          "job_id": "inn_yqqcgfc9xdzl",
+          "title": "售前工程师（实习）",
+          "company": "格尔国信",
+          "relevant": false,
+          "reason": "售前工程师，方向不符"
+        },
+        {
+          "index": 44,
+          "job_id": "454911",
+          "title": "算法工程师",
+          "company": "理想汽车",
+          "relevant": false,
+          "reason": "算法工程师，未提大模型"
+        },
+        {
+          "index": 45,
+          "job_id": "455047",
+          "title": "算法工程师",
+          "company": "网易",
+          "relevant": false,
+          "reason": "算法工程师，未提大模型"
+        },
+        {
+          "index": 46,
+          "job_id": "455201",
+          "title": "算法工程师",
+          "company": "海康威视",
+          "relevant": false,
+          "reason": "岗位名算法工程师，未提大模型，方向不明确"
+        },
+        {
+          "index": 47,
+          "job_id": "inn_b8v3nq4hujoo",
+          "title": "战略运营管理部PMO实习生",
+          "company": "百度",
+          "relevant": false,
+          "reason": "纯管理岗，方向不符"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_mcbmswya1cex",
+          "title": "语言学实习生-Data 语音",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "语音处理未提大模型，方向不明确"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_py1hkw0wds9o",
+          "title": "Agent研发工程师（实习生）",
+          "company": "百度",
+          "relevant": true,
+          "reason": "岗位名含Agent开发，与查询直接对应"
+        },
+        {
+          "index": 50,
+          "job_id": "468679",
+          "title": "算法工程师",
+          "company": "百度（中国）有限公司",
+          "relevant": false,
+          "reason": "岗位名算法工程师，未提大模型，方向不明确"
+        }
+      ]
+    },
+    {
+      "id": "q3",
+      "query": "上海有没有做大模型算法的实习岗位",
+      "search": {
+        "keyword": "大模型 算法",
+        "city": "上海",
+        "job_type": "实习",
+        "top": 50
+      },
+      "candidate_count": 50,
+      "relevant_job_ids": [
+        "429056",
+        "437286",
+        "inn_kdueiz3ob35r",
+        "inn_3qr187vqaa6w",
+        "inn_4s3dglypfwdq",
+        "inn_b273buhovdgq",
+        "inn_clavrh0a6qz7",
+        "inn_n1zjrsrbodsv",
+        "inn_djha4ciyue1v",
+        "464739",
+        "inn_jno9qipigaca",
+        "435545",
+        "inn_fm8ss7kyebx9",
+        "466426",
+        "467697",
+        "inn_cbhmo8lp9yrp",
+        "inn_cvo3ccgqjimg",
+        "inn_en5ku8g9neuy",
+        "inn_fmden0o0mj0m",
+        "inn_pyodqt8gpn1d",
+        "456536",
+        "447182",
+        "inn_psprtnbcpjwy",
+        "inn_yeyxrpmvxm6b",
+        "inn_yzhesuimfxvy",
+        "466333",
+        "466363",
+        "466436",
+        "454984",
+        "466109",
+        "inn_5g1tutd1j1rx",
+        "inn_5x5mnrxg5xbk",
+        "inn_mwxmpgv9iws5",
+        "inn_cse6rfkgrxic",
+        "inn_mfodi0ugh1yu",
+        "inn_tmuoru8zcrab",
+        "inn_7fyitjg9zeni",
+        "469457",
+        "inn_35ncbs1l05cc",
+        "inn_vodxs03ujfo2",
+        "454912",
+        "455048"
+      ],
+      "relevant_count": 42,
+      "unjudged_count": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "job_id": "429056",
+          "title": "多模态大模型算法实习生(J11440)",
+          "company": "斑马网络",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 2,
+          "job_id": "437286",
+          "title": "大模型算法（27届正式批）",
+          "company": "拼多多集团-PDD",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_kdueiz3ob35r",
+          "title": "大模型应用算法实习-国际化业务",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_3qr187vqaa6w",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_4s3dglypfwdq",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_b273buhovdgq",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_clavrh0a6qz7",
+          "title": "算法实习生（大模型&深度学习方向)(A191348)",
+          "company": "NIO蔚来",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_n1zjrsrbodsv",
+          "title": "大模型应用算法工程师",
+          "company": "远景智能",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_djha4ciyue1v",
+          "title": "大模型算法",
+          "company": "数知梦科技",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 10,
+          "job_id": "464739",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_jno9qipigaca",
+          "title": "大模型算法（可转正）",
+          "company": "妙客莱音",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 12,
+          "job_id": "435545",
+          "title": "大模型算法实习生",
+          "company": "拼多多集团-PDD",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_fm8ss7kyebx9",
+          "title": "语音生成大模型算法实习生（可控语音合成方向）",
+          "company": "美的集团（上海）有限公司",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 14,
+          "job_id": "466426",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 15,
+          "job_id": "467697",
+          "title": "大模型算法",
+          "company": "阿里巴巴集团",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_cbhmo8lp9yrp",
+          "title": "大模型算法",
+          "company": "得物",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_cvo3ccgqjimg",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_en5ku8g9neuy",
+          "title": "大模型算法",
+          "company": "阿里巴巴",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_fmden0o0mj0m",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_pyodqt8gpn1d",
+          "title": "大模型算法",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 21,
+          "job_id": "456536",
+          "title": "大模型算法工程师",
+          "company": "拼多多集团-PDD",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 22,
+          "job_id": "447182",
+          "title": "大模型算法工程师【2027届云弧计划】",
+          "company": "拼多多集团-PDD",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_psprtnbcpjwy",
+          "title": "大模型算法",
+          "company": "得物",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_yeyxrpmvxm6b",
+          "title": "大模型算法",
+          "company": "阿里巴巴",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 25,
+          "job_id": "inn_yzhesuimfxvy",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 26,
+          "job_id": "466333",
+          "title": "大模型算法工程师",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 27,
+          "job_id": "466363",
+          "title": "大模型算法",
+          "company": "快手",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 28,
+          "job_id": "466436",
+          "title": "大模型算法（实习）",
+          "company": "京东",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 29,
+          "job_id": "454984",
+          "title": "大模型算法工程师",
+          "company": "上海趋视信息科技有限公司",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 30,
+          "job_id": "463980",
+          "title": "Agent算法实习生",
+          "company": "上海人工智能创新中心",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 31,
+          "job_id": "466109",
+          "title": "AI Agent 开发实习生",
+          "company": "牛客",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_5g1tutd1j1rx",
+          "title": "大模型 MaaS 平台研发实习生",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 33,
+          "job_id": "inn_5x5mnrxg5xbk",
+          "title": "大模型MaaS推理系统研发实习生",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 34,
+          "job_id": "inn_cfnylk5gmdmo",
+          "title": "国际化搜推算法工程师",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 35,
+          "job_id": "inn_mwxmpgv9iws5",
+          "title": "大模型MaaS推理系统研发工程师（练习生）",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 36,
+          "job_id": "inn_cse6rfkgrxic",
+          "title": "大模型强化学习训练引擎研发工程师（练习生）",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 37,
+          "job_id": "inn_mfodi0ugh1yu",
+          "title": "AI人文训练实习生-大模型",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 38,
+          "job_id": "inn_8ne3bwvjkvox",
+          "title": "大模型平台产品实习生 - TikTok",
+          "company": "字节跳动",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 39,
+          "job_id": "inn_tmuoru8zcrab",
+          "title": "建筑领域AI大模型语料训练实习岗",
+          "company": "建四实业",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 40,
+          "job_id": "455633",
+          "title": "算法工程师",
+          "company": "咕咚网络",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 41,
+          "job_id": "455673",
+          "title": "算法工程师",
+          "company": "4399游戏",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 42,
+          "job_id": "469392",
+          "title": "算法工程师",
+          "company": "金点数据",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 43,
+          "job_id": "3dsb4iabHRtmtWhAzqqKSy",
+          "title": "Agent开发实习生（27届可转正）",
+          "company": "上海仙工智能科技股份有限公司",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_7fyitjg9zeni",
+          "title": "大模型应用实习生(A130076)",
+          "company": "NIO蔚来",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 45,
+          "job_id": "inn_5yvzkjnvasz2",
+          "title": "AI Agent 产品测试实习生",
+          "company": "上海彼格镁隆",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 46,
+          "job_id": "469457",
+          "title": "具身智能算法工程师（实习）",
+          "company": "上海奔曜科技有限公司",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 47,
+          "job_id": "inn_35ncbs1l05cc",
+          "title": "大模型招聘实习生",
+          "company": "阶跃星辰",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_vodxs03ujfo2",
+          "title": "豆包AI大模型产品实习生 - 火山方舟",
+          "company": "字节跳动",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 49,
+          "job_id": "454912",
+          "title": "算法工程师",
+          "company": "理想汽车",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 50,
+          "job_id": "455048",
+          "title": "算法工程师",
+          "company": "网易",
+          "city": "上海",
+          "job_type": "实习"
+        }
+      ],
+      "judgments": [
+        {
+          "index": 1,
+          "job_id": "429056",
+          "title": "多模态大模型算法实习生(J11440)",
+          "company": "斑马网络",
+          "relevant": true,
+          "reason": "岗位名含'多模态大模型算法'，明确包含'大模型'和'算法'，与查询关键词直接对应"
+        },
+        {
+          "index": 2,
+          "job_id": "437286",
+          "title": "大模型算法（27届正式批）",
+          "company": "拼多多集团-PDD",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接匹配查询关键词'大模型 算法'"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_kdueiz3ob35r",
+          "title": "大模型应用算法实习-国际化业务",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'大模型应用算法'，包含'大模型'和'算法'，与查询关键词直接对应"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_3qr187vqaa6w",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接匹配查询关键词'大模型 算法'"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_4s3dglypfwdq",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接匹配查询关键词'大模型 算法'"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_b273buhovdgq",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，直接匹配查询关键词"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_clavrh0a6qz7",
+          "title": "算法实习生（大模型&深度学习方向)(A191348)",
+          "company": "NIO蔚来",
+          "relevant": true,
+          "reason": "JD中明确提到大模型&深度学习方向，与查询相关"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_n1zjrsrbodsv",
+          "title": "大模型应用算法工程师",
+          "company": "远景智能",
+          "relevant": true,
+          "reason": "岗位名含大模型应用算法，对应查询中的技术方向"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_djha4ciyue1v",
+          "title": "大模型算法",
+          "company": "数知梦科技",
+          "relevant": true,
+          "reason": "岗位名明确大模型算法，直接匹配查询"
+        },
+        {
+          "index": 10,
+          "job_id": "464739",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "relevant": true,
+          "reason": "岗位名含大模型算法工程师，匹配查询关键词"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_jno9qipigaca",
+          "title": "大模型算法（可转正）",
+          "company": "妙客莱音",
+          "relevant": true,
+          "reason": "岗位名直接包含'大模型算法'，与查询关键词完全匹配"
+        },
+        {
+          "index": 12,
+          "job_id": "435545",
+          "title": "大模型算法实习生",
+          "company": "拼多多集团-PDD",
+          "relevant": true,
+          "reason": "岗位名直接包含'大模型算法实习生'，与查询关键词完全匹配"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_fm8ss7kyebx9",
+          "title": "语音生成大模型算法实习生（可控语音合成方向）",
+          "company": "美的集团（上海）有限公司",
+          "relevant": true,
+          "reason": "岗位名包含'语音生成大模型算法'，'语音生成'是'大模型'的具体应用方向，属于相关范畴"
+        },
+        {
+          "index": 14,
+          "job_id": "466426",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "relevant": true,
+          "reason": "岗位名直接包含'大模型算法工程师'，与查询关键词完全匹配"
+        },
+        {
+          "index": 15,
+          "job_id": "467697",
+          "title": "大模型算法",
+          "company": "阿里巴巴集团",
+          "relevant": true,
+          "reason": "岗位名直接包含'大模型算法'，与查询关键词完全匹配"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_cbhmo8lp9yrp",
+          "title": "大模型算法",
+          "company": "得物",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_cvo3ccgqjimg",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_en5ku8g9neuy",
+          "title": "大模型算法",
+          "company": "阿里巴巴",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_fmden0o0mj0m",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_pyodqt8gpn1d",
+          "title": "大模型算法",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 21,
+          "job_id": "456536",
+          "title": "大模型算法工程师",
+          "company": "拼多多集团-PDD",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 22,
+          "job_id": "447182",
+          "title": "大模型算法工程师【2027届云弧计划】",
+          "company": "拼多多集团-PDD",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_psprtnbcpjwy",
+          "title": "大模型算法",
+          "company": "得物",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_yeyxrpmvxm6b",
+          "title": "大模型算法",
+          "company": "阿里巴巴",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 25,
+          "job_id": "inn_yzhesuimfxvy",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 26,
+          "job_id": "466333",
+          "title": "大模型算法工程师",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，与查询直接对应"
+        },
+        {
+          "index": 27,
+          "job_id": "466363",
+          "title": "大模型算法",
+          "company": "快手",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接匹配查询"
+        },
+        {
+          "index": 28,
+          "job_id": "466436",
+          "title": "大模型算法（实习）",
+          "company": "京东",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，与查询一致"
+        },
+        {
+          "index": 29,
+          "job_id": "454984",
+          "title": "大模型算法工程师",
+          "company": "上海趋视信息科技有限公司",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，直接相关"
+        },
+        {
+          "index": 30,
+          "job_id": "463980",
+          "title": "Agent算法实习生",
+          "company": "上海人工智能创新中心",
+          "relevant": false,
+          "reason": "岗位名含'Agent'，但未明确提到'大模型'，方向不符"
+        },
+        {
+          "index": 31,
+          "job_id": "466109",
+          "title": "AI Agent 开发实习生",
+          "company": "牛客",
+          "relevant": true,
+          "reason": "岗位名含Agent开发，与查询直接对应"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_5g1tutd1j1rx",
+          "title": "大模型 MaaS 平台研发实习生",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 33,
+          "job_id": "inn_5x5mnrxg5xbk",
+          "title": "大模型MaaS推理系统研发实习生",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 34,
+          "job_id": "inn_cfnylk5gmdmo",
+          "title": "国际化搜推算法工程师",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "方向不明确匹配，未提大模型"
+        },
+        {
+          "index": 35,
+          "job_id": "inn_mwxmpgv9iws5",
+          "title": "大模型MaaS推理系统研发工程师（练习生）",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，与查询直接对应"
+        },
+        {
+          "index": 36,
+          "job_id": "inn_cse6rfkgrxic",
+          "title": "大模型强化学习训练引擎研发工程师（练习生）",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，且涉及算法（强化学习）"
+        },
+        {
+          "index": 37,
+          "job_id": "inn_mfodi0ugh1yu",
+          "title": "AI人文训练实习生-大模型",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'大模型'，且训练涉及算法"
+        },
+        {
+          "index": 38,
+          "job_id": "inn_8ne3bwvjkvox",
+          "title": "大模型平台产品实习生 - TikTok",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名含'大模型'，但方向是产品管理，不涉及算法开发"
+        },
+        {
+          "index": 39,
+          "job_id": "inn_tmuoru8zcrab",
+          "title": "建筑领域AI大模型语料训练实习岗",
+          "company": "建四实业",
+          "relevant": true,
+          "reason": "岗位名含'大模型'和'AI'，训练涉及算法"
+        },
+        {
+          "index": 40,
+          "job_id": "455633",
+          "title": "算法工程师",
+          "company": "咕咚网络",
+          "relevant": false,
+          "reason": "岗位名含'算法'，但未明确提到'大模型'，方向可能不符"
+        },
+        {
+          "index": 41,
+          "job_id": "455673",
+          "title": "算法工程师",
+          "company": "4399游戏",
+          "relevant": false,
+          "reason": "岗位名算法工程师，未提及大模型，方向不符"
+        },
+        {
+          "index": 42,
+          "job_id": "469392",
+          "title": "算法工程师",
+          "company": "金点数据",
+          "relevant": false,
+          "reason": "岗位名算法工程师，未提及大模型，方向不符"
+        },
+        {
+          "index": 43,
+          "job_id": "3dsb4iabHRtmtWhAzqqKSy",
+          "title": "Agent开发实习生（27届可转正）",
+          "company": "上海仙工智能科技股份有限公司",
+          "relevant": false,
+          "reason": "岗位名Agent开发，未明确大模型，方向对不上"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_7fyitjg9zeni",
+          "title": "大模型应用实习生(A130076)",
+          "company": "NIO蔚来",
+          "relevant": true,
+          "reason": "岗位名含大模型应用，与查询直接对应"
+        },
+        {
+          "index": 45,
+          "job_id": "inn_5yvzkjnvasz2",
+          "title": "AI Agent 产品测试实习生",
+          "company": "上海彼格镁隆",
+          "relevant": false,
+          "reason": "岗位名AI Agent产品测试，测试方向不符算法研发"
+        },
+        {
+          "index": 46,
+          "job_id": "469457",
+          "title": "具身智能算法工程师（实习）",
+          "company": "上海奔曜科技有限公司",
+          "relevant": true,
+          "reason": "岗位名含算法，与查询直接对应"
+        },
+        {
+          "index": 47,
+          "job_id": "inn_35ncbs1l05cc",
+          "title": "大模型招聘实习生",
+          "company": "阶跃星辰",
+          "relevant": true,
+          "reason": "岗位名含大模型，与查询直接对应"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_vodxs03ujfo2",
+          "title": "豆包AI大模型产品实习生 - 火山方舟",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含AI大模型，与查询直接对应"
+        },
+        {
+          "index": 49,
+          "job_id": "454912",
+          "title": "算法工程师",
+          "company": "理想汽车",
+          "relevant": true,
+          "reason": "岗位名含算法，与查询直接对应"
+        },
+        {
+          "index": 50,
+          "job_id": "455048",
+          "title": "算法工程师",
+          "company": "网易",
+          "relevant": true,
+          "reason": "岗位名含算法，与查询直接对应"
+        }
+      ]
+    },
+    {
+      "id": "q4",
+      "query": "深圳的 AI 产品经理实习岗位",
+      "search": {
+        "keyword": "AI 产品",
+        "city": "深圳",
+        "job_type": "实习",
+        "top": 50
+      },
+      "candidate_count": 50,
+      "relevant_job_ids": [
+        "inn_t7bwjet5n3xe",
+        "inn_vstr8t8cxayz",
+        "inn_rqaxno945chy",
+        "inn_icpbiiix7ock",
+        "inn_xjrbhiqldedr",
+        "inn_fuggmfgl40a9",
+        "inn_5cm6yh4ofzfl"
+      ],
+      "relevant_count": 7,
+      "unjudged_count": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "job_id": "inn_t7bwjet5n3xe",
+          "title": "豆包AI大模型产品解决方案实习生 - 火山方舟",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 2,
+          "job_id": "457997",
+          "title": "大模型算法工程师 - 剪映CapCut（招正式or实习）",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 3,
+          "job_id": "457999",
+          "title": "大模型算法工程师-抖音（招正式or实习）",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_xrjvjocacroh",
+          "title": "大数据开发实习生-飞书",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_w6gjwwixnknc",
+          "title": "AI应用开发（可转正）",
+          "company": "妙客莱音",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_scbfnzownnk5",
+          "title": "AI应用与新媒体运营实习生（Agent搭建 / AI内容创作）",
+          "company": "RisingStar",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_9p0eipdd8l4y",
+          "title": "大模型技术客服实习生",
+          "company": "Inference AI",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_pht1o81r88lf",
+          "title": "rednote AI Native实习生（Web / Android / iOS方向）",
+          "company": "小红书",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_arludsup5mzk",
+          "title": "视觉/交互设计实习生",
+          "company": "数汇",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_uji7fjssd8ia",
+          "title": "AI模型接入测试实习生（多模态/工程方向）",
+          "company": "Inference AI",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_vstr8t8cxayz",
+          "title": "Agent效果运营实习生 - 抖音社交与互动",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_ovsa5ilsclno",
+          "title": "视觉与交互设计实习生",
+          "company": "甜筒风暴",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_bjgkmhykau32",
+          "title": "海外品牌视频剪辑实习生",
+          "company": "MKS GROUP",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 14,
+          "job_id": "inn_rqaxno945chy",
+          "title": "时尚AI Agent训练师",
+          "company": "正和御风",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_8u9amq36xdim",
+          "title": "创意视觉设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_fiwmajdhiujp",
+          "title": "软件测试实习生",
+          "company": "OPPO",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_icpbiiix7ock",
+          "title": "豆包语音大模型策略产品实习生-Data 语音",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_nnlwrqttvjuc",
+          "title": "柔性基材与可靠性测试实习生",
+          "company": "Striv",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_o9sxjhhfz1iy",
+          "title": "SoC芯片验证实习生-2027届(A70808)",
+          "company": "小米",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_t9a0gdwxycga",
+          "title": "海外创意设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 21,
+          "job_id": "inn_u6ekgbtgrwhz",
+          "title": "交互产品设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_ugquawzhirhz",
+          "title": "视频剪辑实习生",
+          "company": "千帜科技",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_upzqmcsukx2i",
+          "title": "创意视觉设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_go5smhjeegjn",
+          "title": "基金销售经理岗（实习）",
+          "company": "东方阿尔法基金",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 25,
+          "job_id": "inn_he61egajjeqh",
+          "title": "后端开发实习生 - 飞书",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 26,
+          "job_id": "inn_xvrpckrk4xhe",
+          "title": "平面设计",
+          "company": "EonveraX AGI LAB",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 27,
+          "job_id": "inn_na86nyg982wy",
+          "title": "系统全栈开发实习生（Java/前端方向，兼顾AI工程化）",
+          "company": "FOSHO",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 28,
+          "job_id": "inn_6zzrcj0dlvz3",
+          "title": "视觉设计师（创意设计）",
+          "company": "OPPO",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_mfola0ltelay",
+          "title": "平面设计-AI硬件",
+          "company": "自然映射",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_bab3kia7hkzr",
+          "title": "AI Agent 工程实习生",
+          "company": "现实回环科技有限公司",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 31,
+          "job_id": "inn_ka930lg4ml62",
+          "title": "视频剪辑实习生",
+          "company": "逸文科技",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_sqnz6g8j53gy",
+          "title": "毕马威数字化赋能咨询实习生-深圳",
+          "company": "毕马威中国",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 33,
+          "job_id": "inn_xjrbhiqldedr",
+          "title": "大模型产品实习生",
+          "company": "百度",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 34,
+          "job_id": "inn_1dxy7rr1hqg0",
+          "title": "TikTok短视频拍剪实习生（外景）",
+          "company": "无变科技",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 35,
+          "job_id": "inn_pwuzohvzzsg5",
+          "title": "AI应用工程师—数据与后端方向",
+          "company": "远汇智联",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 36,
+          "job_id": "inn_8pehxhaaja5a",
+          "title": "AI 投资研究实习生",
+          "company": "IOSG Venture",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 37,
+          "job_id": "inn_fl2a0lrcodt4",
+          "title": "算法工程师",
+          "company": "柯西黎曼",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 38,
+          "job_id": "inn_ga7es8xvas6y",
+          "title": "Keeta技术服务端研发实习生（智能客服方向）",
+          "company": "美团",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 39,
+          "job_id": "inn_aomuvzvg7i9v",
+          "title": "快手-体验设计实习生",
+          "company": "快手",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 40,
+          "job_id": "inn_tdfrh6etw4vd",
+          "title": "实习生—新媒体运营助理",
+          "company": "中国人民大学深圳研究院（高研院）",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 41,
+          "job_id": "inn_zk0mvre7ztsx",
+          "title": "AI 数据与文档处理专员（实习）",
+          "company": "Mind Cruiser",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 42,
+          "job_id": "inn_gevlkntgawjr",
+          "title": "ID设计实习生",
+          "company": "Swie Robotics",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 43,
+          "job_id": "inn_pwvbpdwlyzdk",
+          "title": "移动端app开发全栈（MQTT必须）",
+          "company": "声码引擎",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_k2gmqcqbhbwy",
+          "title": "法务专员/助理",
+          "company": "澜臻知产",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 45,
+          "job_id": "inn_ffyxwp4w5g8o",
+          "title": "人工智能算法工程师",
+          "company": "巨睿科技",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 46,
+          "job_id": "inn_humgcrmkcyiy",
+          "title": "大数据工程师实习（可留用）",
+          "company": "货拉拉",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 47,
+          "job_id": "inn_gwzhcebzejt2",
+          "title": "国际化客户端开发实习生（Kotlin / Swift / Java / C++ ）",
+          "company": "小红书",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_fuggmfgl40a9",
+          "title": "实习-海外社媒运营实习生（AI视频Agent）(A06176)",
+          "company": "雨舟Flova.ai",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_ejkjfcaq1jxt",
+          "title": "FDE实习工程师",
+          "company": "深圳品阔信息技术有限公司",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 50,
+          "job_id": "inn_5cm6yh4ofzfl",
+          "title": "AI视觉设计实习生",
+          "company": "美图公司",
+          "city": "深圳",
+          "job_type": "实习"
+        }
+      ],
+      "judgments": [
+        {
+          "index": 1,
+          "job_id": "inn_t7bwjet5n3xe",
+          "title": "豆包AI大模型产品解决方案实习生 - 火山方舟",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含AI产品解决方案，与查询直接对应"
+        },
+        {
+          "index": 2,
+          "job_id": "457997",
+          "title": "大模型算法工程师 - 剪映CapCut（招正式or实习）",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位为算法工程师，方向不符产品经理"
+        },
+        {
+          "index": 3,
+          "job_id": "457999",
+          "title": "大模型算法工程师-抖音（招正式or实习）",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位为算法工程师，方向不符产品经理"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_xrjvjocacroh",
+          "title": "大数据开发实习生-飞书",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位为大数据开发，方向不符"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_w6gjwwixnknc",
+          "title": "AI应用开发（可转正）",
+          "company": "妙客莱音",
+          "relevant": false,
+          "reason": "岗位为AI应用开发，方向不符产品经理"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_scbfnzownnk5",
+          "title": "AI应用与新媒体运营实习生（Agent搭建 / AI内容创作）",
+          "company": "RisingStar",
+          "relevant": false,
+          "reason": "岗位名含AI应用，但职能是运营，与产品经理不符"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_9p0eipdd8l4y",
+          "title": "大模型技术客服实习生",
+          "company": "Inference AI",
+          "relevant": false,
+          "reason": "岗位名含大模型，但职能是客服，与产品经理无关"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_pht1o81r88lf",
+          "title": "rednote AI Native实习生（Web / Android / iOS方向）",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "岗位名含AI Native，但职能是开发，与产品经理无关"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_arludsup5mzk",
+          "title": "视觉/交互设计实习生",
+          "company": "数汇",
+          "relevant": false,
+          "reason": "无AI相关，方向不符"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_uji7fjssd8ia",
+          "title": "AI模型接入测试实习生（多模态/工程方向）",
+          "company": "Inference AI",
+          "relevant": false,
+          "reason": "岗位名含AI模型，但职能是测试，与产品经理无关"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_vstr8t8cxayz",
+          "title": "Agent效果运营实习生 - 抖音社交与互动",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含Agent，与AI产品相关"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_ovsa5ilsclno",
+          "title": "视觉与交互设计实习生",
+          "company": "甜筒风暴",
+          "relevant": false,
+          "reason": "纯设计岗，方向不符"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_bjgkmhykau32",
+          "title": "海外品牌视频剪辑实习生",
+          "company": "MKS GROUP",
+          "relevant": false,
+          "reason": "视频剪辑，方向不符"
+        },
+        {
+          "index": 14,
+          "job_id": "inn_rqaxno945chy",
+          "title": "时尚AI Agent训练师",
+          "company": "正和御风",
+          "relevant": true,
+          "reason": "岗位名含AI Agent，直接对应AI产品"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_8u9amq36xdim",
+          "title": "创意视觉设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "视觉设计，方向不符"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_fiwmajdhiujp",
+          "title": "软件测试实习生",
+          "company": "OPPO",
+          "relevant": false,
+          "reason": "岗位名含软件测试，方向与AI产品不符"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_icpbiiix7ock",
+          "title": "豆包语音大模型策略产品实习生-Data 语音",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含大模型，与AI产品直接对应"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_nnlwrqttvjuc",
+          "title": "柔性基材与可靠性测试实习生",
+          "company": "Striv",
+          "relevant": false,
+          "reason": "岗位名含材料测试，方向与AI产品不符"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_o9sxjhhfz1iy",
+          "title": "SoC芯片验证实习生-2027届(A70808)",
+          "company": "小米",
+          "relevant": false,
+          "reason": "岗位名含芯片验证，方向与AI产品不符"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_t9a0gdwxycga",
+          "title": "海外创意设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名含创意设计，方向与AI产品不符"
+        },
+        {
+          "index": 21,
+          "job_id": "inn_u6ekgbtgrwhz",
+          "title": "交互产品设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名无AI相关词，方向不符"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_ugquawzhirhz",
+          "title": "视频剪辑实习生",
+          "company": "千帜科技",
+          "relevant": false,
+          "reason": "纯视频剪辑岗，方向不符"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_upzqmcsukx2i",
+          "title": "创意视觉设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "创意视觉设计，无AI相关词"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_go5smhjeegjn",
+          "title": "基金销售经理岗（实习）",
+          "company": "东方阿尔法基金",
+          "relevant": false,
+          "reason": "基金销售，与AI产品无关"
+        },
+        {
+          "index": 25,
+          "job_id": "inn_he61egajjeqh",
+          "title": "后端开发实习生 - 飞书",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "后端开发，无AI相关词，方向不符"
+        },
+        {
+          "index": 26,
+          "job_id": "inn_xvrpckrk4xhe",
+          "title": "平面设计",
+          "company": "EonveraX AGI LAB",
+          "relevant": false,
+          "reason": "岗位是平面设计，与AI产品经理方向不符"
+        },
+        {
+          "index": 27,
+          "job_id": "inn_na86nyg982wy",
+          "title": "系统全栈开发实习生（Java/前端方向，兼顾AI工程化）",
+          "company": "FOSHO",
+          "relevant": false,
+          "reason": "岗位是系统开发，兼顾AI工程化但职能不符"
+        },
+        {
+          "index": 28,
+          "job_id": "inn_6zzrcj0dlvz3",
+          "title": "视觉设计师（创意设计）",
+          "company": "OPPO",
+          "relevant": false,
+          "reason": "岗位是视觉设计，方向不符"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_mfola0ltelay",
+          "title": "平面设计-AI硬件",
+          "company": "自然映射",
+          "relevant": false,
+          "reason": "岗位是平面设计-AI硬件，职能是设计而非产品经理"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_bab3kia7hkzr",
+          "title": "AI Agent 工程实习生",
+          "company": "现实回环科技有限公司",
+          "relevant": false,
+          "reason": "岗位是AI Agent工程实习生，职能是工程而非产品经理"
+        },
+        {
+          "index": 31,
+          "job_id": "inn_ka930lg4ml62",
+          "title": "视频剪辑实习生",
+          "company": "逸文科技",
+          "relevant": false,
+          "reason": "方向不符，视频剪辑与 AI 产品无关"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_sqnz6g8j53gy",
+          "title": "毕马威数字化赋能咨询实习生-深圳",
+          "company": "毕马威中国",
+          "relevant": false,
+          "reason": "方向不符，咨询实习生与 AI 产品经理无关"
+        },
+        {
+          "index": 33,
+          "job_id": "inn_xjrbhiqldedr",
+          "title": "大模型产品实习生",
+          "company": "百度",
+          "relevant": true,
+          "reason": "岗位名含'大模型产品'，与 AI 产品直接对应"
+        },
+        {
+          "index": 34,
+          "job_id": "inn_1dxy7rr1hqg0",
+          "title": "TikTok短视频拍剪实习生（外景）",
+          "company": "无变科技",
+          "relevant": false,
+          "reason": "方向不符，短视频拍剪与 AI 产品无关"
+        },
+        {
+          "index": 35,
+          "job_id": "inn_pwuzohvzzsg5",
+          "title": "AI应用工程师—数据与后端方向",
+          "company": "远汇智联",
+          "relevant": false,
+          "reason": "方向不符，AI 应用工程师与 AI 产品经理无关"
+        },
+        {
+          "index": 36,
+          "job_id": "inn_8pehxhaaja5a",
+          "title": "AI 投资研究实习生",
+          "company": "IOSG Venture",
+          "relevant": false,
+          "reason": "岗位名含 AI，但方向是投资研究，与产品经理职能不符"
+        },
+        {
+          "index": 37,
+          "job_id": "inn_fl2a0lrcodt4",
+          "title": "算法工程师",
+          "company": "柯西黎曼",
+          "relevant": false,
+          "reason": "算法工程师岗位，技术方向与产品经理不符"
+        },
+        {
+          "index": 38,
+          "job_id": "inn_ga7es8xvas6y",
+          "title": "Keeta技术服务端研发实习生（智能客服方向）",
+          "company": "美团",
+          "relevant": false,
+          "reason": "岗位是研发实习生，智能客服方向涉及 AI，但职能非产品管理"
+        },
+        {
+          "index": 39,
+          "job_id": "inn_aomuvzvg7i9v",
+          "title": "快手-体验设计实习生",
+          "company": "快手",
+          "relevant": false,
+          "reason": "纯设计岗，无 AI 关键词，方向不符"
+        },
+        {
+          "index": 40,
+          "job_id": "inn_tdfrh6etw4vd",
+          "title": "实习生—新媒体运营助理",
+          "company": "中国人民大学深圳研究院（高研院）",
+          "relevant": false,
+          "reason": "纯运营岗，方向与产品经理不符"
+        },
+        {
+          "index": 41,
+          "job_id": "inn_zk0mvre7ztsx",
+          "title": "AI 数据与文档处理专员（实习）",
+          "company": "Mind Cruiser",
+          "relevant": false,
+          "reason": "岗位名含AI但方向为数据处理，非产品管理"
+        },
+        {
+          "index": 42,
+          "job_id": "inn_gevlkntgawjr",
+          "title": "ID设计实习生",
+          "company": "Swie Robotics",
+          "relevant": false,
+          "reason": "ID设计无AI相关，方向不符"
+        },
+        {
+          "index": 43,
+          "job_id": "inn_pwvbpdwlyzdk",
+          "title": "移动端app开发全栈（MQTT必须）",
+          "company": "声码引擎",
+          "relevant": false,
+          "reason": "移动端开发无AI相关，方向不符"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_k2gmqcqbhbwy",
+          "title": "法务专员/助理",
+          "company": "澜臻知产",
+          "relevant": false,
+          "reason": "法务岗位与AI无关"
+        },
+        {
+          "index": 45,
+          "job_id": "inn_ffyxwp4w5g8o",
+          "title": "人工智能算法工程师",
+          "company": "巨睿科技",
+          "relevant": false,
+          "reason": "人工智能算法工程师但职位为技术岗，非产品管理"
+        },
+        {
+          "index": 46,
+          "job_id": "inn_humgcrmkcyiy",
+          "title": "大数据工程师实习（可留用）",
+          "company": "货拉拉",
+          "relevant": false,
+          "reason": "方向不符，大数据工程师与AI产品管理不同"
+        },
+        {
+          "index": 47,
+          "job_id": "inn_gwzhcebzejt2",
+          "title": "国际化客户端开发实习生（Kotlin / Swift / Java / C++ ）",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "方向不符，客户端开发与AI产品管理不同"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_fuggmfgl40a9",
+          "title": "实习-海外社媒运营实习生（AI视频Agent）(A06176)",
+          "company": "雨舟Flova.ai",
+          "relevant": true,
+          "reason": "岗位名含AI视频Agent，Agent算AI应用开发，与查询相关"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_ejkjfcaq1jxt",
+          "title": "FDE实习工程师",
+          "company": "深圳品阔信息技术有限公司",
+          "relevant": false,
+          "reason": "FDE实习工程师，方向不符，可能与AI无关"
+        },
+        {
+          "index": 50,
+          "job_id": "inn_5cm6yh4ofzfl",
+          "title": "AI视觉设计实习生",
+          "company": "美图公司",
+          "relevant": true,
+          "reason": "岗位名含AI视觉设计，AI方向沾边"
+        }
+      ]
+    },
+    {
+      "id": "q5",
+      "query": "杭州的算法实习岗位",
+      "search": {
+        "keyword": "算法",
+        "city": "杭州",
+        "job_type": "实习",
+        "top": 50
+      },
+      "candidate_count": 50,
+      "relevant_job_ids": [
+        "429176",
+        "446936",
+        "464742",
+        "466451",
+        "inn_gjcgcffjyvaw",
+        "351783",
+        "inn_1u0cjlaeo94l",
+        "inn_fyyxqgb0wdeq",
+        "inn_ayee8eei3ztu",
+        "inn_iawdqtus79zq",
+        "inn_ne1udluun9ob",
+        "164846",
+        "inn_lpniskcr1z5m",
+        "454578",
+        "455163",
+        "455596",
+        "455616",
+        "455636",
+        "455676",
+        "455935",
+        "466336",
+        "466366",
+        "466403",
+        "466429",
+        "466439",
+        "469304",
+        "469354",
+        "469548",
+        "inn_qa5talgymf0o",
+        "inn_r937vnujds9t",
+        "466526",
+        "inn_i2ilqjq3quyq",
+        "467659",
+        "467942",
+        "454871",
+        "454915",
+        "454966",
+        "455051",
+        "455072",
+        "455205",
+        "inn_cjsoot3is5zo",
+        "inn_umvdrfd0uqvg",
+        "inn_gnzlbtlcmqdi",
+        "inn_vnksp2qvws4p"
+      ],
+      "relevant_count": 44,
+      "unjudged_count": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "job_id": "429176",
+          "title": "多模态大模型算法实习生",
+          "company": "蚂蚁集团",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 2,
+          "job_id": "446936",
+          "title": "端智能算法工程师（26/27/28 届）",
+          "company": "字节跳动",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 3,
+          "job_id": "464742",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 4,
+          "job_id": "466451",
+          "title": "算法工程师",
+          "company": "小红书",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_gjcgcffjyvaw",
+          "title": "国际化搜推算法工程师",
+          "company": "小红书",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 6,
+          "job_id": "351783",
+          "title": "AIGC算法工程师（杭州/成都）",
+          "company": "海康威视",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_1u0cjlaeo94l",
+          "title": "大模型算法",
+          "company": "浙江华为",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_fyyxqgb0wdeq",
+          "title": "大模型算法",
+          "company": "原创软件",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_ayee8eei3ztu",
+          "title": "大模型算法（可转正）",
+          "company": "墨泊可士",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_iawdqtus79zq",
+          "title": "游戏多模态Agent算法实习生-AIGC",
+          "company": "字节跳动",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_ne1udluun9ob",
+          "title": "实习生（电子、机械、算法方向）",
+          "company": "探微智造（西电杭研院）",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 12,
+          "job_id": "164846",
+          "title": "【阿里基因-深象智能实习生】视觉&多模态算法工程师",
+          "company": "阿里巴巴集团",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_lpniskcr1z5m",
+          "title": "大模型算法",
+          "company": "浙江华为",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 14,
+          "job_id": "454578",
+          "title": "算法工程师",
+          "company": "合衍数字",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 15,
+          "job_id": "455163",
+          "title": "算法工程师",
+          "company": "上海信投智联科技有限公司",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 16,
+          "job_id": "455596",
+          "title": "算法工程师",
+          "company": "杭州数云信息技术有限公司",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 17,
+          "job_id": "455616",
+          "title": "算法工程师",
+          "company": "新拓云联",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 18,
+          "job_id": "455636",
+          "title": "算法工程师",
+          "company": "咕咚网络",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 19,
+          "job_id": "455676",
+          "title": "算法工程师",
+          "company": "4399游戏",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 20,
+          "job_id": "455935",
+          "title": "算法工程师",
+          "company": "数兴网络",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 21,
+          "job_id": "466336",
+          "title": "大模型算法工程师",
+          "company": "小红书",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 22,
+          "job_id": "466366",
+          "title": "大模型算法",
+          "company": "快手",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 23,
+          "job_id": "466403",
+          "title": "大模型算法工程师",
+          "company": "滴滴",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 24,
+          "job_id": "466429",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 25,
+          "job_id": "466439",
+          "title": "大模型算法（实习）",
+          "company": "京东",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 26,
+          "job_id": "469304",
+          "title": "算法工程师",
+          "company": "商汤科技",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 27,
+          "job_id": "469354",
+          "title": "算法工程师",
+          "company": "广州尚动计算机科技有限公司",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 28,
+          "job_id": "469548",
+          "title": "大模型算法工程师",
+          "company": "杭州数知梦科技有限公司",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_qa5talgymf0o",
+          "title": "具身智能算法实习生",
+          "company": "湃安智能",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_r937vnujds9t",
+          "title": "大模型算法",
+          "company": "浙江华为",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 31,
+          "job_id": "466526",
+          "title": "算法工程师",
+          "company": "华为云",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_i2ilqjq3quyq",
+          "title": "大模型算法",
+          "company": "原创软件",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 33,
+          "job_id": "467659",
+          "title": "大模型算法",
+          "company": "小红书",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 34,
+          "job_id": "467942",
+          "title": "大模型应用算法实习-国际化业务",
+          "company": "小红书",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 35,
+          "job_id": "454871",
+          "title": "算法工程师",
+          "company": "赛目",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 36,
+          "job_id": "454915",
+          "title": "算法工程师",
+          "company": "理想汽车",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 37,
+          "job_id": "454966",
+          "title": "算法工程师",
+          "company": "新绪元",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 38,
+          "job_id": "455051",
+          "title": "算法工程师",
+          "company": "网易",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 39,
+          "job_id": "455072",
+          "title": "算法工程师",
+          "company": "上海得物信息集团有限公司",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 40,
+          "job_id": "455205",
+          "title": "算法工程师",
+          "company": "海康威视",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 41,
+          "job_id": "inn_24c8ts85tvpy",
+          "title": "后端开发",
+          "company": "浙江华为",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 42,
+          "job_id": "inn_cjsoot3is5zo",
+          "title": "农业智能感知与机器人实习生-生物微纳感知创新工坊（平建峰/潘宇祥）",
+          "company": "杭州科创中心",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 43,
+          "job_id": "inn_qwusqfw7qola",
+          "title": "Java开发（可转正）",
+          "company": "墨泊可士",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_j8278gfwcfdp",
+          "title": "后端开发",
+          "company": "浙江华为",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 45,
+          "job_id": "inn_umvdrfd0uqvg",
+          "title": "机器人非标自动化开发实习生-PT",
+          "company": "博世中国",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 46,
+          "job_id": "inn_0tygb3mgkmfc",
+          "title": "机械设计实习生",
+          "company": "探微智造（西电杭研院）",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 47,
+          "job_id": "9dsPxwEpqZqexiJfRZ98Tc",
+          "title": "后端开发实习生",
+          "company": "杭州奇塑科技有限公司",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_drgpm4wfovpl",
+          "title": "客户端开发实习生 - Seed 安全研发",
+          "company": "字节跳动",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_gnzlbtlcmqdi",
+          "title": "Artificial Intelligence-测试开发实习生",
+          "company": "滴滴",
+          "city": "杭州",
+          "job_type": "实习"
+        },
+        {
+          "index": 50,
+          "job_id": "inn_vnksp2qvws4p",
+          "title": "NLP/多模态/大模型 实习生- Agentic审核方向",
+          "company": "小红书",
+          "city": "杭州",
+          "job_type": "实习"
+        }
+      ],
+      "judgments": [
+        {
+          "index": 1,
+          "job_id": "429176",
+          "title": "多模态大模型算法实习生",
+          "company": "蚂蚁集团",
+          "relevant": true,
+          "reason": "岗位名含'多模态大模型算法'，与算法实习直接匹配"
+        },
+        {
+          "index": 2,
+          "job_id": "446936",
+          "title": "端智能算法工程师（26/27/28 届）",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含'端智能算法'，算法方向明确"
+        },
+        {
+          "index": 3,
+          "job_id": "464742",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，与查询算法方向一致"
+        },
+        {
+          "index": 4,
+          "job_id": "466451",
+          "title": "算法工程师",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'算法工程师'，直接对应算法查询"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_gjcgcffjyvaw",
+          "title": "国际化搜推算法工程师",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'搜推算法'，算法应用方向相关"
+        },
+        {
+          "index": 6,
+          "job_id": "351783",
+          "title": "AIGC算法工程师（杭州/成都）",
+          "company": "海康威视",
+          "relevant": true,
+          "reason": "岗位名含算法，直接对应查询方向"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_1u0cjlaeo94l",
+          "title": "大模型算法",
+          "company": "浙江华为",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，大模型属于算法方向"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_fyyxqgb0wdeq",
+          "title": "大模型算法",
+          "company": "原创软件",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，大模型属于算法方向"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_ayee8eei3ztu",
+          "title": "大模型算法（可转正）",
+          "company": "墨泊可士",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，大模型属于算法方向"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_iawdqtus79zq",
+          "title": "游戏多模态Agent算法实习生-AIGC",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含Agent算法，Agent算AI应用开发，属于算法方向"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_ne1udluun9ob",
+          "title": "实习生（电子、机械、算法方向）",
+          "company": "探微智造（西电杭研院）",
+          "relevant": true,
+          "reason": "岗位名含算法方向"
+        },
+        {
+          "index": 12,
+          "job_id": "164846",
+          "title": "【阿里基因-深象智能实习生】视觉&多模态算法工程师",
+          "company": "阿里巴巴集团",
+          "relevant": true,
+          "reason": "岗位名含算法工程师"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_lpniskcr1z5m",
+          "title": "大模型算法",
+          "company": "浙江华为",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，属于算法方向"
+        },
+        {
+          "index": 14,
+          "job_id": "454578",
+          "title": "算法工程师",
+          "company": "合衍数字",
+          "relevant": true,
+          "reason": "岗位名含算法工程师"
+        },
+        {
+          "index": 15,
+          "job_id": "455163",
+          "title": "算法工程师",
+          "company": "上海信投智联科技有限公司",
+          "relevant": true,
+          "reason": "岗位名含算法工程师"
+        },
+        {
+          "index": 16,
+          "job_id": "455596",
+          "title": "算法工程师",
+          "company": "杭州数云信息技术有限公司",
+          "relevant": true,
+          "reason": "岗位名含算法工程师，与查询直接对应"
+        },
+        {
+          "index": 17,
+          "job_id": "455616",
+          "title": "算法工程师",
+          "company": "新拓云联",
+          "relevant": true,
+          "reason": "岗位名含算法工程师，与查询直接对应"
+        },
+        {
+          "index": 18,
+          "job_id": "455636",
+          "title": "算法工程师",
+          "company": "咕咚网络",
+          "relevant": true,
+          "reason": "岗位名含算法工程师，与查询直接对应"
+        },
+        {
+          "index": 19,
+          "job_id": "455676",
+          "title": "算法工程师",
+          "company": "4399游戏",
+          "relevant": true,
+          "reason": "岗位名含算法工程师，与查询直接对应"
+        },
+        {
+          "index": 20,
+          "job_id": "455935",
+          "title": "算法工程师",
+          "company": "数兴网络",
+          "relevant": true,
+          "reason": "岗位名含算法工程师，与查询直接对应"
+        },
+        {
+          "index": 21,
+          "job_id": "466336",
+          "title": "大模型算法工程师",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，属于算法方向"
+        },
+        {
+          "index": 22,
+          "job_id": "466366",
+          "title": "大模型算法",
+          "company": "快手",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，属于算法方向"
+        },
+        {
+          "index": 23,
+          "job_id": "466403",
+          "title": "大模型算法工程师",
+          "company": "滴滴",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，属于算法方向"
+        },
+        {
+          "index": 24,
+          "job_id": "466429",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，属于算法方向"
+        },
+        {
+          "index": 25,
+          "job_id": "466439",
+          "title": "大模型算法（实习）",
+          "company": "京东",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，属于算法方向"
+        },
+        {
+          "index": 26,
+          "job_id": "469304",
+          "title": "算法工程师",
+          "company": "商汤科技",
+          "relevant": true,
+          "reason": "岗位名包含'算法'，与查询直接对应"
+        },
+        {
+          "index": 27,
+          "job_id": "469354",
+          "title": "算法工程师",
+          "company": "广州尚动计算机科技有限公司",
+          "relevant": true,
+          "reason": "岗位名包含'算法'，与查询直接对应"
+        },
+        {
+          "index": 28,
+          "job_id": "469548",
+          "title": "大模型算法工程师",
+          "company": "杭州数知梦科技有限公司",
+          "relevant": true,
+          "reason": "岗位名包含'大模型算法'，大模型是算法的一个方向，相关"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_qa5talgymf0o",
+          "title": "具身智能算法实习生",
+          "company": "湃安智能",
+          "relevant": true,
+          "reason": "岗位名包含'算法'，与查询直接对应"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_r937vnujds9t",
+          "title": "大模型算法",
+          "company": "浙江华为",
+          "relevant": true,
+          "reason": "岗位名包含'大模型算法'，大模型是算法的一个方向，相关"
+        },
+        {
+          "index": 31,
+          "job_id": "466526",
+          "title": "算法工程师",
+          "company": "华为云",
+          "relevant": true,
+          "reason": "岗位名含'算法工程师'，与查询'算法'直接对应"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_i2ilqjq3quyq",
+          "title": "大模型算法",
+          "company": "原创软件",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，包含'算法'，方向相关"
+        },
+        {
+          "index": 33,
+          "job_id": "467659",
+          "title": "大模型算法",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'大模型算法'，包含'算法'，方向相关"
+        },
+        {
+          "index": 34,
+          "job_id": "467942",
+          "title": "大模型应用算法实习-国际化业务",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含'大模型应用算法'，包含'算法'，方向相关"
+        },
+        {
+          "index": 35,
+          "job_id": "454871",
+          "title": "算法工程师",
+          "company": "赛目",
+          "relevant": true,
+          "reason": "岗位名含'算法工程师'，与查询'算法'直接对应"
+        },
+        {
+          "index": 36,
+          "job_id": "454915",
+          "title": "算法工程师",
+          "company": "理想汽车",
+          "relevant": true,
+          "reason": "岗位名含算法，与查询直接对应"
+        },
+        {
+          "index": 37,
+          "job_id": "454966",
+          "title": "算法工程师",
+          "company": "新绪元",
+          "relevant": true,
+          "reason": "岗位名含算法，与查询直接对应"
+        },
+        {
+          "index": 38,
+          "job_id": "455051",
+          "title": "算法工程师",
+          "company": "网易",
+          "relevant": true,
+          "reason": "岗位名含算法，与查询直接对应"
+        },
+        {
+          "index": 39,
+          "job_id": "455072",
+          "title": "算法工程师",
+          "company": "上海得物信息集团有限公司",
+          "relevant": true,
+          "reason": "岗位名含算法，与查询直接对应"
+        },
+        {
+          "index": 40,
+          "job_id": "455205",
+          "title": "算法工程师",
+          "company": "海康威视",
+          "relevant": true,
+          "reason": "岗位名含算法，与查询直接对应"
+        },
+        {
+          "index": 41,
+          "job_id": "inn_24c8ts85tvpy",
+          "title": "后端开发",
+          "company": "浙江华为",
+          "relevant": false,
+          "reason": "岗位名为后端开发，方向不符算法"
+        },
+        {
+          "index": 42,
+          "job_id": "inn_cjsoot3is5zo",
+          "title": "农业智能感知与机器人实习生-生物微纳感知创新工坊（平建峰/潘宇祥）",
+          "company": "杭州科创中心",
+          "relevant": true,
+          "reason": "岗位名含农业智能感知与机器人，与算法相关"
+        },
+        {
+          "index": 43,
+          "job_id": "inn_qwusqfw7qola",
+          "title": "Java开发（可转正）",
+          "company": "墨泊可士",
+          "relevant": false,
+          "reason": "岗位名为Java开发，方向不符算法"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_j8278gfwcfdp",
+          "title": "后端开发",
+          "company": "浙江华为",
+          "relevant": false,
+          "reason": "岗位名为后端开发，方向不符算法"
+        },
+        {
+          "index": 45,
+          "job_id": "inn_umvdrfd0uqvg",
+          "title": "机器人非标自动化开发实习生-PT",
+          "company": "博世中国",
+          "relevant": true,
+          "reason": "岗位名含机器人非标自动化开发，与算法相关"
+        },
+        {
+          "index": 46,
+          "job_id": "inn_0tygb3mgkmfc",
+          "title": "机械设计实习生",
+          "company": "探微智造（西电杭研院）",
+          "relevant": false,
+          "reason": "岗位名机械设计，与算法方向不符"
+        },
+        {
+          "index": 47,
+          "job_id": "9dsPxwEpqZqexiJfRZ98Tc",
+          "title": "后端开发实习生",
+          "company": "杭州奇塑科技有限公司",
+          "relevant": false,
+          "reason": "岗位名后端开发，未明确算法方向"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_drgpm4wfovpl",
+          "title": "客户端开发实习生 - Seed 安全研发",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名客户端开发，方向不符"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_gnzlbtlcmqdi",
+          "title": "Artificial Intelligence-测试开发实习生",
+          "company": "滴滴",
+          "relevant": true,
+          "reason": "岗位名含Artificial Intelligence，与算法直接对应"
+        },
+        {
+          "index": 50,
+          "job_id": "inn_vnksp2qvws4p",
+          "title": "NLP/多模态/大模型 实习生- Agentic审核方向",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含NLP/多模态/大模型，直接算法方向"
+        }
+      ]
+    },
+    {
+      "id": "q6",
+      "query": "成都的数据分析实习岗位",
+      "search": {
+        "keyword": "数据分析",
+        "city": "成都",
+        "job_type": "实习",
+        "top": 50
+      },
+      "candidate_count": 24,
+      "relevant_job_ids": [
+        "inn_tjuv42hyvini",
+        "inn_i2gctnufmghp",
+        "inn_7idb1noqeznw",
+        "inn_7rnr394ofcd6"
+      ],
+      "relevant_count": 4,
+      "unjudged_count": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "job_id": "inn_tjuv42hyvini",
+          "title": "大数据分析实习生",
+          "company": "Camera360",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_cucckx3jd21l",
+          "title": "前端开发实习生",
+          "company": "清华四川能源互联网研究院",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_i2gctnufmghp",
+          "title": "建模实习生（成都）",
+          "company": "中诚信国际",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 4,
+          "job_id": "454580",
+          "title": "算法工程师",
+          "company": "合衍数字",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 5,
+          "job_id": "458009",
+          "title": "算法工程师工程师（实习）",
+          "company": "成都移乐科技有限责任公司",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_1kvspoenewjl",
+          "title": "餐饮SaaS产品经理实习生",
+          "company": "美团",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_eavyjod3pbm3",
+          "title": "毕马威技术风险管理咨询实习生-成都",
+          "company": "毕马威中国",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_qjei8lr5xoew",
+          "title": "金融科技产品实习生",
+          "company": "应君舒科技",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_tiqnje4ylaae",
+          "title": "项目运营实习生(J14400)",
+          "company": "美呗",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_asez7mmtyji4",
+          "title": "创新战略咨询助理",
+          "company": "成都新经济发展研究院有限公司",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_gqgt7lh4uvyb",
+          "title": "平台运营实习生",
+          "company": "萌想科技（实习僧）",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_7idb1noqeznw",
+          "title": "行业分析研究（带转正机会）",
+          "company": "无量资本",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_fxddbipgyvtt",
+          "title": "潜力市场-效率运营实习生",
+          "company": "滴滴",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 14,
+          "job_id": "inn_oitp7ye9m6f9",
+          "title": "企业级事业部-（7）后端研发实习生",
+          "company": "滴滴",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_ena6oezrmc6y",
+          "title": "网约车平台公司-产品与用户运营实习生（18）",
+          "company": "滴滴",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_cpjb1p3ys7md",
+          "title": "小程序产品 UI",
+          "company": "TennisGo",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_cl4g75b9bijx",
+          "title": "产品经理实习生",
+          "company": "美团",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_jwphq7e4pq0w",
+          "title": "ESG/可持续发展咨询实习生-成都",
+          "company": "商道纵横",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_7rnr394ofcd6",
+          "title": "算法实习生",
+          "company": "清华四川能源互联网研究院",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_b0p2n6luoxjy",
+          "title": "产品实习生",
+          "company": "成都超超娃科技发展有限公司",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 21,
+          "job_id": "inn_fjbwu0kqwrom",
+          "title": "百词斩产品运营实习生",
+          "company": "百词斩",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_m2ld8dfpkolf",
+          "title": "韩国市场社群运营实习生",
+          "company": "百词斩",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_mujzggem3me4",
+          "title": "游戏运营实习生",
+          "company": "OPPO",
+          "city": "成都",
+          "job_type": "实习"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_n8yi0agwtmas",
+          "title": "战略研究部实习生",
+          "company": "四川蜀兴国有资本运营研究院",
+          "city": "成都",
+          "job_type": "实习"
+        }
+      ],
+      "judgments": [
+        {
+          "index": 1,
+          "job_id": "inn_tjuv42hyvini",
+          "title": "大数据分析实习生",
+          "company": "Camera360",
+          "relevant": true,
+          "reason": "岗位名含大数据分析，与查询数据分析直接对应"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_cucckx3jd21l",
+          "title": "前端开发实习生",
+          "company": "清华四川能源互联网研究院",
+          "relevant": false,
+          "reason": "岗位名是前端开发，方向与数据分析不符"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_i2gctnufmghp",
+          "title": "建模实习生（成都）",
+          "company": "中诚信国际",
+          "relevant": true,
+          "reason": "岗位名含建模，与数据分析相关"
+        },
+        {
+          "index": 4,
+          "job_id": "454580",
+          "title": "算法工程师",
+          "company": "合衍数字",
+          "relevant": false,
+          "reason": "岗位是算法工程师，方向与数据分析不符"
+        },
+        {
+          "index": 5,
+          "job_id": "458009",
+          "title": "算法工程师工程师（实习）",
+          "company": "成都移乐科技有限责任公司",
+          "relevant": false,
+          "reason": "岗位是算法工程师，方向与数据分析不符"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_1kvspoenewjl",
+          "title": "餐饮SaaS产品经理实习生",
+          "company": "美团",
+          "relevant": false,
+          "reason": "岗位名是产品经理，方向与数据分析不符"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_eavyjod3pbm3",
+          "title": "毕马威技术风险管理咨询实习生-成都",
+          "company": "毕马威中国",
+          "relevant": false,
+          "reason": "岗位名是技术风险管理咨询，方向偏向风险管理，不是直接的数据分析"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_qjei8lr5xoew",
+          "title": "金融科技产品实习生",
+          "company": "应君舒科技",
+          "relevant": false,
+          "reason": "岗位名是金融科技产品实习生，方向偏向产品管理，不是直接的数据分析"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_tiqnje4ylaae",
+          "title": "项目运营实习生(J14400)",
+          "company": "美呗",
+          "relevant": false,
+          "reason": "岗位名是项目运营实习生，方向偏向运营管理，不是直接的数据分析"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_asez7mmtyji4",
+          "title": "创新战略咨询助理",
+          "company": "成都新经济发展研究院有限公司",
+          "relevant": false,
+          "reason": "岗位名是创新战略咨询助理，方向偏向战略咨询，不是直接的数据分析"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_gqgt7lh4uvyb",
+          "title": "平台运营实习生",
+          "company": "萌想科技（实习僧）",
+          "relevant": false,
+          "reason": "岗位名无数据分析，方向为运营"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_7idb1noqeznw",
+          "title": "行业分析研究（带转正机会）",
+          "company": "无量资本",
+          "relevant": true,
+          "reason": "岗位名含分析研究，与数据分析直接对应"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_fxddbipgyvtt",
+          "title": "潜力市场-效率运营实习生",
+          "company": "滴滴",
+          "relevant": false,
+          "reason": "岗位名无数据分析，方向为运营"
+        },
+        {
+          "index": 14,
+          "job_id": "inn_oitp7ye9m6f9",
+          "title": "企业级事业部-（7）后端研发实习生",
+          "company": "滴滴",
+          "relevant": false,
+          "reason": "纯开发岗，方向不符"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_ena6oezrmc6y",
+          "title": "网约车平台公司-产品与用户运营实习生（18）",
+          "company": "滴滴",
+          "relevant": false,
+          "reason": "岗位名无数据分析，方向为运营"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_cpjb1p3ys7md",
+          "title": "小程序产品 UI",
+          "company": "TennisGo",
+          "relevant": false,
+          "reason": "岗位名是UI设计，方向不符"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_cl4g75b9bijx",
+          "title": "产品经理实习生",
+          "company": "美团",
+          "relevant": false,
+          "reason": "岗位名是产品经理，未提及数据分析"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_jwphq7e4pq0w",
+          "title": "ESG/可持续发展咨询实习生-成都",
+          "company": "商道纵横",
+          "relevant": false,
+          "reason": "岗位名是ESG咨询，方向不符"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_7rnr394ofcd6",
+          "title": "算法实习生",
+          "company": "清华四川能源互联网研究院",
+          "relevant": true,
+          "reason": "岗位名含算法，与数据分析方向相关"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_b0p2n6luoxjy",
+          "title": "产品实习生",
+          "company": "成都超超娃科技发展有限公司",
+          "relevant": false,
+          "reason": "岗位名是产品实习生，未提及数据分析"
+        },
+        {
+          "index": 21,
+          "job_id": "inn_fjbwu0kqwrom",
+          "title": "百词斩产品运营实习生",
+          "company": "百词斩",
+          "relevant": false,
+          "reason": "产品运营实习生，未提及数据分析关键词"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_m2ld8dfpkolf",
+          "title": "韩国市场社群运营实习生",
+          "company": "百词斩",
+          "relevant": false,
+          "reason": "市场社群运营实习生，未提及数据分析关键词"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_mujzggem3me4",
+          "title": "游戏运营实习生",
+          "company": "OPPO",
+          "relevant": false,
+          "reason": "游戏运营实习生，未提及数据分析关键词"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_n8yi0agwtmas",
+          "title": "战略研究部实习生",
+          "company": "四川蜀兴国有资本运营研究院",
+          "relevant": false,
+          "reason": "战略研究部实习生，未提及数据分析关键词"
+        }
+      ]
+    },
+    {
+      "id": "q7",
+      "query": "北京的大模型应用开发实习（写工程代码那种）",
+      "search": {
+        "keyword": "大模型 应用",
+        "city": "北京",
+        "job_type": "实习",
+        "top": 50
+      },
+      "candidate_count": 50,
+      "relevant_job_ids": [
+        "inn_tqlm8ajblbo3",
+        "inn_vcanb2oeh0ya",
+        "inn_lzxhl4ptbldt",
+        "inn_0dereuhntrzw",
+        "inn_iypvifeu1trc",
+        "inn_psimwuuzs2fr",
+        "434663",
+        "inn_bmopjpumw4ss",
+        "inn_py1hkw0wds9o",
+        "inn_kapwghxlnjs1",
+        "inn_kz9yd9q5yyjd",
+        "inn_7c3lam749tq6",
+        "inn_pzys4r2dmjsp",
+        "inn_ixfguth5f9yp",
+        "inn_cwzj0zxhuraw",
+        "inn_i4jvx2rhdhzr",
+        "inn_ygi7wwkuyegc",
+        "inn_yb7lxyxnfovb",
+        "inn_ahibivbuhdhb",
+        "inn_bv6uaxpsvaco",
+        "inn_mzv2pu8mo7ub"
+      ],
+      "relevant_count": 21,
+      "unjudged_count": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "job_id": "440840",
+          "title": "【快Star-X实习】大模型应用算法工程师工程师",
+          "company": "快手",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_tqlm8ajblbo3",
+          "title": "AI大模型应用实习生",
+          "company": "西门子",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_vcanb2oeh0ya",
+          "title": "大模型/agent应用产品实习生",
+          "company": "原力金智",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_5ehaouo8ewmh",
+          "title": "大模型应用算法工程师",
+          "company": "快手",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_lzxhl4ptbldt",
+          "title": "大模型应用开发实习生",
+          "company": "因诺资产",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 6,
+          "job_id": "164845",
+          "title": "【阿里基因-深象智能实习生】视觉&多模态算法工程师",
+          "company": "阿里巴巴集团",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_0dereuhntrzw",
+          "title": "Agent 开发实习生（AI工具方向）— 快手主站",
+          "company": "快手",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_dvefvl4wewzx",
+          "title": "国际化搜推算法工程师",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 9,
+          "job_id": "442790",
+          "title": "大模型算法实习生",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_iypvifeu1trc",
+          "title": "AI Agent开发（可转正）",
+          "company": "蜀俊博凌",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_wq1ozyb2sfyj",
+          "title": "大模型算法（可转正）",
+          "company": "蜀俊博凌",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_zqgy7dozbdhb",
+          "title": "大模型算法实习生",
+          "company": "北京赛博",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_arhzq3ncpdlu",
+          "title": "大模型算法实习生",
+          "company": "寒序科技",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 14,
+          "job_id": "464738",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_psimwuuzs2fr",
+          "title": "Agent评测与工程实习生 - AI数据与安全",
+          "company": "字节跳动",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_ya2l3cendpvw",
+          "title": "Agent评测数据实习生 - AI数据与安全",
+          "company": "字节跳动",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 17,
+          "job_id": "434663",
+          "title": "多模态大模型算法实习生",
+          "company": "蚂蚁集团",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_yqqcgfc9xdzl",
+          "title": "售前工程师（实习）",
+          "company": "格尔国信",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_bmopjpumw4ss",
+          "title": "大模型算法工程师（实习）(J106176)",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_py1hkw0wds9o",
+          "title": "Agent研发工程师（实习生）",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 21,
+          "job_id": "468679",
+          "title": "算法工程师",
+          "company": "百度（中国）有限公司",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_kapwghxlnjs1",
+          "title": "大模型算法策略实习生",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_kz9yd9q5yyjd",
+          "title": "Agent产品实习生 - 抖音增长",
+          "company": "字节跳动",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_7c3lam749tq6",
+          "title": "Agent平台全栈研发工程师（练习生）",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 25,
+          "job_id": "inn_pzys4r2dmjsp",
+          "title": "金融投研实习生-AI Agent方向",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 26,
+          "job_id": "inn_rjpjw5ooph3i",
+          "title": "平台架构PE实习生-前端方向",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 27,
+          "job_id": "inn_wxrtfdihxiww",
+          "title": "算法工程师（搜推广方向）",
+          "company": "OPPO",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 28,
+          "job_id": "inn_ixfguth5f9yp",
+          "title": "Agent 开发实习生 - 火山方舟",
+          "company": "字节跳动",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_cwzj0zxhuraw",
+          "title": "豆包AI大模型agent评测产品实习生 - 火山方舟",
+          "company": "字节跳动",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_msiy77mqavhm",
+          "title": "maketplace -后端研发实习生（1）",
+          "company": "滴滴",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 31,
+          "job_id": "inn_e6bz1t3xnbrg",
+          "title": "信息安全部-后端研发实习生",
+          "company": "滴滴",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_jyt51ng12fym",
+          "title": "大模型产品实习生-TikTok",
+          "company": "字节跳动",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 33,
+          "job_id": "460794",
+          "title": "ai算法工程师工程师",
+          "company": "字节跳动",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 34,
+          "job_id": "inn_i4jvx2rhdhzr",
+          "title": "酒旅AI Agent产品实习生",
+          "company": "美团",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 35,
+          "job_id": "inn_r019io9yh6xd",
+          "title": "快手后端实习生（后端/AI方向）",
+          "company": "快手",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 36,
+          "job_id": "inn_ygi7wwkuyegc",
+          "title": "Agent算法实习生",
+          "company": "原力金智",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 37,
+          "job_id": "inn_gpybpzdhljvv",
+          "title": "后端开发实习生（增长创新）-【主站】",
+          "company": "快手",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 38,
+          "job_id": "inn_yb7lxyxnfovb",
+          "title": "Agent/大模型算法实习生- 国际化TnS算法",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 39,
+          "job_id": "inn_vl8o4lazzdpx",
+          "title": "Agent测试实习生",
+          "company": "网易有道",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 40,
+          "job_id": "inn_ct3a9s8cg0zj",
+          "title": "AI全栈开发实习生-北京",
+          "company": "科锐国际",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 41,
+          "job_id": "inn_f9i9vu71w1hg",
+          "title": "安全研发方向（日常实习生）",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 42,
+          "job_id": "inn_ahibivbuhdhb",
+          "title": "【28届实习】Product Engineer-产品工程师（Al全栈/应用研发方向）-质效研发",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 43,
+          "job_id": "464661",
+          "title": "【源点顶尖人才计划】大模型算法工程师工程师(A130665)（实习）",
+          "company": "百川智能",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_ldd0f6u2cvu7",
+          "title": "大模型研发/数据研发工程师实习生 J105099",
+          "company": "百度",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 45,
+          "job_id": "inn_qwfy5dibe6ul",
+          "title": "算法与应用研究工程师",
+          "company": "迈瑞医疗",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 46,
+          "job_id": "463619",
+          "title": "大模型AI Infra工程师（实习）",
+          "company": "杭州华为企业通信技术有限公司",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 47,
+          "job_id": "inn_7zt1uduc8rtj",
+          "title": "AI策略产品经理（大模型/Agent方向）实习",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_zwydqfxem48g",
+          "title": "AI策略产品经理（大模型/Agent方向）",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_bv6uaxpsvaco",
+          "title": "【27届实习】Product Engineer-产品工程师（AI/全栈/应用研发方向）-商业技术",
+          "company": "小红书",
+          "city": "北京",
+          "job_type": "实习"
+        },
+        {
+          "index": 50,
+          "job_id": "inn_mzv2pu8mo7ub",
+          "title": "网约车平台技术-AI Agent开发实习生",
+          "company": "滴滴",
+          "city": "北京",
+          "job_type": "实习"
+        }
+      ],
+      "judgments": [
+        {
+          "index": 1,
+          "job_id": "440840",
+          "title": "【快Star-X实习】大模型应用算法工程师工程师",
+          "company": "快手",
+          "relevant": false,
+          "reason": "算法工程师偏向算法，非开发方向"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_tqlm8ajblbo3",
+          "title": "AI大模型应用实习生",
+          "company": "西门子",
+          "relevant": true,
+          "reason": "岗位名含大模型应用，方向沾边"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_vcanb2oeh0ya",
+          "title": "大模型/agent应用产品实习生",
+          "company": "原力金智",
+          "relevant": true,
+          "reason": "岗位名含agent，算AI应用开发"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_5ehaouo8ewmh",
+          "title": "大模型应用算法工程师",
+          "company": "快手",
+          "relevant": false,
+          "reason": "算法工程师方向不符开发"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_lzxhl4ptbldt",
+          "title": "大模型应用开发实习生",
+          "company": "因诺资产",
+          "relevant": true,
+          "reason": "岗位名直接匹配大模型应用开发"
+        },
+        {
+          "index": 6,
+          "job_id": "164845",
+          "title": "【阿里基因-深象智能实习生】视觉&多模态算法工程师",
+          "company": "阿里巴巴集团",
+          "relevant": false,
+          "reason": "方向不符，视觉算法与查询的大模型应用开发不同"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_0dereuhntrzw",
+          "title": "Agent 开发实习生（AI工具方向）— 快手主站",
+          "company": "快手",
+          "relevant": true,
+          "reason": "岗位名含Agent开发，与查询直接对应"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_dvefvl4wewzx",
+          "title": "国际化搜推算法工程师",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "方向不符，搜推算法与查询的大模型应用开发不同"
+        },
+        {
+          "index": 9,
+          "job_id": "442790",
+          "title": "大模型算法实习生",
+          "company": "百度",
+          "relevant": false,
+          "reason": "岗位名含大模型，但方向是算法，不是应用开发"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_iypvifeu1trc",
+          "title": "AI Agent开发（可转正）",
+          "company": "蜀俊博凌",
+          "relevant": true,
+          "reason": "岗位名含AI Agent开发，与查询直接对应"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_wq1ozyb2sfyj",
+          "title": "大模型算法（可转正）",
+          "company": "蜀俊博凌",
+          "relevant": false,
+          "reason": "岗位名含大模型，但方向为算法，非应用开发"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_zqgy7dozbdhb",
+          "title": "大模型算法实习生",
+          "company": "北京赛博",
+          "relevant": false,
+          "reason": "岗位名含大模型，但方向为算法，非应用开发"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_arhzq3ncpdlu",
+          "title": "大模型算法实习生",
+          "company": "寒序科技",
+          "relevant": false,
+          "reason": "岗位名含大模型，但方向为算法，非应用开发"
+        },
+        {
+          "index": 14,
+          "job_id": "464738",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "relevant": false,
+          "reason": "岗位名含大模型，但方向为算法工程，非应用开发"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_psimwuuzs2fr",
+          "title": "Agent评测与工程实习生 - AI数据与安全",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含Agent和工程，直接对应大模型应用开发"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_ya2l3cendpvw",
+          "title": "Agent评测数据实习生 - AI数据与安全",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名含Agent，但方向是评测数据，不涉及工程代码开发"
+        },
+        {
+          "index": 17,
+          "job_id": "434663",
+          "title": "多模态大模型算法实习生",
+          "company": "蚂蚁集团",
+          "relevant": true,
+          "reason": "岗位名含大模型，与查询直接对应"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_yqqcgfc9xdzl",
+          "title": "售前工程师（实习）",
+          "company": "格尔国信",
+          "relevant": false,
+          "reason": "纯互联网岗位，方向不符"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_bmopjpumw4ss",
+          "title": "大模型算法工程师（实习）(J106176)",
+          "company": "百度",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询直接对应"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_py1hkw0wds9o",
+          "title": "Agent研发工程师（实习生）",
+          "company": "百度",
+          "relevant": true,
+          "reason": "岗位名含Agent研发，与查询直接对应"
+        },
+        {
+          "index": 21,
+          "job_id": "468679",
+          "title": "算法工程师",
+          "company": "百度（中国）有限公司",
+          "relevant": false,
+          "reason": "岗位名算法工程师未明确提及大模型应用，方向泛泛可能不符"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_kapwghxlnjs1",
+          "title": "大模型算法策略实习生",
+          "company": "百度",
+          "relevant": true,
+          "reason": "岗位名直接包含'大模型'，与查询对应"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_kz9yd9q5yyjd",
+          "title": "Agent产品实习生 - 抖音增长",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含Agent，算AI应用开发"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_7c3lam749tq6",
+          "title": "Agent平台全栈研发工程师（练习生）",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含Agent和全栈研发，与AI应用开发相关"
+        },
+        {
+          "index": 25,
+          "job_id": "inn_pzys4r2dmjsp",
+          "title": "金融投研实习生-AI Agent方向",
+          "company": "百度",
+          "relevant": true,
+          "reason": "岗位名含AI Agent，与AI应用开发对应"
+        },
+        {
+          "index": 26,
+          "job_id": "inn_rjpjw5ooph3i",
+          "title": "平台架构PE实习生-前端方向",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "纯前端岗，方向不符"
+        },
+        {
+          "index": 27,
+          "job_id": "inn_wxrtfdihxiww",
+          "title": "算法工程师（搜推广方向）",
+          "company": "OPPO",
+          "relevant": false,
+          "reason": "搜推广方向可能不直接涉及大模型应用，方向不符"
+        },
+        {
+          "index": 28,
+          "job_id": "inn_ixfguth5f9yp",
+          "title": "Agent 开发实习生 - 火山方舟",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含 Agent 开发，与查询直接对应"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_cwzj0zxhuraw",
+          "title": "豆包AI大模型agent评测产品实习生 - 火山方舟",
+          "company": "字节跳动",
+          "relevant": true,
+          "reason": "岗位名含大模型和agent，与查询直接对应"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_msiy77mqavhm",
+          "title": "maketplace -后端研发实习生（1）",
+          "company": "滴滴",
+          "relevant": false,
+          "reason": "纯后端岗，方向不符"
+        },
+        {
+          "index": 31,
+          "job_id": "inn_e6bz1t3xnbrg",
+          "title": "信息安全部-后端研发实习生",
+          "company": "滴滴",
+          "relevant": false,
+          "reason": "方向是信息安全，与查询的大模型应用开发不符"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_jyt51ng12fym",
+          "title": "大模型产品实习生-TikTok",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名是产品实习生，方向是产品管理，不是工程代码开发"
+        },
+        {
+          "index": 33,
+          "job_id": "460794",
+          "title": "ai算法工程师工程师",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名是算法工程师，方向是算法研究，不是应用开发"
+        },
+        {
+          "index": 34,
+          "job_id": "inn_i4jvx2rhdhzr",
+          "title": "酒旅AI Agent产品实习生",
+          "company": "美团",
+          "relevant": true,
+          "reason": "岗位名含AI Agent，与查询直接对应"
+        },
+        {
+          "index": 35,
+          "job_id": "inn_r019io9yh6xd",
+          "title": "快手后端实习生（后端/AI方向）",
+          "company": "快手",
+          "relevant": false,
+          "reason": "岗位名是后端实习生，方向是泛AI，不明确是应用开发"
+        },
+        {
+          "index": 36,
+          "job_id": "inn_ygi7wwkuyegc",
+          "title": "Agent算法实习生",
+          "company": "原力金智",
+          "relevant": true,
+          "reason": "岗位名含Agent，算AI应用开发，与查询直接对应"
+        },
+        {
+          "index": 37,
+          "job_id": "inn_gpybpzdhljvv",
+          "title": "后端开发实习生（增长创新）-【主站】",
+          "company": "快手",
+          "relevant": false,
+          "reason": "纯后端开发岗，方向不符大模型应用开发"
+        },
+        {
+          "index": 38,
+          "job_id": "inn_yb7lxyxnfovb",
+          "title": "Agent/大模型算法实习生- 国际化TnS算法",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含大模型和Agent，直接匹配查询关键词"
+        },
+        {
+          "index": 39,
+          "job_id": "inn_vl8o4lazzdpx",
+          "title": "Agent测试实习生",
+          "company": "网易有道",
+          "relevant": false,
+          "reason": "Agent测试岗，方向是测试而非开发，不符查询要求"
+        },
+        {
+          "index": 40,
+          "job_id": "inn_ct3a9s8cg0zj",
+          "title": "AI全栈开发实习生-北京",
+          "company": "科锐国际",
+          "relevant": false,
+          "reason": "AI全栈开发可能沾边但不确定大模型应用，判不相关以严为主"
+        },
+        {
+          "index": 41,
+          "job_id": "inn_f9i9vu71w1hg",
+          "title": "安全研发方向（日常实习生）",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "安全研发与AI应用开发方向不符"
+        },
+        {
+          "index": 42,
+          "job_id": "inn_ahibivbuhdhb",
+          "title": "【28届实习】Product Engineer-产品工程师（Al全栈/应用研发方向）-质效研发",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含应用研发方向，与查询的应用开发直接对应"
+        },
+        {
+          "index": 43,
+          "job_id": "464661",
+          "title": "【源点顶尖人才计划】大模型算法工程师工程师(A130665)（实习）",
+          "company": "百川智能",
+          "relevant": false,
+          "reason": "岗位名含大模型，但方向是算法工程师，与查询的应用开发不符"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_ldd0f6u2cvu7",
+          "title": "大模型研发/数据研发工程师实习生 J105099",
+          "company": "百度",
+          "relevant": false,
+          "reason": "岗位名含大模型，但方向是研发，与查询的应用开发不符"
+        },
+        {
+          "index": 45,
+          "job_id": "inn_qwfy5dibe6ul",
+          "title": "算法与应用研究工程师",
+          "company": "迈瑞医疗",
+          "relevant": false,
+          "reason": "岗位名含应用研究，但方向是研究，与查询的应用开发不符"
+        },
+        {
+          "index": 46,
+          "job_id": "463619",
+          "title": "大模型AI Infra工程师（实习）",
+          "company": "杭州华为企业通信技术有限公司",
+          "relevant": false,
+          "reason": "方向是基础设施，不是应用开发"
+        },
+        {
+          "index": 47,
+          "job_id": "inn_7zt1uduc8rtj",
+          "title": "AI策略产品经理（大模型/Agent方向）实习",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "纯产品岗，方向不符"
+        },
+        {
+          "index": 48,
+          "job_id": "inn_zwydqfxem48g",
+          "title": "AI策略产品经理（大模型/Agent方向）",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "纯产品岗，方向不符"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_bv6uaxpsvaco",
+          "title": "【27届实习】Product Engineer-产品工程师（AI/全栈/应用研发方向）-商业技术",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名含应用研发方向，匹配大模型应用开发"
+        },
+        {
+          "index": 50,
+          "job_id": "inn_mzv2pu8mo7ub",
+          "title": "网约车平台技术-AI Agent开发实习生",
+          "company": "滴滴",
+          "relevant": true,
+          "reason": "岗位名含Agent开发，与查询直接对应"
+        }
+      ]
+    },
+    {
+      "id": "q8",
+      "query": "广州的 Java 开发实习岗位",
+      "search": {
+        "keyword": "Java",
+        "city": "广州",
+        "job_type": "实习",
+        "top": 50
+      },
+      "candidate_count": 23,
+      "relevant_job_ids": [
+        "inn_d21pagsrmutc",
+        "inn_lbocwobhfq1x",
+        "inn_kibdqpw9ba65",
+        "inn_jzvdmurpamdk",
+        "inn_nggmuwasswfw",
+        "inn_zv0gskkywiwe",
+        "inn_zu7qft2wpye1",
+        "EzvFLjqxtXSyPgQuRmUto1",
+        "inn_g0fxmywsrjix",
+        "Nf3FD9jqAeTqkTcgw3Kwpd"
+      ],
+      "relevant_count": 10,
+      "unjudged_count": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "job_id": "inn_d21pagsrmutc",
+          "title": "Java开发（可转正）",
+          "company": "墨泊可士",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_lbocwobhfq1x",
+          "title": "Java开发实习生（有转正机会）",
+          "company": "友邦资讯科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_kibdqpw9ba65",
+          "title": "Java开发实习生",
+          "company": "友邦资讯科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_jzvdmurpamdk",
+          "title": "Java开发实习生",
+          "company": "友邦资讯科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_nggmuwasswfw",
+          "title": "Java开发实习生",
+          "company": "友邦资讯科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_zv0gskkywiwe",
+          "title": "Java开发实习工程师",
+          "company": "海量数据",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 7,
+          "job_id": "464740",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_eztspw3e6py6",
+          "title": "前后端开发工程师实习生（Web方向，可转正）",
+          "company": "Capstone",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_mm945oavbpcd",
+          "title": "web前端开发实习工程师",
+          "company": "花姐伴你",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_zui4rxqyfui4",
+          "title": "后端开发",
+          "company": "花姐伴你",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_ct9k5tle1quk",
+          "title": "AI应用开发（可转正）",
+          "company": "墨泊可士",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_pce2glconlun",
+          "title": "前端开发（可转正）",
+          "company": "墨泊可士",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_qpa38aa45nvn",
+          "title": "AI Agent开发（可转正）",
+          "company": "墨泊可士",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 14,
+          "job_id": "454576",
+          "title": "算法工程师",
+          "company": "合衍数字",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_fahj4gvsbnm7",
+          "title": "开发实习生",
+          "company": "友邦资讯科技",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_zu7qft2wpye1",
+          "title": "后端开发（实习）",
+          "company": "克诺丰赢",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 17,
+          "job_id": "EzvFLjqxtXSyPgQuRmUto1",
+          "title": "前端/后端开发实习生",
+          "company": "方舟健客集团（广州方舟医药有限公司）",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_hf9cr8x466q2",
+          "title": "PT ENG 主变工程部实习生",
+          "company": "西门子能源 STGZ",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_g0fxmywsrjix",
+          "title": "全栈工程师",
+          "company": "奇之",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 20,
+          "job_id": "Nf3FD9jqAeTqkTcgw3Kwpd",
+          "title": "前后端开发工程师实习生（Web方向，可转正）",
+          "company": "广州拱石科技有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 21,
+          "job_id": "CF4uCeEShJsCk5h4dQ9e3s",
+          "title": "后端开发（实习）",
+          "company": "成都克诺丰赢科技有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 22,
+          "job_id": "JP6iJXMfcDSw6iVPSoC9vR",
+          "title": "前后端开发实习生（广州）",
+          "company": "浪潮集团有限公司",
+          "city": "广州",
+          "job_type": "实习"
+        },
+        {
+          "index": 23,
+          "job_id": "XyERtti9GCLdWikUXmXwCr",
+          "title": "CAE业务-Python/C++开发实习生",
+          "company": "粤港澳大湾区（广东）国创中心",
+          "city": "广州",
+          "job_type": "实习"
+        }
+      ],
+      "judgments": [
+        {
+          "index": 1,
+          "job_id": "inn_d21pagsrmutc",
+          "title": "Java开发（可转正）",
+          "company": "墨泊可士",
+          "relevant": true,
+          "reason": "岗位名明确包含Java开发"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_lbocwobhfq1x",
+          "title": "Java开发实习生（有转正机会）",
+          "company": "友邦资讯科技",
+          "relevant": true,
+          "reason": "岗位名明确包含Java开发实习生"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_kibdqpw9ba65",
+          "title": "Java开发实习生",
+          "company": "友邦资讯科技",
+          "relevant": true,
+          "reason": "岗位名明确包含Java开发实习生"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_jzvdmurpamdk",
+          "title": "Java开发实习生",
+          "company": "友邦资讯科技",
+          "relevant": true,
+          "reason": "岗位名明确包含Java开发实习生"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_nggmuwasswfw",
+          "title": "Java开发实习生",
+          "company": "友邦资讯科技",
+          "relevant": true,
+          "reason": "岗位名明确包含Java开发实习生"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_zv0gskkywiwe",
+          "title": "Java开发实习工程师",
+          "company": "海量数据",
+          "relevant": true,
+          "reason": "岗位名含 Java 开发，与查询直接对应"
+        },
+        {
+          "index": 7,
+          "job_id": "464740",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "relevant": false,
+          "reason": "方向为 AI 算法，与 Java 开发不符"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_eztspw3e6py6",
+          "title": "前后端开发工程师实习生（Web方向，可转正）",
+          "company": "Capstone",
+          "relevant": false,
+          "reason": "岗位名为前后端开发，未提及 Java，方向不符"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_mm945oavbpcd",
+          "title": "web前端开发实习工程师",
+          "company": "花姐伴你",
+          "relevant": false,
+          "reason": "纯前端岗，方向不符"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_zui4rxqyfui4",
+          "title": "后端开发",
+          "company": "花姐伴你",
+          "relevant": false,
+          "reason": "岗位名为后端开发，未提及 Java，方向不符"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_ct9k5tle1quk",
+          "title": "AI应用开发（可转正）",
+          "company": "墨泊可士",
+          "relevant": false,
+          "reason": "岗位名是AI应用开发，未明确提到Java"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_pce2glconlun",
+          "title": "前端开发（可转正）",
+          "company": "墨泊可士",
+          "relevant": false,
+          "reason": "纯前端岗，方向不符"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_qpa38aa45nvn",
+          "title": "AI Agent开发（可转正）",
+          "company": "墨泊可士",
+          "relevant": false,
+          "reason": "岗位名含Agent开发，但不直接对应Java开发"
+        },
+        {
+          "index": 14,
+          "job_id": "454576",
+          "title": "算法工程师",
+          "company": "合衍数字",
+          "relevant": false,
+          "reason": "纯算法岗，方向不符"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_fahj4gvsbnm7",
+          "title": "开发实习生",
+          "company": "友邦资讯科技",
+          "relevant": false,
+          "reason": "泛泛的开发岗，未明确提到Java"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_zu7qft2wpye1",
+          "title": "后端开发（实习）",
+          "company": "克诺丰赢",
+          "relevant": true,
+          "reason": "岗位名含后端开发，与Java开发相关"
+        },
+        {
+          "index": 17,
+          "job_id": "EzvFLjqxtXSyPgQuRmUto1",
+          "title": "前端/后端开发实习生",
+          "company": "方舟健客集团（广州方舟医药有限公司）",
+          "relevant": true,
+          "reason": "岗位名含后端开发，与Java开发相关"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_hf9cr8x466q2",
+          "title": "PT ENG 主变工程部实习生",
+          "company": "西门子能源 STGZ",
+          "relevant": false,
+          "reason": "岗位名是工程实习，方向不符"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_g0fxmywsrjix",
+          "title": "全栈工程师",
+          "company": "奇之",
+          "relevant": true,
+          "reason": "岗位名含全栈工程师，后端方向沾边"
+        },
+        {
+          "index": 20,
+          "job_id": "Nf3FD9jqAeTqkTcgw3Kwpd",
+          "title": "前后端开发工程师实习生（Web方向，可转正）",
+          "company": "广州拱石科技有限公司",
+          "relevant": true,
+          "reason": "岗位名含后端开发，与Java开发相关"
+        },
+        {
+          "index": 21,
+          "job_id": "CF4uCeEShJsCk5h4dQ9e3s",
+          "title": "后端开发（实习）",
+          "company": "成都克诺丰赢科技有限公司",
+          "relevant": false,
+          "reason": "岗位名未明确Java，方向模糊"
+        },
+        {
+          "index": 22,
+          "job_id": "JP6iJXMfcDSw6iVPSoC9vR",
+          "title": "前后端开发实习生（广州）",
+          "company": "浪潮集团有限公司",
+          "relevant": false,
+          "reason": "岗位名未明确Java，方向不明确"
+        },
+        {
+          "index": 23,
+          "job_id": "XyERtti9GCLdWikUXmXwCr",
+          "title": "CAE业务-Python/C++开发实习生",
+          "company": "粤港澳大湾区（广东）国创中心",
+          "relevant": false,
+          "reason": "技术为Python/C++，与Java不符"
+        }
+      ]
+    },
+    {
+      "id": "q9",
+      "query": "上海做 RAG 和向量检索的实习岗位",
+      "search": {
+        "keyword": "大模型",
+        "city": "上海",
+        "job_type": "实习",
+        "top": 50
+      },
+      "candidate_count": 50,
+      "relevant_job_ids": [
+        "inn_b273buhovdgq",
+        "inn_clavrh0a6qz7",
+        "inn_cse6rfkgrxic",
+        "inn_n1zjrsrbodsv",
+        "398550",
+        "inn_djha4ciyue1v",
+        "464739",
+        "inn_jno9qipigaca",
+        "inn_yp6krmlvnrhz",
+        "466436",
+        "inn_cfnylk5gmdmo"
+      ],
+      "relevant_count": 11,
+      "unjudged_count": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "job_id": "429056",
+          "title": "多模态大模型算法实习生(J11440)",
+          "company": "斑马网络",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 2,
+          "job_id": "437286",
+          "title": "大模型算法（27届正式批）",
+          "company": "拼多多集团-PDD",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_5g1tutd1j1rx",
+          "title": "大模型 MaaS 平台研发实习生",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_5x5mnrxg5xbk",
+          "title": "大模型MaaS推理系统研发实习生",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_by5wa7rflbs3",
+          "title": "大模型 GPU 调度研发工程师（练习生）",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_kdueiz3ob35r",
+          "title": "大模型应用算法实习-国际化业务",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_mwxmpgv9iws5",
+          "title": "大模型MaaS推理系统研发工程师（练习生）",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 8,
+          "job_id": "457950",
+          "title": "大模型部署实习生",
+          "company": "北京辉羲智能科技有限公司",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_3qr187vqaa6w",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_4s3dglypfwdq",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_b273buhovdgq",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_clavrh0a6qz7",
+          "title": "算法实习生（大模型&深度学习方向)(A191348)",
+          "company": "NIO蔚来",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_cse6rfkgrxic",
+          "title": "大模型强化学习训练引擎研发工程师（练习生）",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 14,
+          "job_id": "inn_mfodi0ugh1yu",
+          "title": "AI人文训练实习生-大模型",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_n1zjrsrbodsv",
+          "title": "大模型应用算法工程师",
+          "company": "远景智能",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 16,
+          "job_id": "398550",
+          "title": "多模态大模型评测和训练",
+          "company": "上海人工智能实验室",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_8ne3bwvjkvox",
+          "title": "大模型平台产品实习生 - TikTok",
+          "company": "字节跳动",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_djha4ciyue1v",
+          "title": "大模型算法",
+          "company": "数知梦科技",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 19,
+          "job_id": "464739",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_jno9qipigaca",
+          "title": "大模型算法（可转正）",
+          "company": "妙客莱音",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 21,
+          "job_id": "inn_yp6krmlvnrhz",
+          "title": "AI大模型应用开发（可转正）",
+          "company": "妙客莱音",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_tmuoru8zcrab",
+          "title": "建筑领域AI大模型语料训练实习岗",
+          "company": "建四实业",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 23,
+          "job_id": "435545",
+          "title": "大模型算法实习生",
+          "company": "拼多多集团-PDD",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_fm8ss7kyebx9",
+          "title": "语音生成大模型算法实习生（可控语音合成方向）",
+          "company": "美的集团（上海）有限公司",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 25,
+          "job_id": "466426",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 26,
+          "job_id": "467697",
+          "title": "大模型算法",
+          "company": "阿里巴巴集团",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 27,
+          "job_id": "inn_ibaldogupfm4",
+          "title": "甲基化DNA大模型研发实习生(A07339)",
+          "company": "小荷医学",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 28,
+          "job_id": "inn_7fyitjg9zeni",
+          "title": "大模型应用实习生(A130076)",
+          "company": "NIO蔚来",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_cbhmo8lp9yrp",
+          "title": "大模型算法",
+          "company": "得物",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_cvo3ccgqjimg",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 31,
+          "job_id": "inn_en5ku8g9neuy",
+          "title": "大模型算法",
+          "company": "阿里巴巴",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_fmden0o0mj0m",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 33,
+          "job_id": "inn_pyodqt8gpn1d",
+          "title": "大模型算法",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 34,
+          "job_id": "456536",
+          "title": "大模型算法工程师",
+          "company": "拼多多集团-PDD",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 35,
+          "job_id": "447182",
+          "title": "大模型算法工程师【2027届云弧计划】",
+          "company": "拼多多集团-PDD",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 36,
+          "job_id": "inn_psprtnbcpjwy",
+          "title": "大模型算法",
+          "company": "得物",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 37,
+          "job_id": "inn_yeyxrpmvxm6b",
+          "title": "大模型算法",
+          "company": "阿里巴巴",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 38,
+          "job_id": "inn_yzhesuimfxvy",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 39,
+          "job_id": "466333",
+          "title": "大模型算法工程师",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 40,
+          "job_id": "466363",
+          "title": "大模型算法",
+          "company": "快手",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 41,
+          "job_id": "466436",
+          "title": "大模型算法（实习）",
+          "company": "京东",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 42,
+          "job_id": "463980",
+          "title": "Agent算法实习生",
+          "company": "上海人工智能创新中心",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 43,
+          "job_id": "466109",
+          "title": "AI Agent 开发实习生",
+          "company": "牛客",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_cfnylk5gmdmo",
+          "title": "国际化搜推算法工程师",
+          "company": "小红书",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 45,
+          "job_id": "455633",
+          "title": "算法工程师",
+          "company": "咕咚网络",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 46,
+          "job_id": "455673",
+          "title": "算法工程师",
+          "company": "4399游戏",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 47,
+          "job_id": "469392",
+          "title": "算法工程师",
+          "company": "金点数据",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 48,
+          "job_id": "3dsb4iabHRtmtWhAzqqKSy",
+          "title": "Agent开发实习生（27届可转正）",
+          "company": "上海仙工智能科技股份有限公司",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_5yvzkjnvasz2",
+          "title": "AI Agent 产品测试实习生",
+          "company": "上海彼格镁隆",
+          "city": "上海",
+          "job_type": "实习"
+        },
+        {
+          "index": 50,
+          "job_id": "469457",
+          "title": "具身智能算法工程师（实习）",
+          "company": "上海奔曜科技有限公司",
+          "city": "上海",
+          "job_type": "实习"
+        }
+      ],
+      "judgments": [
+        {
+          "index": 1,
+          "job_id": "429056",
+          "title": "多模态大模型算法实习生(J11440)",
+          "company": "斑马网络",
+          "relevant": false,
+          "reason": "岗位名多模态大模型，未涉及 RAG 或向量检索"
+        },
+        {
+          "index": 2,
+          "job_id": "437286",
+          "title": "大模型算法（27届正式批）",
+          "company": "拼多多集团-PDD",
+          "relevant": false,
+          "reason": "岗位名大模型算法，未涉及 RAG 或向量检索"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_5g1tutd1j1rx",
+          "title": "大模型 MaaS 平台研发实习生",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "岗位名大模型 MaaS 平台，未明确涉及 RAG 或向量检索"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_5x5mnrxg5xbk",
+          "title": "大模型MaaS推理系统研发实习生",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "岗位名大模型 MaaS 推理系统，未明确涉及检索"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_by5wa7rflbs3",
+          "title": "大模型 GPU 调度研发工程师（练习生）",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "岗位名 GPU 调度，方向不符"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_kdueiz3ob35r",
+          "title": "大模型应用算法实习-国际化业务",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "岗位名仅提及'大模型应用算法'，未明确涉及RAG或向量检索，方向不符"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_mwxmpgv9iws5",
+          "title": "大模型MaaS推理系统研发工程师（练习生）",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "岗位名仅提及'大模型MaaS推理系统'，未明确涉及RAG或向量检索，方向不符"
+        },
+        {
+          "index": 8,
+          "job_id": "457950",
+          "title": "大模型部署实习生",
+          "company": "北京辉羲智能科技有限公司",
+          "relevant": false,
+          "reason": "岗位名仅提及'大模型部署'，未明确涉及RAG或向量检索，方向不符"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_3qr187vqaa6w",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "relevant": false,
+          "reason": "岗位名仅提及'大模型算法'，未明确涉及RAG或向量检索，方向不符"
+        },
+        {
+          "index": 10,
+          "job_id": "inn_4s3dglypfwdq",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "relevant": false,
+          "reason": "岗位名仅提及'大模型算法'，未明确涉及RAG或向量检索，方向不符"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_b273buhovdgq",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "relevant": true,
+          "reason": "岗位名包含'大模型'，与查询关键词直接对应"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_clavrh0a6qz7",
+          "title": "算法实习生（大模型&深度学习方向)(A191348)",
+          "company": "NIO蔚来",
+          "relevant": true,
+          "reason": "岗位名包含'大模型'，与查询关键词直接对应"
+        },
+        {
+          "index": 13,
+          "job_id": "inn_cse6rfkgrxic",
+          "title": "大模型强化学习训练引擎研发工程师（练习生）",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "岗位名包含'大模型'，与查询关键词直接对应"
+        },
+        {
+          "index": 14,
+          "job_id": "inn_mfodi0ugh1yu",
+          "title": "AI人文训练实习生-大模型",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "岗位名包含'大模型'，但'AI人文训练'方向模糊，可能不涉及 RAG 或向量检索"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_n1zjrsrbodsv",
+          "title": "大模型应用算法工程师",
+          "company": "远景智能",
+          "relevant": true,
+          "reason": "岗位名包含'大模型应用'，与查询关键词直接对应"
+        },
+        {
+          "index": 16,
+          "job_id": "398550",
+          "title": "多模态大模型评测和训练",
+          "company": "上海人工智能实验室",
+          "relevant": true,
+          "reason": "岗位名含大模型，与查询关键词匹配"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_8ne3bwvjkvox",
+          "title": "大模型平台产品实习生 - TikTok",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位为产品实习生，方向不符，未涉及技术实现"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_djha4ciyue1v",
+          "title": "大模型算法",
+          "company": "数知梦科技",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询关键词匹配"
+        },
+        {
+          "index": 19,
+          "job_id": "464739",
+          "title": "大模型算法工程师（可转正）",
+          "company": "蜀俊博凌",
+          "relevant": true,
+          "reason": "岗位名含大模型算法工程师，与查询关键词匹配"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_jno9qipigaca",
+          "title": "大模型算法（可转正）",
+          "company": "妙客莱音",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，与查询关键词匹配"
+        },
+        {
+          "index": 21,
+          "job_id": "inn_yp6krmlvnrhz",
+          "title": "AI大模型应用开发（可转正）",
+          "company": "妙客莱音",
+          "relevant": true,
+          "reason": "岗位名含AI大模型应用开发，与查询的大模型方向直接对应"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_tmuoru8zcrab",
+          "title": "建筑领域AI大模型语料训练实习岗",
+          "company": "建四实业",
+          "relevant": false,
+          "reason": "语料训练不涉及向量检索或RAG，方向不符"
+        },
+        {
+          "index": 23,
+          "job_id": "435545",
+          "title": "大模型算法实习生",
+          "company": "拼多多集团-PDD",
+          "relevant": false,
+          "reason": "大模型算法方向不具体，未提及RAG或向量检索，拿不准"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_fm8ss7kyebx9",
+          "title": "语音生成大模型算法实习生（可控语音合成方向）",
+          "company": "美的集团（上海）有限公司",
+          "relevant": false,
+          "reason": "语音生成与RAG和向量检索无关，方向明显不同"
+        },
+        {
+          "index": 25,
+          "job_id": "466426",
+          "title": "大模型算法工程师",
+          "company": "哔哩哔哩",
+          "relevant": false,
+          "reason": "大模型算法方向不具体，未提及RAG或向量检索，拿不准"
+        },
+        {
+          "index": 26,
+          "job_id": "467697",
+          "title": "大模型算法",
+          "company": "阿里巴巴集团",
+          "relevant": false,
+          "reason": "岗位名仅含'大模型'，未明确涉及RAG或向量检索"
+        },
+        {
+          "index": 27,
+          "job_id": "inn_ibaldogupfm4",
+          "title": "甲基化DNA大模型研发实习生(A07339)",
+          "company": "小荷医学",
+          "relevant": false,
+          "reason": "岗位专注于生物信息学，与RAG和向量检索方向不符"
+        },
+        {
+          "index": 28,
+          "job_id": "inn_7fyitjg9zeni",
+          "title": "大模型应用实习生(A130076)",
+          "company": "NIO蔚来",
+          "relevant": false,
+          "reason": "岗位名'大模型应用'未明确提及RAG或向量检索"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_cbhmo8lp9yrp",
+          "title": "大模型算法",
+          "company": "得物",
+          "relevant": false,
+          "reason": "岗位名仅含'大模型'，未明确涉及RAG或向量检索"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_cvo3ccgqjimg",
+          "title": "大模型算法",
+          "company": "木联能软件",
+          "relevant": false,
+          "reason": "岗位名仅含'大模型'，未明确涉及RAG或向量检索"
+        },
+        {
+          "index": 31,
+          "job_id": "inn_en5ku8g9neuy",
+          "title": "大模型算法",
+          "company": "阿里巴巴",
+          "relevant": false,
+          "reason": "岗位名仅大模型算法，未涉及RAG或向量检索方向"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_fmden0o0mj0m",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "relevant": false,
+          "reason": "岗位名仅大模型算法，未涉及RAG或向量检索方向"
+        },
+        {
+          "index": 33,
+          "job_id": "inn_pyodqt8gpn1d",
+          "title": "大模型算法",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "岗位名仅大模型算法，未涉及RAG或向量检索方向"
+        },
+        {
+          "index": 34,
+          "job_id": "456536",
+          "title": "大模型算法工程师",
+          "company": "拼多多集团-PDD",
+          "relevant": false,
+          "reason": "岗位名仅大模型算法，未涉及RAG或向量检索方向"
+        },
+        {
+          "index": 35,
+          "job_id": "447182",
+          "title": "大模型算法工程师【2027届云弧计划】",
+          "company": "拼多多集团-PDD",
+          "relevant": false,
+          "reason": "岗位名仅大模型算法，未涉及RAG或向量检索方向"
+        },
+        {
+          "index": 36,
+          "job_id": "inn_psprtnbcpjwy",
+          "title": "大模型算法",
+          "company": "得物",
+          "relevant": false,
+          "reason": "岗位名仅泛指大模型算法，未明确涉及RAG或向量检索"
+        },
+        {
+          "index": 37,
+          "job_id": "inn_yeyxrpmvxm6b",
+          "title": "大模型算法",
+          "company": "阿里巴巴",
+          "relevant": false,
+          "reason": "岗位名仅泛指大模型算法，未明确涉及RAG或向量检索"
+        },
+        {
+          "index": 38,
+          "job_id": "inn_yzhesuimfxvy",
+          "title": "大模型算法",
+          "company": "渡口网络科技",
+          "relevant": false,
+          "reason": "岗位名仅泛指大模型算法，未明确涉及RAG或向量检索"
+        },
+        {
+          "index": 39,
+          "job_id": "466333",
+          "title": "大模型算法工程师",
+          "company": "小红书",
+          "relevant": false,
+          "reason": "岗位名仅泛指大模型算法，未明确涉及RAG或向量检索"
+        },
+        {
+          "index": 40,
+          "job_id": "466363",
+          "title": "大模型算法",
+          "company": "快手",
+          "relevant": false,
+          "reason": "岗位名仅泛指大模型算法，未明确涉及RAG或向量检索"
+        },
+        {
+          "index": 41,
+          "job_id": "466436",
+          "title": "大模型算法（实习）",
+          "company": "京东",
+          "relevant": true,
+          "reason": "岗位名含大模型算法，直接匹配查询关键词"
+        },
+        {
+          "index": 42,
+          "job_id": "463980",
+          "title": "Agent算法实习生",
+          "company": "上海人工智能创新中心",
+          "relevant": false,
+          "reason": "Agent算法，未明确涉及RAG或向量检索"
+        },
+        {
+          "index": 43,
+          "job_id": "466109",
+          "title": "AI Agent 开发实习生",
+          "company": "牛客",
+          "relevant": false,
+          "reason": "AI Agent开发，未明确涉及RAG或向量检索"
+        },
+        {
+          "index": 44,
+          "job_id": "inn_cfnylk5gmdmo",
+          "title": "国际化搜推算法工程师",
+          "company": "小红书",
+          "relevant": true,
+          "reason": "搜推算法工程师，通常涉及向量检索"
+        },
+        {
+          "index": 45,
+          "job_id": "455633",
+          "title": "算法工程师",
+          "company": "咕咚网络",
+          "relevant": false,
+          "reason": "泛泛算法工程师，方向不符"
+        },
+        {
+          "index": 46,
+          "job_id": "455673",
+          "title": "算法工程师",
+          "company": "4399游戏",
+          "relevant": false,
+          "reason": "算法工程师方向泛，不涉及RAG、向量检索或大模型"
+        },
+        {
+          "index": 47,
+          "job_id": "469392",
+          "title": "算法工程师",
+          "company": "金点数据",
+          "relevant": false,
+          "reason": "算法工程师方向泛，不涉及RAG、向量检索或大模型"
+        },
+        {
+          "index": 48,
+          "job_id": "3dsb4iabHRtmtWhAzqqKSy",
+          "title": "Agent开发实习生（27届可转正）",
+          "company": "上海仙工智能科技股份有限公司",
+          "relevant": false,
+          "reason": "Agent开发不直接相关，严判不相关"
+        },
+        {
+          "index": 49,
+          "job_id": "inn_5yvzkjnvasz2",
+          "title": "AI Agent 产品测试实习生",
+          "company": "上海彼格镁隆",
+          "relevant": false,
+          "reason": "产品测试方向不符，查询是算法开发"
+        },
+        {
+          "index": 50,
+          "job_id": "469457",
+          "title": "具身智能算法工程师（实习）",
+          "company": "上海奔曜科技有限公司",
+          "relevant": false,
+          "reason": "具身智能方向不同，不涉及RAG或向量检索"
+        }
+      ]
+    },
+    {
+      "id": "q10",
+      "query": "深圳的计算机视觉算法实习",
+      "search": {
+        "keyword": "视觉",
+        "city": "深圳",
+        "job_type": "实习",
+        "top": 50
+      },
+      "candidate_count": 33,
+      "relevant_job_ids": [
+        "inn_qzb4a52ou8rz",
+        "468736",
+        "inn_e7kzo0auguum",
+        "inn_2xq9vv5swhrc",
+        "inn_ffyxwp4w5g8o",
+        "462492",
+        "inn_llsajergjnsz"
+      ],
+      "relevant_count": 7,
+      "unjudged_count": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "job_id": "inn_arludsup5mzk",
+          "title": "视觉/交互设计实习生",
+          "company": "数汇",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_qzb4a52ou8rz",
+          "title": "计算机视觉算法实习生",
+          "company": "力维智联",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_ovsa5ilsclno",
+          "title": "视觉与交互设计实习生",
+          "company": "甜筒风暴",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_8u9amq36xdim",
+          "title": "创意视觉设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_upzqmcsukx2i",
+          "title": "创意视觉设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_6zzrcj0dlvz3",
+          "title": "视觉设计师（创意设计）",
+          "company": "OPPO",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_msgkggd9te5x",
+          "title": "视觉内容设计助理",
+          "company": "深圳市当代艺术与城市规划馆",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_5rbotelfcrgm",
+          "title": "视觉设计实习生",
+          "company": "OPPO",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_5cm6yh4ofzfl",
+          "title": "AI视觉设计实习生",
+          "company": "美图公司",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 10,
+          "job_id": "468736",
+          "title": "具身vla（抓取）算法工程师实习生",
+          "company": "美团",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_xenofwfcoflm",
+          "title": "具身智能算法实习生（多模态学习 / 生物信号方向）",
+          "company": "BrainCo",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_q0qwi4tirqsp",
+          "title": "凤凰网深圳实习生",
+          "company": "凤凰网深圳",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 13,
+          "job_id": "452656",
+          "title": "大模型算法实习生",
+          "company": "元戎启行",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 14,
+          "job_id": "inn_bjgkmhykau32",
+          "title": "海外品牌视频剪辑实习生",
+          "company": "MKS GROUP",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_rqaxno945chy",
+          "title": "时尚AI Agent训练师",
+          "company": "正和御风",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_t9a0gdwxycga",
+          "title": "海外创意设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_u6ekgbtgrwhz",
+          "title": "交互产品设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_xvrpckrk4xhe",
+          "title": "平面设计",
+          "company": "EonveraX AGI LAB",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_e7kzo0auguum",
+          "title": "算法实习生——有光团队",
+          "company": "深圳科创学院",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_b10v7njhkmwf",
+          "title": "设计实习生",
+          "company": "荟同学校",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 21,
+          "job_id": "inn_m0x6n0knzfpr",
+          "title": "品牌管理实习生",
+          "company": "中兴",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_mfola0ltelay",
+          "title": "平面设计-AI硬件",
+          "company": "自然映射",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_ka930lg4ml62",
+          "title": "视频剪辑实习生",
+          "company": "逸文科技",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_2xq9vv5swhrc",
+          "title": "本地部署多模态大语言模型实习生",
+          "company": "法雷奥",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 25,
+          "job_id": "inn_oh1t1b3dnesb",
+          "title": "企业文化设计实习生",
+          "company": "百丽国际",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 26,
+          "job_id": "inn_htdqlyvawt0t",
+          "title": "宣传与推广助理",
+          "company": "深圳市当代艺术与城市规划馆",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 27,
+          "job_id": "inn_fl2a0lrcodt4",
+          "title": "算法工程师",
+          "company": "柯西黎曼",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 28,
+          "job_id": "inn_gevlkntgawjr",
+          "title": "ID设计实习生",
+          "company": "Swie Robotics",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_ffyxwp4w5g8o",
+          "title": "人工智能算法工程师",
+          "company": "巨睿科技",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_jkhrblnxvt4q",
+          "title": "灵巧操作算法工程师",
+          "company": "艾莫机器人科技（深圳）有限公司",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 31,
+          "job_id": "462492",
+          "title": "智能驾驶算法工程师（实习）",
+          "company": "华为HUAWEI",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_llsajergjnsz",
+          "title": "声呐图像算法工程——沧予科技团队",
+          "company": "深圳科创学院",
+          "city": "深圳",
+          "job_type": "实习"
+        },
+        {
+          "index": 33,
+          "job_id": "inn_i5tcwaptusyf",
+          "title": "项目实习生-人工智能-咨询业务-深圳",
+          "company": "德勤咨询",
+          "city": "深圳",
+          "job_type": "实习"
+        }
+      ],
+      "judgments": [
+        {
+          "index": 1,
+          "job_id": "inn_arludsup5mzk",
+          "title": "视觉/交互设计实习生",
+          "company": "数汇",
+          "relevant": false,
+          "reason": "岗位名为视觉设计，方向不符算法查询"
+        },
+        {
+          "index": 2,
+          "job_id": "inn_qzb4a52ou8rz",
+          "title": "计算机视觉算法实习生",
+          "company": "力维智联",
+          "relevant": true,
+          "reason": "岗位名直接匹配计算机视觉算法"
+        },
+        {
+          "index": 3,
+          "job_id": "inn_ovsa5ilsclno",
+          "title": "视觉与交互设计实习生",
+          "company": "甜筒风暴",
+          "relevant": false,
+          "reason": "岗位名为视觉设计，方向不符算法查询"
+        },
+        {
+          "index": 4,
+          "job_id": "inn_8u9amq36xdim",
+          "title": "创意视觉设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名为视觉设计，方向不符算法查询"
+        },
+        {
+          "index": 5,
+          "job_id": "inn_upzqmcsukx2i",
+          "title": "创意视觉设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "岗位名为视觉设计，方向不符算法查询"
+        },
+        {
+          "index": 6,
+          "job_id": "inn_6zzrcj0dlvz3",
+          "title": "视觉设计师（创意设计）",
+          "company": "OPPO",
+          "relevant": false,
+          "reason": "岗位名含视觉，但设计师职能与算法开发方向不符"
+        },
+        {
+          "index": 7,
+          "job_id": "inn_msgkggd9te5x",
+          "title": "视觉内容设计助理",
+          "company": "深圳市当代艺术与城市规划馆",
+          "relevant": false,
+          "reason": "视觉内容设计助理偏向内容创作，非算法"
+        },
+        {
+          "index": 8,
+          "job_id": "inn_5rbotelfcrgm",
+          "title": "视觉设计实习生",
+          "company": "OPPO",
+          "relevant": false,
+          "reason": "视觉设计实习生涉及设计，非算法开发"
+        },
+        {
+          "index": 9,
+          "job_id": "inn_5cm6yh4ofzfl",
+          "title": "AI视觉设计实习生",
+          "company": "美图公司",
+          "relevant": false,
+          "reason": "AI视觉设计实习生偏向设计应用，非算法开发"
+        },
+        {
+          "index": 10,
+          "job_id": "468736",
+          "title": "具身vla（抓取）算法工程师实习生",
+          "company": "美团",
+          "relevant": true,
+          "reason": "岗位名含算法工程师，抓取可能涉及计算机视觉应用"
+        },
+        {
+          "index": 11,
+          "job_id": "inn_xenofwfcoflm",
+          "title": "具身智能算法实习生（多模态学习 / 生物信号方向）",
+          "company": "BrainCo",
+          "relevant": false,
+          "reason": "方向偏向生物信号，视觉不是主要方向"
+        },
+        {
+          "index": 12,
+          "job_id": "inn_q0qwi4tirqsp",
+          "title": "凤凰网深圳实习生",
+          "company": "凤凰网深圳",
+          "relevant": false,
+          "reason": "纯媒体岗，方向不符"
+        },
+        {
+          "index": 13,
+          "job_id": "452656",
+          "title": "大模型算法实习生",
+          "company": "元戎启行",
+          "relevant": false,
+          "reason": "大模型与计算机视觉方向不同"
+        },
+        {
+          "index": 14,
+          "job_id": "inn_bjgkmhykau32",
+          "title": "海外品牌视频剪辑实习生",
+          "company": "MKS GROUP",
+          "relevant": false,
+          "reason": "纯创意岗，方向不符"
+        },
+        {
+          "index": 15,
+          "job_id": "inn_rqaxno945chy",
+          "title": "时尚AI Agent训练师",
+          "company": "正和御风",
+          "relevant": false,
+          "reason": "AI应用开发未指定视觉方向"
+        },
+        {
+          "index": 16,
+          "job_id": "inn_t9a0gdwxycga",
+          "title": "海外创意设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "创意设计岗，方向不符计算机视觉算法"
+        },
+        {
+          "index": 17,
+          "job_id": "inn_u6ekgbtgrwhz",
+          "title": "交互产品设计实习生 - TikTok设计",
+          "company": "字节跳动",
+          "relevant": false,
+          "reason": "交互产品设计岗，方向不符计算机视觉算法"
+        },
+        {
+          "index": 18,
+          "job_id": "inn_xvrpckrk4xhe",
+          "title": "平面设计",
+          "company": "EonveraX AGI LAB",
+          "relevant": false,
+          "reason": "平面设计岗，方向不符计算机视觉算法"
+        },
+        {
+          "index": 19,
+          "job_id": "inn_e7kzo0auguum",
+          "title": "算法实习生——有光团队",
+          "company": "深圳科创学院",
+          "relevant": true,
+          "reason": "岗位名含算法，与查询的算法方向沾边"
+        },
+        {
+          "index": 20,
+          "job_id": "inn_b10v7njhkmwf",
+          "title": "设计实习生",
+          "company": "荟同学校",
+          "relevant": false,
+          "reason": "设计实习生，方向不符计算机视觉算法"
+        },
+        {
+          "index": 21,
+          "job_id": "inn_m0x6n0knzfpr",
+          "title": "品牌管理实习生",
+          "company": "中兴",
+          "relevant": false,
+          "reason": "品牌管理，方向不符"
+        },
+        {
+          "index": 22,
+          "job_id": "inn_mfola0ltelay",
+          "title": "平面设计-AI硬件",
+          "company": "自然映射",
+          "relevant": false,
+          "reason": "岗位名有AI硬件，但方向是平面设计，与计算机视觉算法不符"
+        },
+        {
+          "index": 23,
+          "job_id": "inn_ka930lg4ml62",
+          "title": "视频剪辑实习生",
+          "company": "逸文科技",
+          "relevant": false,
+          "reason": "视频剪辑，方向不符"
+        },
+        {
+          "index": 24,
+          "job_id": "inn_2xq9vv5swhrc",
+          "title": "本地部署多模态大语言模型实习生",
+          "company": "法雷奥",
+          "relevant": true,
+          "reason": "岗位名含多模态大语言模型，多模态涉及计算机视觉"
+        },
+        {
+          "index": 25,
+          "job_id": "inn_oh1t1b3dnesb",
+          "title": "企业文化设计实习生",
+          "company": "百丽国际",
+          "relevant": false,
+          "reason": "企业文化设计，方向不符"
+        },
+        {
+          "index": 26,
+          "job_id": "inn_htdqlyvawt0t",
+          "title": "宣传与推广助理",
+          "company": "深圳市当代艺术与城市规划馆",
+          "relevant": false,
+          "reason": "岗位名宣传推广助理，方向不符"
+        },
+        {
+          "index": 27,
+          "job_id": "inn_fl2a0lrcodt4",
+          "title": "算法工程师",
+          "company": "柯西黎曼",
+          "relevant": false,
+          "reason": "算法工程师未指定领域，方向不明确"
+        },
+        {
+          "index": 28,
+          "job_id": "inn_gevlkntgawjr",
+          "title": "ID设计实习生",
+          "company": "Swie Robotics",
+          "relevant": false,
+          "reason": "ID设计实习生，方向不符"
+        },
+        {
+          "index": 29,
+          "job_id": "inn_ffyxwp4w5g8o",
+          "title": "人工智能算法工程师",
+          "company": "巨睿科技",
+          "relevant": true,
+          "reason": "岗位名人工智能算法工程师，AI上位词包括视觉"
+        },
+        {
+          "index": 30,
+          "job_id": "inn_jkhrblnxvt4q",
+          "title": "灵巧操作算法工程师",
+          "company": "艾莫机器人科技（深圳）有限公司",
+          "relevant": false,
+          "reason": "灵巧操作算法工程师，方向可能不同"
+        },
+        {
+          "index": 31,
+          "job_id": "462492",
+          "title": "智能驾驶算法工程师（实习）",
+          "company": "华为HUAWEI",
+          "relevant": true,
+          "reason": "岗位名含智能驾驶算法，与计算机视觉算法相关"
+        },
+        {
+          "index": 32,
+          "job_id": "inn_llsajergjnsz",
+          "title": "声呐图像算法工程——沧予科技团队",
+          "company": "深圳科创学院",
+          "relevant": true,
+          "reason": "岗位名含图像算法，与计算机视觉算法直接对应"
+        },
+        {
+          "index": 33,
+          "job_id": "inn_i5tcwaptusyf",
+          "title": "项目实习生-人工智能-咨询业务-深圳",
+          "company": "德勤咨询",
+          "relevant": false,
+          "reason": "岗位名含人工智能，但咨询业务方向不符，未明确计算机视觉算法"
+        }
+      ]
+    }
+  ]
+}
