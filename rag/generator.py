@@ -36,12 +36,31 @@ def build_prompt(question: str, context: str) -> str:
 请根据上述片段回答。"""
 
 
-def generate(question: str, context: str) -> str:
+def generate(question: str, context: str, source: str = None,
+             max_tokens: int = None, reasoning_effort: str = None) -> str:
+    """生成答案。
+
+    三个新增的透传参数（第 3 周加；**都不传时行为与改造前完全一致**）：
+        source:            token 用量归因（引用溯源传自己的来源标记）
+        max_tokens:        单次输出上限；默认仍走 ``chat()`` 的 1024
+        reasoning_effort:  思考档位；默认不注入
+
+    为什么需要它们：引用溯源要用同一份 prompt 生成**带依据的长答案**，
+    默认 1024 会被截断（截断的答案最后一句是半句，标不准引用，还必然被判无依据）。
+    调用方（``rag.citation.generate_answer``）显式给足额度并压低思考档位。
+    """
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": build_prompt(question, context)},
     ]
-    return chat(messages)
+    explicit = {}
+    if source is not None:
+        explicit["source"] = source
+    if max_tokens is not None:
+        explicit["max_tokens"] = max_tokens
+    if reasoning_effort:
+        explicit["reasoning_effort"] = reasoning_effort
+    return chat(messages, **explicit)
 
 
 if __name__ == "__main__":

@@ -12,22 +12,25 @@ JD 向量库（ChromaDB）。
    不再每次抓取都把整个库重算一遍，省 API 额度。
 
 ID 方案（两种方式共用，务必保持一致）：
-    ``chunk_<sha1(公司|岗位|chunk_index)[:16]>`` —— 只由「这条 chunk 属于哪条 JD 的
-    第几段」决定，**不含正文**。
-    为什么不含正文：id 必须能回答「还是不是同一段」。若把正文算进 id，
-    正文一改 id 就变，增量入库只会看到「旧 id 消失 + 新 id 出现」，
-    永远走不到「更新」那条分支——而且旧记录会以孤儿形式留在库里，
-    检索时新旧两份同时被召回。
-    正文是否变化由入库时逐条比对 document 判断（见 add_chunks_incremental）。
+    ``{platform}:{job_id}:{chunk_index}`` —— **确定性**，而且可读：
+    看 id 就知道命中哪个平台的哪条岗位的第几段，不用回查 metadata。
 
-旧版本用的是列表下标 ``chunk_0..chunk_N``：列表增删一条，后面所有 id 全部错位，
-增量比对会把没改过的 chunk 也当成新数据重算，增量就白做了。改成按
-「公司|岗位|chunk_index」定位后，同一批数据的 id 在多次运行之间是稳定的。
+    为什么是确定性字符串而不是 hash（第 3 周改造）：
+      * **可溯源**：引用标注 [n] 最终要指回「哪条岗位的哪一段」。hash 形式的
+        ``chunk_ab12cd34...`` 只能靠查 metadata 反推，日志 / 评测里读不出信息；
+      * **永不重生成**：三个字段全部来自数据层身份（platform + job_id）与切分序位，
+        同一批数据重复入库 id 完全一致，换进程 / 换机器也一样；
+      * **不含正文**：正文一改 id 就变的话，增量入库永远走不到「更新」分支，
+        旧记录还会以孤儿形式留在库里被同时召回（老版本踩过的坑）。
+        正文是否变化由入库时逐条比对 document 判断（见 add_chunks_incremental）。
 
-已知边界（诚实说明）：公司名/岗位名本身被修正、或 chunk 切分位置整体变化时，
-id 会随之改变，旧 id 会作为孤儿留在库里，需要迁移一次清理：
+旧 id 形态（Round 10）：``chunk_<sha1(platform|job_id|company|title|chunk_index)[:16]>``。
+换成新形态后旧 id **全部成为孤儿**，必须全量重建一次：
 
     python -m rag.vector_store --rebuild            # 清空集合后全量重建
+
+已知边界（诚实说明）：岗位下架、或 chunk 切分位置整体挪位时，旧 id 不再有人引用，
+会作为孤儿留在库里，需要清理（``cleanup_orphans``）。
 """
 
 import hashlib
@@ -39,8 +42,9 @@ from rag.embedder import embed_texts, embed_query
 DB_PATH = str(CHROMA_DIR)
 COLLECTION_NAME = "jd_chunks"
 
-# 参与 id 计算的字段：只放「定位这段 chunk 是谁」的稳定信息，**不放正文**。
-# 正文进 id 会导致「正文一改 id 就变」，更新分支永远走不到（见模块 docstring）。
+# 历史遗留常量：Round 10 用它算 hash id，第 3 周改成
+# 「{platform}:{job_id}:{chunk_index}」直接拼接后，id 计算不再读这个元组。
+# 保留是因为 add_chunks_incremental 的注释仍在引用这个口径，删掉会让注释悬空。
 #
 # 为什么必须带 platform + job_id（Round 10）：
 #   只用 (company, title, chunk_index) 时，**两个平台上的同名同司岗位会算出同一个 id**。
@@ -113,7 +117,10 @@ def _chunk_meta(chunk: dict) -> dict:
         "company": str(chunk.get("company") or ""),
         "title": str(chunk.get("title") or ""),
         "city": str(chunk.get("city") or ""),
-        "chunk_index": str(chunk.get("chunk_index", "") or ""),
+        # ⚠️ 不能用 ``chunk.get("chunk_index") or ""``：0 是合法段号但 falsy，
+        # 会被吞成空串，于是第 0 段的 id 变成 ``platform:job_id:``（丢段号）。
+        "chunk_index": str(chunk.get("chunk_index", "")
+                           if chunk.get("chunk_index") is not None else ""),
         # Round 10：岗位级身份，用于检索命中后反查 jobs.db（必须落进 metadata）。
         "job_id": str(chunk.get("job_id") or ""),
         "platform": str(chunk.get("platform") or ""),
@@ -121,19 +128,35 @@ def _chunk_meta(chunk: dict) -> dict:
 
 
 def make_chunk_id(chunk: dict, text: str = None, meta: dict = None) -> str:
-    """为一条 chunk 生成**稳定 id**：同一条 JD 的同一段，id 永远相同。
+    """为一条 chunk 生成**确定性 id**：``{platform}:{job_id}:{chunk_index}``。
 
-    组成：platform | job_id | 公司 | 岗位 | chunk_index（不含正文，原因见模块 docstring）。
-    这几个字段一起回答「这是哪条 JD 的第几段」；正文变没变由调用方比对 document。
+    同一条 JD 的同一段，id 永远相同，且**永不重新生成** —— 不掺正文、不掺时间戳、
+    不掺列表下标（下标形态的 id 在列表增删一条时会全体错位，增量比对就白做了）。
+
+    兜底：platform 或 job_id 缺失时（回退文本语料的老路径）返回
+    ``legacy:<sha1(公司|岗位|段号)[:16]>`` —— 仍然稳定、互不覆盖，但一眼能看出
+    它没有岗位身份，不会被误当成可溯源的引用来源。
 
     text 参数保留是为了兼容旧签名，当前不参与计算。
     """
     if meta is None:
         meta = _chunk_meta(chunk)
 
-    identity = "|".join(str(meta.get(f, "")) for f in _IDENTITY_FIELDS)
+    platform = str(meta.get("platform") or "").strip()
+    job_id = str(meta.get("job_id") or "").strip()
+    # 同样不能用 ``or ""``：0 是合法段号（见 _chunk_meta）
+    raw_index = meta.get("chunk_index", "")
+    chunk_index = "" if raw_index is None else str(raw_index).strip()
+
+    if platform and job_id:
+        # chunk_index 缺失时末尾留一个空段，字段数恒定，便于按 ":" 解析回身份
+        return f"{platform}:{job_id}:{chunk_index}"
+
+    identity = "|".join(
+        str(meta.get(f, "")) for f in ("company", "title", "chunk_index")
+    )
     digest = hashlib.sha1(identity.encode("utf-8")).hexdigest()[:16]
-    return f"chunk_{digest}"
+    return f"legacy:{digest}"
 
 
 def _prepare_chunks(chunks: list[dict]) -> list[dict]:
@@ -160,7 +183,9 @@ def _prepare_chunks(chunks: list[dict]) -> list[dict]:
         if previous is not None:
             if previous == text:
                 continue                    # 同一批里的完全重复，丢弃
-            chunk_id = f"{chunk_id}_dup{position}"   # 冲突：给个不会撞车的 id
+            # 冲突：挂一个不会撞车的后缀。用 ``#dupN`` 而不是 ``_dupN``，
+            # 是为了让原 id（platform:job_id:index）作为前缀完整保留、仍可溯源。
+            chunk_id = f"{chunk_id}#dup{position}"
         used_ids[chunk_id] = text
 
         prepared.append({
@@ -238,7 +263,7 @@ def _meta_equal(old: dict, new: dict) -> bool:
 def add_chunks_incremental(chunks: list[dict], collection=None) -> dict:
     """增量入库：按 id 判断每条 chunk 是新增 / 更新 / 跳过。
 
-    判定规则（id 由「platform|job_id|公司|岗位|chunk_index」决定，见 make_chunk_id）：
+    判定规则（id 由「platform:job_id:chunk_index」决定，见 make_chunk_id）：
         * id 不存在                         -> 新增（add）
         * id 已存在，正文与元信息都相同       -> 跳过（skipped，**不调用 embedding**）
         * id 已存在，但正文或元信息变了       -> 更新（先 delete 再 add，不留旧副本）
@@ -320,8 +345,8 @@ ORPHAN_DELETE_BATCH = 500
 def cleanup_orphans(collection, valid_ids) -> int:
     """删除 collection 里**不在** valid_ids 中的 id（孤儿），返回清理条数。
 
-    孤儿怎么来的：chunk id 由「公司|岗位|chunk_index」决定（见 make_chunk_id），
-    公司名/岗位名被修正、或 chunk 切分位置整体变化时，旧 id 就没人再引用，
+    孤儿怎么来的：chunk id 由「platform:job_id:chunk_index」决定（见 make_chunk_id），
+    岗位下架、或 chunk_index 因重新切分而整体挪位时，旧 id 就没人再引用，
     留在库里会被检索召回，和新数据重复。
 
     参数：
@@ -426,6 +451,63 @@ def _load_chunks_from_db(chunk_size: int = 600, verbose: bool = True):
     return chunks
 
 
+def collection_coverage(collection=None) -> dict:
+    """体检向量库的 id / job_id 覆盖率；返回可断言的统计 dict。
+
+    第 3 周加这个函数的理由：ID 口径一改，**旧库里的 id 就全成了孤儿**，
+    重建之后必须能一眼确认「库里每一条都能溯源到岗位」，否则 citation 给出的
+    [n] 会指向一个查不到岗位的 chunk。所以把它做成函数而不是一次性脚本，
+    重建 / 夜间增量入库之后都能再跑一遍。
+
+    返回（键名与含义）：
+        total           库内 chunk 总数
+        with_job_id     metadata 里 job_id 非空的条数
+        deterministic   id 形如 ``{platform}:{job_id}:{chunk_index}`` 且与 metadata 一致的条数
+        legacy         id 以 ``legacy:`` 开头的条数（无岗位身份，只该在文本语料回退时出现）
+        mutated        id 带 ``#dup`` 后缀的条数（同一位置正文冲突的少数派）
+        job_id_coverage    with_job_id / total（0.0~1.0；库空时算 1.0）
+        id_coverage        deterministic / total
+        orphan_ids       id 与 metadata 对不上 / 格式不可解析的样本（最多 20 个）
+    """
+    if collection is None:
+        collection = get_collection()
+    data = collection.get()
+    ids = [str(x) for x in (data.get("ids") or [])]
+    metas = data.get("metadatas") or []
+
+    stats = {
+        "total": len(ids),
+        "with_job_id": 0,
+        "deterministic": 0,
+        "legacy": 0,
+        "mutated": 0,
+        "orphan_ids": [],
+    }
+    for cid, meta in zip(ids, metas):
+        meta = meta or {}
+        job_id = str(meta.get("job_id") or "").strip()
+        platform = str(meta.get("platform") or "").strip()
+        raw_index = meta.get("chunk_index", "")
+        index = "" if raw_index is None else str(raw_index).strip()
+        if job_id:
+            stats["with_job_id"] += 1
+        if cid.startswith("legacy:"):
+            stats["legacy"] += 1
+            continue
+        if "#dup" in cid:
+            stats["mutated"] += 1
+        expected = f"{platform}:{job_id}:{index}"
+        if platform and job_id and cid.split("#dup")[0] == expected:
+            stats["deterministic"] += 1
+        elif len(stats["orphan_ids"]) < 20:
+            stats["orphan_ids"].append(cid)
+
+    total = stats["total"]
+    stats["job_id_coverage"] = 1.0 if total == 0 else stats["with_job_id"] / total
+    stats["id_coverage"] = 1.0 if total == 0 else stats["deterministic"] / total
+    return stats
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -438,6 +520,7 @@ def _cli(argv=None, verbose: bool = True) -> int:
         python -m rag.vector_store --incremental --file rag/data/scraped_jd.txt
         python -m rag.vector_store --rebuild        # 先清空向量库，再全量写入
         python -m rag.vector_store --no-search-test # 只入库，不跑检索自测
+        python -m rag.vector_store --verify-coverage # 只体检当前库（不写入，覆盖率必须 100%）
 
     数据源（Round 10）：默认**优先读 jobs.db**（chunk 才带得上 job_id），
     库不可用时回退 `--file` / `scraped_jd.txt` 文本语料（此时无 job_id）。
@@ -452,6 +535,20 @@ def _cli(argv=None, verbose: bool = True) -> int:
     if "-h" in argv or "--help" in argv:
         print(_cli.__doc__)
         return 0
+
+    if "--verify-coverage" in argv:
+        stats = collection_coverage()
+        print(f"库内 chunk：{stats['total']}")
+        print(f"job_id 覆盖：{stats['with_job_id']}/{stats['total']} "
+              f"= {stats['job_id_coverage']:.4%}")
+        print(f"确定性 id 覆盖：{stats['deterministic']}/{stats['total']} "
+              f"= {stats['id_coverage']:.4%}"
+              f"（legacy {stats['legacy']}，dup 后缀 {stats['mutated']}）")
+        if stats["orphan_ids"]:
+            print(f"对不上的 id 样本：{stats['orphan_ids']}")
+        ok = stats["job_id_coverage"] >= 1.0 and stats["id_coverage"] >= 1.0
+        print(f"[{'PASS' if ok else 'FAIL'}] job_id / id 覆盖率必须都是 100%")
+        return 0 if ok else 1
 
     incremental = "--incremental" in argv
     rebuild = "--rebuild" in argv

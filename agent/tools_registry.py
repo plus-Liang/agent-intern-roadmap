@@ -120,6 +120,61 @@ def _prefer_title_hits(rows, keyword) -> list[dict]:
     return hits + misses
 
 
+# ---------------------------------------------------------------------------
+# 搜岗位场景的引用溯源（第 3 周，实现在 rag/citation.py）
+# ---------------------------------------------------------------------------
+#: 生成答案时喂给模型的片段数。比 top_k 小：答案只需要"最相关的几条"做依据，
+#: 片段越多越容易让模型把 A 岗位的事实写到 B 岗位上（citation 随后会核验）。
+CITATION_TOP_K = 5
+
+
+def _attach_citations(keyword, reranked, hits):
+    """只在语义分支触发：基于检索片段生成答案 → 标句级引用 → faithfulness 核验。
+
+    为什么是「最小钩子、不动 Agent 层逻辑」：
+      * **实现在 RAG 层**（``rag/citation.py``），本函数只负责触发与挂载；
+      * **只在 semantic 分支调用**（其他场景没有可溯源的岗位片段，标 [n] 无意义），
+        挂载走**行内字段** ``row["citation"]``（原因见 `_search_rows` 的三重可见
+        注释：``_number_jobs`` / `filter_jobs` / 去重都会新建列表，挂 list 属性会丢），
+        不改 ``_number_jobs`` / ``_search`` 的返回结构 —— 精确路行为与改造前一致；
+      * 任何异常都只打印一条警告：引用是**增强**，坏了不能把搜岗位带崩。
+
+    返回：citation pack（失败返回 None）。
+    """
+    if not keyword or not reranked:
+        return None
+    try:
+        from rag.citation import (build_citation_pack, coverage_ok, enabled,
+                                  generate_answer, render_citation_block)
+
+        if not enabled() or not hits:
+            return None
+        # job_id 覆盖率不达标时宁可不挂引用（[n] 溯源不到岗位就没意义）
+        if not coverage_ok():
+            return None
+
+        top_hits = hits[:CITATION_TOP_K]
+        # 生成答案（给足 max_tokens，避免被截断）→ 标句级引用 → faithfulness → 渲染
+        pack = build_citation_pack(generate_answer(str(keyword), top_hits), top_hits)
+        pack["rendered"] = render_citation_block(pack)
+        _session_state()["last_citation_pack"] = {
+            "answer": pack.get("answer"),
+            "answer_with_citations": pack.get("answer_with_citations"),
+            "unsupported_indexes": pack.get("unsupported_indexes") or [],
+        }
+        print(f"[citation] 已生成引用：{len(pack.get('sentences') or [])} 句，"
+              f"无依据 {len(pack.get('unsupported_indexes') or [])} 句")
+        return pack
+    except Exception as exc:                        # noqa: BLE001
+        print(f"[citation] 引用溯源不可用（不影响搜岗位）：{type(exc).__name__}: {exc}")
+        return None
+
+
+def last_citation_pack():
+    """取当前会话最近一次的引用包（给 dashboard / 排查用，不做展示层改造）。"""
+    return _session_state().get("last_citation_pack")
+
+
 def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
     """工具 search_jobs 的候选检索（编号在 _search 里统一做）。
 
@@ -184,6 +239,29 @@ def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
         reranked.append(row)
     # 语义路没覆盖到的候选挂在后面（不能因为重排把岗位弄丢）
     reranked.extend(r for r in rows if r.get("job_id") not in seen_ids)
+    # 【引用溯源】只在语义分支触发（本函数的 semantic 分支走到这里才算数）。
+    # 故意放在**拼完最终列表之后**：答案的依据要与用户看到的列表口径一致，
+    # 不能只对去重后的前几条生成答案、却把其余候选也挂上引用。
+    pack = _attach_citations(keyword, reranked, hits)
+    if pack is not None:
+        # 挂载点有三处，缺一不可：
+        # 1) 行内字段（真正承载的那份）—— `_number_jobs` / `filter_jobs` / 去重
+        #    都会**新建列表**，挂在 list 上的自定义属性活不过下一跳；
+        # 2) list 属性 —— 给「结果原样透传」的调用方（评测 / 直接调用）用；
+        # 3) 会话状态（在 _attach_citations 里写）—— 给后续轮次与排查用。
+        brief = {
+            "answer_with_citations": pack.get("answer_with_citations"),
+            "unsupported_indexes": pack.get("unsupported_indexes") or [],
+            "sources": pack.get("sources") or {},
+            "faithfulness": pack.get("faithfulness") or {},
+            "rendered": pack.get("rendered"),
+        }
+        for row in reranked:
+            row["citation"] = brief
+        try:
+            reranked.citation_pack = pack
+        except AttributeError:                      # 极端情况下不是普通 list
+            pass
     return reranked
 
 
