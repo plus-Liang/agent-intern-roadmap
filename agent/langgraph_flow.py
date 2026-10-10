@@ -299,6 +299,19 @@ def receive_search(state: SearchState) -> dict:
     }
 
 
+def _first_city_in(text: str) -> str:
+    """扫出文本里**最早出现**的已知城市；没有就返回空串。
+
+    为什么按出现位置而不是按 CITY_POOL 顺序：池子是有序的，`for name in CITY_POOL`
+    等于「北京优先于广州」，用户问题里先写了广州也会被北京抢走（长句里更明显）。
+    为什么要有这个函数：模型会从长句里挑出**库外**地名（如实测的「石景山区」，
+    北京的一个区）当城市，而真正的「广州」被丢掉 —— 见 extract_params 的兜底。
+    """
+    text = text or ""
+    hits = [(text.index(name), name) for name in CITY_POOL if name in text]
+    return min(hits)[1] if hits else ""
+
+
 def _extract_params_rules(question: str) -> dict:
     """确定性参数提取（LLM 不可用时的兜底，也是 LLM 结果的校验基准）。
 
@@ -308,11 +321,7 @@ def _extract_params_rules(question: str) -> dict:
     标题不带「实习」的实习岗（实测占 49%）全部漏掉。
     """
     text = question or ""
-    city = ""
-    for name in CITY_POOL:
-        if name in text:
-            city = name
-            break
+    city = _first_city_in(text)
     limit = 50 if re.search(r"(全部|所有|列全|完整列表|都列出来)", text) else DEFAULT_LIMIT
     job_type = detect_query_type(text)
 
@@ -338,9 +347,12 @@ _EXTRACT_PROMPT = """你是「岗位搜索」工作流的**参数提取节点**�
 {{"keyword": "检索关键词", "city": "城市或空串", "limit": 20, "semantic": false, "job_type": "实习"}}
 
 规则：
-1. keyword 必须是**可直接检索**的技术词 / 岗位词（如 Agent、大模型、Java、算法工程师、产品经理）。
-   把「帮我 / 找 / 广州 / 的 / 岗位」这些口语成分全部去掉。
+1. keyword 必须是**可直接检索**的技术词 / 岗位词（如 Agent、大模型、Java、算法工程师、产品经理），
+   **只能填一个词**。把「帮我 / 找 / 广州 / 的 / 岗位」这些口语成分全部去掉。
    **不要**把「实习 / 正式 / 兼职」这类类型词放进 keyword（那是 job_type 的事）。
+   **绝对不要**把用户提到的多个方向拼成一个关键词（如 "Agent RAG Milvus"）：那串字符在岗位库里
+   不存在，精确检索会是 0 条。用户描述了多个方向、或整句话是「什么样的岗位」而不是一个词时，
+   keyword 填**用户原句**并把 semantic 设为 true（见规则 2）。
 2. 用户描述的是「什么样的岗位」而**没有给出具体关键词**时（如「想找偏大模型落地、
    能写工程代码的实习」），keyword 填**用户的整句描述**，并把 semantic 设为 true。
 3. city 只填用户明确说出的城市（如广州 / 北京）；没说不填，**不要**用"全国"。
@@ -373,13 +385,25 @@ def extract_params(state: SearchState) -> dict:
             limit = DEFAULT_LIMIT
         semantic = bool(data.get("semantic"))
         if city and city not in CITY_POOL:
-            city = ""                                   # 只认已知城市，避免模型瞎编地名
+            # 模型给了库外地名（实测「石景山区」）：不能直接清空城市 ——
+            # 用户问题里往往还写着真实城市（「石景山区…给我找广州的 Agent 实习」）。
+            # 先退回规则层扫出来的城市，再退到空串（空串 = 不限城市）。
+            city = fallback["city"]
+        elif not city:
+            city = fallback["city"]                     # 模型漏抽城市时也兜一下规则层
         # 岗位类型：模型给的先按同一套词表归一，认不出来就用规则层的结果
         # （规则层直接从原句里认「实习 / 正式 / 兼职」，比模型更不容易漏）
         job_type = normalize_job_type(data.get("job_type")) or fallback["job_type"]
         if not keyword and not city:
             keyword = fallback["keyword"]               # 两者都空 → 退回规则结果
             semantic = fallback["semantic"]
+        if not semantic and len(str(keyword).split()) > 1:
+            # 模型把多个方向拼成了一个 keyword（实测长句下的 "Agent RAG Milvus"）：
+            # 精确路是 LIKE '%整串%'，岗位库里没有这串字 → 0 命中。改成「首词 + 语义路」：
+            # 既保住一个可精确检索的主词，又让整句进查询理解（重写 + 多子查询），
+            # 其余概念不会被丢掉。单关键词的题完全不受影响（split 后长度为 1）。
+            keyword = str(keyword).split()[0]
+            semantic = True
         # 关键词里若还残留类型词（模型没听话），摘干净，避免 LIKE 把牛客那批
         # 标题不带「实习」的实习岗滤掉。
         # ⚠️ 只在**精确路**摘：语义路的 keyword 是用户整句描述
