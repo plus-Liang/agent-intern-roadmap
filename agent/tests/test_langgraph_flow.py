@@ -632,6 +632,130 @@ def _search_output_carries_type():
     return "行尾带类型 + 头行写明类型范围"
 
 
+# ---------------------------------------------------------------------------
+# 多城市搜索（本轮 Bug：用户说「北京，广州」只搜了北京）
+# 根因：`_extract_params_rules` 只取**最早出现的单个**城市，`_search` / SQL 的
+# `city` 是单值等值过滤，第二个城市在参数层就丢了。
+# ---------------------------------------------------------------------------
+
+
+def _multi_city_params_from_rules():
+    """逗号 / 顿号 / 空格 / 和 / 或 分隔的并列城市必须全部抽出来。"""
+    cases = {
+        "帮我找北京，广州的 Agent 实习岗位": (["北京", "广州"], "实习"),
+        "帮我找北京、广州、深圳的 Agent 岗位": (["北京", "广州", "深圳"], ""),
+        "帮我找北京和广州的 agent 岗位": (["北京", "广州"], ""),
+        "广州 上海 的 Agent 岗位": (["广州", "上海"], ""),
+        "帮我找广州的 Agent 岗位": (["广州"], ""),
+    }
+    for question, (want_cities, want_type) in cases.items():
+        p = LF._extract_params_rules(question)
+        if p["cities"] != want_cities:
+            raise AssertionError(f"{question} → cities={p['cities']}，期望 {want_cities}")
+        # city 是旧字段，必须恒等于第一个城市（旧调用方 / 旧缓存只认它）
+        if p["city"] != want_cities[0]:
+            raise AssertionError(f"{question} → city={p['city']!r}，期望 {want_cities[0]!r}")
+        if p["keyword"] != "Agent" and p["keyword"].lower() != "agent":
+            raise AssertionError(f"{question} → 关键词被城市/连词污染：{p['keyword']!r}")
+        if p["job_type"] != want_type:
+            raise AssertionError(f"{question} → job_type={p['job_type']!r}，期望 {want_type!r}")
+    return "5 种并列写法都抽出全部城市，关键词不含城市与连词"
+
+
+def _multi_city_search_hits_every_city():
+    """多城市时检索节点必须**逐城市**调检索，且每个城市的结果都进最终列表。"""
+    calls = []
+
+    def fake(keyword, city=None, limit=20, semantic=False, job_type=None):
+        calls.append((city, limit))
+        rows = _rows(3)
+        for i, row in enumerate(rows):
+            row["city"] = city
+            row["job_id"] = f"job_{city}_{i}"
+            row["title"] = f"{city} Agent 开发实习生 {i}"
+        return rows
+
+    with _patched((LF.reg, "_search", fake), (LF, "_llm_json", _boom_llm)):
+        state = LF.SEARCH_GRAPH.invoke(
+            {"question": "帮我找北京，广州的 Agent 实习岗位", "verbose": False})
+    if [c for c, _ in calls] != ["北京", "广州"]:
+        raise AssertionError(f"没有逐城市检索：{calls}")
+    if sum(limit for _, limit in calls) != 20:
+        raise AssertionError(f"limit 没有平摊到各城市：{calls}")
+    got = {r["city"] for r in state["filtered"]}
+    if got != {"北京", "广州"}:
+        raise AssertionError(f"最终列表没覆盖两个城市：{got}")
+    indexes = [r["index"] for r in state["filtered"]]
+    if indexes != list(range(1, len(indexes) + 1)):
+        raise AssertionError(f"合并后没有重新编号：{indexes}")
+    # 轮转合并：北京1 广州1 北京2 广州2 …，保证第二个城市不会被前面的城市挤掉
+    if [r["city"] for r in state["filtered"]][:4] != ["北京", "广州", "北京", "广州"]:
+        raise AssertionError(f"没有按城市轮转合并：{[r['city'] for r in state['filtered']]}")
+    return f"逐城市检索 {calls}，合并后 {state['total']} 条覆盖 北京+广州"
+
+
+def _multi_city_answer_labels_every_city():
+    """头行必须列出全部城市，且每行岗位自带城市（总数 = 多城市合计）。"""
+    state = _run_multi_city_graph()
+    answer = state["answer"]
+    if "城市「北京、广州」" not in answer:
+        raise AssertionError(f"头行没列出两个城市：{answer[:160]}")
+    if "共找到 20 个相关岗位" not in answer:
+        raise AssertionError(f"总数不是多城市合计：{answer[:80]}")
+    if "· 北京 ·" not in answer or "· 广州 ·" not in answer:
+        raise AssertionError("岗位行没有标注各自城市")
+    # 单城市行为不破坏：仍写「城市「北京」」且不出现顿号
+    single = _run_multi_city_graph(question="帮我找北京的 Agent 岗位")
+    if "城市「北京」" not in single["answer"]:
+        raise AssertionError(f"单城市头行被改坏：{single['answer'][:160]}")
+    if "北京、广州" in single["answer"]:
+        raise AssertionError("单城市查询里混进了别的城市")
+    return "头行列出全部城市 + 每行标城市 + 单城市不受影响"
+
+
+def _run_multi_city_graph(question="帮我找北京，广州的 Agent 岗位", per_city=10):
+    """假检索：每个城市各 10 条（city 与 job_id 都不重复），跑完整搜索图。"""
+    def fake(keyword, city=None, limit=20, semantic=False, job_type=None):
+        rows = _rows(per_city)
+        for i, row in enumerate(rows):
+            row["city"] = city
+            row["job_id"] = f"job_{city}_{i}"
+            row["title"] = f"Agent 开发实习生 {i}"
+        return rows
+
+    with _patched((LF.reg, "_search", fake), (LF, "_llm_json", _boom_llm)):
+        return LF.SEARCH_GRAPH.invoke({"question": question, "verbose": False})
+
+
+def _multi_city_tool_path_merges():
+    """工具层（`reg._search`）直接传 cities 也要逐城市查并合并（planner 走这条路）。"""
+    calls = []
+
+    def fake_rows(keyword, city=None, limit=20, semantic=False, job_type=None,
+                  progress_cb=None):
+        calls.append((city, limit))
+        return [{"job_id": f"job_{city}", "title": f"{city} Agent 岗",
+                 "company": "某公司", "city": city, "salary": "300/天",
+                 "url": "", "tags": [], "job_type": "实习"}]
+
+    with _patched((LF.reg, "_search_rows", fake_rows)):
+        rows = LF.reg._search("Agent", None, 10, False, None,
+                              cities=["北京", "广州", "深圳"])
+    if [c for c, _ in calls] != ["北京", "广州", "深圳"]:
+        raise AssertionError(f"工具层没有逐城市查：{calls}")
+    if [r["city"] for r in rows] != ["北京", "广州", "深圳"]:
+        raise AssertionError(f"工具层没有合并三个城市：{rows}")
+    if [r["index"] for r in rows] != [1, 2, 3]:
+        raise AssertionError(f"工具层合并后没有重新编号：{rows}")
+    # 旧行为：只传单个 city（字符串）时仍然只查一次、且不再按顿号切
+    calls.clear()
+    with _patched((LF.reg, "_search_rows", fake_rows)):
+        LF.reg._search("Agent", "广州", 10, False, None)
+    if calls != [("广州", 10)]:
+        raise AssertionError(f"单城市行为被改变：{calls}")
+    return "cities 三城市逐查合并；单城市 city 行为不变"
+
+
 check("搜索图：输出格式与旧版同口径", _search_output_format)
 check("搜索图：列表行标出岗位类型 + 头行写明类型范围", _search_output_carries_type)
 check("搜索图：index 严格升序", _search_index_ascending)
@@ -646,6 +770,11 @@ check("岗位类型：规则层抽出类型并摘掉类型词", _search_params_t
 check("岗位类型：节点真把 job_type 传给检索", _search_node_passes_job_type)
 check("岗位类型：筛选不改动类型字段", _filter_keeps_type_intact)
 check("岗位类型：模型漏给/瞎给时说反了也不放过", _search_params_llm_type_normalized)
+# 多城市（本轮 Bug：只搜了第一个城市）
+check("多城市：并列写法抽出全部城市（含 city 兼容字段）", _multi_city_params_from_rules)
+check("多城市：逐城市检索 + 轮转合并，两个城市都进列表", _multi_city_search_hits_every_city)
+check("多城市：头行/每行都标城市，单城市不受影响", _multi_city_answer_labels_every_city)
+check("多城市：工具层 cities 参数逐查合并（单城市行为不变）", _multi_city_tool_path_merges)
 
 
 # ---------------------------------------------------------------------------

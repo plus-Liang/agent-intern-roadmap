@@ -605,16 +605,46 @@ def _number_jobs(rows) -> list[dict]:
     return numbered
 
 
+def _agent_cities(city=None):
+    """把工具参数里的城市归一成列表：None/"" → []，"广州" → ["广州"]，去重保序。
+
+    为什么要归一：`city` 是历史单值参数，本轮新增 `cities`（多城市）。
+    调用方（模型 / planner）可能只给其中一个，也可能是「北京，广州」这样一整串，
+    这里统一按分隔符切开，下游一律按列表处理。
+    """
+    from agent.langgraph_flow import _plural_cities
+
+    return _plural_cities(city)
+
+
 def _search(keyword, city=None, limit=20, semantic=False, job_type=None,
-            progress_cb=None):
+            progress_cb=None, cities=None):
     """工具 search_jobs 的对外入口：检索 + 编号。
 
     `job_type` 取 实习 / 正式 / 兼职；空/None 表示不限（「帮我找广州的 agent
     岗位」按旧行为返回全部）。类型过滤在检索阶段就生效，不是在结果上再裁。
     `progress_cb` 可选：给长任务（模糊搜索）推中间进度用，默认 None（不推）。
+
+    多城市（本轮 Bug）：`city` 是单值、SQL 里是等值过滤，所以「北京，广州」只会
+    按北京查。传 `cities=["北京", "广州"]` 时**逐城市查同一条链路**
+    （keyword / semantic / job_type 一字不改）再合并，`limit` 平摊到各城市
+    （北京 10 + 广州 10），保证每个城市都真的出现在结果里；只传 `city`（或
+    city 里是单个城市）时行为与改造前逐字一致。
     """
-    return _number_jobs(_search_rows(keyword, city, limit, semantic, job_type,
-                                     progress_cb=progress_cb))
+    wanted_cities = _agent_cities(cities) or _agent_cities(city)
+    if len(wanted_cities) <= 1:
+        return _number_jobs(_search_rows(keyword, wanted_cities[0] if wanted_cities else None,
+                                         limit, semantic, job_type,
+                                         progress_cb=progress_cb))
+    from agent.langgraph_flow import _merge_city_rows
+
+    whole = int(limit or 20)
+    base, rest = divmod(whole, len(wanted_cities))
+    per_city = []
+    for i, name in enumerate(wanted_cities):
+        per_city.append(_search_rows(keyword, name, base + (1 if i < rest else 0),
+                                     semantic, job_type, progress_cb=progress_cb) or [])
+    return _number_jobs(_merge_city_rows(per_city, whole))
 
 
 def lookup_job_ordinal(number):
@@ -2390,10 +2420,17 @@ TOOLS = {
             "做一次语义重排，更贴近意图；候选超过 80 条时自动退回关键词排序。"
             "关键词/城市这类精确查询（如「北京 Python」）**不要**传 semantic。"
             "注意：语义路也不影响 job_type，两者可以同时传。"
+            "**用户说了多个城市时必须传 cities 数组**（如「北京，广州」→ "
+            "cities=[\"北京\", \"广州\"]）：只传 city 只会按一个城市过滤，"
+            "其余城市的岗位一条都返回不了。"
         ),
         "parameters": {
             "keyword": "搜索关键词",
-            "city": "城市（可选）",
+            "city": "城市（可选，单个城市用这个；多个城市请用 cities）",
+            "cities": (
+                "城市数组（可选）：用户说了多个城市时（「北京，广州」「北京、广州、深圳」"
+                "「北京和广州」）把每个城市都放进数组，会分别检索并合并结果。"
+            ),
             "limit": "数量，默认 20",
             "job_type": (
                 "岗位类型过滤：实习 / 正式 / 兼职。用户说「实习」「正式」「兼职」"

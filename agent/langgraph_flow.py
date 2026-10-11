@@ -81,6 +81,9 @@ _FILLERS = (
     "打算投", "想投",
     "帮我", "帮忙", "给我", "我想找", "我想", "我想要", "我要", "找一下", "搜一下",
     "查一下", "找找", "搜索", "查找", "看看", "有没有", "哪里有", "推荐", "相关",
+    # 并列城市之间的连词：「北京和广州的 Agent 岗位」摘掉城市后还剩「和」，
+    # 不摘就会变成关键词 "和 Agent"（当作两个词 AND），一条都搜不到。
+    "以及", "和", "或", "与",
     "一些", "几个", "份", "个", "的", "岗位", "职位", "实习", "工作", "机会", "呗", "吧", "呀",
 )
 
@@ -297,6 +300,7 @@ class SearchState(TypedDict, total=False):
     history: list
     keyword: str
     city: str
+    cities: list
     limit: int
     semantic: bool
     job_type: str
@@ -329,17 +333,64 @@ def receive_search(state: SearchState) -> dict:
     }
 
 
-def _first_city_in(text: str) -> str:
-    """扫出文本里**最早出现**的已知城市；没有就返回空串。
+#: 并列结构里的多城市切分：逗号 / 顿号 / 空格 / 「和」「或」「与」都算分隔符
+_MULTI_CITY_SPLIT_RE = re.compile(r"[，,、;；/\\|~～\s]+|(?:和|或|与|以及)")
+#: 城市名匹配（长名优先；池内城市无包含关系，取非重叠即可）
+_CITY_RE = re.compile("|".join(CITY_POOL))
+
+
+def _cities_in(text: str) -> list[str]:
+    """扫出文本里出现的**全部**已知城市，按首次出现位置排序；没有就返回空列表。
 
     为什么按出现位置而不是按 CITY_POOL 顺序：池子是有序的，`for name in CITY_POOL`
-    等于「北京优先于广州」，用户问题里先写了广州也会被北京抢走（长句里更明显）。
+    等于「北京优先于广州」，用户问题里先写了广州也会被北京抢走（长句里更明显），
+    顺序还决定多城市合并时的展示顺序（用户写「北京，广州」就先列北京）。
+
+    多城市（本轮 Bug）：「北京，广州」以前只被 `_first_city_in` 取走第一个城市，
+    第二个整段丢掉，于是检索只按北京过滤 —— 这里是修法的第一层。
+    切分只用来**判定并列**（保证与「按分隔符切段」的直觉一致），命中的城市名
+    本身仍按全串扫，所以「上海的 Agent 岗位，广州的也行」这类写法也能全部认出来。
+    """
+    text = text or ""
+    hits = [(m.start(), m.group(0)) for m in _CITY_RE.finditer(text)]
+    cities: list[str] = []
+    for _, name in sorted(hits):
+        if name not in cities:
+            cities.append(name)
+    return cities
+
+
+def _first_city_in(text: str) -> str:
+    """扫出文本里**最早出现**的单个已知城市；没有就返回空串。
+
     为什么要有这个函数：模型会从长句里挑出**库外**地名（如实测的「石景山区」，
     北京的一个区）当城市，而真正的「广州」被丢掉 —— 见 extract_params 的兜底。
     """
-    text = text or ""
-    hits = [(text.index(name), name) for name in CITY_POOL if name in text]
-    return min(hits)[1] if hits else ""
+    cities = _cities_in(text)
+    return cities[0] if cities else ""
+
+
+def _plural_cities(city) -> list[str]:
+    """把参数里的城市统一成列表：None/"" → []；"广州" → ["广州"]；列表去重保序。
+
+    为什么要有：`city` 是历史参数名（单值），`cities` 是本轮新增的多城市参数。
+    两者在链路上并存（旧调用方只传 city、测试替身只认 city），所以入口处
+    统一归一，之后一律按列表处理，不会再出现「第二个城市被无声丢掉」。
+    """
+    if isinstance(city, (list, tuple, set)):
+        raw = [str(c or "").strip() for c in city]
+    else:
+        text = str(city or "").strip()
+        if not text:
+            return []
+        # 单值里也可能塞着并列串（旧调用方直接传用户原话）：按分隔符再切一次
+        raw = _MULTI_CITY_SPLIT_RE.split(text)
+    out: list[str] = []
+    for name in raw:
+        name = str(name or "").strip()
+        if name and name not in out:
+            out.append(name)
+    return out
 
 
 def _extract_params_rules(question: str) -> dict:
@@ -351,33 +402,34 @@ def _extract_params_rules(question: str) -> dict:
     标题不带「实习」的实习岗（实测占 49%）全部漏掉。
     """
     text = question or ""
-    city = _first_city_in(text)
+    cities = _cities_in(text)
+    city = cities[0] if cities else ""
     limit = 50 if re.search(r"(全部|所有|列全|完整列表|都列出来)", text) else DEFAULT_LIMIT
     job_type = detect_query_type(text)
 
     stripped = strip_query_type_words(text)
-    if city:
-        stripped = stripped.replace(city, " ")
+    for name in cities:                       # 每个城市都要从关键词里摘掉，不只第一个
+        stripped = stripped.replace(name, " ")
     for filler in sorted(_FILLERS, key=len, reverse=True):
         stripped = stripped.replace(filler, " ")
     stripped = re.sub(r"[\s,，。.、；;：:!！?？~～\-—]+", " ", stripped).strip()
 
     if stripped and len(stripped) <= 10:
-        return {"keyword": stripped, "city": city, "limit": limit,
+        return {"keyword": stripped, "city": city, "cities": cities, "limit": limit,
                 "semantic": False, "job_type": job_type}
     # 描述型需求（「想找偏大模型落地、能写工程代码的实习」）没有可直接检索的词 →
     # 交给语义路，整句当 keyword（与旧版 prompt 的语义分流规则同口径）。
     # ⚠️ 用**剥过填充词**的 stripped，不是原始 text：原句里的「帮我 / 我要投 / 广州的」
     # 这些口语成分对语义检索只有噪声（改前「我要投墨泊可士的 AI Agent 岗位」整句进
     # 向量检索，公司名被动词和「岗位」稀释掉，重排后只剩「AI」在起作用）。
-    return {"keyword": stripped or text.strip(), "city": city, "limit": limit,
-            "semantic": True, "job_type": job_type}
+    return {"keyword": stripped or text.strip(), "city": city, "cities": cities,
+            "limit": limit, "semantic": True, "job_type": job_type}
 
 
 _EXTRACT_PROMPT = """你是「岗位搜索」工作流的**参数提取节点**。从用户问题里抽出检索参数。
 
 只输出一个 JSON，不要任何其他内容：
-{{"keyword": "检索关键词", "city": "城市或空串", "limit": 20, "semantic": false, "job_type": "实习"}}
+{{"keyword": "检索关键词", "cities": ["城市1", "城市2"], "limit": 20, "semantic": false, "job_type": "实习"}}
 
 规则：
 1. keyword 必须是**可直接检索**的技术词 / 岗位词（如 Agent、大模型、Java、算法工程师、产品经理），
@@ -388,7 +440,11 @@ _EXTRACT_PROMPT = """你是「岗位搜索」工作流的**参数提取节点**�
    keyword 填**用户原句**并把 semantic 设为 true（见规则 2）。
 2. 用户描述的是「什么样的岗位」而**没有给出具体关键词**时（如「想找偏大模型落地、
    能写工程代码的实习」），keyword 填**用户的整句描述**，并把 semantic 设为 true。
-3. city 只填用户明确说出的城市（如广州 / 北京）；没说不填，**不要**用"全国"。
+3. cities 是**城市数组**，只填用户明确说出的城市（如广州 / 北京）：
+   - 用户说了多个城市（「北京，广州」「北京、广州、深圳」「北京和广州」用逗号 /
+     顿号 / 空格 / 和 / 或 并列）时，**每个城市都要放进数组**，不能只填第一个；
+   - 只说一个城市就填只有一个元素的数组；**一个都没说填空数组 []**，
+     不要用"全国"，也不要把省 / 区 / 商圈当城市（如"石景山区"不是城市）。
 4. limit 默认 20；用户说「全部 / 所有 / 列全」时填 50。
 5. 用户只说了城市没说岗位方向时，keyword 填空串。
 6. job_type 只填 **实习 / 正式 / 兼职** 三者之一：用户说要实习岗就填「实习」，
@@ -441,6 +497,30 @@ def _param_cache_set(question: str, params: dict) -> None:
         print(f"[lg_extract_params] 参数缓存写入失败（忽略）：{type(exc).__name__}: {exc}")
 
 
+def _llm_cities(data: dict, fallback: dict) -> list[str]:
+    """解析模型给的 `cities`（兼容旧的单值 `city`），只保留池内城市、去重保序。
+
+    为什么要在这里挑：模型可能给字符串（旧格式 / 不听话）、给库外地名（实测
+    「石景山区」）、或干脆漏给。三种情况都不能让城市整个丢空 —— 漏给 / 全不合法
+    时退回规则层扫出来的城市，库外的丢掉、真实的留下（模型给「石景山区」而用户
+    问题里写着「广州」时，只有规则层认得广州）。
+    """
+    raw = data.get("cities")
+    if isinstance(raw, str):
+        raw = _MULTI_CITY_SPLIT_RE.split(raw)
+    if not isinstance(raw, (list, tuple, set)):
+        raw = [data.get("city")] if data.get("city") else []
+    out: list[str] = []
+    for item in raw:
+        name = str(item or "").strip()
+        # 「北京市」这类带上行政区后缀的写法归一一下，仍按池内城市校验
+        if name not in CITY_POOL and name.rstrip("市") in CITY_POOL:
+            name = name.rstrip("市")
+        if name in CITY_POOL and name not in out:
+            out.append(name)
+    return out or list(fallback.get("cities") or [])
+
+
 def extract_params(state: SearchState) -> dict:
     """[提取参数] 按问题查缓存 → LLM 抽取 + 确定性规则兜底 + 合法性校验。"""
     question = state.get("question") or ""
@@ -461,19 +541,15 @@ def extract_params(state: SearchState) -> dict:
                 verbose=bool(state.get("verbose")),
             )
             keyword = str(data.get("keyword") or "").strip()
-            city = str(data.get("city") or "").strip()
             try:
                 limit = int(data.get("limit") or DEFAULT_LIMIT)
             except (TypeError, ValueError):
                 limit = DEFAULT_LIMIT
             semantic = bool(data.get("semantic"))
-            if city and city not in CITY_POOL:
-                # 模型给了库外地名（实测「石景山区」）：不能直接清空城市 ——
-                # 用户问题里往往还写着真实城市（「石景山区…给我找广州的 Agent 实习」）。
-                # 先退回规则层扫出来的城市，再退到空串（空串 = 不限城市）。
-                city = fallback["city"]
-            elif not city:
-                city = fallback["city"]                     # 模型漏抽城市时也兜一下规则层
+            # 多城市（本轮 Bug 的修法第一层）：模型必须给出 `cities` 数组；
+            # 给旧格式的单值 city / 给库外地名 / 漏给，都由 `_llm_cities` 兜到规则层。
+            cities = _llm_cities(data, fallback)
+            city = cities[0] if cities else ""
             # 岗位类型：模型给的先按同一套词表归一，认不出来就用规则层的结果
             # （规则层直接从原句里认「实习 / 正式 / 兼职」，比模型更不容易漏）
             job_type = normalize_job_type(data.get("job_type")) or fallback["job_type"]
@@ -494,8 +570,8 @@ def extract_params(state: SearchState) -> dict:
             if not semantic:
                 keyword = strip_query_type_words(keyword).strip()
             limit = max(1, min(50, limit))
-            params = {"keyword": keyword, "city": city, "limit": limit, "semantic": semantic,
-                      "job_type": job_type}
+            params = {"keyword": keyword, "city": city, "cities": cities, "limit": limit,
+                      "semantic": semantic, "job_type": job_type}
             source = "llm"
         except Exception as e:                              # noqa: BLE001 - 抽取失败不该让对话挂掉
             if state.get("verbose"):
@@ -505,24 +581,59 @@ def extract_params(state: SearchState) -> dict:
         if source == "llm":
             _param_cache_set(question, params)
 
+    # `cities` 是本轮新增的多城市参数；旧缓存 / 旧调用方只有 `city`，这里补一次归一，
+    # 保证「单城市」与「多城市」在下游是同一套逻辑（city 恒等 cities[0]，兼容旧字段）。
+    cities = _plural_cities(params.get("cities")) or _plural_cities(params.get("city"))
+    city = cities[0] if cities else ""
+    city_text = "、".join(cities) if cities else "不限"
+
     return {
         "keyword": params["keyword"],
-        "city": params["city"],
+        "city": city,
+        "cities": cities,
         "limit": params["limit"],
         "semantic": params["semantic"],
         "job_type": params.get("job_type", ""),
         "extract_source": source,
         "steps": _step(
             state, "提取参数",
-            f"关键词「{params['keyword']}」，城市「{params['city'] or '不限'}」，"
+            f"关键词「{params['keyword']}」，城市「{city_text}」，"
             f"类型「{params.get('job_type') or '不限'}」，"
             f"条数 {params['limit']}，语义重排 {'开' if params['semantic'] else '关'}"
             f"（来源：{source}）",
-            payload={"keyword": params["keyword"], "city": params["city"],
+            payload={"keyword": params["keyword"], "city": city, "cities": cities,
                      "limit": params["limit"], "semantic": params["semantic"],
                      "job_type": params.get("job_type", "")},
         ),
     }
+
+
+def _merge_city_rows(per_city: list, limit: int) -> list:
+    """把「每个城市各一份结果」轮转交错合并、按 job_id 去重、再截断到 limit。
+
+    为什么不是简单拼起来（北京 20 条 + 广州 20 条 = 40 条）：展示层只列前
+    `DISPLAY_LIMIT` 条、取前 `limit` 条，若先到先得地把北京排前面，广州那批
+    即使在结果里也永远看不到 —— 用户看到的仍然是「只搜了北京」。
+    所以按城市**轮转取**（北京1 广州1 北京2 广州2 …），先保证每个城市都有露脸，
+    再按 publish_date 降序排在同一次轮转内做稳定排序（job_id 二级键，跨对话一致）。
+    去重按 job_id：同一岗位可能被两个城市的匹配规则同时命中（「全国」/ 城市串包含）。
+    """
+    seen: set = set()
+    merged: list = []
+    for position in range(max((len(rows) for rows in per_city), default=0)):
+        for rows in per_city:
+            if position >= len(rows):
+                continue
+            row = rows[position]
+            job_id = str(row.get("job_id") or "")
+            key = job_id or f"{row.get('title')}|{row.get('company')}"
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(row)
+    merged.sort(key=lambda r: (bool(r.get("publish_date")), str(r.get("publish_date") or "")),
+                reverse=True)
+    return merged[:limit] if limit and limit > 0 else merged
 
 
 def search_jobs_node(state: SearchState) -> dict:
@@ -530,40 +641,68 @@ def search_jobs_node(state: SearchState) -> dict:
 
     语义路候选为空时用关键词路重试一次：搜索接口本身没有「搜不到」的不可恢复
     错误，重试是为了不把「候选池空了」当成「真的没有岗位」。
+
+    多城市（本轮 Bug）：`_search` 的 `city` 是**单值**、SQL 里是 `city = ?` 的等值
+    过滤，所以「北京，广州」按北京查出来的 20 条全是北京的 —— 广州一条都进不来。
+    这里改成**每个城市分别查、结果按城市轮转合并**（见 `_merge_city_rows`）：
+      * 单城市（cities 长度 <= 1，含旧调用方只传 city）= 只调一次，行为逐字不变；
+      * 多城市 = 逐城市调 `_search`（keyword / limit / semantic / job_type 一字不改
+        地复用同一条链路，所以类型过滤、语义重排、结果缓存都仍然生效），
+        再把 `limit` 平摊到各城市（北京 10 + 广州 10），保证每个城市都真的出现。
     """
     keyword = state.get("keyword") or ""
-    city = state.get("city") or None
+    # 旧入口可能只带 `city`（字符串，甚至是一整串「北京，广州」）：统一归一成列表
+    cities = _plural_cities(state.get("cities")) or _plural_cities(state.get("city"))
     limit = int(state.get("limit") or DEFAULT_LIMIT)
     semantic = bool(state.get("semantic"))
     job_type = normalize_job_type(state.get("job_type"))
     rows: list = []
     error = ""
+    # 单城市走 None（= 不限城市）以外的老路径；多城市时把总条数平摊，避免
+    # 「每个城市都取 limit 条」把总数放大到 N 倍（limit 是用户要的**总数**上限）。
+    if not cities:
+        per_city_limits = [(None, limit)]
+    elif len(cities) == 1:
+        per_city_limits = [(cities[0], limit)]
+    else:
+        base, rest = divmod(limit, len(cities))
+        per_city_limits = [(c, base + (1 if i < rest else 0)) for i, c in enumerate(cities)]
     try:
         # 模糊搜索（semantic）在这一步最慢：候选召回 + 查询理解 + 融合，
         # 中间没有数据往来就会超过 60s 前端超时；先推一条把窗口打开。
         if semantic:
             _progress(state, "正在检索岗位库（语义召回）…")
-        rows = reg._search(keyword, city, limit, semantic, job_type) or []
-        if not rows and semantic:
-            rows = reg._search(keyword, city, limit, False, job_type) or []
+        per_city: list = []
+        for name, per_limit in per_city_limits:
+            got = reg._search(keyword, name, per_limit, semantic, job_type) or []
+            # 语义路候选为空时用关键词路重试一次（与单城市行为一致，逐城市各试一次）
+            if not got and semantic:
+                got = reg._search(keyword, name, per_limit, False, job_type) or []
+            per_city.append(got)
+        if not any(per_city) and semantic:
             semantic = False
+        rows = per_city[0] if len(per_city) == 1 else _merge_city_rows(per_city, limit)
     except Exception as e:                              # noqa: BLE001 - 检索失败如实告知
         error = f"{type(e).__name__}: {e}"
         if state.get("verbose"):
             print(f"[lg_search] 检索失败：{error}")
 
+    city = cities[0] if cities else None
+    city_text = "、".join(cities) if cities else ""
     log_event(state.get("trace_id") or "-", "lg_node", node="search", engine="langgraph",
-              graph="search", keyword=keyword, city=city or "", semantic=semantic,
-              job_type=job_type or "", hits=len(rows), error=error)
+              graph="search", keyword=keyword, city=city_text, cities=cities,
+              semantic=semantic, job_type=job_type or "", hits=len(rows), error=error)
     return {
         "rows": rows,
+        "cities": cities,
         "semantic": semantic,
         "steps": _step(
             state, "搜岗位",
-            f"调用 search_jobs(keyword={keyword!r}, city={city!r}, limit={limit}, "
-            f"semantic={semantic}, job_type={job_type or '不限'!r})，命中 {len(rows)} 条",
-            payload={"keyword": keyword, "city": city or "", "limit": limit,
-                     "semantic": semantic, "job_type": job_type or ""},
+            f"调用 search_jobs(keyword={keyword!r}, cities={cities or '不限'!r}, "
+            f"limit={limit}, semantic={semantic}, job_type={job_type or '不限'!r})，"
+            f"命中 {len(rows)} 条",
+            payload={"keyword": keyword, "city": city_text, "cities": cities,
+                     "limit": limit, "semantic": semantic, "job_type": job_type or ""},
             observation=error or f"命中 {len(rows)} 条",
         ),
     }
@@ -578,7 +717,9 @@ def filter_jobs(state: SearchState) -> dict:
     筛完统一调 `reg._number_jobs()` 重排，会话态的 `last_job_list` 一并刷新。
     """
     rows = state.get("rows") or []
-    wanted_city = state.get("city") or ""
+    # 多城市：只要岗位落在**任一**被请求的城市里就保留（旧行为是单城市等值比较）。
+    wanted_cities = _plural_cities(state.get("cities")) or _plural_cities(state.get("city"))
+    wanted_city = wanted_cities[0] if wanted_cities else ""
     seen: set = set()
     kept: list = []
     dropped = 0
@@ -590,9 +731,10 @@ def filter_jobs(state: SearchState) -> dict:
         if not job_id or job_id in seen or not title or not company:
             dropped += 1
             continue
-        if wanted_city and city and city != wanted_city and city != "全国":
-            dropped += 1
-            continue
+        if wanted_cities:
+            if city and city != "全国" and city not in wanted_cities:
+                dropped += 1
+                continue
         seen.add(job_id)
         kept.append(row)
 
@@ -645,7 +787,10 @@ def respond_search(state: SearchState) -> dict:
     """[返回列表] 渲染最终回答。格式 = 旧版 prompt 的【搜索结果透明化】。"""
     rows = state.get("filtered") or []
     keyword = state.get("keyword") or ""
-    city = state.get("city") or ""
+    # 多城市（本轮 Bug）：头行/空结果提示必须把**每个**城市都写出来，
+    # 否则用户看到「城市「北京」」会以为系统又把广州丢了。
+    cities = _plural_cities(state.get("cities")) or _plural_cities(state.get("city"))
+    city = "、".join(cities)
     dropped = int(state.get("dropped") or 0)
 
     if not rows:
