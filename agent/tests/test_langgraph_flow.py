@@ -660,8 +660,12 @@ def _route_table():
         ("帮我匹配简历", "match"),
         ("你根据这个岗位和我的这个文件的简历做匹配", "match"),
         ("帮我用简历匹配一下金蝶软件的 Agent 开发工程师", "match"),
-        ("我想投第 3 个", "react"),
+        ("我想投第 3 个", "package"),
         ("我想投第一个岗位，帮我匹配打分", "match"),
+        ("我要投墨泊可士的 AI Agent 岗位", "package"),
+        ("我要投火星科技的量子芯片岗位", "package"),
+        ("帮我投墨泊可士的AI Agent岗位", "package"),
+        ("我想投递简历", "react"),
         ("帮我生成投递包", "react"),
         ("查看我的完整简历", "react"),
         ("帮我模拟面试字节跳动的 Agent 开发实习生", "react"),
@@ -1549,6 +1553,87 @@ check("进度：整图带回调推送且不改变打分结果", _progress_match_
 check("进度：没有回调时一行不推（评测/单测行为不变）", _progress_match_graph_without_cb_is_quiet)
 check("进度：只对长任务开（精确搜索/追问不推）", _progress_slow_route_gate)
 check("进度：app 侧短任务 no-op + 长任务节流", _progress_app_gate_and_throttle)
+
+
+# ---------------------------------------------------------------------------
+section("10. 投递意向（「我要投 <公司> 的 <岗位>」）：出包，不是搜岗位")
+
+
+def _run_package_case(question):
+    """跑投递意向链路：搜索图一旦被调用就记下来（它**不该**被调用）。"""
+    called = {"search": 0}
+    real_invoke = LG.SEARCH_GRAPH.invoke
+
+    def _spy(*args, **kwargs):
+        called["search"] += 1
+        return real_invoke(*args, **kwargs)
+
+    pkg_calls = []
+
+    def _fake_generate(company, job_id=None, title=""):
+        pkg_calls.append({"company": company, "job_id": job_id, "title": title})
+        return {"company": company, "title": title or "AI Agent开发（可转正）",
+                "job_id": job_id or "inn_qpa38aa45nvn", "package_dir": str(_TMP_DIR / "pkg"),
+                "files": {}, "has_job_detail": True, "warnings": []}
+
+    with user_scope(f"package-{os.getpid()}"), \
+            _patched((LG.SEARCH_GRAPH, "invoke", _spy),
+                     (LG.tools_registry, "generate_application_package", _fake_generate)):
+        result = LG.run(question, verbose=False)
+    return result, called, pkg_calls
+
+
+def _package_intent_is_not_search():
+    """「我要投墨泊可士的 AI Agent 岗位」→ 出投递包，**搜索图零调用**。"""
+    if LG._route("我要投墨泊可士的 AI Agent 岗位") != "package":
+        raise AssertionError("投递意向没有被分流到 package")
+    if LG.engine_name("我要投墨泊可士的 AI Agent 岗位") != "langgraph:package":
+        raise AssertionError("engine_name 没跟上新增的 package 路由")
+    result, called, pkg_calls = _run_package_case("我要投墨泊可士的 AI Agent 岗位")
+    answer = result.get("answer") or ""
+    if called["search"]:
+        raise AssertionError("投递意向居然走了搜索图（又去搜岗位列表了）")
+    if not pkg_calls:
+        raise AssertionError("没有调用 generate_application_package")
+    got = pkg_calls[0]
+    if got["company"] != "墨泊可士" or "Agent" not in got["title"]:
+        raise AssertionError(f"点名定位错了：{got}")
+    if "投递包" not in answer or "墨泊可士" not in answer:
+        raise AssertionError(f"回执里没有出包说明：{answer[:120]}")
+    return f"package 路由 → {got['company']} · {got['title']}（搜索图 0 次调用）"
+
+
+def _package_missing_job_is_honest():
+    """「我要投火星科技的量子芯片岗位」（库里没有）→ 说没找到，**不搜别的、不出包**。"""
+    result, called, pkg_calls = _run_package_case("我要投火星科技的量子芯片岗位")
+    answer = result.get("answer") or ""
+    if called["search"]:
+        raise AssertionError("没找到岗位却改去搜列表了")
+    if pkg_calls:
+        raise AssertionError(f"没找到岗位却出了包：{pkg_calls}")
+    if "没找到" not in answer or "火星科技" not in answer or "量子芯片" not in answer:
+        raise AssertionError(f"没有如实说没找到：{answer[:160]}")
+    for hint in ("确认", "链接"):
+        if hint not in answer:
+            raise AssertionError(f"没给出可行路径（缺「{hint}」）：{answer[:200]}")
+    if "搜别的岗位" not in answer:
+        raise AssertionError(f"没说清「没有改去搜列表」：{answer[:200]}")
+    return "没找到火星科技 · 量子芯片 → 如实说没找到 + 可行路径"
+
+
+def _package_intent_does_not_eat_search():
+    """「帮我找广州的 Agent 岗位」仍是搜岗位，不能被投递意向抢走。"""
+    bad = [q for q in ("帮我找广州的 Agent 岗位", "搜一下北京的大模型实习",
+                       "广州的 Agent 岗位", "我要投递记录")
+           if LG._route(q) != ("search" if q != "我要投递记录" else "react")]
+    if bad:
+        raise AssertionError(f"被误判成投递意向：{bad}")
+    return "「帮我找广州的 Agent 岗位」→ search（未被投递意向劫走）"
+
+
+check("投递意向：出投递包且不搜岗位（搜索图 0 调用）", _package_intent_is_not_search)
+check("投递意向：点名岗位不存在 → 如实说没找到、不出包", _package_missing_job_is_honest)
+check("投递意向：不误伤正常搜岗位", _package_intent_does_not_eat_search)
 
 
 # ---------------------------------------------------------------------------

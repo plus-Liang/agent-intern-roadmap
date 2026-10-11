@@ -77,6 +77,8 @@ CITY_POOL = (
 #: 从用户问题里剥掉的口语填充词（确定性兜底路径用）
 _FILLERS = (
     "帮我找一下", "帮我搜一下", "帮我看看", "帮我找", "帮我搜", "帮我查", "帮忙找",
+    "帮我投简历", "帮我投递", "帮我投", "我想投递", "我想投", "我要投递", "我要投",
+    "打算投", "想投",
     "帮我", "帮忙", "给我", "我想找", "我想", "我想要", "我要", "找一下", "搜一下",
     "查一下", "找找", "搜索", "查找", "看看", "有没有", "哪里有", "推荐", "相关",
     "一些", "几个", "份", "个", "的", "岗位", "职位", "实习", "工作", "机会", "呗", "吧", "呀",
@@ -364,8 +366,11 @@ def _extract_params_rules(question: str) -> dict:
         return {"keyword": stripped, "city": city, "limit": limit,
                 "semantic": False, "job_type": job_type}
     # 描述型需求（「想找偏大模型落地、能写工程代码的实习」）没有可直接检索的词 →
-    # 交给语义路，整句当 keyword（与旧版 prompt 的语义分流规则同口径）
-    return {"keyword": text.strip(), "city": city, "limit": limit,
+    # 交给语义路，整句当 keyword（与旧版 prompt 的语义分流规则同口径）。
+    # ⚠️ 用**剥过填充词**的 stripped，不是原始 text：原句里的「帮我 / 我要投 / 广州的」
+    # 这些口语成分对语义检索只有噪声（改前「我要投墨泊可士的 AI Agent 岗位」整句进
+    # 向量检索，公司名被动词和「岗位」稀释掉，重排后只剩「AI」在起作用）。
+    return {"keyword": stripped or text.strip(), "city": city, "limit": limit,
             "semantic": True, "job_type": job_type}
 
 
@@ -857,10 +862,13 @@ _BARE_TITLE_RE = re.compile(
     r"(?:匹配|评估|对比|打分|分析)[^，。、？!！\s]{0,8}?"
     r"([\u4e00-\u9fffA-Za-z0-9+#（）()·&\-\. ]{3,24}?)(?:岗位|职位|工作|岗|JD|jd)")
 #: 句首的动作 / 客套词：从公司名里剥掉（「帮我匹配火星科技」→「火星科技」）。
+#: ⚠️「投」必须在这里，且**不能**吞掉后面的「递 / 了 / 个 / 份」：投递意向句
+#: 「我要投墨泊可士的 AI Agent 岗位」里，公司名是「墨泊可士」，不是「投墨泊可士」；
+#: 而「投递记录 / 投了 3 家」里的「投递 / 投了」是完整动词，剥成「递记录」会毁掉语义。
 _LEAD_IN_RE = re.compile(
     r"^(?:帮我|帮忙|麻烦|请|给我|我要|我想|想要|我需要|然后|再|顺便|能不能|可不可以|"
     r"可以|你|评估|打分|匹配度|匹配|配对|对比|分析|看看|看下|看一下|查一下|找一下|"
-    r"针对|关于|一下|的|找|搜|查|看|，|,|、|\s)+")
+    r"针对|关于|一下|的|找|搜|查|看|投(?!递|了|个|份|过|这|那|简|简历)|，|,|、|\s)+")
 #: 指代词 / 对象词：这些不是公司名。
 _DESIGNATION_STOPWORDS = (
     "这个", "那个", "哪个", "这些", "那些", "该", "此", "上述", "上面", "下面", "之前",
@@ -964,16 +972,21 @@ def _designation_from_text(text: str) -> tuple:
     return "", ""
 
 
-def _named_job_not_found_reply(state: MatchState, label: str, reason: str) -> str:
-    """点名了却找不到 → 如实说"没找到"，并给出可行路径（**绝不给分数**）。"""
+def _named_job_not_found_reply(state: MatchState, label: str, reason: str,
+                               for_package: bool = False) -> str:
+    """点名了却找不到 → 如实说"没找到"，并给出可行路径（**绝不给分数**）。
+
+    `for_package=True` 时是**投递意向**（「我要投 XX」）的回执：收尾要说明
+    「没有改去搜岗位列表」而不是「没有换别的岗位来打分」。
+    """
     lines = [f"我在岗位库里没找到「{label}」这个岗位。"]
     if reason:
         lines.append(f"（{reason}）")
     lines += [
         "",
         "你可以：",
-        "- 确认岗位名是否正确（公司名 / 岗位名任一有出入都可能对不上）",
-        "- 粘贴岗位链接或 JD 文本给我（抓不到的平台也能匹配）",
+        "- 确认名称是否正确（公司名 / 岗位名任一有出入都可能对不上）",
+        "- 粘贴岗位链接或 JD 文本给我（抓不到的平台也能匹配/出包）",
     ]
     try:
         has_list = bool(reg.lookup_job_ordinal(1))
@@ -981,7 +994,11 @@ def _named_job_not_found_reply(state: MatchState, label: str, reason: str) -> st
         has_list = False
     if has_list:
         lines.append("- 或从刚才搜索的列表里选一个（如「第 1 个」）")
-    lines += ["", "**我没有替你换成别的岗位来打分** —— 那样你会以为评的是你点名的这条。"]
+    if for_package:
+        lines += ["", "**我没有改去搜别的岗位** —— 你说的是要投这一条，"
+                      "搜出一堆别的公司的岗位对你没有用。"]
+    else:
+        lines += ["", "**我没有替你换成别的岗位来打分** —— 那样你会以为评的是你点名的这条。"]
     return "\n".join(lines)
 
 

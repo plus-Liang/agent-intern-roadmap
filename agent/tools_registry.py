@@ -1821,7 +1821,14 @@ def _record_from_job_library(company, job_id=None, title=""):
     title_key = _norm_text(title)
 
     def _accepts(company_name, title_name) -> bool:
-        """详情本身是否就是用户要的那条：给了什么就核什么，两者都给了就都要对上。"""
+        """详情本身是否就是用户要的那条：给了什么就核什么，两者都给了就都要对上。
+
+        ⚠️ 岗位名用「互相包含」而不是「完全相等」：用户说的岗位名**天然是简称**
+        （「我要投墨泊可士的 AI Agent 岗位」→ 库里叫「AI Agent开发（可转正）」），
+        要求完全相等会把已经定位对的那条否掉，然后退化成「按公司名取第一条」——
+        实测就是这样把「AI Agent」出成了「Java开发（可转正）」的投递包。
+        只有长度 >= 2 才允许单向包含，避免「AI」这种碎片匹配到一堆岗位。
+        """
         detail_company = _norm_text(company_name)
         detail_title = _norm_text(title_name)
         ok = True
@@ -1830,7 +1837,11 @@ def _record_from_job_library(company, job_id=None, title=""):
                 ok = False
             elif comp_key not in detail_company and detail_company not in comp_key:
                 ok = False
-        if title_key and detail_title != title_key:
+        if title_key and detail_title:
+            if title_key not in detail_title and not (
+                    len(detail_title) >= 2 and detail_title in title_key):
+                ok = False
+        elif title_key:
             ok = False
         return ok
 

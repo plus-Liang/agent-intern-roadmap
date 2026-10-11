@@ -17,6 +17,7 @@ LangGraph 版 Agent 入口（阶段 1：固定基础流程 + 反思节点）。
 | 「帮我找广州的 Agent 岗位」 | `SEARCH_GRAPH`（固定五步） | 搜岗位是**流程**，不该由模型自决 |
 | 「帮我匹配简历」 | `MATCH_GRAPH`（打分 + 反思） | 打分要能自评，走反思边 |
 | 「找岗位 + 匹配 + 生成投递包」这类**一次说了多个需求**的话 | `COMPLEX_TASK_GRAPH`（批次 1 多智能体） | 单条链路装不下，需要 Planner 拆步骤、Executor 执行、Critic 审查打回 |
+| 「我要投墨泊可士的 AI Agent 岗位」（投递意向） | 确定性出包（点名定位 → `generate_application_package`） | 「投」不是「搜」：要的是**那一条**岗位的投递包，搜出 20 条列表毫无意义 |
 | 「看日志 / 系统日志 / docker 日志」 | 确定性引导（提示去终端跑 docker compose logs） | 系统日志不在对话里，也不是投递记录（防误判成 list_tracking） |
 | 投递 / 投递包 / 面试 / 记忆 / 其它 | `react_agent.run` 原样兜底 | 这些是多步决策，本期不动 |
 
@@ -34,7 +35,10 @@ import uuid
 from agent import react_agent
 from agent import tools_registry
 from agent import complex_task_flow as ma
-from agent.langgraph_flow import FOLLOWUP_GRAPH, MATCH_GRAPH, SEARCH_GRAPH
+from agent.langgraph_flow import (FOLLOWUP_GRAPH, MATCH_GRAPH, SEARCH_GRAPH,
+                                  _JOB_ID_HINT_RE, _ORDINAL_HINT_RE,
+                                  _designation_from_text,
+                                  _named_job_not_found_reply)
 from shared import limits
 from shared.logger import log_event
 
@@ -46,7 +50,11 @@ _SEARCH_VERBS = ("找", "搜", "查", "看看", "有没有", "推荐", "列出",
 _MATCH_WORDS = ("匹配", "打分", "评分", "match", "匹配度", "对口", "合不合适",
                 "符不符合", "能不能过", "适合我吗")
 #: 命中这些词就**不当作**搜岗位 / 匹配（避免把投递、投递包、面试劫走）
-_BLOCK_WORDS = ("投递", "投了", "已投", "想投", "投个", "投这",
+#: ⚠️「投」单字必须在这里（本轮修复）：以前只有「投递 / 想投 / 投个 / 投这」四个多字写法，
+#: 用户说「我要**投**墨泊可士的 AI Agent 岗位」时一个都没命中 → 落到 `is_search_intent`
+#: （有「岗位」名词 + 短句兜底）→ 走搜索图，拿 LLM 抽出的关键词「AI」搜出 20 条
+#: 华为云 / 字节 / 蚂蚁（跟墨泊可士毫无关系）。「投」= 投递意向，不是搜索。
+_BLOCK_WORDS = ("投", "投递", "投了", "已投", "想投", "投个", "投这",
                 "生成", "投递包", "简历定制", "删除", "删掉", "清空",
                 "添加", "保存", "提醒", "收藏", "标记", "面试")
 #: 匹配意图也要挡的词（这些是别的流程的入口）
@@ -187,6 +195,48 @@ def is_match_intent(question: str) -> bool:
     return any(word in text for word in _MATCH_WORDS)
 
 
+#: 投递意向的动词短语：「我要投 / 我想投 / 帮我投 / 打算投 / 投递 / 投个 / 投这份」。
+#: ⚠️ 必须连动词一起判，不能只判「投」字：单字会把「投递记录」「投了 3 家」「投屏」
+#: 全卷进来。`投(?!递|了|过)` 挡的是完整动词，`投递` 自己单独放在列表里。
+_APPLICATION_VERB_RE = re.compile(
+    r"(?:我要|我想|我想着|想|要|打算|准备|计划|帮我|帮忙|给我|请)\s*投(?!递|了|过)"
+    r"|投递|投个|投这份|投这个")
+#: 命中这些词说明用户在**问投递记录 / 日志**，不是表达新的投递意向。
+_APPLICATION_REGISTER_WORDS = ("记录", "状态", "进度", "结果", "日志", "统计",
+                               "列表", "几家", "哪些", "多少")
+
+
+def is_application_intent(question: str) -> bool:
+    """「我要投墨泊可士的 AI Agent 岗位」这类**投递意向**。
+
+    与「帮我找广州的 Agent 岗位」是两条完全不同的路：找岗位要的是**一份列表**，
+    投递意向要的是**一条已点名岗位的投递包**（复用点名定位 `resolve_named_job`）。
+    以前没有这条意图，那句话被 `is_search_intent` 的「岗位」名词 + 长度兜底抢走，
+    于是拿关键词「AI」搜出 20 条无关岗位。
+
+    只在**没点名任何岗位 / 公司**时返回 False，让原搜索流程原样保留。
+    """
+    text = _user_text((question or "").strip())
+    if not text or text.startswith("/"):
+        return False
+    if not _APPLICATION_VERB_RE.search(text):
+        return False
+    if any(word in text for word in _MATCH_WORDS):        # 匹配打分走匹配图
+        return False
+    if any(word in text for word in _APPLICATION_REGISTER_WORDS):
+        return False                                      # 「投递记录 / 投递状态」是查询
+    if is_log_intent(text):
+        return False
+    company, title = _designation_from_text(text)
+    if company or title:
+        return True
+    # 「我想投第 3 个 / 帮我投这份」：没有公司名，但指代的是**已定位的那一条**，
+    # 同样不该去搜岗位。
+    if _ORDINAL_HINT_RE.search(text) or _FOLLOWUP_REF_RE.search(text):
+        return True
+    return any(word in text for word in _FOLLOWUP_REF_WORDS)
+
+
 def _route(question: str) -> str:
     if is_log_intent(question):
         return "log"                                   # 看日志：确定性引导，不调 LLM
@@ -194,6 +244,10 @@ def _route(question: str) -> str:
     # 否则「找岗位 + 匹配 + 出投递包」会被 is_match_intent 抢走、只做匹配那一步。
     if ma.is_complex_task(question):
         return "complex"
+    # 投递意向要先于匹配 / 搜索判：「我要投墨泊可士的 AI Agent 岗位」带「投」字，
+    # 搜岗位那条路的词表挡不住它（见 _BLOCK_WORDS 的注释）。
+    if is_application_intent(question):
+        return "package"
     if is_match_intent(question):
         return "match"                                   # 先判匹配：它比搜岗位更具体
     # 追问必须**先于**搜岗位判（Bug 1）：有指代时「第 1 个岗位要求什么技术？」
@@ -203,6 +257,169 @@ def _route(question: str) -> str:
     if is_search_intent(question):
         return "search"
     return "react"
+
+
+# ==========================================================================
+# 投递意向（「我要投 <公司> 的 <岗位>」）—— 与「看日志」一样是**确定性**的一条，
+# 不进任何图、不让模型自决，因为这条路上最容易出的错是**认错岗位**：
+# 用户说「投墨泊可士的 AI Agent 岗位」，系统却拿关键词「AI」搜出 20 条别的公司。
+#
+# 链路：点名定位（复用 `resolve_named_job`，与匹配打分同一条精确链路）
+#       → 拿到 job_id → `generate_application_package`
+#       → 定位失败 → **如实说没找到 + 三条路径**，绝不拿别的岗位凑数、绝不改去搜岗位。
+# ==========================================================================
+
+def _package_reply(result: dict) -> str:
+    """投递包生成成功后的回执（目录 + 文件清单 + 大小 + 下一步）。"""
+    lines = [f"已为「{result.get('company', '')} · {result.get('title', '')}」生成投递包。", ""]
+    lines.append(f"目录：`{result.get('package_dir')}`")
+    for name, path in (result.get("files") or {}).items():
+        size = ""
+        try:
+            size = f"（{os.path.getsize(path) // 1024} KB）"
+        except OSError:
+            pass
+        lines.append(f"- `{name}`{size} → {path}")
+    if not result.get("has_job_detail"):
+        lines += ["", "⚠️ 这条岗位没读到 JD 详情，简历按原样导出（未做定制）。"]
+    if result.get("warnings"):
+        lines += ["", "提醒：" + "；".join(str(w) for w in result["warnings"])]
+    lines += ["", "**还没有写投递记录** —— 这只是「想投」，真投出去了再说一句"
+                  "「我已投递 <公司>」我再落库（想投 ≠ 投了）。"]
+    return "\n".join(lines)
+
+
+def _run_package(question: str, verbose: bool = True, progress_cb=None,
+                 return_messages: bool = False) -> dict:
+    """投递意向：点名定位 → 生成投递包；定位不到就如实说没找到（不换岗位、不搜列表）。"""
+    trace_id = str(uuid.uuid4())[:8]
+    log_event(trace_id, "run_start", question=question[:50], engine="langgraph",
+              graph="package")
+    steps = []
+    text = _user_text(question)
+
+    # 定位优先级与匹配打分一致：系统提示里的 job_id → 「第 N 个」→ 点名（公司 + 岗位名）
+    # → 会话里正在看的岗位。四条都拿不到才算"没找到"。
+    job_id = ""
+    match = _JOB_ID_HINT_RE.search(question or "")
+    job_id = match.group(1) if match else ""
+    company = title = ""
+    detail = None
+    note = ""
+    ordinal = _ORDINAL_HINT_RE.search(question or "")
+    if not job_id and ordinal:
+        entry = tools_registry.lookup_job_ordinal(int(ordinal.group(1)))
+        if entry and entry.get("job_id"):
+            job_id = str(entry["job_id"])
+            note = f"按你说的「第 {ordinal.group(1)} 个」定位"
+    if job_id:
+        try:
+            detail = tools_registry._resolve_match_detail(job_id)
+        except Exception as e:                            # noqa: BLE001 - 拿不到就往下找
+            if verbose:
+                print(f"[lg_package] job_id={job_id} 定位失败：{e}")
+            detail = None
+    if detail is None:
+        company, title = _designation_from_text(text)
+        if company or title:
+            try:
+                detail, why = tools_registry.resolve_named_job(company, title)
+            except Exception as e:                        # noqa: BLE001 - 查库失败=没找到
+                detail, why = None, f"岗位库查询失败（{type(e).__name__}）"
+            if detail is not None:
+                note = why or "按你点名的岗位定位"
+            else:
+                label = f"{company} · {title}" if company and title else (company or title)
+                reply = _named_job_not_found_reply({}, label, why, for_package=True)
+                steps.append({"turn": 1, "type": "route", "engine": "langgraph",
+                              "node": "定位岗位",
+                              "thought": f"投递意向点名的「{label}」库里没有 → 如实说没找到，"
+                                         f"不换别的岗位、也不改去搜岗位列表",
+                              "observation": why or f"未找到 {label}"})
+                log_event(trace_id, "run_end", total_turns=1, found=False,
+                          final_answer_len=len(reply), engine="langgraph")
+                result = {"answer": reply, "steps": steps}
+                if return_messages:
+                    result["messages"] = [{"role": "assistant", "content": reply}]
+                    result["trace_id"] = trace_id
+                return result
+    if detail is None and not (company or title):
+        # 没点名也没序号 / job_id：「我要投这个岗位」这类，看会话里正在看的那条
+        try:
+            detail, src = tools_registry.get_focus_job()
+        except Exception:                                 # noqa: BLE001
+            detail, src = None, ""
+        note = src or note
+    if detail is not None:
+        # 用**已定位详情里的真实岗位名**，而不是用户口语里的简称（「AI Agent」）：
+        # 下游按标题定位时简称会把这条正确的否掉、退化成「按公司名取第一条」
+        # （实测出成同公司另一条「Java开发（可转正）」的包）。
+        company = company or str(getattr(detail, "company", "") or "")
+        title = str(getattr(detail, "title", "") or "") or title
+        job_id = str(getattr(detail, "job_id", "") or job_id)
+        steps.append({"turn": 1, "type": "route", "engine": "langgraph",
+                      "node": "定位岗位",
+                      "thought": f"投递意向 → 锁定「{company} · {title}」"
+                                 + (f"（{note}）" if note else ""),
+                      "observation": title})
+    else:
+        label = f"{company} · {title}" if company and title else (company or title)
+        if not label:
+            reply = ("我没看出你要投的是哪一条岗位。\n\n"
+                     "你可以：\n"
+                     "- 说清公司和岗位名（如「我要投墨泊可士的 AI Agent 岗位」）\n"
+                     "- 粘贴岗位链接或 JD 文本给我\n"
+                     "- 或从刚才搜索的列表里选一个（如「我要投第 1 个」）")
+        else:
+            reply = _named_job_not_found_reply({}, label, "会话里没有正在看的岗位",
+                                               for_package=True)
+        steps.append({"turn": 1, "type": "route", "engine": "langgraph",
+                      "node": "定位岗位",
+                      "thought": "没定位到要投的岗位 → 如实说没找到，不改去搜岗位列表"})
+        log_event(trace_id, "run_end", total_turns=1, found=False,
+                  final_answer_len=len(reply), engine="langgraph")
+        result = {"answer": reply, "steps": steps}
+        if return_messages:
+            result["messages"] = [{"role": "assistant", "content": reply}]
+            result["trace_id"] = trace_id
+        return result
+
+    # 定位成功 → 出包。简历定制 + 自荐信是两跳 LLM（实测各约 6s，并行），
+    # 先把进度推出去，盖住静默窗口。
+    if progress_cb is not None:
+        try:
+            progress_cb(f"已定位「{company} · {title}」，正在生成投递包（简历定制 + 自荐信）…")
+        except Exception:                                 # noqa: BLE001 - 推不动不影响出包
+            pass
+    limits.start_run_budget()
+    limits.reset_truncated()
+    try:
+        package = tools_registry.generate_application_package(company, job_id=job_id, title=title)
+    except Exception as e:                                # noqa: BLE001 - 失败如实说
+        reply = (f"已定位到「{company} · {title}」，但投递包生成失败："
+                 f"{type(e).__name__}: {e}")
+        steps.append({"turn": 2, "type": "route", "engine": "langgraph",
+                      "node": "生成投递包", "thought": f"生成失败：{e}"})
+        log_event(trace_id, "run_end", total_turns=len(steps), ok=False,
+                  final_answer_len=len(reply), engine="langgraph")
+        result = {"answer": reply, "steps": steps}
+        if return_messages:
+            result["messages"] = [{"role": "assistant", "content": reply}]
+            result["trace_id"] = trace_id
+        return result
+
+    reply = _package_reply(package)
+    steps.append({"turn": 2, "type": "route", "engine": "langgraph",
+                  "node": "生成投递包",
+                  "thought": f"已生成投递包：{package.get('package_dir')}",
+                  "observation": "；".join(str(w) for w in (package.get("warnings") or []))})
+    log_event(trace_id, "run_end", total_turns=len(steps), ok=True,
+              final_answer_len=len(reply), engine="langgraph")
+    result = {"answer": reply, "steps": steps}
+    if return_messages:
+        result["messages"] = [{"role": "assistant", "content": reply}]
+        result["trace_id"] = trace_id
+    return result
 
 
 def _run_graph(graph, initial: dict, question: str, verbose: bool,
@@ -250,6 +467,11 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
                                history=history, return_messages=return_messages)
 
     kind = _route(question)
+    if kind == "package":
+        # 投递意向：「我要投墨泊可士的 AI Agent 岗位」→ 点名定位 → 出投递包。
+        # **不搜岗位**：要的是那一条，不是 20 条列表（见 _run_package 的注释）。
+        return _run_package(question, verbose=verbose, progress_cb=progress_cb,
+                            return_messages=return_messages)
     if kind == "log":
         # 问题 3：「看日志」是**系统日志**，确定性回复引导用户去终端，
         # 既不查投递记录，也不烧一次 LLM 轮次。
@@ -327,16 +549,17 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
 def is_slow_route(question: str) -> bool:
     """这一句是不是「预期 > 20s 的长任务」（决定要不要开进度推送）。
 
-    只对**匹配打分**与**复杂任务**返回 True：实测匹配 81s（读简历 / 打分 / 反思
-    各一跳）、复杂任务是多步 Planner + Executor + Critic；精确搜索 6s、追问 4s、
-    面试问答都远低于 60s 阈值，推了只是噪声（还会把回答切碎）。
+    只对**匹配打分 / 投递包 / 复杂任务**返回 True：实测匹配 81s（读简历 / 打分 / 反思
+    各一跳）、投递包两跳 LLM（简历定制 + 自荐信，各约 6s）、复杂任务是多步 Planner +
+    Executor + Critic；精确搜索 6s、追问 4s、面试问答都远低于 60s 阈值，
+    推了只是噪声（还会把回答切碎）。
 
     只看用户原话，不调 LLM、不碰会话态 —— 失败一律按「不是长任务」处理。
     """
     try:
         if _engine() in ("react", "react_agent", "legacy"):
             return False
-        return _route(question) in ("match", "complex")
+        return _route(question) in ("match", "package", "complex")
     except Exception as e:                              # noqa: BLE001 - 判不出来就不推
         print(f"[progress] 长任务判定失败（按短任务处理）：{type(e).__name__}: {e}")
         return False
@@ -349,4 +572,5 @@ def engine_name(question: str) -> str:
     kind = _route(question)
     return {"search": "langgraph:search", "match": "langgraph:match",
             "log": "langgraph:log", "followup": "langgraph:followup",
+            "package": "langgraph:package",
             "complex": "multi_agent:complex"}.get(kind, "react")
