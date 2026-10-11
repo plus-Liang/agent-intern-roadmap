@@ -1480,6 +1480,48 @@ check("问题2：无 current_job 时仍 fallback 第 1 条", _locate_falls_back_
 check("问题3：看日志意图识别（4 句 + 不误伤）", _route_table_log_intent)
 check("问题3：看日志 → 引导终端命令且不调 LLM", _log_intent_answers_command)
 check("问题3：ReAct 兜底 prompt 也有日志说明", _log_prompt_note_exists)
+def _refine_keeps_last_keyword():
+    """Bug 1：「帮我找 Agent 岗位」→「筛选出广州的」必须**带着关键词 Agent** 搜。
+
+    现象：筛选句返回 400 条 = 广州全库（大量「算法工程师」，与 Agent 无关）。
+    根因：「筛选出广州的」没有岗位名词，`is_search_intent` 认不出来，落回 ReAct，
+    LLM 只看到这一句、抽出 keyword 空串 → SQL 退化成 `city='广州'`。
+    修法：上一轮条件存会话态 + 路由新增 refine + 参数节点走继承分支。
+    """
+    calls = []
+
+    def fake(keyword, city=None, limit=20, semantic=False, job_type=None):
+        calls.append({"keyword": keyword, "city": city, "job_type": job_type})
+        return _rows(2)
+
+    with user_scope("refine-keeps-keyword"):
+        # 没有上一轮关键词时**不许**判成筛选（否则「只看实习的」这种话会被劫走）
+        LF.reg._session_state().pop(LF.LAST_SEARCH_KEY, None)
+        if LG.is_refine_intent("筛选出广州的"):
+            raise AssertionError("没有上一轮关键词也判成了筛选")
+        LF.remember_search_params({"keyword": "Agent", "cities": [], "limit": 20,
+                                   "semantic": False, "job_type": ""})
+        if LG._route("筛选出广州的") != "refine":
+            raise AssertionError(f"筛选句没分流到 refine：{LG._route('筛选出广州的')}")
+        if LG.engine_name("筛选出广州的") != "langgraph:search":
+            raise AssertionError("engine_name 没跟上 refine 路由")
+        with _patched((LF.reg, "_search", fake),
+                      (LF.reg, "_search_rows",
+                       lambda keyword, city=None, limit=20, semantic=False, job_type=None,
+                              progress_cb=None: _rows(2)),
+                      (LF, "_llm_json", _boom_llm)):
+            result = LG.run("筛选出广州的", verbose=False)
+    if not calls:
+        raise AssertionError("筛选句没有触发检索")
+    got = calls[0]
+    if got["keyword"] != "Agent" or got["city"] != "广州":
+        raise AssertionError(f"筛选句丢了上一轮关键词：{got}")
+    if "关键词「Agent」" not in (result.get("answer") or ""):
+        raise AssertionError(f"回答头行没写明关键词：{(result.get('answer') or '')[:120]}")
+    return f"筛选句继承 keyword=Agent + city=广州（{len(calls)} 次检索）"
+
+
+check("Bug1：筛选句继承上一轮关键词（不再返回广州全库）", _refine_keeps_last_keyword)
 check("问题4：追问图结构（无检索节点）", _followup_graph_shape)
 check("问题4：追问意图分流（含不误伤新搜索）", _followup_intent_route)
 check("问题4：带 app 系统提示的追问仍走追问", _followup_with_real_app_hint)

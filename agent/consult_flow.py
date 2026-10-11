@@ -18,9 +18,11 @@
 
        [接收] → [汇总岗位类别] → [LLM 分析画像/匹配] → [输出清单]
 
-   读当前简历 → 从岗位库按**岗位名关键词**归类统计（Agent / 大模型算法 / 后端 …）
+   读当前简历 → 从岗位库按**标题或描述关键词**归类统计（Agent / 大模型算法 / 后端 …）
    → LLM 拿「简历画像 + 类别统计」产出**岗位类型清单 + 每类匹配度 + 理由 + 建议**。
-   统计口径是**全库**、不是「第 1 条」，所以不会再答非所问。
+   统计口径 = **标题或描述含关键词**，与搜岗位同一口径（Bug 2 的修法），
+   所以「分析说 Agent 多少条」与「搜 Agent 搜出多少条」两个数字对得上。
+   统计范围是**全库**、不是「第 1 条」，所以不会再答非所问。
 
 2. `OTHER_GRAPH`（开放式兜底）::
 
@@ -49,6 +51,7 @@ from shared.logger import log_event
 # 岗位类别词表：**按优先级**先到先得，一条岗位只归一类（计数之和 <= 全库总数）。
 # 词表是从岗位库的真实岗位名里归纳的（2842 条实测：大模型 421 / agent 176 /
 # 后端 130 / 前端 85 / 测试 127 / 产品 184 …），不是凭空想的类目。
+# 匹配口径（Bug 2）= **标题或描述含关键词**，与搜岗位一致（见 `_category_hit`）。
 # ==========================================================================
 
 CATEGORIES: tuple = (
@@ -72,11 +75,17 @@ OTHER_CATEGORY = "其他"
 
 
 def _load_job_rows() -> list:
-    """只读岗位库的「岗位名 + 城市」两列来归类统计。
+    """只读岗位库的「岗位名 + 城市 + 描述」三列来归类统计。
 
-    为什么不走 `search_jobs` / `get_all_jobs`：那两条路会把 JD 正文一起拉进内存
-    （3000 条 × 正文几 KB），只为数一数「多少条是 Agent 岗」不值当。
-    库不可用 / 表不存在时返回空列表，调用方据此如实说「我还没有岗位数据」。
+    为什么要带 `description`（本任务 Bug 2）：咨询分析以前**只按岗位名**统计，
+    报「Agent 184 条」，而搜索是按「标题**或描述**含」匹配、能搜出 700+ 条 ——
+    两个数字口径不同，用户看到「分析说 184、搜索出来 700 多」只会以为系统在瞎说。
+    现在两边统一成「标题或描述含关键词」（甲方案：搜索本来就要放宽，
+    描述里提到 Agent 的岗位也相关）。
+
+    为什么不走 `search_jobs` / `get_all_jobs`：那两条路会把正文一起拉进内存并做
+    匹配 / 重排，只为数一数「多少条是 Agent 岗」不值当。库不可用 / 表不存在时
+    返回空列表，调用方据此如实说「我还没有岗位数据」。
     """
     try:
         from rag.data import db as _db
@@ -93,17 +102,36 @@ def _load_job_rows() -> list:
         conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
         conn.row_factory = sqlite3.Row
         try:
-            rows = conn.execute(f"SELECT title, city FROM {table}").fetchall()
+            rows = conn.execute(
+                f"SELECT title, city, description FROM {table}").fetchall()
         finally:
             conn.close()
     except Exception as exc:                            # noqa: BLE001 - 数不出来就不编
         print(f"[consult] 岗位归类统计失败：{type(exc).__name__}: {exc}")
         return []
-    return [{"title": (r["title"] or ""), "city": (r["city"] or "")} for r in rows]
+    return [{"title": (r["title"] or ""), "city": (r["city"] or ""),
+             "description": (r["description"] or "")} for r in rows]
+
+
+def _category_hit(title: str, description: str, keywords: tuple) -> bool:
+    """岗位是否属于该类别：**标题或描述**命中关键词（与搜索同一口径）。
+
+    短英文词（cv / bi / hr / qa，都只有 2 个字母）在**描述**里噪声太大 ——
+    「CVPR」「Python 简历」这类会让整类误判，所以它们只在**岗位名**里认；
+    3 个字母以上（sql / llm / nlp / etl / api）描述里也认。
+    """
+    low_title = (title or "").lower()
+    low_desc = (description or "").lower()
+    for kw in keywords:
+        if kw in low_title:
+            return True
+        if len(kw) >= 3 and kw in low_desc:
+            return True
+    return False
 
 
 def categorize_titles(rows: list) -> dict:
-    """把岗位按岗位名归类：返回 `{total, categories:[{name,count,cities,samples}]}`。
+    """把岗位按**标题或描述**关键词归类：返回 `{total, categories:[...]}`。
 
     一条岗位只进**第一个**命中的类别（先到先得），所以各类 count 之和 <= total，
     差额是「其他」；LLM 拿到的数字与这里逐字一致，不许自己编数量。
@@ -112,9 +140,9 @@ def categorize_titles(rows: list) -> dict:
     buckets[OTHER_CATEGORY] = []
     for row in rows or []:
         title = str(row.get("title") or "")
-        low = title.lower()
+        desc = str(row.get("description") or "")
         for name, keywords in CATEGORIES:
-            if any(kw in low for kw in keywords):
+            if _category_hit(title, desc, keywords):
                 buckets[name].append(row)
                 break
         else:
@@ -208,7 +236,7 @@ _ANALYZE_PROMPT = """你是「求职定位分析师」。用户想知道**自己
 简历：
 {resume}
 
-岗位库类别（按岗位名关键词归类，全库共 {total} 条）：
+岗位库类别（**统计口径：标题或描述含关键词**，与搜岗位同一口径；全库共 {total} 条）：
 {categories}"""
 
 
@@ -342,7 +370,8 @@ def respond_consult(state: ConsultState) -> dict:
                  "用 `/resume 你的简历文本`，或直接上传 PDF / Word 简历附件，"
                  "然后再说一句「我的简历匹配哪些岗位」。", ""]
         if by_name:
-            lines += ["先把库里**现在的岗位类型分布**给你参考（按岗位名归类）：", ""]
+            lines += ["先把库里**现在的岗位类型分布**给你参考"
+                      "（统计口径：标题或描述含关键词）：", ""]
             lines += [f"- {c['name']}：{c['count']} 条"
                       + (f"（{'、'.join(c['cities'])}）" if c["cities"] else "")
                       for c in stats["categories"][:8]]
@@ -362,7 +391,8 @@ def respond_consult(state: ConsultState) -> dict:
 
     items = analysis.get("岗位类型") or []
     if items:
-        lines += ["**匹配的岗位类型**（按匹配度排序，依据全库岗位类别统计）", ""]
+        lines += ["**匹配的岗位类型**（按匹配度排序，依据全库岗位类别统计 ——"
+                  "统计口径：**标题或描述含关键词**，与搜岗位一致）", ""]
         for i, item in enumerate(items, start=1):
             name = str(item.get("类型") or "").strip()
             cat = by_name.get(name) or {}
@@ -384,7 +414,8 @@ def respond_consult(state: ConsultState) -> dict:
 
     if total:
         dist = " · ".join(f"{c['name']} {c['count']}" for c in stats["categories"][:8])
-        lines += [f"**库内分布**（共 {total} 条，按岗位名归类）：{dist}", ""]
+        lines += [f"**库内分布**（共 {total} 条，统计口径：标题或描述含关键词）："
+                  f"{dist}", ""]
     else:
         lines += ["⚠️ 我这边还没有岗位数据 —— 我需要先搜岗位，"
                   "才能按真实在招的岗位给你定位。", ""]

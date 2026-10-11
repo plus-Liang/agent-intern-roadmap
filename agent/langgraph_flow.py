@@ -299,10 +299,39 @@ def _hard_text(detail) -> str:
 # 图 1：搜岗位  [接收] → [提取参数] → [搜岗位] → [筛选] → [返回列表]
 # ==========================================================================
 
+#: 会话态里存「上一轮搜索条件」的键（修 Bug 1：筛选句丢关键词）
+LAST_SEARCH_KEY = "last_search_params"
+
+
+def last_search_params() -> dict:
+    """读上一轮搜索条件（keyword / cities / job_type / semantic / limit）。
+
+    为什么要有：「筛选出广州的」这种句子**只说了新条件、没说岗位方向**，
+    参数提取节点（LLM）抽出来 keyword 是空串，SQL 就退化成 `city='广州'`，
+    返回广州全部 400 条（里面大量「算法工程师」，与 Agent 无关）。
+    上轮条件存在会话态，筛选句继承 keyword，城市 / 类型按本轮新说的覆盖。
+    """
+    try:
+        data = reg._session_state().get(LAST_SEARCH_KEY) or {}
+    except Exception:                                     # noqa: BLE001 - 会话态不可用不当错误
+        return {}
+    return dict(data) if isinstance(data, dict) else {}
+
+
+def remember_search_params(params: dict) -> None:
+    """把本轮**实际生效**的搜索条件落进会话态，供下一句筛选句继承。"""
+    try:
+        reg._session_state()[LAST_SEARCH_KEY] = dict(params or {})
+    except Exception as exc:                              # noqa: BLE001 - 写失败不影响本轮
+        print(f"[lg_search] 会话态写入失败（忽略）：{type(exc).__name__}: {exc}")
+
+
 class SearchState(TypedDict, total=False):
     question: str
     history: list
     keyword: str
+    #: 筛选句（「筛选出广州的」）：关键词从会话态继承，不被本轮的空抽取覆盖
+    inherit_search: bool
     city: str
     cities: list
     limit: int
@@ -529,10 +558,53 @@ def _llm_cities(data: dict, fallback: dict) -> list[str]:
     return out or list(fallback.get("cities") or [])
 
 
+def _inherit_params(state: SearchState, fallback: dict) -> dict:
+    """筛选句的参数：**关键词从会话态继承**，只把本轮新说的城市 / 类型叠上去。
+
+    这是 Bug 1 的修法本体。「筛选出广州的」里没有岗位方向，LLM 抽出来的 keyword
+    是空串，旧行为直接拿空关键词去搜 → 广州全部 400 条（含大量「算法工程师」）。
+    现在：keyword 取上一轮搜索的（如 Agent），城市取本轮说的（广州），
+    类型 / 条数 / 语义开关能继承的也继承，再交回同一条检索链路。
+    """
+    prev = last_search_params()
+    keyword = str(prev.get("keyword") or state.get("keyword") or "").strip()
+    cities = (_plural_cities(state.get("cities")) or _plural_cities(state.get("city"))
+              or _plural_cities(fallback.get("cities")) or _plural_cities(prev.get("cities")))
+    city = cities[0] if cities else ""
+    job_type = (normalize_job_type(state.get("job_type")) or fallback.get("job_type")
+                or normalize_job_type(prev.get("job_type")))
+    semantic = bool(prev.get("semantic"))
+    try:
+        limit = int(state.get("limit") or prev.get("limit") or fallback["limit"])
+    except (TypeError, ValueError):
+        limit = fallback["limit"]
+    city_text = "、".join(cities) if cities else "不限"
+    return {
+        "keyword": keyword,
+        "city": city,
+        "cities": cities,
+        "limit": limit,
+        "semantic": semantic,
+        "job_type": job_type,
+        "extract_source": "inherit",
+        "steps": _step(
+            state, "提取参数",
+            f"筛选句 → 关键词从上一轮搜索继承「{keyword}」，城市「{city_text}」，"
+            f"类型「{job_type or '不限'}」，语义重排 {'开' if semantic else '关'}"
+            f"（来源：inherit）",
+            payload={"keyword": keyword, "city": city, "cities": cities,
+                     "limit": limit, "semantic": semantic, "job_type": job_type},
+        ),
+    }
+
+
 def extract_params(state: SearchState) -> dict:
     """[提取参数] 按问题查缓存 → LLM 抽取 + 确定性规则兜底 + 合法性校验。"""
     question = state.get("question") or ""
     fallback = _extract_params_rules(question)
+    if state.get("inherit_search"):
+        # 筛选句（「筛选出广州的」）：不走 LLM 抽取，直接继承上一轮关键词
+        return _inherit_params(state, fallback)
     source = "rules"
     params = dict(fallback)
     cached_params = _param_cache_get(question)
@@ -801,6 +873,10 @@ def search_jobs_node(state: SearchState) -> dict:
 
     city = cities[0] if cities else None
     city_text = "、".join(cities) if cities else ""
+    # 记住本轮**实际生效**的搜索条件：下一句「筛选出广州的」从这里继承关键词
+    # （修 Bug 1 的另一半，见 last_search_params / _inherit_params）。
+    remember_search_params({"keyword": keyword, "cities": cities, "limit": limit,
+                            "semantic": semantic, "job_type": job_type})
     log_event(state.get("trace_id") or "-", "lg_node", node="search", engine="langgraph",
               graph="search", keyword=keyword, city=city_text, cities=cities,
               semantic=semantic, job_type=job_type or "", hits=len(rows),

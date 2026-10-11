@@ -234,7 +234,12 @@ def last_citation_pack():
 # 或直接删 `agent/data/search_cache.db`；设 `SEARCH_CACHE_TTL=0` 整体关掉缓存。
 
 SEARCH_CACHE_TTL = float(os.getenv("SEARCH_CACHE_TTL", "86400") or 86400)   # 24 小时
-SEARCH_CACHE_MAX_ROWS = 600          # 单条缓存最多存多少行：必须覆盖**全量命中**
+#: 单条缓存最多存多少行：**必须覆盖全量命中**，否则「如实报告真实总数」又会被它截断。
+#: 100 → 600 是因为「Agent 实习」实测 572 条；本轮又一次撞上限：不限城市搜 "Agent"
+#: 实测 757 条 > 600，于是计数与列表一起停在 600（用户看到「咨询说 184、搜索 600、
+#: 实际 757」三个数字对不上）。这里放宽到 3000（全库 2842 条也装得下），
+#: 并可用 `SEARCH_CACHE_MAX_ROWS` 环境变量覆盖。
+SEARCH_CACHE_MAX_ROWS = int(os.getenv("SEARCH_CACHE_MAX_ROWS", "3000") or 3000)
 # 为什么从 100 提到 600：缓存键不含 limit（读时再截断），而「如实报告真实总数」要按
 # limit=0（全量）统计。上限若小于实际命中数（不限城市搜 "Agent 实习" 实测 572 条），
 # 计数就会停在 100 —— 又变成"数字不透明"，只是从 20 换成 100。
@@ -282,6 +287,9 @@ def _data_signature() -> str:
             parts.append(f"{path.name}:{int(stat.st_mtime)}:{stat.st_size}")
         except Exception:                               # noqa: BLE001
             parts.append("missing")
+    # 缓存**存放上限**也算签名的一部分：上限从 600 放宽后，旧条目里存的是被截断的
+    # 600 条，签名不变就会继续被读到（数字永远停在 600）。带上版本，旧条目自然失效。
+    parts.append(f"cap:{SEARCH_CACHE_MAX_ROWS}")
     sig = "|".join(parts)
     _sig_cache["at"] = now
     _sig_cache["sig"] = sig

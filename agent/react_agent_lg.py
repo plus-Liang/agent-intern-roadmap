@@ -15,6 +15,7 @@ LangGraph 版 Agent 入口（阶段 1：固定基础流程 + 反思节点）。
 | 用户说的话 | 走哪 | 理由 |
 |---|---|---|
 | 「帮我找广州的 Agent 岗位」 | `SEARCH_GRAPH`（固定五步） | 搜岗位是**流程**，不该由模型自决 |
+| 「筛选出广州的」（承接上一句） | `SEARCH_GRAPH` + `inherit_search`（参数继承） | 它没说岗位方向，**必须继承上一轮关键词**，否则退化成「广州全部岗位」 |
 | 「帮我匹配简历」 | `MATCH_GRAPH`（打分 + 反思） | 打分要能自评，走反思边 |
 | 「找岗位 + 匹配 + 生成投递包」这类**一次说了多个需求**的话 | `COMPLEX_TASK_GRAPH`（批次 1 多智能体） | 单条链路装不下，需要 Planner 拆步骤、Executor 执行、Critic 审查打回 |
 | 「我要投墨泊可士的 AI Agent 岗位」（投递意向） | 确定性出包（点名定位 → `generate_application_package`） | 「投」不是「搜」：要的是**那一条**岗位的投递包，搜出 20 条列表毫无意义 |
@@ -37,6 +38,7 @@ import uuid
 from agent import react_agent
 from agent import tools_registry
 from agent import complex_task_flow as ma
+from agent import langgraph_flow as _lf
 from agent.consult_flow import CONSULT_GRAPH, OTHER_GRAPH
 from agent.langgraph_flow import (FOLLOWUP_GRAPH, MATCH_GRAPH, SEARCH_GRAPH,
                                   _JOB_ID_HINT_RE, _ORDINAL_HINT_RE,
@@ -132,6 +134,44 @@ def is_followup_intent(question: str) -> bool:
         return True
     # 没有指代词但有明确问点、且提到了岗位类名词：也算追问（如「这些岗位要求什么技术」）
     return has_ask and any(noun in user_text for noun in _JOB_NOUNS)
+
+
+#: 「在上一轮结果上再加条件」的筛选词（Bug 1）：「筛选出广州的」「只看实习的」。
+#: ⚠️ 单看这些词会把「帮我找广州的岗位」也算进来，所以必须**同时**满足
+#: 「会话态里有上一轮关键词」才算筛选 —— 见 `is_refine_intent`。
+_REFINE_WORDS = ("筛选", "筛出", "筛一下", "筛一遍", "筛掉", "过滤", "只要", "只看",
+                 "限定", "挑出", "挑一下", "其中", "剩下", "就要")
+
+
+def is_refine_intent(question: str) -> bool:
+    """用户是不是在**给上一轮搜索结果加过滤条件**（Bug 1 的入口判据）。
+
+    「帮我找 Agent 岗位」→「筛选出广州的」：后一句**没有岗位方向**，只有城市。
+    以前它既不属于追问（没有指代词 / 问点词），也进不了 `is_search_intent`
+    （句子里没有「岗位」这类名词）→ 落回 ReAct，LLM 只看到「筛选出广州的」，
+    抽出的 keyword 是空串 → 返回广州**全部** 400 条（大量「算法工程师」，
+    跟 Agent 毫无关系）。判据三道：
+
+      1. 有筛选词（筛选 / 只要 / 只看 …）；
+      2. 会话态里有**上一轮搜索的关键词**（没搜过就无从继承，按新搜索走）；
+      3. 不含投递 / 匹配等其它流程词。
+
+    命中后走搜索图，但参数节点走**继承分支**（见 `LF.extract_params`）。
+    """
+    text = _user_text((question or "").strip())
+    if not text or text.startswith("/"):
+        return False
+    if any(word in text for word in _BLOCK_WORDS):
+        return False
+    if any(word in text for word in _MATCH_WORDS):
+        return False
+    if not any(word in text for word in _REFINE_WORDS):
+        return False
+    try:
+        prev = _lf.last_search_params()
+    except Exception:                                     # noqa: BLE001 - 读不到就不认筛选
+        return False
+    return bool(str((prev or {}).get("keyword") or "").strip())
 
 
 def _resolve_search_verb_followup(question: str) -> bool:
@@ -352,6 +392,10 @@ def _route(question: str) -> str:
     # 会被 is_search_intent 的短句兜底抢走，于是又返回一遍列表、不回答技术问题。
     if is_followup_intent(question):
         return "followup"
+    # 筛选句（「筛选出广州的」）要先于搜索判：它没有岗位名词，`is_search_intent`
+    # 认不出来，落回 ReAct 就会丢掉上一轮关键词、按纯城市搜（Bug 1）。
+    if is_refine_intent(question):
+        return "refine"
     if is_search_intent(question):
         return "search"
     # 上面全没命中：句子里还有求职域信息 → ReAct 多步兜底；
@@ -535,6 +579,33 @@ def _run_package(question: str, verbose: bool = True, progress_cb=None,
     return result
 
 
+def _run_refine(question: str, verbose: bool, return_messages: bool,
+                progress_cb=None) -> dict:
+    """筛选句：「筛选出广州的」→ 继承上一轮关键词 + 本轮城市，走**同一条搜索图**。
+
+    为什么不另建一张图：检索 / 去重 / 真实计数 / 展示格式全部要与普通搜索同口径，
+    差别只在参数来源 —— 这里把上一轮条件塞进 initial 并置 `inherit_search`，
+    参数节点就跳过 LLM 抽取、直接继承（见 `LF.extract_params`）。
+    """
+    prev = _lf.last_search_params()
+    cities = _lf._cities_in(_user_text(question)) or [
+        str(c) for c in (prev.get("cities") or [])]
+    trace_id = str(uuid.uuid4())[:8]
+    initial = {
+        "question": question, "history": None, "verbose": verbose,
+        "trace_id": trace_id, "_graph_name": "search",
+        "inherit_search": True,
+        "keyword": prev.get("keyword") or "",
+        "cities": cities,
+        "limit": prev.get("limit"),
+        "semantic": bool(prev.get("semantic")),
+    }
+    log_event(trace_id, "lg_node", node="refine", engine="langgraph", graph="search",
+              keyword=initial["keyword"], cities=cities)
+    return _run_graph(SEARCH_GRAPH, initial, question, verbose, return_messages,
+                      progress_cb)
+
+
 def _run_graph(graph, initial: dict, question: str, verbose: bool,
                return_messages: bool, progress_cb=None) -> dict:
     """跑一张图并把结果整理成 `react_agent.run` 的返回结构。
@@ -658,6 +729,10 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
              "_graph_name": "search"},
             question, verbose, return_messages, progress_cb,
         )
+    if kind == "refine":
+        # Bug 1：「筛选出广州的」→ 继承上一轮关键词（Agent）之后只换城市，
+        # 返回「广州的 Agent 岗位」，而不是广州全部 400 条。
+        return _run_refine(question, verbose, return_messages, progress_cb)
     if kind == "followup":
         # Bug 1：追问「第 1 个岗位要求什么技术？」→ 不重新搜索，
         # 从会话态 last_job_list 按序号取 job_id → 读该岗位 JD → LLM 生成回答（带引用）。
@@ -703,6 +778,7 @@ def engine_name(question: str) -> str:
     kind = _route(question)
     return {"search": "langgraph:search", "match": "langgraph:match",
             "log": "langgraph:log", "followup": "langgraph:followup",
+            "refine": "langgraph:search",
             "package": "langgraph:package",
             "consult": "langgraph:consult", "other": "langgraph:other",
             "complex": "multi_agent:complex"}.get(kind, "react")
