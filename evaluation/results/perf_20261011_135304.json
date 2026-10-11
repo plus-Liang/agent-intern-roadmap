@@ -1,0 +1,400 @@
+{
+  "meta": {
+    "timestamp": "2026-10-11 13:53:04",
+    "entry": "agent.react_agent_lg.run",
+    "engine": "langgraph",
+    "runs_per_op": 3,
+    "timeout_seconds": 150.0,
+    "slow_seconds": 60.0,
+    "user": "perf_bench",
+    "resume_id": "ae333d03",
+    "platform": "win32",
+    "python": "3.12.9",
+    "concurrency_tested": false,
+    "note": "只测响应时间与 token 成本；单 worker，不测并发。",
+    "warmup": true,
+    "warmed": [
+      "精确搜索",
+      "模糊搜索",
+      "追问",
+      "匹配打分",
+      "面试开场"
+    ]
+  },
+  "response_time": {
+    "operations": [
+      {
+        "operation": "精确搜索",
+        "key": "exact_search",
+        "question": "帮我找广州的 Python 岗位",
+        "kind": "agent",
+        "note": "城市+关键词都明确，走 search 图（规则抽参可短路 LLM）",
+        "planned_runs": 3,
+        "actual_runs": 3,
+        "reduced_for_time": false,
+        "runs": [
+          {
+            "run": 1,
+            "seconds": 6.37,
+            "tokens": 998,
+            "llm_calls": 1,
+            "ok": true,
+            "answer_head": "共找到 20 个相关岗位（关键词「Python」，城市「广州」） 1. [AI算法工程师](https://www.ncss.cn/student/jobs/detail/33AKcm3cz53mRpQcmVXcqL.html) — 保利和",
+            "answer_len": 1365,
+            "steps": 5
+          },
+          {
+            "run": 2,
+            "seconds": 6.03,
+            "tokens": 999,
+            "llm_calls": 1,
+            "ok": true,
+            "answer_head": "共找到 20 个相关岗位（关键词「Python」，城市「广州」） 1. [AI算法工程师](https://www.ncss.cn/student/jobs/detail/33AKcm3cz53mRpQcmVXcqL.html) — 保利和",
+            "answer_len": 1365,
+            "steps": 5
+          },
+          {
+            "run": 3,
+            "seconds": 6.21,
+            "tokens": 1089,
+            "llm_calls": 1,
+            "ok": true,
+            "answer_head": "共找到 20 个相关岗位（关键词「Python」，城市「广州」） 1. [AI算法工程师](https://www.ncss.cn/student/jobs/detail/33AKcm3cz53mRpQcmVXcqL.html) — 保利和",
+            "answer_len": 1365,
+            "steps": 5
+          }
+        ],
+        "min_s": 6.03,
+        "median_s": 6.21,
+        "max_s": 6.37,
+        "avg_s": 6.2,
+        "success": 3,
+        "failed": 0,
+        "tokens_total": 3086,
+        "tokens_avg": 1028.7
+      },
+      {
+        "operation": "模糊搜索",
+        "key": "fuzzy_search",
+        "question": "找偏大模型落地能写工程代码的实习",
+        "kind": "agent",
+        "note": "无城市无标准关键词，抽参要过 LLM，再走语义检索",
+        "planned_runs": 3,
+        "actual_runs": 1,
+        "reduced_for_time": true,
+        "runs": [
+          {
+            "run": 1,
+            "seconds": 76.63,
+            "tokens": 14319,
+            "llm_calls": 6,
+            "ok": true,
+            "answer_head": "共找到 20 个相关岗位（关键词「偏大模型落地能写工程代码的实习」，类型「实习」） 1. [AI Agent 开发实习生](https://www.nowcoder.com/jobs/detail/466109) — 牛客 · 200-25",
+            "answer_len": 1173,
+            "steps": 5
+          }
+        ],
+        "min_s": 76.63,
+        "median_s": 76.63,
+        "max_s": 76.63,
+        "avg_s": 76.63,
+        "success": 1,
+        "failed": 0,
+        "tokens_total": 14319,
+        "tokens_avg": 14319.0
+      },
+      {
+        "operation": "追问",
+        "key": "followup",
+        "question": "第 1 个岗位要求什么技术",
+        "kind": "agent",
+        "note": "不重新检索，从会话态 last_job_list 取序号 → 读 JD → 带引用作答",
+        "planned_runs": 3,
+        "actual_runs": 3,
+        "reduced_for_time": false,
+        "runs": [
+          {
+            "run": 1,
+            "seconds": 6.55,
+            "tokens": 1185,
+            "llm_calls": 1,
+            "ok": true,
+            "answer_head": "保利和润房地产投资顾问有限公司 · AI算法工程师 1. 2027届应届本科或硕士毕业生，计算机、数学、统计学、人工智能相关专业优先； 2. 扎实的编码能力（Python/C++），熟悉深度学习框架（PyTorch），了解模型工程化工具（v",
+            "answer_len": 273,
+            "steps": 3
+          },
+          {
+            "run": 2,
+            "seconds": 3.72,
+            "tokens": 967,
+            "llm_calls": 1,
+            "ok": true,
+            "answer_head": "保利和润房地产投资顾问有限公司 · AI算法工程师 技术要求： 1. 扎实的编码能力（Python/C++），熟悉深度学习框架（PyTorch），了解模型工程化工具（vLLM/TensorRT/LoRA等）； 2. 掌握机器学习与深度学习基",
+            "answer_len": 218,
+            "steps": 3
+          },
+          {
+            "run": 3,
+            "seconds": 3.98,
+            "tokens": 1015,
+            "llm_calls": 1,
+            "ok": true,
+            "answer_head": "保利和润房地产投资顾问有限公司 · AI算法工程师 1. 扎实的编码能力（Python/C++） 2. 熟悉深度学习框架（PyTorch） 3. 了解模型工程化工具（vLLM/TensorRT/LoRA等） 4. 掌握机器学习与深度学习基础",
+            "answer_len": 208,
+            "steps": 3
+          }
+        ],
+        "min_s": 3.72,
+        "median_s": 3.98,
+        "max_s": 6.55,
+        "avg_s": 4.75,
+        "success": 3,
+        "failed": 0,
+        "tokens_total": 3167,
+        "tokens_avg": 1055.7
+      },
+      {
+        "operation": "匹配打分",
+        "key": "match",
+        "question": "帮我匹配墨泊可士的 AI Agent 岗位",
+        "kind": "agent",
+        "note": "定位岗位 → 打分 → 反思（可能触发修正重打分）",
+        "planned_runs": 3,
+        "actual_runs": 1,
+        "reduced_for_time": true,
+        "runs": [
+          {
+            "run": 1,
+            "seconds": 81.82,
+            "tokens": 11339,
+            "llm_calls": 3,
+            "ok": true,
+            "answer_head": "## 匹配打分：61/100 **岗位**：墨泊可士 · AI Agent开发（可转正）（杭州） — 按你点名的「墨泊可士 · AI Agent开发（可转正）」精确定位 **各维度**：skills 18 · experience 25 ·",
+            "answer_len": 598,
+            "steps": 8
+          }
+        ],
+        "min_s": 81.82,
+        "median_s": 81.82,
+        "max_s": 81.82,
+        "avg_s": 81.82,
+        "success": 1,
+        "failed": 0,
+        "tokens_total": 11339,
+        "tokens_avg": 11339.0
+      },
+      {
+        "operation": "面试开场",
+        "key": "interview",
+        "question": "帮我模拟面试字节 Agent 开发实习生",
+        "kind": "interview",
+        "note": "app._resolve_job 定位 JD + 面试官出第 1 题",
+        "planned_runs": 3,
+        "actual_runs": 3,
+        "reduced_for_time": false,
+        "runs": [
+          {
+            "run": 1,
+            "seconds": 12.23,
+            "tokens": 2478,
+            "llm_calls": 1,
+            "ok": true,
+            "job_id": "inn_pceqm0fghwlg",
+            "answer_head": "请简要介绍一下你自己，包括你的教育背景、技能和实习经历。",
+            "answer_len": 28,
+            "steps": 1
+          },
+          {
+            "run": 2,
+            "seconds": 12.58,
+            "tokens": 2511,
+            "llm_calls": 1,
+            "ok": true,
+            "job_id": "inn_pceqm0fghwlg",
+            "answer_head": "请简单介绍一下你自己，包括教育背景、技能和实习经历。",
+            "answer_len": 26,
+            "steps": 1
+          },
+          {
+            "run": 3,
+            "seconds": 8.6,
+            "tokens": 2133,
+            "llm_calls": 1,
+            "ok": true,
+            "job_id": "inn_pceqm0fghwlg",
+            "answer_head": "请简单介绍一下你自己，包括你的教育背景、技能和相关经历。",
+            "answer_len": 28,
+            "steps": 1
+          }
+        ],
+        "min_s": 8.6,
+        "median_s": 12.23,
+        "max_s": 12.58,
+        "avg_s": 11.14,
+        "success": 3,
+        "failed": 0,
+        "tokens_total": 7122,
+        "tokens_avg": 2374.0
+      }
+    ],
+    "overall": {
+      "fastest_median_s": 3.98,
+      "slowest_median_s": 81.82,
+      "total_wall_seconds": 224.72
+    }
+  },
+  "token_cost": {
+    "available": true,
+    "rows": [
+      {
+        "source": "rag_citation_faithfulness",
+        "calls": 57,
+        "tokens": 168851,
+        "prompt": 84870,
+        "completion": 83981,
+        "models": [
+          "glm-4.5-air"
+        ],
+        "max_tokens": 4408,
+        "avg_tokens": 2962.3,
+        "cost_cny": 0.1689,
+        "cost_per_call": 0.003,
+        "share_pct": 37.8
+      },
+      {
+        "source": "resume_match",
+        "calls": 17,
+        "tokens": 66806,
+        "prompt": 16961,
+        "completion": 49845,
+        "models": [
+          "glm-4.5-air"
+        ],
+        "max_tokens": 4949,
+        "avg_tokens": 3929.8,
+        "cost_cny": 0.0668,
+        "cost_per_call": 0.0039,
+        "share_pct": 14.9
+      },
+      {
+        "source": "lg_extract_params",
+        "calls": 52,
+        "tokens": 56419,
+        "prompt": 23850,
+        "completion": 32569,
+        "models": [
+          "glm-4.5-air"
+        ],
+        "max_tokens": 2240,
+        "avg_tokens": 1085.0,
+        "cost_cny": 0.0564,
+        "cost_per_call": 0.0011,
+        "share_pct": 12.6
+      },
+      {
+        "source": "mock_interview",
+        "calls": 19,
+        "tokens": 47071,
+        "prompt": 24645,
+        "completion": 22426,
+        "models": [
+          "glm-4.5-air"
+        ],
+        "max_tokens": 3507,
+        "avg_tokens": 2477.4,
+        "cost_cny": 0.0471,
+        "cost_per_call": 0.0025,
+        "share_pct": 10.5
+      },
+      {
+        "source": "lg_reflect",
+        "calls": 20,
+        "tokens": 42396,
+        "prompt": 13046,
+        "completion": 29350,
+        "models": [
+          "glm-4.5-air"
+        ],
+        "max_tokens": 4663,
+        "avg_tokens": 2119.8,
+        "cost_cny": 0.0424,
+        "cost_per_call": 0.0021,
+        "share_pct": 9.5
+      },
+      {
+        "source": "lg_followup_answer",
+        "calls": 21,
+        "tokens": 35777,
+        "prompt": 13587,
+        "completion": 22190,
+        "models": [
+          "glm-4.5-air"
+        ],
+        "max_tokens": 2498,
+        "avg_tokens": 1703.7,
+        "cost_cny": 0.0358,
+        "cost_per_call": 0.0017,
+        "share_pct": 8.0
+      },
+      {
+        "source": "rag_query_understanding",
+        "calls": 12,
+        "tokens": 19677,
+        "prompt": 2211,
+        "completion": 17466,
+        "models": [
+          "glm-4.5-air"
+        ],
+        "max_tokens": 3740,
+        "avg_tokens": 1639.8,
+        "cost_cny": 0.0197,
+        "cost_per_call": 0.0016,
+        "share_pct": 4.4
+      },
+      {
+        "source": "react_agent",
+        "calls": 1,
+        "tokens": 9026,
+        "prompt": 8709,
+        "completion": 317,
+        "models": [
+          "glm-4.5-air"
+        ],
+        "max_tokens": 9026,
+        "avg_tokens": 9026.0,
+        "cost_cny": 0.009,
+        "cost_per_call": 0.009,
+        "share_pct": 2.0
+      },
+      {
+        "source": "react_agent_summary",
+        "calls": 1,
+        "tokens": 1002,
+        "prompt": 695,
+        "completion": 307,
+        "models": [
+          "glm-4.5-air"
+        ],
+        "max_tokens": 1002,
+        "avg_tokens": 1002.0,
+        "cost_cny": 0.001,
+        "cost_per_call": 0.001,
+        "share_pct": 0.2
+      }
+    ],
+    "total_calls": 200,
+    "window": 200,
+    "db_total_calls": 232,
+    "excluded_calls": 2,
+    "db_path": "D:\\agent-intern-roadmap\\logs\\token_usage.db",
+    "price_per_1k": 0.001,
+    "tokens_total": 447025,
+    "cost_cny": 0.447
+  },
+  "conclusion": [
+    "最快：**追问**（未命中缓存的 min 中位 3.98s）—— 不重新检索，从会话态 last_job_list 取序号 → 读 JD → 带引用作答",
+    "最慢：**匹配打分**（中位 81.82s）—— 原因：要读 JD + 打分 + 反思，反思判不合理还会再打分一次，LLM 轮次最多",
+    "最贵来源：**rag_citation_faithfulness**（平均 2962 token/次，占 37.8%，约 0.0030 元/次）",
+    "优化方向：给最慢的那条链路加**结果缓存 + prompt 瘦身**（相同「岗位 JD + 简历」组合缓存打分结果；面试 prompt 里的 JD 截到要点）。**本轮不做**：当前目标是先量准现状、留一条可复现的基线，加缓存会改变这几组数字的语义、口径要先对齐；且单 worker 下没有并发压力，省下来的是延迟而不是吞吐。"
+  ]
+}
