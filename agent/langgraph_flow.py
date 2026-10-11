@@ -225,6 +225,10 @@ def _resume_blob_zh(resume_data: dict) -> str:
     return "\n".join(lines)
 
 
+class _SkipLLMReflect(Exception):
+    """事实层已判虚高 → 反思节点跳过这一轮 LLM 复核（省一次调用，结论不变）。"""
+
+
 def _job_blob(detail) -> str:
     if detail is None:
         return ""
@@ -713,6 +717,8 @@ class MatchState(TypedDict, total=False):
     reflections: list
     reflection: dict
     location_note: str
+    #: 用户**点名**的岗位在库里不存在时的如实回执（有值 → 不打分、不 fallback）。
+    locate_error: str
     error: str
     answer: str
     steps: list
@@ -795,11 +801,172 @@ def _extract_job_id(question: str, job_id: str = "") -> str:
     return match.group(1) if match else ""
 
 
+# ==========================================================================
+# 「用户点名了岗位」的识别（修：指定不存在的岗位时 fallback 到别的岗位）
+#
+# 故障：用户说「帮我匹配火星科技的量子芯片岗位」，库里没有这条，`locate_job` 却
+# 一路 fallback 到「最近一次搜索的第 1 条」（墨泊可士 · AI Agent 开发），打出 83 分，
+# 用户以为在评估他点名的那条 —— 这是最严重的一类幻觉（**认错了评估对象**）。
+#
+# 判据：只在用户**确实点了名**（说了公司名 / 岗位名）时返回非空。
+# 没点名的请求（「给简历匹配打分」「第 1 个」）返回空，定位仍走会话态 / 最近一次搜索，
+# 老行为一个字节都不变。
+# ==========================================================================
+
+#: 「<公司>的<岗位名>岗位」——最常见的点名句式（公司名允许空格：Mars Tech）。
+_DESIGNATION_RE = re.compile(
+    r"([\u4e00-\u9fffA-Za-z0-9（）()·&\-\. ]{2,24}?)的"
+    r"([\u4e00-\u9fffA-Za-z0-9+#（）()·&\-\. ]{2,30}?)(?:岗位|职位|工作|岗|JD|jd)")
+#: 「<公司>的岗位」——点了公司没点岗位名（库里有多条 → 让用户挑，不替他挑）。
+_COMPANY_ONLY_RE = re.compile(
+    r"([\u4e00-\u9fffA-Za-z0-9（）()·&\-\. ]{2,24}?)的(?:岗位|职位|工作|岗)")
+#: 「<公司>的<岗位名>」句末写法（岗位名自带后缀，如「墨泊可士的AI大模型应用开发」）。
+_TAIL_TITLE_RE = re.compile(
+    r"([\u4e00-\u9fffA-Za-z0-9（）()·&\-\. ]{2,24}?)的"
+    r"([\u4e00-\u9fffA-Za-z0-9+#（）()·&\-\. ]{2,30})$")
+#: 只点了岗位名、没点公司：「帮我匹配量子芯片岗位」。最少 3 字 ——
+#: 「AI」这类 2 字碎片在整个库里命中几百条，拿它当"点名"只会把没点名的请求也拦下来。
+_BARE_TITLE_RE = re.compile(
+    r"(?:匹配|评估|对比|打分|分析)[^，。、？!！\s]{0,8}?"
+    r"([\u4e00-\u9fffA-Za-z0-9+#（）()·&\-\. ]{3,24}?)(?:岗位|职位|工作|岗|JD|jd)")
+#: 句首的动作 / 客套词：从公司名里剥掉（「帮我匹配火星科技」→「火星科技」）。
+_LEAD_IN_RE = re.compile(
+    r"^(?:帮我|帮忙|麻烦|请|给我|我要|我想|想要|我需要|然后|再|顺便|能不能|可不可以|"
+    r"可以|你|评估|打分|匹配度|匹配|配对|对比|分析|看看|看下|看一下|查一下|找一下|"
+    r"针对|关于|一下|的|找|搜|查|看|，|,|、|\s)+")
+#: 指代词 / 对象词：这些不是公司名。
+_DESIGNATION_STOPWORDS = (
+    "这个", "那个", "哪个", "这些", "那些", "该", "此", "上述", "上面", "下面", "之前",
+    "刚才", "我们", "我", "你", "他", "它", "本人", "自己", "全部", "所有", "任何",
+    "什么", "哪家", "岗位", "这个岗位", "那个岗位", "该岗位", "此岗位", "上述岗位",
+)
+#: 城市只是限定词（「广州的 Agent 岗位」里的「广州」不是公司名）。
+_CITY_KEYS = {
+    "北京", "上海", "广州", "深圳", "杭州", "成都", "武汉", "南京", "西安", "苏州",
+    "长沙", "重庆", "天津", "合肥", "厦门", "郑州", "青岛", "大连", "福州", "济南",
+    "昆明", "宁波", "无锡", "东莞", "佛山", "珠海", "南昌", "贵阳", "太原", "石家庄",
+}
+#: 出现这些字 → 这是"用户在描述需求"，不是公司名 / 岗位名（「适合我的岗位」「这个岗位」）。
+_NAME_JUNK_CHARS = ("我", "你", "他", "它", "这", "那", "适合", "自己", "本人",
+                    "所有", "全部", "任何", "什么", "哪些", "怎么", "如何", "简历",
+                    "岗位", "职位")
+#: 这些词常出现在「<公司>的X」里，但 X 不是岗位名。
+_NON_TITLE_WORDS = (
+    "要求", "职责", "待遇", "薪资", "信息", "内容", "详情", "情况", "介绍", "城市",
+    "学历", "分数", "评价", "建议", "条件", "标准", "面试", "门槛",
+)
+_JUNK_TITLE_RE = re.compile(
+    r"^(?:第\s*[0-9一二三四五六七八九十两]+\s*[个条份家]?|这\s*个|那\s*个|哪\s*个|"
+    r"一\s*个|几\s*个|一\s*些)")
+
+
+def _strip_lead_in(text: str) -> str:
+    """剥掉句首的动作 / 客套词（"帮我匹配墨泊可士" → "墨泊可士"）。"""
+    out = str(text or "").strip()
+    while True:
+        stripped = _LEAD_IN_RE.sub("", out, count=1).strip()
+        if stripped == out:
+            return out.strip("的 ").strip()
+        out = stripped
+
+
+def _norm_key(text) -> str:
+    """与 `tools_registry._norm_text` 同口径（去空白 + 小写），用于文本比对。"""
+    return re.sub(r"\s+", "", str(text or "")).lower()
+
+
+def _is_company_like(name: str) -> bool:
+    """这个字符串像不像公司名（不是指代词 / 城市 / "我的简历" / "一个后端"）。"""
+    raw = _strip_lead_in(str(name or ""))
+    key = _norm_key(raw)
+    if len(key) < 2 or key in _CITY_KEYS:
+        return False
+    if key in {_norm_key(word) for word in _DESIGNATION_STOPWORDS}:
+        return False
+    if _JUNK_TITLE_RE.match(raw):                       # 「一个 / 第 2 条」是量词，不是公司
+        return False
+    return not any(word in raw for word in _NAME_JUNK_CHARS)
+
+
+def _is_title_like(name: str, min_len: int = 2) -> bool:
+    """这个字符串像不像岗位名（不是「这个 / 第 1 个 / 适合我的 / 要求」）。"""
+    raw = _strip_lead_in(str(name or "").strip())
+    key = _norm_key(raw)
+    if len(key) < min_len or raw in _NON_TITLE_WORDS:
+        return False
+    if _JUNK_TITLE_RE.match(raw):
+        return False
+    if key in {_norm_key(word) for word in _DESIGNATION_STOPWORDS}:
+        return False
+    return not any(word in raw for word in _NAME_JUNK_CHARS)
+
+
+def _designation_from_text(text: str) -> tuple:
+    """抽用户点名的 (公司, 岗位名)；没点名返回 ("", "")。
+
+    四条句式按「信息量从多到少」试：公司+岗位名+「岗位」后缀 → 只有公司 → 公司+句末
+    岗位名 → 只有岗位名。公司名被判定为「不是公司」（城市 / 指代词）时**不再退回只按
+    岗位名找** —— 「广州的 Agent 岗位」是一句带限定词的泛需求，不该被当成点名后报"没找到"。
+    """
+    raw = _HINT_BLOCK_RE.sub(" ", text or "").strip().rstrip("。！？!?.,，、 ")
+
+    match = _DESIGNATION_RE.search(raw)
+    if match and _is_company_like(match.group(1)):
+        company = _strip_lead_in(match.group(1))
+        title = _strip_lead_in(match.group(2))
+        return company, title if _is_title_like(title) else ""
+    if match:
+        return "", ""                       # 公司部分不是公司名 → 不算点名
+
+    match = _COMPANY_ONLY_RE.search(raw)
+    if match and _is_company_like(match.group(1)):
+        return _strip_lead_in(match.group(1)), ""
+
+    match = _TAIL_TITLE_RE.search(raw)
+    if match and _is_company_like(match.group(1)):
+        company = _strip_lead_in(match.group(1))
+        title = _strip_lead_in(match.group(2))
+        if _is_title_like(title):
+            return company, title
+
+    bare = _BARE_TITLE_RE.search(raw)
+    if bare:
+        title = _strip_lead_in(bare.group(1))
+        if _is_title_like(title, min_len=3):
+            return "", title
+    return "", ""
+
+
+def _named_job_not_found_reply(state: MatchState, label: str, reason: str) -> str:
+    """点名了却找不到 → 如实说"没找到"，并给出可行路径（**绝不给分数**）。"""
+    lines = [f"我在岗位库里没找到「{label}」这个岗位。"]
+    if reason:
+        lines.append(f"（{reason}）")
+    lines += [
+        "",
+        "你可以：",
+        "- 确认岗位名是否正确（公司名 / 岗位名任一有出入都可能对不上）",
+        "- 粘贴岗位链接或 JD 文本给我（抓不到的平台也能匹配）",
+    ]
+    try:
+        has_list = bool(reg.lookup_job_ordinal(1))
+    except Exception:                                   # noqa: BLE001 - 没有列表就不提
+        has_list = False
+    if has_list:
+        lines.append("- 或从刚才搜索的列表里选一个（如「第 1 个」）")
+    lines += ["", "**我没有替你换成别的岗位来打分** —— 那样你会以为评的是你点名的这条。"]
+    return "\n".join(lines)
+
+
 def locate_job(state: MatchState) -> dict:
-    """[定位岗位] 显式 job_id → 序号提示 → 会话里正在看的岗位 → 上一次搜索的第 1 条。
+    """[定位岗位] job_id → 序号 → **点名岗位** → 会话里正在看的岗位 → 最近一次搜索第 1 条。
 
     这一步是确定性的：旧版由模型自己决定匹配哪条岗位，跨轮会让模型「自己数行」，
     历史上既投错过岗也匹配错过岗。这里把优先级写死，拿不到就**如实说拿不到**。
+
+    ⚠️ 用户点了名（说了公司 / 岗位名）时**只有精确命中才继续**：命中不了就报错返回，
+    不再往下 fallback。fallback 只适用于「用户没点名」的请求（「给简历匹配打分」
+    「第 1 个」）——那是"接着说当前这条"的正常上下文，不是替换用户点名的岗位。
     """
     question = state.get("question") or ""
     job_id = _extract_job_id(question, state.get("job_id") or "")
@@ -820,6 +987,32 @@ def locate_job(state: MatchState) -> dict:
             if state.get("verbose"):
                 print(f"[lg_match] job_id={job_id} 定位失败：{e}")
             detail = None
+
+    if detail is None:
+        named_company, named_title = _designation_from_text(question)
+        if named_company or named_title:
+            named_detail, why = None, ""
+            try:
+                named_detail, why = reg.resolve_named_job(named_company, named_title)
+            except Exception as e:                      # noqa: BLE001 - 查库失败=没找到
+                why = f"岗位库查询失败（{type(e).__name__}）"
+            if named_detail is not None:
+                detail = named_detail
+                note = why or "按用户点名的岗位定位"
+            else:
+                label = f"{named_company} · {named_title}" if named_company and named_title \
+                    else (named_company or named_title)
+                reply = _named_job_not_found_reply(state, label, why)
+                log_event(state.get("trace_id") or "-", "lg_node", node="locate",
+                          engine="langgraph", graph="match", found=False, named=True)
+                return {
+                    "detail": None,
+                    "job_id": "",
+                    "locate_error": reply,
+                    "steps": _step(state, "定位岗位",
+                                   f"用户点名的岗位「{label}」在库里没有 → 如实报错，不换别的岗位",
+                                   observation=why or f"未找到 {label}"),
+                }
 
     if detail is None:
         # 「用户当前在看的岗位」优先于「最近一次搜索的第 1 条」：
@@ -871,6 +1064,13 @@ def _default_scorer(job_id: str, resume_json) -> dict:
 
 def score_node_factory(scorer):
     def score_node(state: MatchState) -> dict:
+        # 没定位到岗位（用户点名的岗位库里没有）→ **一个分都不打**。
+        # 否则 scorer 会拿着空 job_id 走会话态兜底，把用户点名的岗位换成另一条打分。
+        if state.get("detail") is None or state.get("locate_error"):
+            return {
+                "steps": _step(state, "匹配打分", "没有定位到岗位，不进行打分",
+                               observation="跳过打分（无岗位）"),
+            }
         resume_data = state.get("resume_data") or {}
         if not resume_data:
             return {
@@ -991,6 +1191,10 @@ def reflect_node(state: MatchState) -> dict:
          分数已经稳定，不再重打（`route_after_reflect` 里还有一道同样的闸门）。
     """
     detail = state.get("detail")
+    if detail is None or state.get("locate_error"):
+        # 没岗位就没什么可反思的 —— 这一步以前也会白调一次 LLM（占输出耗时的大头）。
+        return {"steps": _step(state, "反思", "没有岗位，跳过反思（不烧 LLM 轮次）",
+                               observation="跳过反思（无岗位）")}
     resume_data = state.get("resume_data") or {}
     score = int(state.get("score") or 0)
     attempts = int(state.get("attempts") or 0)
@@ -1003,8 +1207,14 @@ def reflect_node(state: MatchState) -> dict:
     converged_by = ""
     # 第 2 道闸门在这里也生效：单次预算用尽时不再多打一次 LLM 反思，
     # 直接用确定性证据下结论（与 react_agent 的「降级不拒绝」同口径）。
+    #
+    # 第 3 道（省一次 LLM）：事实层已判虚高时，下面那个分支会**直接覆盖**模型的
+    # 「合理 / 建议修正」——模型这一轮改不了任何结论，只影响理由措辞。这种情况
+    # 白等一次 LLM（输出慢的主因），直接跳过。
     budget = limits.run_budget_status()
     try:
+        if det["inflation"]:
+            raise _SkipLLMReflect("事实层已判定虚高，LLM 复核改变不了结论")
         if budget.get("exceeded"):
             raise RuntimeError(
                 f"本轮 token 预算已用尽（{budget.get('used')}/{budget.get('limit')}）")
@@ -1065,6 +1275,13 @@ def reflect_node(state: MatchState) -> dict:
             converged_by = "已修正过一次且事实层未判虚高"
             reason = (f"{llm_reason}（但关键项覆盖与分数已匹配、本轮已修正过一次，"
                       f"按收敛条件接受当前分数）" if llm_reason else det["reason"])
+    except _SkipLLMReflect as e:                        # 事实层已定论：省掉这一轮 LLM
+        if state.get("verbose"):
+            print(f"[lg_reflect] 跳过 LLM 复核（省一轮）：{e}")
+        required = max(CONVERGENCE_DELTA, score - int(det["line"]))
+        delta = -min(40, required)
+        reasonable = False
+        reason += "（事实层已判定虚高、直接给出下调量，LLM 复核改变不了结论 → 本轮跳过 LLM）"
     except Exception as e:                              # noqa: BLE001 - 模型不可用走事实层
         if state.get("verbose"):
             print(f"[lg_reflect] LLM 反思不可用，只用确定性证据：{type(e).__name__}: {e}")
@@ -1177,6 +1394,11 @@ def route_after_reflect(state: MatchState) -> str:
 def respond_match(state: MatchState) -> dict:
     """[输出] 最终回答：分数 + 维度 + 亮点/差距 + **反思自评日志**。"""
     detail = state.get("detail")
+    if state.get("locate_error"):
+        # 用户点名的岗位不存在 → 如实告知，**不给任何分数**（这是本轮的修复点）。
+        return {"answer": state["locate_error"],
+                "steps": _step(state, "输出", "点名的岗位没找到，如实告知（不打分）",
+                               observation="未找到用户点名的岗位")}
     if detail is None:
         answer = (
             "我还不知道要匹配哪个岗位。请先让我搜一个岗位"
@@ -1437,6 +1659,10 @@ def answer_followup(state: FollowupState) -> dict:
 
     jd = _jd_blob_zh(detail)
     if not jd:
+        if state.get("locate_error"):
+            return {"answer": state["locate_error"],
+                    "steps": _step(state, "生成回答", "点名的岗位没找到，如实告知",
+                                   observation="未找到用户点名的岗位")}
         return {
             "answer": "我没能读到这条岗位的 JD 正文，换个说法再试一次（或把 JD 文本粘贴给我）。",
             "steps": _step(state, "生成回答", "JD 正文为空，如实告知用户",

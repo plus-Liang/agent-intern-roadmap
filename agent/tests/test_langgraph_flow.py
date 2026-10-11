@@ -1289,6 +1289,84 @@ check("Bug2：参数提取按问题钉住（跨对话不再漂）", _param_cache
 
 
 # ---------------------------------------------------------------------------
+section("8. 点名岗位：指定不存在的岗位必须如实报错（绝不 fallback 到别的岗位）")
+
+
+def _run_named_case(question, focus_n=10):
+    """跑一次匹配图：假打分器记账（有没有被打分），池子里有 10 条"最近搜索"。"""
+    calls = []
+    detail = _FocusDetail("focus_01", "墨泊可士", "AI Agent开发")
+    graph = LF.build_match_graph(scorer=lambda job_id, resume_json: (
+        calls.append(job_id) or {"score": 60, "dimensions": {}, "gaps": [], "highlights": []}))
+    with user_scope(f"named-{abs(hash(question)) % 10000}"):
+        LF.reg._number_jobs(_focus_rows(focus_n))       # 最近一次搜索：第 1 条是墨泊可士
+        with _patched((LF.reg, "_resolve_match_detail", lambda job_id: detail),
+                      (LF, "_llm_json", _fake_llm(
+                          {"合理": True, "理由": "分数与证据匹配", "建议修正": 0}))):
+            state = graph.invoke({"question": question, "resume_data": RESUME_WITH_RAG,
+                                  "verbose": False, "steps": []})
+    return state, calls
+
+
+def _missing_named_job_is_honest():
+    """点名「火星科技 · 量子芯片」→ 明确说没找到、**一分都不打**（不换别的岗位）。"""
+    state, calls = _run_named_case("帮我匹配火星科技的量子芯片岗位")
+    answer = state.get("answer") or ""
+    if calls:
+        raise AssertionError(f"点名岗位不存在却打了分：scorer 收到 {calls}")
+    if state.get("detail") is not None:
+        raise AssertionError(f"点名岗位不存在却定位到了：{state.get('detail')}")
+    if state.get("score"):
+        raise AssertionError(f"点名岗位不存在却给出了分数：{state.get('score')}")
+    if "没找到" not in answer or "火星科技" not in answer or "量子芯片" not in answer:
+        raise AssertionError(f"没有如实说没找到：{answer[:120]}")
+    if re.search(r"\d+\s*分", answer):
+        raise AssertionError(f"回执里出现了分数：{answer[:160]}")
+    return "没找到火星科技的量子芯片岗位 → 0 分、不 fallback"
+
+
+def _existing_named_job_scores():
+    """库里**有**的点名岗位（墨泊可士 · AI Agent）→ 正常定位 + 正常打分。"""
+    state, calls = _run_named_case("帮我匹配墨泊可士的 AI Agent 岗位")
+    detail = state.get("detail")
+    if detail is None:
+        raise AssertionError("库里有这条岗位却没定位到")
+    if getattr(detail, "company", "") != "墨泊可士" or "AI Agent" not in getattr(detail, "title", ""):
+        raise AssertionError(f"定位错了：{getattr(detail, 'company', '')} / {getattr(detail, 'title', '')}")
+    if not calls:
+        raise AssertionError("没有打分")
+    if int(state.get("score") or 0) <= 0:
+        raise AssertionError(f"分数异常：{state.get('score')}")
+    return f"{detail.company} · {detail.title} → {state.get('score')} 分"
+
+
+def _bare_named_title_is_honest():
+    """只点岗位名、库里也没有（量子芯片）→ 同样如实报错，不打分。"""
+    state, calls = _run_named_case("帮我匹配量子芯片岗位")
+    if calls or state.get("score"):
+        raise AssertionError("点名岗位不存在却打了分")
+    if "没找到" not in (state.get("answer") or ""):
+        raise AssertionError(f"没有如实说没找到：{(state.get('answer') or '')[:120]}")
+    return "没找到「量子芯片」→ 0 分"
+
+
+def _ordinal_still_works():
+    """「帮我匹配第 1 个」不是点名 → 仍按最近一次搜索的第 1 条取（老行为不变）。"""
+    state, calls = _run_named_case("帮我匹配第 1 个")
+    if state.get("detail") is None or not calls:
+        raise AssertionError("「第 1 个」没有走列表第 1 条")
+    if "第 1 条" not in (state.get("location_note") or ""):
+        raise AssertionError(f"定位说明不对：{state.get('location_note')}")
+    return "「第 1 个」→ 列表第 1 条（未被点名逻辑劫走）"
+
+
+check("点名：库里没有的岗位 → 如实说没找到且不打分", _missing_named_job_is_honest)
+check("点名：库里有的岗位 → 正常定位并打分", _existing_named_job_scores)
+check("点名：只点岗位名且库里没有 → 同样如实报错", _bare_named_title_is_honest)
+check("点名：不误伤「第 1 个」的列表定位", _ordinal_still_works)
+
+
+# ---------------------------------------------------------------------------
 print()
 print("=" * 74)
 print(f"结果：{len(PASS)} 通过 / {len(FAIL)} 失败")

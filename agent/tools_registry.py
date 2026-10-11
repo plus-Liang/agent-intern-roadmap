@@ -1641,6 +1641,89 @@ def _job_info_text(record: dict, detail, job_id_used: str) -> str:
     return "\n".join(lines)
 
 
+def resolve_named_job(company, title=""):
+    """用户**点名**了「公司 + 岗位名」时，在岗位库里精确定位那**一条**。
+
+    与 `_record_from_job_library` 的三档兜底不同：**这里绝不退而取别的岗位**。
+    用户说了公司 + 岗位名就已经限定了目标，返回别的岗位 = 用户以为在评估他点名的
+    那条、系统其实评的是另一条（真实故障：说「火星科技的量子芯片岗位」，库里没有，
+    系统却按「最近一次搜索的第 1 条」打出了墨泊可士 AI Agent 的 83 分）。
+
+    匹配口径：
+      - 公司名：归一化后双向子串（库里的写法常带「有限公司」等后缀）；
+      - 岗位名：完全相等 > 互相包含；本轮 `last_job_list` 里的那条优先（用户刚看过）；
+      - 同一档并列且**岗位名不同** → 判为歧义，返回 (None, 原因)，让上层去问用户。
+
+    返回 (JobDetail 或 None, 说明)；拿不到时第二个值是「为什么没拿到」。
+    """
+    comp_key = _norm_text(company)
+    title_key = _norm_text(title)
+    if not comp_key and not title_key:
+        return None, "没有给出公司名或岗位名"
+
+    rows, seen = [], set()
+    for item in (_session_state().get("last_job_list") or []):
+        job_id = str(item.get("job_id") or "").strip()
+        if not job_id or job_id in seen:
+            continue
+        seen.add(job_id)
+        rows.append({"job_id": job_id, "company": str(item.get("company") or ""),
+                     "title": str(item.get("title") or ""), "recent": True})
+    try:
+        library = search_jobs("", None, 0, platform="mock")
+    except Exception:                                   # noqa: BLE001 - 库坏了就是"没找到"
+        library = []
+    for job in library:
+        job_id = str(getattr(job, "job_id", "") or "")
+        if not job_id or job_id in seen:
+            continue
+        seen.add(job_id)
+        rows.append({"job_id": job_id, "company": str(getattr(job, "company", "") or ""),
+                     "title": str(getattr(job, "title", "") or ""), "recent": False})
+
+    if comp_key:
+        def _company_ok(row) -> bool:
+            name = _norm_text(row["company"])
+            return bool(name) and (comp_key in name or name in comp_key)
+
+        candidates = [r for r in rows if _company_ok(r)]
+        if not candidates:
+            return None, f"岗位库里没有「{company}」这家公司的岗位"
+    else:
+        candidates = rows
+
+    ranked = []
+    for row in candidates:
+        name = _norm_text(row["title"])
+        if title_key:
+            if name == title_key:
+                rank = 2.0
+            elif title_key in name or (len(name) >= 2 and name in title_key):
+                rank = 1.0
+            else:
+                continue
+        else:
+            rank = 0.0
+        ranked.append((rank + (0.5 if row["recent"] else 0.0), row))
+    if not ranked:
+        where = f"「{company}」名下" if comp_key else "岗位库里"
+        return None, f"{where}没有叫「{title}」的岗位"
+
+    best = max(rank for rank, _row in ranked)
+    top = [row for rank, row in ranked if rank == best]
+    if len(top) > 1 and len({_norm_text(r["title"]) for r in top}) > 1:
+        names = "、".join(f"{r['company']} · {r['title']}" for r in top[:5])
+        wanted = f"{company} {title}".strip()
+        return None, f"「{wanted}」有好几条候选，需要你确认是哪一条：{names}"
+
+    row = top[0]
+    try:
+        detail = get_job_detail("mock", row["job_id"])
+    except Exception as e:                              # noqa: BLE001 - 详情读不到 = 没找到
+        return None, f"岗位 {row['job_id']} 的详情读取失败（{type(e).__name__}）"
+    return detail, f"按你点名的「{row['company']} · {row['title']}」精确定位"
+
+
 def _record_from_job_library(company, job_id=None, title=""):
     """还没有投递记录时，直接从岗位库定位岗位，造一份**不落库**的临时记录。
 
