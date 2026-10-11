@@ -497,13 +497,19 @@ def _normalize_output(action: str, raw: Any, args: dict = None) -> dict:
     if action == "search_jobs":
         rows = raw if isinstance(raw, list) else []
         first = rows[0] if rows and isinstance(rows[0], dict) else {}
+        # 检索参数原样留下：汇总输出要按它们再查一次**真实总数**（见
+        # `_format_search_block`）。rows 只是被 limit 截断后的一段，不能拿它的
+        # 长度当"找到多少条"——那正是「搜什么都是共 20 条」的错处。
         return {
             "rows": rows,
             "count": len(rows),
+            "keyword": str(args.get("keyword") or ""),
+            "city": str(args.get("city") or ""),
+            "job_type": str(args.get("job_type") or ""),
             "job_id": str(first.get("job_id") or ""),
             "company": str(first.get("company") or ""),
             "title": str(first.get("title") or ""),
-            "city": str(first.get("city") or ""),
+            "city_of_first": str(first.get("city") or ""),
         }
     if action == "match_resume":
         data = raw if isinstance(raw, dict) else {}
@@ -1068,20 +1074,47 @@ def route_after_advance(state: ComplexState) -> str:
 # ==========================================================================
 
 def _format_search_block(output: dict) -> list:
-    """搜岗位结果转成展示行（复用 langgraph_flow 的行格式，口径一致）。"""
+    """搜岗位结果转成展示行（复用 langgraph_flow 的行格式，口径一致）。
+
+    **如实报告真实总数**：`rows` 只是被 limit 截断后的一段，拿 `len(rows)` 当
+    "找到多少条"会让 116 条显示成"命中 20 条"。这里按原检索参数再统计一次全量
+    命中（缓存命中，几乎无额外开销），并把分城市数字一并写出。
+    """
     from agent.langgraph_flow import DISPLAY_LIMIT, _job_line
+    from agent import tools_registry as _reg
 
     rows = list(output.get("rows") or [])
     if not rows:
+        # 截断后为空也可能是真为空；真实总数由 caller 决定是否再查，这里保持原样
         return ["- 搜岗位：没有命中岗位。"]
     shown = rows[:DISPLAY_LIMIT]
-    lines = [f"- 搜岗位：命中 **{len(rows)}** 条，列出前 {len(shown)} 条：", ""]
+    true_total = int(output.get("true_total") or 0)
+    by_city = {str(k): int(v or 0) for k, v in (output.get("true_by_city") or {}).items()}
+    if not true_total:
+        cities = []
+        for raw_city in str(output.get("city") or "").replace("，", ",").split(","):
+            name = raw_city.strip()
+            if name and name not in cities:
+                cities.append(name)
+        summary = _reg._search_summary(output.get("keyword") or "", cities,
+                                       output.get("job_type") or "")
+        true_total = int(summary.get("total") or 0) or len(rows)
+        by_city = by_city or {str(k): int(v or 0) for k, v in
+                              (summary.get("by_city") or {}).items()}
+    if len(by_city) > 1:
+        parts = "，".join(f"{name} {n} 条" for name, n in by_city.items())
+        lines = [f"- 搜岗位：{parts}，共 **{true_total}** 条，列出前 {len(shown)} 条：", ""]
+    else:
+        lines = [f"- 搜岗位：命中 **{true_total}** 条，列出前 {len(shown)} 条：", ""]
     for row in shown:
         item = dict(row)
         # `core` 只有搜岗位图的 filter 节点会打；这里补一个等价粗判，
         # 免得 _job_line 的「核心匹配 / 相关」标注永远是「相关」。
         item.setdefault("core", False)
         lines.append("  " + _job_line(item))
+    if true_total > len(shown):
+        lines.append("")
+        lines.append(f"  （共 {true_total} 条，还有 {true_total - len(shown)} 条未列出。）")
     lines.append("")
     return lines
 

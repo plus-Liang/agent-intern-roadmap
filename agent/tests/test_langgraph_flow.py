@@ -437,8 +437,15 @@ def _run_search_graph(rows, question="帮我找广州的 Agent 岗位", **over):
     "0 条命中"（历史上就是这样让三条用例假红过的）。
     """
     initial = {"question": question, "verbose": False, **over}
+    # 计数口径：`reg._search_summary` 内部用 `_search_rows(limit=0)` 取全量，
+    # 两个接缝都要替换，否则计数会落到真实库上、断言随库大小漂移。
     with _patched((LF.reg, "_search",
                    lambda keyword, city=None, limit=20, semantic=False, job_type=None: rows),
+                  (LF.reg, "_search_total",
+                   lambda keyword, city=None, job_type=None: len(rows)),
+                  (LF.reg, "_search_rows",
+                   lambda keyword, city=None, limit=20, semantic=False, job_type=None,
+                          progress_cb=None: rows),
                   (LF, "_llm_json", _boom_llm)):
         return LF.SEARCH_GRAPH.invoke(initial)
 
@@ -452,9 +459,11 @@ def _search_output_format():
         raise AssertionError(f"首行格式不符：{answer[:250]}")
     if "— 公司1 · 200-300/天 · 广州" not in answer:
         raise AssertionError("岗位行的公司/薪资/城市格式不符")
-    if "还有 2 条" not in answer:
-        raise AssertionError("12 条应只展示前 10 条并说明剩余")
-    return "总数 + 链接 + 序号 + 剩余提示齐全"
+    if "共 12 条，已全部列出" not in answer:
+        raise AssertionError("12 条（<20）应如实说已全部列出")
+    if state["true_total"] != 12:
+        raise AssertionError(f"真实总数写错了：{state['true_total']}")
+    return "真实总数 + 链接 + 序号 + 已全部列出提示齐全"
 
 
 def _search_index_ascending():
@@ -464,9 +473,28 @@ def _search_index_ascending():
         m = re.match(r"^(\d+)\. \[", line)
         if m:
             numbers.append(int(m.group(1)))
-    if numbers != list(range(1, 11)):
-        raise AssertionError(f"序号不是严格升序 1..10：{numbers}")
-    return "序号 1..10 严格升序（列表第 N 行 == index N）"
+    if numbers != list(range(1, 13)):
+        raise AssertionError(f"序号不是严格升序 1..12：{numbers}")
+    return "序号 1..12 严格升序（列表第 N 行 == index N）"
+
+
+def _search_reports_true_total_beyond_display():
+    """核心回归：库里 30 条、展示 20 条时，头行必须写 **30**（不是 20）。
+
+    这正是用户报的「搜什么都是共 20 条」：以前 limit 同时管"搜多少"和"展示多少"，
+    命中 30 条被截成 20 条后，头行就写"共找到 20 个相关岗位"。
+    """
+    state = _run_search_graph(_rows(30))
+    answer = state["answer"]
+    if "共找到 30 个相关岗位" not in answer:
+        raise AssertionError(f"头行没写真实总数 30：{answer.splitlines()[0]}")
+    if "先展示前 20 条" not in answer:
+        raise AssertionError(f"头行没说明只展示前 20 条：{answer.splitlines()[0]}")
+    if "还有 10 条" not in answer:
+        raise AssertionError(f"尾部没说明剩余条数：{answer.splitlines()[-2]}")
+    if state["true_total"] != 30:
+        raise AssertionError(f"state.true_total 不是 30：{state['true_total']}")
+    return "真实总数 30 如实上报 + 先展示前 20 条 + 剩余 10 条"
 
 
 def _search_filter_drops_and_renumbers():
@@ -541,7 +569,13 @@ def _search_node_passes_job_type():
         seen["job_type"] = job_type
         return _rows(2)
 
-    with _patched((LF.reg, "_search", fake), (LF, "_llm_json", _boom_llm)):
+    with _patched((LF.reg, "_search", fake),
+                  (LF.reg, "_search_total",
+                   lambda keyword, city=None, job_type=None: 2),
+                  (LF.reg, "_search_rows",
+                   lambda keyword, city=None, limit=20, semantic=False, job_type=None,
+                          progress_cb=None: _rows(2)),
+                  (LF, "_llm_json", _boom_llm)):
         state = LF.SEARCH_GRAPH.invoke(
             {"question": "帮我找广州的 agent 实习岗位", "verbose": False})
     if seen.get("job_type") != "实习":
@@ -675,13 +709,20 @@ def _multi_city_search_hits_every_city():
             row["title"] = f"{city} Agent 开发实习生 {i}"
         return rows
 
-    with _patched((LF.reg, "_search", fake), (LF, "_llm_json", _boom_llm)):
+    with _patched((LF.reg, "_search", fake),
+                  (LF.reg, "_search_total",
+                   lambda keyword, city=None, job_type=None: 3),
+                  (LF.reg, "_search_rows",
+                   lambda keyword, city=None, limit=20, semantic=False, job_type=None,
+                          progress_cb=None: _rows(3)),
+                  (LF, "_llm_json", _boom_llm)):
         state = LF.SEARCH_GRAPH.invoke(
             {"question": "帮我找北京，广州的 Agent 实习岗位", "verbose": False})
     if [c for c, _ in calls] != ["北京", "广州"]:
         raise AssertionError(f"没有逐城市检索：{calls}")
-    if sum(limit for _, limit in calls) != 20:
-        raise AssertionError(f"limit 没有平摊到各城市：{calls}")
+    # 新的名额策略：每城保底 MIN_PER_CITY_DISPLAY(=10)，命中不足则只拿自己有的
+    if [n for _, n in calls] != [3, 3]:
+        raise AssertionError(f"名额没有按真实命中数封顶：{calls}")
     got = {r["city"] for r in state["filtered"]}
     if got != {"北京", "广州"}:
         raise AssertionError(f"最终列表没覆盖两个城市：{got}")
@@ -700,8 +741,11 @@ def _multi_city_answer_labels_every_city():
     answer = state["answer"]
     if "城市「北京、广州」" not in answer:
         raise AssertionError(f"头行没列出两个城市：{answer[:160]}")
-    if "共找到 20 个相关岗位" not in answer:
-        raise AssertionError(f"总数不是多城市合计：{answer[:80]}")
+    # 头行必须**分城市**如实报数字，不能再只说一个总数
+    if "北京搜到 10 条" not in answer or "广州搜到 10 条" not in answer:
+        raise AssertionError(f"头行没有分城市报数：{answer[:120]}")
+    if "共 20 条相关岗位" not in answer:
+        raise AssertionError(f"总数不是多城市合计：{answer[:120]}")
     if "· 北京 ·" not in answer or "· 广州 ·" not in answer:
         raise AssertionError("岗位行没有标注各自城市")
     # 单城市行为不破坏：仍写「城市「北京」」且不出现顿号
@@ -723,7 +767,13 @@ def _run_multi_city_graph(question="帮我找北京，广州的 Agent 岗位", p
             row["title"] = f"Agent 开发实习生 {i}"
         return rows
 
-    with _patched((LF.reg, "_search", fake), (LF, "_llm_json", _boom_llm)):
+    with _patched((LF.reg, "_search", fake),
+                  (LF.reg, "_search_total",
+                   lambda keyword, city=None, job_type=None: per_city),
+                  (LF.reg, "_search_rows",
+                   lambda keyword, city=None, limit=20, semantic=False, job_type=None,
+                          progress_cb=None: fake(keyword, city, limit, semantic, job_type)),
+                  (LF, "_llm_json", _boom_llm)):
         return LF.SEARCH_GRAPH.invoke({"question": question, "verbose": False})
 
 
@@ -738,10 +788,14 @@ def _multi_city_tool_path_merges():
                  "company": "某公司", "city": city, "salary": "300/天",
                  "url": "", "tags": [], "job_type": "实习"}]
 
-    with _patched((LF.reg, "_search_rows", fake_rows)):
+    with _patched((LF.reg, "_search_rows", fake_rows),
+                  (LF.reg, "_search_total",
+                   lambda keyword, city=None, job_type=None: 1)):
         rows = LF.reg._search("Agent", None, 10, False, None,
                               cities=["北京", "广州", "深圳"])
-    if [c for c, _ in calls] != ["北京", "广州", "深圳"]:
+    # 计数用的 `limit=0` 调用不是展示名额，断言只看真正取数的那些
+    shown_calls = [c for c in calls if c[1] > 0]
+    if [c for c, _ in shown_calls] != ["北京", "广州", "深圳"]:
         raise AssertionError(f"工具层没有逐城市查：{calls}")
     if [r["city"] for r in rows] != ["北京", "广州", "深圳"]:
         raise AssertionError(f"工具层没有合并三个城市：{rows}")
@@ -759,6 +813,7 @@ def _multi_city_tool_path_merges():
 check("搜索图：输出格式与旧版同口径", _search_output_format)
 check("搜索图：列表行标出岗位类型 + 头行写明类型范围", _search_output_carries_type)
 check("搜索图：index 严格升序", _search_index_ascending)
+check("搜索图：真实总数超过展示上限时如实报告", _search_reports_true_total_beyond_display)
 check("搜索图：筛选去重 / 去残缺 / 重编号", _search_filter_drops_and_renumbers)
 check("搜索图：空结果如实告知", _search_empty_is_honest)
 check("参数提取：明确关键词（规则兜底）", _search_params_from_rules)

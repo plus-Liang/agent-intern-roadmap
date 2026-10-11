@@ -54,8 +54,12 @@ from shared.logger import log_event
 
 #: 搜索默认条数（与旧版 search_jobs 工具默认值一致，保证新旧版返回同样的列表长度）
 DEFAULT_LIMIT = 20
-#: 列表默认只展示前 N 条（旧版 prompt 的展示规则：默认 10 条 + 一句总数邀请）
-DISPLAY_LIMIT = 10
+#: 列表默认展示条数：与 DEFAULT_LIMIT 对齐（先展示前 20 条，其余回「全部」）。
+#: 注意：这只控制**展示多少条**，不控制"搜到多少条"——真实总数由
+#: `true_total` / `true_by_city` 单独统计并如实报告（见 respond_search）。
+DISPLAY_LIMIT = 20
+#: 多城市展示名额下限：每个城市至少先给这么多条，单城不足时余量转给别的城市。
+MIN_PER_CITY_DISPLAY = 10
 #: 反思最多触发几次「重新分析 → 重新打分」
 MAX_REFLECTION_RETRIES = 2
 #: 打高分却存在「岗位硬性要求完全没在简历里出现」时的虚高警戒线
@@ -309,6 +313,10 @@ class SearchState(TypedDict, total=False):
     filtered: list
     dropped: int
     total: int
+    #: 真实命中总数（不按 limit 截断）与分城市真实命中数：展示层如实报告用。
+    #: 旧字段 `total` 是"截断后留下的条数"，混用正是「搜什么都是 20 条」的根因。
+    true_total: int
+    true_by_city: dict
     answer: str
     steps: list
     trace_id: str
@@ -608,6 +616,103 @@ def extract_params(state: SearchState) -> dict:
     }
 
 
+def _true_counts(keyword: str, cities: list, job_type, semantic: bool) -> tuple[dict, int]:
+    """统计**真实命中数**：`({城市: 命中数}, 去重后总数)`，与 limit / 截断无关。
+
+    为什么必须单独统计（本任务根因 3）：`limit` 之前同时充当"搜多少"和"展示多少"，
+    于是命中的 116 条被截成 20 条，展示层只能看到 20，就报"共 20 条" ——
+    用户以为库里只有 20 个岗位。这里用 `limit=0`（口径见
+    `job_search._apply_limit`：<=0 表示不限）取**全部**命中再数，只数不展示。
+
+    直接复用工具层的 `reg._search_summary`：图与工具层（planner 路径）必须给出
+    **同一个数字**，各写一份迟早漂移。summary 内部逐城市取全量、按 job_id 去重，
+    所以同一岗位被两个城市同时命中不会被算两次。
+    """
+    summary = reg._search_summary(keyword or "", cities or [], job_type)
+    by_city = {str(k): int(v or 0) for k, v in (summary.get("by_city") or {}).items()}
+    return by_city, int(summary.get("total") or 0)
+
+
+def _allocate_slots(by_city: dict, display: int) -> dict:
+    """把展示名额分给各城市：**以真实命中数比例为主，每城保底 `MIN_PER_CITY_DISPLAY`。**
+
+    为什么不继续"平摊"（旧行为 base, rest = divmod(limit, n)）：平摊让
+    「北京 116 + 广州 52」各拿 10 条、总数还是 20 —— 用户看到的条数与单城搜
+    一模一样，双城合并反而**信息更少**（本任务现象 2）。
+
+    为什么是"比例为主 + 保底为下限"（而不是"先各给 10 再分余量"）：
+    先给保底会在名额大时把比例压扁 —— 实测 limit=100、北京 116 / 广州 52 时
+    北京只拿到 79、广州 21（公平应为 69/31）。所以先把名额按真实数量比例
+    （最大余数法，保证总和恰好等于名额上限）分好，再把低于保底的城市抬到保底，
+    抬升的量从高于保底的城市里按比例收回。
+
+    保底仍然保证"每个城市真的露脸"（上一轮修多城市的目的），且名额永不超该城市
+    真实命中数：不会出现"要展示 10 条但只有 3 条"的空位，单城不足 10 条时
+    余量自然转给另一个城市。
+    """
+    names = list(by_city.keys())
+    total = int(display or 0)
+    if not names or total <= 0:
+        return {name: 0 for name in names}
+    need = {name: max(0, int(by_city.get(name) or 0)) for name in names}
+    if len(names) == 1:
+        return {names[0]: min(total, need[names[0]])}
+
+    # 上限：名额不可能超过命中数，也不会超过总名额
+    cap = {name: min(need[name], total) for name in names}
+    real_total = sum(need.values())
+    if real_total <= 0:
+        return {name: 0 for name in names}
+    if total >= real_total:
+        return dict(cap)
+
+    floor = max(1, int(MIN_PER_CITY_DISPLAY))
+    # 自适应下限：名额比城市数还少时（limit=3 查 5 个城市），保底 10 会超发，
+    # 此时退化成"每个城市先到先得地拿 1 条"，总数仍严格不超过名额上限。
+    floor = max(1, min(floor, total // len(names)))
+    # 第 1 步：按真实比例分（最大余数法：先取整，再把差额给余数最大的城市）
+    ideal = {name: total * need[name] / real_total for name in names}
+    alloc = {name: min(int(ideal[name]), cap[name]) for name in names}
+    left = total - sum(alloc.values())
+    order = sorted(names, key=lambda n: (-(ideal[n] - int(ideal[n])), n))
+    while left > 0:
+        progressed = False
+        for name in order:
+            if left <= 0:
+                break
+            if alloc[name] < cap[name]:
+                alloc[name] += 1
+                left -= 1
+                progressed = True
+        if not progressed:
+            break
+    # 第 2 步：保底是**下限**：命中数够却分得低于保底的城市抬到保底
+    for name in names:
+        want = min(floor, cap[name])
+        if alloc[name] < want:
+            alloc[name] = want
+    # 第 3 步：抬升超出的量，从不低于保底、且仍有余量的城市按比例收回
+    over = sum(alloc.values()) - total
+    if over > 0:
+        donors = sorted((n for n in names if alloc[n] > min(floor, cap[n])),
+                        key=lambda n: (-alloc[n], n))
+        i = 0
+        while over > 0 and donors:
+            name = donors[i % len(donors)]
+            lowest = min(floor, cap[name])
+            if alloc[name] > lowest:
+                alloc[name] -= 1
+                over -= 1
+            else:
+                donors = [n for n in donors if alloc[n] > min(floor, cap[n])]
+                if not donors:
+                    break
+                i = 0
+                continue
+            i += 1
+    return alloc
+
+
 def _merge_city_rows(per_city: list, limit: int) -> list:
     """把「每个城市各一份结果」轮转交错合并、按 job_id 去重、再截断到 limit。
 
@@ -658,15 +763,21 @@ def search_jobs_node(state: SearchState) -> dict:
     job_type = normalize_job_type(state.get("job_type"))
     rows: list = []
     error = ""
-    # 单城市走 None（= 不限城市）以外的老路径；多城市时把总条数平摊，避免
-    # 「每个城市都取 limit 条」把总数放大到 N 倍（limit 是用户要的**总数**上限）。
+    # 【如实报告】先统计真实命中数（不截断）。limit 从此只控制"展示多少"，
+    # 不再控制"搜到多少"——这是「搜什么都是 20 条」的修法本体。
+    true_by_city, true_total = _true_counts(keyword, cities, job_type, semantic)
     if not cities:
-        per_city_limits = [(None, limit)]
-    elif len(cities) == 1:
+        # 不限城市：真实总数就是全库命中数，不再有分城明细
+        true_by_city = {}
+    # 多城市按「每城保底 10 + 余量按真实数量比例」切展示名额（见 _allocate_slots），
+    # 不再是旧行为的平摊（北京 10 + 广州 10 = 总 20，与单城一样多）。
+    if len(cities) > 1:
+        alloc = _allocate_slots(true_by_city, limit)
+        per_city_limits = [(name, max(1, int(alloc.get(name) or 0))) for name in cities]
+    elif cities:
         per_city_limits = [(cities[0], limit)]
     else:
-        base, rest = divmod(limit, len(cities))
-        per_city_limits = [(c, base + (1 if i < rest else 0)) for i, c in enumerate(cities)]
+        per_city_limits = [(None, limit)]
     try:
         # 模糊搜索（semantic）在这一步最慢：候选召回 + 查询理解 + 融合，
         # 中间没有数据往来就会超过 60s 前端超时；先推一条把窗口打开。
@@ -681,7 +792,8 @@ def search_jobs_node(state: SearchState) -> dict:
             per_city.append(got)
         if not any(per_city) and semantic:
             semantic = False
-        rows = per_city[0] if len(per_city) == 1 else _merge_city_rows(per_city, limit)
+        rows = per_city[0] if len(per_city) == 1 else _merge_city_rows(
+            per_city, max(limit, sum(n for _, n in per_city_limits)))
     except Exception as e:                              # noqa: BLE001 - 检索失败如实告知
         error = f"{type(e).__name__}: {e}"
         if state.get("verbose"):
@@ -691,19 +803,22 @@ def search_jobs_node(state: SearchState) -> dict:
     city_text = "、".join(cities) if cities else ""
     log_event(state.get("trace_id") or "-", "lg_node", node="search", engine="langgraph",
               graph="search", keyword=keyword, city=city_text, cities=cities,
-              semantic=semantic, job_type=job_type or "", hits=len(rows), error=error)
+              semantic=semantic, job_type=job_type or "", hits=len(rows),
+              true_total=true_total, true_by_city=true_by_city, error=error)
     return {
         "rows": rows,
         "cities": cities,
         "semantic": semantic,
+        "true_total": true_total,
+        "true_by_city": true_by_city,
         "steps": _step(
             state, "搜岗位",
             f"调用 search_jobs(keyword={keyword!r}, cities={cities or '不限'!r}, "
             f"limit={limit}, semantic={semantic}, job_type={job_type or '不限'!r})，"
-            f"命中 {len(rows)} 条",
+            f"真实命中 {true_total} 条，本轮取回 {len(rows)} 条",
             payload={"keyword": keyword, "city": city_text, "cities": cities,
                      "limit": limit, "semantic": semantic, "job_type": job_type or ""},
-            observation=error or f"命中 {len(rows)} 条",
+            observation=error or f"真实命中 {true_total} 条（取回 {len(rows)} 条）",
         ),
     }
 
@@ -811,7 +926,12 @@ def respond_search(state: SearchState) -> dict:
                            observation="0 条"),
         }
 
+    # 【如实报告】`total` 是"本轮取回/截断后还有多少条"，`true_total` 才是
+    # 库里真实命中多少条。以前只报前者，于是 116 条被截成 20 条后显示
+    # 「共找到 20 个相关岗位」，用户以为库里就 20 个岗位。
     total = len(rows)
+    true_total = int(state.get("true_total") or 0) or total
+    true_by_city = {str(k): int(v or 0) for k, v in (state.get("true_by_city") or {}).items()}
     shown = rows[:DISPLAY_LIMIT]
     detail_scope = ""
     if keyword:
@@ -824,27 +944,60 @@ def respond_search(state: SearchState) -> dict:
     job_type = normalize_job_type(state.get("job_type"))
     if job_type:
         detail_scope += ("，" if detail_scope else "") + f"类型「{job_type}」"
-    head = f"共找到 {total} 个相关岗位" + (f"（{detail_scope}）" if detail_scope else "")
+    scope = f"（{detail_scope}）" if detail_scope else ""
+    if len(true_by_city) > 1:
+        # 多城市：逐城市报数字 + 报总数，用户一眼看出"是不是某个城市被吞了"
+        parts = "，".join(f"{name}搜到 {n} 条" for name, n in true_by_city.items())
+        head = f"{parts}，共 {true_total} 条相关岗位{scope}"
+    else:
+        head = f"共找到 {true_total} 个相关岗位{scope}"
+    if showed_only := len(shown) < true_total:
+        head += f"，先展示前 {len(shown)} 条："
+    else:
+        head += "，已全部列出："
     if dropped:
         head += f"\n（已过滤 {dropped} 条重复 / 信息不全的岗位）"
 
     lines = [head, ""]
-    lines += [_job_line(row) for row in shown]
-    lines.append("")
-    if total > DISPLAY_LIMIT:
-        rest = total - DISPLAY_LIMIT
-        lines.append(f"共 {total} 条，这里先列前 {DISPLAY_LIMIT} 条，"
+    if len(true_by_city) > 1:
+        # 分城市分组展示：让"双城合并"看得出两边各有几条、分别是什么。
+        # 展示名额已由 search 节点按 `_allocate_slots` 分好，这里只按城市归组。
+        known = set(true_by_city)
+        for name in true_by_city:
+            group = [r for r in shown if str(r.get("city") or "") == name]
+            if not group:
+                continue
+            lines.append(f"【{name} {len(group)} 条】")
+            lines += [_job_line(row) for row in group]
+            lines.append("")
+        others = [r for r in shown if str(r.get("city") or "") not in known]
+        if others:
+            # 「全国」这类不属于任何被请求城市的岗位：单列，别混进城市分组里
+            lines.append(f"【其他城市 {len(others)} 条】")
+            lines += [_job_line(row) for row in others]
+            lines.append("")
+        if not any(str(r.get("city") or "") in known for r in shown) and not others:
+            lines += [_job_line(row) for row in shown]
+            lines.append("")
+    else:
+        lines += [_job_line(row) for row in shown]
+        lines.append("")
+    rest = true_total - len(shown)
+    if rest > 0:
+        lines.append(f"共 {true_total} 条，这里先列前 {len(shown)} 条，"
                      f"还有 {rest} 条，要全部回复\"全部\"即可。")
     else:
-        lines.append(f"共 {total} 条，已全部列出。")
+        lines.append(f"共 {true_total} 条，已全部列出。")
     lines.append("（列表序号与系统内部 index 一一对应，说「我想投第 N 个」即可直接定位。）")
 
     log_event(state.get("trace_id") or "-", "lg_node", node="respond",
-              engine="langgraph", graph="search", total=total)
+              engine="langgraph", graph="search", total=true_total,
+              shown=len(shown), true_by_city=true_by_city)
     return {
         "answer": "\n".join(lines),
-        "steps": _step(state, "返回列表", f"按 index 升序输出 {len(shown)}/{total} 条",
-                       observation=f"共 {total} 条"),
+        "steps": _step(state, "返回列表",
+                       f"按 index 升序输出 {len(shown)}/{true_total} 条（真实命中 {true_total} 条）",
+                       observation=f"真实命中 {true_total} 条，展示 {len(shown)} 条"),
     }
 
 

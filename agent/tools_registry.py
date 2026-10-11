@@ -234,7 +234,11 @@ def last_citation_pack():
 # 或直接删 `agent/data/search_cache.db`；设 `SEARCH_CACHE_TTL=0` 整体关掉缓存。
 
 SEARCH_CACHE_TTL = float(os.getenv("SEARCH_CACHE_TTL", "86400") or 86400)   # 24 小时
-SEARCH_CACHE_MAX_ROWS = 100          # 单条缓存最多存多少行（覆盖 limit=50 的调用）
+SEARCH_CACHE_MAX_ROWS = 600          # 单条缓存最多存多少行：必须覆盖**全量命中**
+# 为什么从 100 提到 600：缓存键不含 limit（读时再截断），而「如实报告真实总数」要按
+# limit=0（全量）统计。上限若小于实际命中数（不限城市搜 "Agent 实习" 实测 572 条），
+# 计数就会停在 100 —— 又变成"数字不透明"，只是从 20 换成 100。
+# 一行 ~200 字节 × 600 ≈ 120KB，缓存库完全可以承受；TTL 仍是 24 小时。
 _CACHE_SIG_TTL = 5.0                 # 岗位库签名（mtime/size）缓存时长，避免每次 stat
 
 SEARCH_CACHE_PATH = Path(os.getenv(
@@ -496,26 +500,37 @@ def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None,
     cached = _cache_read(key, signature)
     if cached is not None:
         # 命中即返回**上一次那份列表**：跨对话 / 跨进程都一致（Bug 2 的修法本体）
+        # `limit <= 0` = 不限（口径见 limit 参数表）：直接给全量，**不能**当成 20。
+        # 以前这里写死 `max(1, int(limit or 20))`，于是「统计真实总数」的 limit=0
+        # 调用被悄悄截成缓存里最早那 20 条 —— 分城数字与单城搜对不上就出自这里。
+        if limit is None or int(limit) <= 0:
+            return [dict(r) for r in cached]
         print(f"[search_cache] 命中 {key[:8]}（{len(cached)} 条，参数相同 → 复用上次结果）")
-        return [dict(r) for r in cached[:max(1, int(limit or 20))]]
+        return [dict(r) for r in cached[:int(limit)]]
 
+    # 缓存里存的是**全量命中**（不是本次 limit 截断后的那一段）：缓存键不含 limit，
+    # 同参数的下一次调用可能要求更多条（「全部」→ limit 放大，或计数 → limit=0）。
+    # 只写本题的一段会让后续 limit=0 的计数拿到假数字（搜什么都是 20 条的另一半根因）。
+    full_rows: list = []
     if semantic:
         _notify("正在召回候选岗位…")
         rows = _semantic_rows(keyword, city, limit, job_type=wanted_type)
+        full_rows = rows
     else:
-        rows = _rows_from_jobs(search_jobs(keyword, city, limit, platform="mock",
-                                           job_type=wanted_type))
+        full_rows = _rows_from_jobs(search_jobs(keyword, city, 0, platform="mock",
+                                                job_type=wanted_type))
+        rows = full_rows[:max(1, int(limit or 20))] if limit and int(limit) > 0 else full_rows
         # 精确路：岗位名命中关键词的排前面，让 index=1 就是用户最该看到的岗位
         # （用户说「第一个」时系统按 index 取，顺序必须与展示顺序一致）
         rows = _prefer_title_hits(rows, keyword)
 
     if not semantic or not rows or len(rows) > SEMANTIC_MAX_CANDIDATES:
-        _cache_write(key, signature, rows)
+        _cache_write(key, signature, full_rows)
         return rows
 
     allowed = [r["job_id"] for r in rows if r.get("job_id")]
     if not allowed:
-        _cache_write(key, signature, rows)
+        _cache_write(key, signature, full_rows)
         return rows
     # 语义查询用「原句」去检索（要的就是整句的语义），候选池由 probe 提供
     try:
@@ -617,6 +632,49 @@ def _agent_cities(city=None):
     return _plural_cities(city)
 
 
+def _search_total(keyword, city=None, job_type=None):
+    """单个城市的**真实命中数**（不截断、不编号、不写会话态），仅用于如实报告。
+
+    为什么单独开一个接缝而不是复用 `_search`：`_search` 会调 `_search_rows`
+    并在测试里被替身接管，计数若走同一条路就会污染"逐城市调用记录"这类断言。
+    这里固定走关键词路且 `limit=0`（全量），口径与 `langgraph_flow._true_counts`
+    一致；类型过滤照旧下推，否则「实习」的数量会把正式岗也算进去。
+    """
+    try:
+        rows = _search_rows(keyword, city, 0, False, job_type) or []
+    except Exception as exc:                            # noqa: BLE001 - 计数失败不当成 0
+        print(f"[search_jobs] 总数统计失败（{city}）：{type(exc).__name__}: {exc}")
+        return None
+    return len({str(r.get("job_id") or "") or i for i, r in enumerate(rows)})
+
+
+def _search_summary(keyword, cities, job_type, semantic=False):
+    """统计真实命中数：返回 `{total: N, by_city: {北京: 47, 广州: 32}}`。
+
+    本任务的核心修法：`limit` 只控制 **items 展示多少**，不控制 **total 是多少**。
+    以前 `_search(limit=20)` 把命中的 116 条截成 20 条，调用方只能看到 20 条、
+    报"共 20 条"，用户以为库里只有 20 个岗位（现象 1）；多城市还平摊成
+    10+10（现象 2），比分开搜更少。
+
+    按 job_id 去重后计数：同一岗位可能被多个城市同时命中，直接相加会虚高。
+    `by_city` 只统计**明确请求过**的城市；不限城市时为空（没有分城口径）。
+    """
+    wanted = [str(c).strip() for c in (cities or []) if str(c).strip()]
+    by_city: dict = {}
+    seen: set = set()
+    for name in wanted or [None]:
+        try:
+            rows = _search_rows(keyword, name, 0, False, job_type) or []
+        except Exception as exc:                        # noqa: BLE001 - 计数失败不当成 0
+            print(f"[search_jobs] 总数统计失败（{name}）：{type(exc).__name__}: {exc}")
+            rows = []
+        if name:
+            by_city[name] = len({str(r.get("job_id") or "") or i for i, r in enumerate(rows)})
+        for i, r in enumerate(rows):
+            seen.add(str(r.get("job_id") or "") or f"{name}|{i}")
+    return {"total": len(seen), "by_city": by_city}
+
+
 def _search(keyword, city=None, limit=20, semantic=False, job_type=None,
             progress_cb=None, cities=None):
     """工具 search_jobs 的对外入口：检索 + 编号。
@@ -625,26 +683,34 @@ def _search(keyword, city=None, limit=20, semantic=False, job_type=None,
     岗位」按旧行为返回全部）。类型过滤在检索阶段就生效，不是在结果上再裁。
     `progress_cb` 可选：给长任务（模糊搜索）推中间进度用，默认 None（不推）。
 
-    多城市（本轮 Bug）：`city` 是单值、SQL 里是等值过滤，所以「北京，广州」只会
-    按北京查。传 `cities=["北京", "广州"]` 时**逐城市查同一条链路**
-    （keyword / semantic / job_type 一字不改）再合并，`limit` 平摊到各城市
-    （北京 10 + 广州 10），保证每个城市都真的出现在结果里；只传 `city`（或
-    city 里是单个城市）时行为与改造前逐字一致。
+    多城市：`city` 是单值、SQL 里是等值过滤，所以「北京，广州」只会按北京查。
+    传 `cities=["北京", "广州"]` 时**逐城市查同一条链路**（keyword / semantic /
+    job_type 一字不改）再合并。展示名额**不再平摊**（旧行为 10+10 导致总 20，
+    比单城搜还少），改为「每城保底 10 + 余量按真实命中数比例」（见
+    `langgraph_flow._allocate_slots`）。
+
+    返回值保持**列表**不变（历史调用方 / 评测依赖 `len(r)`），真实总数另经
+    `_search_summary` 提供，展示层（langgraph_flow）负责如实报告。
     """
     wanted_cities = _agent_cities(cities) or _agent_cities(city)
     if len(wanted_cities) <= 1:
         return _number_jobs(_search_rows(keyword, wanted_cities[0] if wanted_cities else None,
                                          limit, semantic, job_type,
                                          progress_cb=progress_cb))
-    from agent.langgraph_flow import _merge_city_rows
+    from agent.langgraph_flow import _allocate_slots, _merge_city_rows
 
+    # 只做一次全量取数：`_search_summary` 内部就是 `_search_rows(limit=0)`，
+    # 顺手也要到各城市全量行，避免再查一遍（多城市下就是 3N 次查询变 N 次）。
+    summary = _search_summary(keyword, wanted_cities, job_type, semantic)
     whole = int(limit or 20)
-    base, rest = divmod(whole, len(wanted_cities))
+    alloc = _allocate_slots(summary["by_city"], whole)
     per_city = []
-    for i, name in enumerate(wanted_cities):
-        per_city.append(_search_rows(keyword, name, base + (1 if i < rest else 0),
+    for name in wanted_cities:
+        per_city.append(_search_rows(keyword, name, max(1, int(alloc.get(name) or 0)),
                                      semantic, job_type, progress_cb=progress_cb) or [])
-    return _number_jobs(_merge_city_rows(per_city, whole))
+    # 合并上限 = 各城名额之和：不能用 `whole`，否则按比例分出的名额会被二次截断
+    return _number_jobs(_merge_city_rows(
+        per_city, max(whole, sum(len(rows) for rows in per_city))))
 
 
 def lookup_job_ordinal(number):
