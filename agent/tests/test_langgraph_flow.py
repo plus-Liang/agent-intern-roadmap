@@ -1521,7 +1521,64 @@ def _refine_keeps_last_keyword():
     return f"筛选句继承 keyword=Agent + city=广州（{len(calls)} 次检索）"
 
 
+def _refine_after_tool_layer_search():
+    """Bug 1 复发（真实链路）：上一轮走**多智能体 Executor**（只调工具、不进搜索图），
+    条件也必须被记住，且继承时要把 Planner 拼出来的多词关键词收窄成主词。
+
+    实测：「那帮我找这个类型的岗位，Agent / 智能体开发」（咨询卡片按钮）被
+    `is_complex_task` 判成复杂任务 → Executor `call_tool("search_jobs")`；
+    以前只有搜索图节点记会话态，这条路径没记 → 下一句「筛选出广州的岗位」
+    读不到关键词 → 返回广州全库 400 条。
+    第二道防线：万一还是落进搜索图、关键词被抽成空串，参数节点也要补回主词。
+    """
+    rows = _rows(2)
+    calls = []
+
+    def fake(keyword, city=None, limit=20, semantic=False, job_type=None):
+        calls.append((keyword, city))
+        return rows
+
+    with _patched((LF.reg, "_search", fake),
+                  (LF.reg, "_search_rows",
+                   lambda keyword, city=None, limit=20, semantic=False, job_type=None,
+                          progress_cb=None: rows)):
+        with user_scope("refine-tool-layer"):
+            LF.reg._session_state().pop(LF.LAST_SEARCH_KEY, None)
+            LF.reg.call_tool("search_jobs", {"keyword": "Agent / 智能体开发", "limit": 20})
+            if LF.last_search_params().get("keyword") != "Agent / 智能体开发":
+                raise AssertionError(
+                    f"工具层没记住搜索条件：{LF.last_search_params()}")
+            if LG._route("筛选出广州的岗位") != "refine":
+                raise AssertionError(
+                    f"复杂任务搜过之后筛选句仍未分流：{LG._route('筛选出广州的岗位')}")
+            calls.clear()
+            with _patched((LF, "_llm_json", _boom_llm)):
+                result = LG.run("筛选出广州的岗位", verbose=False)
+            if not calls or calls[0] != ("Agent", "广州"):
+                raise AssertionError(f"筛选句没继承主词：{calls}")
+            if "关键词「Agent」" not in (result.get("answer") or ""):
+                raise AssertionError(
+                    f"回答头行没写明关键词：{(result.get('answer') or '')[:120]}")
+
+            # 第二道防线：直接进搜索图、LLM 抽成空关键词 → 参数节点补回主词
+            LF.remember_search_params({"keyword": "Agent / 智能体开发", "cities": [],
+                                       "limit": 20, "semantic": False, "job_type": ""})
+            calls.clear()
+            with _patched((LF, "_llm_json", lambda messages, source, verbose=False: {
+                    "keyword": "", "cities": ["广州"], "limit": 20,
+                    "semantic": False, "job_type": ""})):
+                state = LF.SEARCH_GRAPH.invoke({"question": "筛选出广州的岗位",
+                                                "verbose": False})
+            if state.get("keyword") != "Agent":
+                raise AssertionError(f"空关键词没被兜底补回主词：{state.get('keyword')!r}")
+            if not calls or calls[0] != ("Agent", "广州"):
+                raise AssertionError(f"兜底路径没按主词检索：{calls}")
+    return "工具层记条件 + 筛选继承主词 Agent @ 广州（多智能体路径也生效）"
+
+
 check("Bug1：筛选句继承上一轮关键词（不再返回广州全库）", _refine_keeps_last_keyword)
+check("Bug1：复杂任务搜过之后筛选仍继承（工具层记条件 + 主词收窄）",
+      _refine_after_tool_layer_search)
 check("问题4：追问图结构（无检索节点）", _followup_graph_shape)
 check("问题4：追问意图分流（含不误伤新搜索）", _followup_intent_route)
 check("问题4：带 app 系统提示的追问仍走追问", _followup_with_real_app_hint)

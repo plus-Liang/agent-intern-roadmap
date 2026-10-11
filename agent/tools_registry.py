@@ -683,6 +683,32 @@ def _search_summary(keyword, cities, job_type, semantic=False):
     return {"total": len(seen), "by_city": by_city}
 
 
+def _remember_last_search(keyword, cities, limit, semantic, job_type) -> None:
+    """把本轮搜索条件写进会话态，供下一句「筛选出广州的」继承关键词。
+
+    为什么落在**工具层**而不是搜索图节点：`search_jobs` 有三条调用路径 ——
+    搜索图（`langgraph_flow.search_jobs_node`）、多智能体 Executor（`call_tool`）、
+    ReAct（`call_tool`），只有前一条会记会话态。实测「那帮我找这个类型的岗位，
+    Agent / 智能体开发」（咨询卡片的按钮）被 `is_complex_task` 判成复杂任务 →
+    走 multi_agent，Executor 直接 `call_tool("search_jobs", ...)`：条件没被记住，
+    紧接着的「筛选出广州的岗位」读不到上一轮关键词 → 退化成纯城市过滤。
+    记在 `_search` 里，三条路一次全覆盖。
+
+    失败一律吞掉：记不住只是下一句筛选退化成普通搜索，不能让本轮搜索挂掉。
+    """
+    try:
+        from agent.langgraph_flow import remember_search_params
+        remember_search_params({
+            "keyword": str(keyword or "").strip(),
+            "cities": list(cities or []),
+            "limit": int(limit or 0),
+            "semantic": bool(semantic),
+            "job_type": normalize_job_type(job_type),
+        })
+    except Exception as exc:                              # noqa: BLE001 - 旁路，不影响搜索
+        print(f"[search_jobs] 会话态记录失败（忽略）：{type(exc).__name__}: {exc}")
+
+
 def _search(keyword, city=None, limit=20, semantic=False, job_type=None,
             progress_cb=None, cities=None):
     """工具 search_jobs 的对外入口：检索 + 编号。
@@ -701,6 +727,11 @@ def _search(keyword, city=None, limit=20, semantic=False, job_type=None,
     `_search_summary` 提供，展示层（langgraph_flow）负责如实报告。
     """
     wanted_cities = _agent_cities(cities) or _agent_cities(city)
+    # 记下本轮条件（见 `_remember_last_search`）：**工具层是唯一的必经之路** ——
+    # 搜索图、多智能体 Executor、ReAct 三条路最后都调到这里，只记在搜索图节点里
+    # 会漏掉后两条（实测：「帮我找这个类型的岗位」走 complex → Executor 直接调
+    # search_jobs，随后「筛选出广州的岗位」读不到关键词 → 退化成广州全库 400 条）。
+    _remember_last_search(keyword, wanted_cities, limit, semantic, job_type)
     if len(wanted_cities) <= 1:
         return _number_jobs(_search_rows(keyword, wanted_cities[0] if wanted_cities else None,
                                          limit, semantic, job_type,

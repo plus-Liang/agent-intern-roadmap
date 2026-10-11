@@ -567,7 +567,7 @@ def _inherit_params(state: SearchState, fallback: dict) -> dict:
     类型 / 条数 / 语义开关能继承的也继承，再交回同一条检索链路。
     """
     prev = last_search_params()
-    keyword = str(prev.get("keyword") or state.get("keyword") or "").strip()
+    keyword = _primary_keyword(str(prev.get("keyword") or state.get("keyword") or "").strip())
     cities = (_plural_cities(state.get("cities")) or _plural_cities(state.get("city"))
               or _plural_cities(fallback.get("cities")) or _plural_cities(prev.get("cities")))
     city = cities[0] if cities else ""
@@ -596,6 +596,41 @@ def _inherit_params(state: SearchState, fallback: dict) -> dict:
                      "limit": limit, "semantic": semantic, "job_type": job_type},
         ),
     }
+
+
+_FILTER_WORDS = ("筛选", "筛出", "筛一下", "筛一遍", "筛掉", "过滤", "只要", "只看",
+                 "限定", "挑出", "挑一下", "剩下")
+
+
+def _is_filter_sentence(question: str) -> bool:
+    """是不是「在上一轮结果上再加条件」的筛选句（与 `react_agent_lg._REFINE_WORDS` 同源）。
+
+    只看词，不看会话态 —— 调用方自己确认「上一轮有关键词可继承」。
+    """
+    text = question or ""
+    return any(word in text for word in _FILTER_WORDS)
+
+
+_KEYWORD_SPLIT_RE = re.compile(r"[\s,，、/\\|+;；]+")
+
+
+def _primary_keyword(keyword: str) -> str:
+    """把继承来的关键词收窄成**可精确检索的主词**。
+
+    为什么需要：上一轮的关键词可能是多智能体 Planner 拼出来的口语串
+    （实测：「那帮我找这个类型的岗位，Agent / 智能体开发」里 Planner 给的
+    keyword 是 `Agent / 智能体开发`）。精确路是 `LIKE '%整串%'`，
+    `Agent / 智能体开发` 在广州只命中 **1** 条；按主词 `Agent` 才是用户要的
+    「广州的 Agent 岗位」（82 条）。与 `extract_params` 对多词关键词的处理同口径：
+    取首个实词，其余概念不靠 LIKE 兜（筛选句本来就是在收窄条件）。
+    括号里的补充说明（「Agent（智能体）」）也一并剥掉。
+    """
+    text = re.sub(r"[（(][^）)]*[）)]", " ", str(keyword or ""))
+    for token in _KEYWORD_SPLIT_RE.split(text):
+        token = token.strip(" 　·-—~～*\"'“”‘’[]【】《》<>")
+        if token:
+            return token
+    return str(keyword or "").strip()
 
 
 def extract_params(state: SearchState) -> dict:
@@ -660,6 +695,22 @@ def extract_params(state: SearchState) -> dict:
         # 否则一次网络抖动会把「规则兜底」钉死 24 小时）
         if source == "llm":
             _param_cache_set(question, params)
+
+    # 筛选句的**第二道防线**（Bug 1 复发）：万一这轮没走到 refine 路由（上一轮是
+    # 多智能体 / ReAct 搜的、或句子被别的入口塞进来），关键词会被抽成空串 ——
+    # 那样 SQL 就退化成 `city='广州'`，返回广州**全库**。这里再认一次「筛选类」句子，
+    # 把上一轮关键词补回来；本轮自己抽出了关键词（如「筛选出广州的 Java 岗位」）
+    # 就一字不动，避免把明确换了方向的句子按上一轮关键词搜。
+    if not state.get("inherit_search") and _is_filter_sentence(question) \
+            and not str(params.get("keyword") or "").strip():
+        prev = last_search_params()
+        if str(prev.get("keyword") or "").strip():
+            params = dict(params)
+            params["keyword"] = _primary_keyword(prev["keyword"])
+            params["semantic"] = bool(prev.get("semantic"))
+            if not _plural_cities(params.get("cities")):
+                params["cities"] = list(prev.get("cities") or [])
+            source = f"{source}+筛选兜底"
 
     # `cities` 是本轮新增的多城市参数；旧缓存 / 旧调用方只有 `city`，这里补一次归一，
     # 保证「单城市」与「多城市」在下游是同一套逻辑（city 恒等 cities[0]，兼容旧字段）。
