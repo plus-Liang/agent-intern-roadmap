@@ -356,7 +356,7 @@ def _retrieve_merged(plan: dict, top_k: int, allowed) -> list[dict]:
 
 
 def retrieve(query: str, top_k: int = 12, allowed_job_ids=None,
-             use_understanding: bool = None) -> list[dict]:
+             use_understanding: bool = None, progress_cb=None) -> list[dict]:
     """检索 JD 片段。
 
     参数：
@@ -368,6 +368,7 @@ def retrieve(query: str, top_k: int = 12, allowed_job_ids=None,
                           None（默认）= 按触发规则自动决定（模糊 / 复杂查询才重写）；
                           False = 强制走改造前的原路径（回归对比 / 排查用）；
                           True  = 强制走一次重写 + 分解（验证脚本做前后对比用）。
+        progress_cb:      可选进度回调（长任务中间不断连用）。None = 不推，行为不变。
 
     返回：[{id, text, metadata, score}]，**按 score 降序**。
 
@@ -387,12 +388,17 @@ def retrieve(query: str, top_k: int = 12, allowed_job_ids=None,
         try:
             # 延迟导入：query_understanding 会拉起 shared.llm_client（httpx），
             # 精确查询根本用不到它，不该为它付 import 成本。
-            from rag.query_understanding import enabled as _qu_enabled, plan_queries
+            from rag.query_understanding import (enabled as _qu_enabled, notify_progress,
+                                                 plan_queries)
             if _qu_enabled():
-                plan = plan_queries(query, force=use_understanding is True)
+                plan = plan_queries(query, force=use_understanding is True,
+                                    progress_cb=progress_cb)
                 if plan.get("triggered"):
+                    notify_progress(progress_cb, "正在多路检索岗位…")
                     try:
-                        return _retrieve_merged(plan, top_k, allowed)
+                        hits = _retrieve_merged(plan, top_k, allowed)
+                        notify_progress(progress_cb, "正在融合排序…")
+                        return hits
                     except Exception as e:      # noqa: BLE001 —— 融合坏了就退回原路径
                         print(f"[query_understanding] 多查询融合失败，退回单查询："
                               f"{type(e).__name__}: {e}")

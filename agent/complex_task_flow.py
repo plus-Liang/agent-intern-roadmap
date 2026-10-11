@@ -59,6 +59,8 @@ from typing import Any, TypedDict
 from langgraph.graph import END, StateGraph
 
 from agent import tools_registry as reg
+# 进度反馈与 langgraph_flow 共用同一个助手（回调从 state 里取，没有就是 no-op）
+from agent.langgraph_flow import _progress
 from shared import limits
 from shared.llm_client import chat
 from shared.logger import log_event
@@ -423,6 +425,9 @@ def plan_node(state: ComplexState) -> dict:
     """**[Planner]** 出计划：LLM 拆解 + 白名单校验 + 规则兜底。"""
     question = (state.get("question") or "").strip()
     plan, reason, source, dropped, dropped_args = [], "", "llm", 0, []
+    # 复杂任务是「一图多步」，每步都可能打 LLM：每个节点的**开始**推一条，
+    # 60s 窗口内就不会一直没有数据往来（修的是前端 websocket 超时）。
+    _progress(state, "正在拆解任务计划…")
     try:
         data = _llm_json(
             [{"role": "user", "content": _PLAN_PROMPT.format(
@@ -659,6 +664,7 @@ def execute_node(state: ComplexState) -> dict:
 
     # 3) 执行
     output, error = None, ""
+    _progress(state, f"正在执行第 {cursor + 1}/{len(plan)} 步：{step['desc']}")
     try:
         raw = reg.call_tool(action, args)
         output = _normalize_output(action, raw, args)
@@ -866,6 +872,7 @@ def critic_node(state: ComplexState) -> dict:
     need_llm = (det["合格"] and action == "match_resume"
                 and CRITIC_LLM_ENABLED and not (output or {}).get("skipped"))
     if need_llm:
+        _progress(state, "正在复核执行结果…")
         budget = limits.run_budget_status()
         try:
             if budget.get("exceeded"):

@@ -95,6 +95,25 @@ ENV_ENABLED = "RAG_QUERY_UNDERSTANDING"
 _OFF_VALUES = ("off", "0", "false", "no", "disable", "disabled")
 
 
+# --------------------------------------------------------------------------
+# 长任务进度反馈（修：60s websocket 超时 —— 中间没有数据往来）
+# --------------------------------------------------------------------------
+
+def notify_progress(cb, message: str) -> None:
+    """给长任务推一条进度；`cb` 为空时是静默 no-op。
+
+    放在本模块是为了让「谁在打这几个慢 LLM」和「进度文案」写在同一处：
+    查询重写 / 子查询分解 / 检索融合 是模糊搜索耗时的大头。
+    回调抛错一律吞掉 —— 进度是旁路，坏了不能把检索带崩。
+    """
+    if cb is None:
+        return
+    try:
+        cb(str(message))
+    except Exception as exc:                        # noqa: BLE001
+        print(f"[progress] 推送失败（忽略）：{type(exc).__name__}: {exc}")
+
+
 def enabled() -> bool:
     """查询理解总开关：默认开。
 
@@ -362,7 +381,7 @@ def _log(plan: dict) -> None:
               f"（{plan.get('reason')}）：「{plan.get('question')}」")
 
 
-def plan_queries(question: str, force: bool = False) -> dict:
+def plan_queries(question: str, force: bool = False, progress_cb=None) -> dict:
     """查询理解总入口（带 1 小时进程内缓存）。
 
     返回 plan（**永不为 None**，也永不抛异常）：
@@ -374,6 +393,7 @@ def plan_queries(question: str, force: bool = False) -> dict:
         cached        本次结果是否来自缓存
 
     force=True 时跳过长度 / 概念判定强制走一次 LLM（验证脚本做前后对比用）。
+    `progress_cb` 可选：给模糊搜索这类长任务推中间进度用，默认 None（不推）。
     """
     text = str(question or "").strip()
     plan = {
@@ -418,7 +438,9 @@ def plan_queries(question: str, force: bool = False) -> dict:
 
     plan["triggered"] = True
     plan["reason"] = " / ".join(reasons)
+    notify_progress(progress_cb, "正在理解你的问题（查询重写）…")
     plan["rewritten"] = rewrite_question(text) or text
+    notify_progress(progress_cb, "正在拆解检索子查询…")
     plan["sub_queries"] = decompose_question(plan["rewritten"])
     if not forced:
         cache_put(text, plan)

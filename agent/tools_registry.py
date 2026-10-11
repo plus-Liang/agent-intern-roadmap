@@ -36,6 +36,44 @@ from agent import storage
 SEMANTIC_MAX_CANDIDATES = 80
 
 
+# ---------------------------------------------------------------------------
+# 长任务进度回调（修：60s websocket 超时 → 中间没有数据往来）
+# ---------------------------------------------------------------------------
+# 为什么用 ContextVar 而不是给 _search / _match 加参数：这两个函数是**工具层的
+# 公共入口**，被评测脚本、verify 脚本、单测（用 5 个位置参数的假替身）到处调用，
+# 加参数会让那些替身抛 TypeError —— 而节点里的 try/except 会把 TypeError 吞成
+# 「0 条命中」（历史上就假红过）。用上下文变量传，接口一行不动。
+_PROGRESS_CB = contextvars.ContextVar("tool_progress_cb", default=None)
+
+
+def set_progress_cb(cb) -> contextvars.Token:
+    """把进度回调挂到当前请求的上下文上，返回 token（调用方负责 reset）。"""
+    return _PROGRESS_CB.set(cb)
+
+
+def reset_progress_cb(token) -> None:
+    """还原上下文（必须与 set_progress_cb 配对，否则进度会串到别的请求）。"""
+    try:
+        _PROGRESS_CB.reset(token)
+    except Exception:                                   # noqa: BLE001 - 还原失败只影响进度
+        pass
+
+
+def _progress(message: str) -> None:
+    """给「当前这一轮」推一条进度；没有回调（CLI / 评测 / 单测）时是**静默 no-op**。
+
+    只推「慢操作」的开始（调用方自己决定在哪推）。回调抛错一律吞掉 ——
+    进度反馈是旁路，坏了不能把正在跑的检索 / 打分带崩。
+    """
+    try:
+        cb = _PROGRESS_CB.get()
+        if cb is None:
+            return
+        cb(str(message))
+    except Exception as exc:                            # noqa: BLE001
+        print(f"[progress] 推送失败（忽略）：{type(exc).__name__}: {exc}")
+
+
 def _semantic_probe(keyword: str, max_terms: int = 3) -> str:
     """把「自然语言需求」收成候选池用的短关键词（semantic 模式的 SQL 预过滤用）。
 
@@ -414,7 +452,8 @@ def _stable_rank(rows: list) -> list:
                   key=lambda r: (-float(r.get("score") or 0.0), str(r.get("job_id") or "")))
 
 
-def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
+def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None,
+                 progress_cb=None):
     """工具 search_jobs 的候选检索（编号在 _search 里统一做）。
 
     Round 10 接入 RAG（乙方案：**SQL 先过滤、子集内语义重排**）：
@@ -441,6 +480,16 @@ def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
     「检索参数 + 岗位库指纹」的磁盘缓存，并给排序补上 `job_id` 二级键
     （见 `_stable_rank`）。
     """
+    #: 进度回调：优先用显式入参，否则读当前请求的上下文（见 `set_progress_cb`）
+    def _notify(message: str) -> None:
+        if progress_cb is not None:
+            try:
+                progress_cb(str(message))
+            except Exception as exc:                    # noqa: BLE001 - 进度是旁路
+                print(f"[progress] 推送失败（忽略）：{type(exc).__name__}: {exc}")
+        else:
+            _progress(message)
+
     wanted_type = normalize_job_type(job_type)
     key = _search_cache_key(keyword, city, semantic, wanted_type)
     signature = _data_signature()
@@ -451,6 +500,7 @@ def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
         return [dict(r) for r in cached[:max(1, int(limit or 20))]]
 
     if semantic:
+        _notify("正在召回候选岗位…")
         rows = _semantic_rows(keyword, city, limit, job_type=wanted_type)
     else:
         rows = _rows_from_jobs(search_jobs(keyword, city, limit, platform="mock",
@@ -469,6 +519,7 @@ def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
         return rows
     # 语义查询用「原句」去检索（要的就是整句的语义），候选池由 probe 提供
     try:
+        _notify("正在检索并排序岗位…")
         hits = _retrieve(keyword, top_k=len(rows), allowed_job_ids=allowed)
     except Exception as exc:                    # noqa: BLE001 —— 检索坏了就退回 SQL 结果
         print(f"[search_jobs] 语义重排不可用，退回 SQL 排序：{type(exc).__name__}: {exc}")
@@ -494,6 +545,7 @@ def _search_rows(keyword, city=None, limit=20, semantic=False, job_type=None):
         reranked.append(row)
     # 语义路没覆盖到的候选挂在后面（不能因为重排把岗位弄丢）
     reranked.extend(r for r in rows if r.get("job_id") not in seen_ids)
+    _notify("正在融合排序并生成结果…")
     # Bug 2 的排序收口：二级键固定成 job_id，同分不再取决于 RRF 的迭代顺序
     reranked = _stable_rank(reranked)
     # 【引用溯源】只在语义分支触发（本函数的 semantic 分支走到这里才算数）。
@@ -553,13 +605,16 @@ def _number_jobs(rows) -> list[dict]:
     return numbered
 
 
-def _search(keyword, city=None, limit=20, semantic=False, job_type=None):
+def _search(keyword, city=None, limit=20, semantic=False, job_type=None,
+            progress_cb=None):
     """工具 search_jobs 的对外入口：检索 + 编号。
 
     `job_type` 取 实习 / 正式 / 兼职；空/None 表示不限（「帮我找广州的 agent
     岗位」按旧行为返回全部）。类型过滤在检索阶段就生效，不是在结果上再裁。
+    `progress_cb` 可选：给长任务（模糊搜索）推中间进度用，默认 None（不推）。
     """
-    return _number_jobs(_search_rows(keyword, city, limit, semantic, job_type))
+    return _number_jobs(_search_rows(keyword, city, limit, semantic, job_type,
+                                     progress_cb=progress_cb))
 
 
 def lookup_job_ordinal(number):

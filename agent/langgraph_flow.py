@@ -192,6 +192,22 @@ def _step(state: dict, node: str, thought: str,
     return steps
 
 
+def _progress(state: dict, message: str) -> None:
+    """给「这一轮」推一条进度（节点开始时的「正在 XXX…」）。
+
+    只对**慢操作**调（匹配打分 / 模糊搜索）；精确搜索、追问不调。
+    `progress_cb` 由 `react_agent_lg.run` 从 app 透传进 state —— 离线单测 / 评测
+    脚本里没有它，是**静默 no-op**，行为与改造前逐字一致。
+    """
+    cb = state.get("progress_cb") if isinstance(state, dict) else None
+    if cb is None:
+        return
+    try:
+        cb(str(message))
+    except Exception as exc:                            # noqa: BLE001 - 进度是旁路
+        print(f"[progress] 推送失败（忽略）：{type(exc).__name__}: {exc}")
+
+
 def _resume_blob(resume_data: Any) -> str:
     """把简历压成一段可做「有没有提到某技术」判断的小写文本。"""
     if not isinstance(resume_data, dict):
@@ -291,6 +307,7 @@ class SearchState(TypedDict, total=False):
     steps: list
     trace_id: str
     verbose: bool
+    progress_cb: Any          # 长任务进度回调（见 `_progress`）；没有就是 None
 
 
 def receive_search(state: SearchState) -> dict:
@@ -431,6 +448,8 @@ def extract_params(state: SearchState) -> dict:
         source = "cache"
     else:
         try:
+            # 只有走到 LLM 抽取（没有缓存）才是慢操作，才推这一条
+            _progress(state, "正在理解查询…")
             data = _llm_json(
                 [{"role": "user", "content": _EXTRACT_PROMPT.format(question=question)}],
                 source="lg_extract_params",
@@ -515,6 +534,10 @@ def search_jobs_node(state: SearchState) -> dict:
     rows: list = []
     error = ""
     try:
+        # 模糊搜索（semantic）在这一步最慢：候选召回 + 查询理解 + 融合，
+        # 中间没有数据往来就会超过 60s 前端超时；先推一条把窗口打开。
+        if semantic:
+            _progress(state, "正在检索岗位库（语义召回）…")
         rows = reg._search(keyword, city, limit, semantic, job_type) or []
         if not rows and semantic:
             rows = reg._search(keyword, city, limit, False, job_type) or []
@@ -724,6 +747,7 @@ class MatchState(TypedDict, total=False):
     steps: list
     trace_id: str
     verbose: bool
+    progress_cb: Any          # 长任务进度回调（见 `_progress`）；没有就是 None
 
 
 _REFLECT_PROMPT = """你是「匹配打分」工作流的**反思节点**。你的任务不是重新打分，
@@ -768,6 +792,9 @@ def receive_match(state: MatchState) -> dict:
     trace_id = state.get("trace_id") or str(uuid.uuid4())[:8]
     log_event(trace_id, "lg_node", node="receive", engine="langgraph",
               graph="match", question=question[:50])
+    # 匹配打分是长任务（实测 80s+）：第一条进度在这里推，用户立刻看到
+    # 「在读简历 / 分析 JD」，之后打分、复核各一条（见 score_node / reflect_node）。
+    _progress(state, "正在读简历 / 分析岗位 JD…")
 
     resume_data = state.get("resume_data")
     if not isinstance(resume_data, dict) or not resume_data:
@@ -1080,6 +1107,9 @@ def score_node_factory(scorer):
             }
         job_id = state.get("job_id") or ""
         try:
+            # 打分是最慢的一跳（读 JD + LLM 打分，实测单次 40s+）：
+            # 这一条在 LLM 调用**之前**推，把最长的静默窗口盖住。
+            _progress(state, "正在给简历与岗位打分…")
             result = scorer(job_id, json.dumps(resume_data, ensure_ascii=False))
         except Exception as e:                          # noqa: BLE001 - 打分失败如实告知
             log_event(state.get("trace_id") or "-", "lg_node", node="score",
@@ -1211,6 +1241,7 @@ def reflect_node(state: MatchState) -> dict:
     # 第 3 道（省一次 LLM）：事实层已判虚高时，下面那个分支会**直接覆盖**模型的
     # 「合理 / 建议修正」——模型这一轮改不了任何结论，只影响理由措辞。这种情况
     # 白等一次 LLM（输出慢的主因），直接跳过。
+    _progress(state, "正在复核打分是否合理…")
     budget = limits.run_budget_status()
     try:
         if det["inflation"]:
@@ -1534,6 +1565,8 @@ class FollowupState(TypedDict, total=False):
     steps: list
     trace_id: str
     verbose: bool
+    #: 追问是快操作（实测 4s），**故意不推**进度 —— 字段只为与另外两张图同形
+    progress_cb: Any
 
 
 def receive_followup(state: FollowupState) -> dict:

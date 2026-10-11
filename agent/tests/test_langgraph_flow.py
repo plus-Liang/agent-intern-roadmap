@@ -21,6 +21,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import sys
@@ -1364,6 +1365,190 @@ check("点名：库里没有的岗位 → 如实说没找到且不打分", _miss
 check("点名：库里有的岗位 → 正常定位并打分", _existing_named_job_scores)
 check("点名：只点岗位名且库里没有 → 同样如实报错", _bare_named_title_is_honest)
 check("点名：不误伤「第 1 个」的列表定位", _ordinal_still_works)
+
+
+# ---------------------------------------------------------------------------
+section("9. 长任务进度推送：60s websocket 超时的修法（只推慢操作）")
+
+
+class _Patch:
+    """临时把一个属性换成别的值，退出时还原（测试替身用）。"""
+
+    def __init__(self, obj, name, value):
+        self.obj, self.name, self.value = obj, name, value
+
+    def __enter__(self):
+        self.old = getattr(self.obj, self.name)
+        setattr(self.obj, self.name, self.value)
+        return self.value
+
+    def __exit__(self, *exc):
+        setattr(self.obj, self.name, self.old)
+        return False
+
+
+def _progress_fuzzy_search_steps():
+    """模糊搜索（语义路）在三个慢操作**开始**各推一条，且顺序固定。"""
+    cache_path = _TMP_DIR / f"progress_cache_{os.getpid()}.db"
+    seen: list[str] = []
+    old_rows = _rows(6)
+    for row in old_rows:
+        row["score"] = 0.9
+    with _Patch(LF.reg, "SEARCH_CACHE_TTL", 0.0), \
+            _Patch(LF.reg, "SEARCH_CACHE_PATH", cache_path), \
+            _Patch(LF.reg, "_semantic_rows", lambda *a, **k: old_rows), \
+            _Patch(LF.reg, "_retrieve",
+                   lambda *a, **k: [{"id": "c1", "text": "JD", "score": 0.9,
+                                     "metadata": {"job_id": "job_1"}}]), \
+            _Patch(LF.reg, "_attach_citations", lambda *a, **k: None):
+        token = LF.reg.set_progress_cb(seen.append)
+        try:
+            LF.reg._search("找偏大模型落地能写工程代码的实习", None, 20, True, "实习")
+        finally:
+            LF.reg.reset_progress_cb(token)
+    if cache_path.exists():
+        cache_path.unlink()
+    expected = ["正在召回候选岗位", "正在检索并排序岗位", "正在融合排序"]
+    got = [m for m in seen]
+    if len(got) != 3 or not all(e in g for e, g in zip(expected, got)):
+        raise AssertionError(f"模糊搜索的进度不是 3 条固定步骤：{got}")
+    return " → ".join(got)
+
+
+def _progress_match_nodes_directly():
+    """匹配打分的三个慢节点各自在**开始**推进度（读简历 → 打分 → 复核）。"""
+    seen: list[str] = []
+    detail = FakeDetail()
+    resume = dict(RESUME_WITH_RAG)
+    base = {"question": "帮我匹配简历", "resume_data": resume, "verbose": False,
+            "steps": [], "progress_cb": seen.append}
+    # 1) 接收：读简历 / 分析 JD
+    base = {**base, **LF.receive_match(base)}
+    # 2) 打分：这一步最慢（LLM 打分）
+    score_node = LF.score_node_factory(
+        lambda job_id, resume_json: {"score": 70, "dimensions": {"技能": 70},
+                                     "gaps": [], "highlights": []})
+    score_state = {**base, "detail": detail, "job_id": detail.job_id}
+    score_state = {**score_state, **score_node(score_state)}
+    # 3) 反思：复核分数是否合理（用假 LLM 走语义层）
+    with _patched((LF, "_llm_json", _fake_llm(
+            {"合理": True, "理由": "分数与证据匹配", "建议修正": 0}))):
+        reflect_state = {**score_state, "reflection": {}, "reflections": []}
+        LF.reflect_node(reflect_state)
+    if len(seen) < 3:
+        raise AssertionError(f"匹配打分的进度少于 3 条：{seen}")
+    for want, got in (("读简历", seen[0]), ("打分", seen[1]), ("复核", seen[-1])):
+        if want not in got:
+            raise AssertionError(f"第「{want}」步的进度不对：{seen}")
+    if int(score_state.get("score") or 0) != 70:
+        raise AssertionError(f"打分被进度逻辑改变了：{score_state.get('score')}")
+    return " → ".join(seen)
+
+
+def _progress_match_graph_reports_and_keeps_result():
+    """整图跑一遍：进度到了 3 条，且**分数与没有回调时一致**（进度不改结果）。"""
+    seen: list[str] = []
+    detail = _FocusDetail("focus_01", "墨泊可士", "AI Agent开发")
+    scorer = lambda job_id, resume_json: {                       # noqa: E731
+        "score": 70, "dimensions": {"技能": 70}, "gaps": [], "highlights": []}
+    with user_scope(f"progress-{os.getpid()}"):
+        LF.reg._number_jobs(_focus_rows(3))                      # 会话里有一条"最近搜索"
+        with _patched((LF.reg, "_resolve_match_detail", lambda job_id: detail),
+                      (LF, "_llm_json", _fake_llm(
+                          {"合理": True, "理由": "分数与证据匹配", "建议修正": 0}))):
+            quiet = LF.build_match_graph(scorer=scorer).invoke(
+                {"question": "帮我匹配第 1 个", "resume_data": RESUME_WITH_RAG,
+                 "verbose": False, "steps": []})
+            loud = LF.build_match_graph(scorer=scorer).invoke(
+                {"question": "帮我匹配第 1 个", "resume_data": RESUME_WITH_RAG,
+                 "verbose": False, "steps": [], "progress_cb": seen.append})
+    if quiet.get("score") != loud.get("score"):
+        raise AssertionError(f"带进度回调改变了分数：{quiet.get('score')} vs {loud.get('score')}")
+    if len(seen) < 3:
+        raise AssertionError(f"匹配打分的进度少于 3 条：{seen}")
+    return f"进度 {len(seen)} 条，分数仍为 {loud.get('score')}"
+
+
+def _progress_match_graph_without_cb_is_quiet():
+    """没有 progress_cb（离线评测 / CLI）时一行都不推，且打分结果不变。"""
+    detail = FakeDetail()
+    with _patched((LF, "_llm_json", _fake_llm(
+            {"合理": True, "理由": "ok", "建议修正": 0}))):
+        state = {**LF.receive_match({"question": "帮我匹配简历",
+                                     "resume_data": RESUME_WITH_RAG,
+                                     "verbose": False, "steps": []}),
+                 "detail": detail, "job_id": detail.job_id}
+        node = LF.score_node_factory(lambda job_id, resume_json: {
+            "score": 70, "dimensions": {}, "gaps": [], "highlights": []})
+        state = {**state, **node(state)}
+    if state.get("progress_cb") is not None:
+        raise AssertionError("没有回调却被塞进了 progress_cb")
+    if int(state.get("score") or 0) != 70:
+        raise AssertionError(f"没传回调时打分结果变了：{state.get('score')}")
+    return "无回调 = 静默 no-op，分数仍为 70"
+
+
+def _progress_slow_route_gate():
+    """只对预期 > 20s 的长任务开推送：精确搜索 / 追问不推，匹配打分要推。"""
+    slow = LG.is_slow_route("帮我匹配墨泊可士的 AI Agent 岗位")
+    fast_exact = LG.is_slow_route("帮我找广州的 Python 岗位")
+    fast_followup = LG.is_slow_route("这个岗位要求什么技术")
+    if not slow:
+        raise AssertionError("匹配打分没有被判成长任务（不会推进度）")
+    if fast_exact or fast_followup:
+        raise AssertionError(f"短任务被误判成长任务：exact={fast_exact} followup={fast_followup}")
+    return "匹配打分=长任务；精确搜索 / 追问=短任务（不推）"
+
+
+def _progress_app_gate_and_throttle():
+    """app 侧闸门：短任务 no-op；长任务节流（挨着来的 3 条只留第 1 条）。"""
+    from agent import app as APP
+
+    async def scenario():
+        sent: list[str] = []
+        # 推送器 = 事件循环里常驻 sender（这里是桩：只记账），子线程只往队列塞
+        noop, noop_pusher = APP._make_progress("帮我找广州的 Python 岗位")
+        noop("正在理解查询…")
+        if noop_pusher is not None:
+            raise AssertionError("短任务不应该起推送器")
+        cb, pusher = APP._make_progress("帮我匹配墨泊可士的 AI Agent 岗位")
+        if pusher is None:
+            raise AssertionError("长任务没有起推送器")
+        original_sender = pusher._sender
+
+        async def fake_sender():
+            while True:
+                item = await pusher.queue.get()
+                if isinstance(item, dict) and item.get("kind") == "stop":
+                    return
+                sent.append(str(item.get("text")))
+
+        pusher._sender = fake_sender
+        pusher._task.cancel()
+        pusher._task = asyncio.ensure_future(fake_sender())
+        try:
+            cb("正在读简历 / 分析岗位 JD…")
+            cb("正在给简历与岗位打分…")            # 20s 内 → 被节流
+            cb("正在复核打分是否合理…")            # 20s 内 → 被节流
+            await asyncio.sleep(0.2)
+        finally:
+            pusher._task.cancel()
+            APP._stop_progress(pusher)
+            _ = original_sender
+        return sent
+
+    sent = asyncio.run(scenario())
+    if sent != ["正在读简历 / 分析岗位 JD…"]:
+        raise AssertionError(f"节流没生效：{sent}")
+    return "短任务 0 条且不起推送器；长任务 3 条挨着只推 1 条（+心跳兜底）"
+
+
+check("进度：模糊搜索三慢步（召回/检索/融合）各推一条", _progress_fuzzy_search_steps)
+check("进度：匹配打分三慢节点（读简历/打分/复核）各推一条", _progress_match_nodes_directly)
+check("进度：整图带回调推送且不改变打分结果", _progress_match_graph_reports_and_keeps_result)
+check("进度：没有回调时一行不推（评测/单测行为不变）", _progress_match_graph_without_cb_is_quiet)
+check("进度：只对长任务开（精确搜索/追问不推）", _progress_slow_route_gate)
+check("进度：app 侧短任务 no-op + 长任务节流", _progress_app_gate_and_throttle)
 
 
 # ---------------------------------------------------------------------------

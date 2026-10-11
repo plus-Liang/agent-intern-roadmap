@@ -206,9 +206,15 @@ def _route(question: str) -> str:
 
 
 def _run_graph(graph, initial: dict, question: str, verbose: bool,
-               return_messages: bool) -> dict:
-    """跑一张图并把结果整理成 `react_agent.run` 的返回结构。"""
+               return_messages: bool, progress_cb=None) -> dict:
+    """跑一张图并把结果整理成 `react_agent.run` 的返回结构。
+
+    `progress_cb` 进 initial（图节点从 state 里取，见 langgraph_flow._progress）：
+    只在长任务的节点开始处推一条，短任务 / 没传回调时是 no-op。
+    """
     trace_id = initial.setdefault("trace_id", str(uuid.uuid4())[:8])
+    if progress_cb is not None:
+        initial.setdefault("progress_cb", progress_cb)
     log_event(trace_id, "run_start", question=question[:50], engine="langgraph",
               graph=initial.get("_graph_name", "?"))
     state = graph.invoke(initial)
@@ -229,8 +235,15 @@ def _run_graph(graph, initial: dict, question: str, verbose: bool,
 
 
 def run(question: str, resume_data: dict = None, verbose: bool = True,
-        history: list = None, return_messages: bool = False) -> dict:
-    """Agent 统一入口。签名与 `react_agent.run` 逐字一致，可直接替换。"""
+        history: list = None, return_messages: bool = False,
+        progress_cb=None) -> dict:
+    """Agent 统一入口。签名与 `react_agent.run` 逐字兼容（只多一个可选 progress_cb）。
+
+    progress_cb: `callable(str)`，长任务（匹配打分 / 复杂任务）在各节点开始时
+    被调一次，用来给前端持续推送进度（修「60s 没数据往来 → websocket 超时」）。
+    默认 None = 一行都不推，与改造前逐字一致；短任务（精确搜索 / 追问）即使传了
+    也不会被调用。
+    """
     engine = _engine()
     if engine in ("react", "react_agent", "legacy"):
         return react_agent.run(question, resume_data=resume_data, verbose=verbose,
@@ -282,31 +295,51 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
             ma.COMPLEX_TASK_GRAPH,
             {"question": question, "history": history, "verbose": verbose,
              "resume_data": resume_data, "_graph_name": "complex"},
-            question, verbose, return_messages,
+            question, verbose, return_messages, progress_cb,
         )
     if kind == "search":
+        # 不推进度：精确搜索实测 6s，模糊搜索的进度由 search 节点按 semantic 自行推
         return _run_graph(
             SEARCH_GRAPH,
             {"question": question, "history": history, "verbose": verbose,
              "_graph_name": "search"},
-            question, verbose, return_messages,
+            question, verbose, return_messages, progress_cb,
         )
     if kind == "followup":
         # Bug 1：追问「第 1 个岗位要求什么技术？」→ 不重新搜索，
         # 从会话态 last_job_list 按序号取 job_id → 读该岗位 JD → LLM 生成回答（带引用）。
+        # 追问是快操作（实测 4s）：**不推进度**（图的节点里没有 _progress 调用）。
         return _run_graph(
             FOLLOWUP_GRAPH,
             {"question": question, "history": history, "verbose": verbose,
              "_graph_name": "followup"},
-            question, verbose, return_messages,
+            question, verbose, return_messages, progress_cb,
         )
     return _run_graph(
         MATCH_GRAPH,
         {"question": question, "history": history,
          "resume_data": resume_data, "verbose": verbose,
          "_graph_name": "match"},
-        question, verbose, return_messages,
+        question, verbose, return_messages, progress_cb,
     )
+
+
+def is_slow_route(question: str) -> bool:
+    """这一句是不是「预期 > 20s 的长任务」（决定要不要开进度推送）。
+
+    只对**匹配打分**与**复杂任务**返回 True：实测匹配 81s（读简历 / 打分 / 反思
+    各一跳）、复杂任务是多步 Planner + Executor + Critic；精确搜索 6s、追问 4s、
+    面试问答都远低于 60s 阈值，推了只是噪声（还会把回答切碎）。
+
+    只看用户原话，不调 LLM、不碰会话态 —— 失败一律按「不是长任务」处理。
+    """
+    try:
+        if _engine() in ("react", "react_agent", "legacy"):
+            return False
+        return _route(question) in ("match", "complex")
+    except Exception as e:                              # noqa: BLE001 - 判不出来就不推
+        print(f"[progress] 长任务判定失败（按短任务处理）：{type(e).__name__}: {e}")
+        return False
 
 
 def engine_name(question: str) -> str:

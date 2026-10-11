@@ -18,6 +18,8 @@ import os
 import re
 import secrets
 import sys
+import threading
+import time
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -576,6 +578,219 @@ def _semaphore():
     if _SEMAPHORE is None:
         _SEMAPHORE = asyncio.Semaphore(max(1, limits.max_concurrency()))
     return _SEMAPHORE
+
+
+# --------------------------------------------------------------------------
+# 长任务进度推送（修：>60s 的任务中途没有数据往来 → 前端 websocket 超时）
+#
+# 现象：匹配打分 81s、模糊搜索 76s，都超过 60s；这期间服务端**一句话都不发**，
+# 前端判定连接已死，回显「无法连接」，用户必须刷新才看得到结果。
+#
+# 修法：长任务在关键节点调 progress_cb 推一条「正在 XXX…」，数据往来不断，
+# 连接自然不断。三层约束，缺一不可：
+#   1. **只对长任务开**（`is_slow_route`）：精确搜索 6s、追问 4s 一条都不推，
+#      短任务的体验逐字不变（推了反而把回答切碎）；
+#   2. **节流** `_PROGRESS_MIN_GAP`：节点挨着开始时只留第一条，不刷屏；
+#   3. **心跳兜底** `_PROGRESS_HEARTBEAT_GAP`：某一跳特别慢（实测打分单跳 40s+）时
+#      自动补一条「仍在处理」，保证任何时刻静默窗口都 < 16s（心跳间隔 + 1s 轮询）。
+#
+# 推送走 Chainlit 消息（cl.Message），与最终回答的流式输出同一条 socket 通道。
+# --------------------------------------------------------------------------
+
+#: 两条进度之间至少隔这么久（节点挨着开始时只留第一条，不刷屏）
+_PROGRESS_MIN_GAP = 20.0
+#: 距上一条进度超过这么久还没有新进度 → 自动补一条心跳（保证空闲 < 20s）
+_PROGRESS_HEARTBEAT_GAP = 15.0
+#: 心跳线程的检查间隔
+_PROGRESS_TICK = 1.0
+#: 等待队列消费的间隔（也是 sender 任务的轮询粒度）
+_PROGRESS_IDLE = 0.5
+
+
+class _ProgressPusher:
+    """长任务的进度推送器（**线程安全**，可在 `_off_loop` 的子线程里调）。
+
+    为什么要有这个类、而不是直接 `asyncio.run_coroutine_threadsafe(cl.Message...)`：
+    实测那样**只有第一条能发出去**，之后每条都报 `ChainlitContextException`
+    （服务端日志可见）。原因是 Chainlit 的会话上下文（`chainlit.context.context`）
+    放在 ContextVar 里，而 `run_coroutine_threadsafe` 的协程继承的是**调用线程**
+    （Agent 子线程）的上下文 —— 那里没有会话，`cl.Message(...).send()` 直接抛。
+
+    修法是经典的「队列 + 常驻任务」：`start()` 在**事件循环里**建一个 sender 协程
+    （它是从 `on_message` 里 create_task 出来的，**天然带着会话上下文**），
+    子线程只往队列里塞字符串，send 在 sender 协程里做 —— 上下文永远是对的。
+
+    另外两件事也在这里：
+      * **节流**：`min_gap` 内的进度直接丢（节点挨着开始时只留第一条，不刷屏）；
+      * **心跳**：一个后台线程定期塞「仍在处理」——某一跳特别慢（实测打分单跳 40s+）
+        时自动补位，保证任何时刻的静默窗口都远小于 60s（前端心跳超时的阈值）。
+    """
+
+    def __init__(self, loop=None, min_gap: float = _PROGRESS_MIN_GAP,
+                 heartbeat_gap: float = _PROGRESS_HEARTBEAT_GAP) -> None:
+        self._loop = loop or asyncio.get_running_loop()
+        self.min_gap = float(min_gap)
+        self.heartbeat_gap = float(heartbeat_gap)
+        self.queue: asyncio.Queue = asyncio.Queue()
+        self._task = None
+        self._sent = 0
+        self._last_nudge = 0.0            # 上一条**步骤**进度（节流用）
+        self._last_any = 0.0              # 上一条任何消息（心跳用）
+        self._last_text = ""
+        self._stopped = False
+        self._lock = threading.Lock()
+
+    # -- 生命周期 ---------------------------------------------------------
+    def start(self):
+        """启动 sender 协程 + 心跳线程（**必须在事件循环里调**，on_message 里调）。"""
+        if self._task is None:
+            self._task = self._loop.create_task(self._sender())
+        threading.Thread(target=self._heartbeat, daemon=True,
+                         name="progress-heartbeat").start()
+        return self
+
+    def stop(self) -> None:
+        """任务结束：停心跳、收尾 sender（还允许它把队列里剩下的发完）。"""
+        with self._lock:
+            self._stopped = True
+        try:
+            self.queue.put_nowait({"kind": "stop"})
+        except Exception:                                   # noqa: BLE001
+            pass
+
+    # -- 对子线程暴露的入口 ------------------------------------------------
+    def push(self, text: str, force: bool = False) -> None:
+        """塞一条步骤进度（子线程安全）。抛异常一律吞掉 —— 推送是旁路。"""
+        try:
+            if not self._accept(text, force):
+                return
+            self.queue.put_nowait({"kind": "progress", "text": str(text)})
+        except Exception as e:                              # noqa: BLE001
+            print(f"[进度] 推送失败（忽略）：{type(e).__name__}: {e}")
+
+    def push_heartbeat(self, text: str) -> None:
+        """塞一条心跳（只要距上一条**任何**消息超过 heartbeat_gap 就推）。"""
+        try:
+            now = time.monotonic()
+            with self._lock:
+                if self._stopped or now - self._last_any < self.heartbeat_gap:
+                    return
+                self._last_any = now
+            self.queue.put_nowait({"kind": "progress", "text": str(text)})
+        except Exception as e:                              # noqa: BLE001
+            print(f"[进度] 心跳失败（忽略）：{type(e).__name__}: {e}")
+
+    def _accept(self, text: str, force: bool) -> bool:
+        """步骤进度的节流 / 去重（只跟**上一条步骤进度**比，心跳不挤占额度）。"""
+        now = time.monotonic()
+        with self._lock:
+            if self._stopped and not force:
+                return False
+            text = str(text)
+            if not text:
+                return False
+            if not force and now - self._last_nudge < self.min_gap:
+                return False
+            if text == self._last_text:
+                return False
+            self._last_nudge = now
+            self._last_any = now
+            self._last_text = text
+            return True
+
+    # -- 事件循环里的消费端 ------------------------------------------------
+    async def _sender(self) -> None:
+        """常驻协程：从队列取消息并发出去（**这里才有 Chainlit 会话上下文**）。"""
+        while True:
+            try:
+                item = await asyncio.wait_for(self.queue.get(), timeout=_PROGRESS_IDLE)
+            except asyncio.TimeoutError:
+                if self._stopped:
+                    return
+                continue
+            if not isinstance(item, dict):
+                continue
+            if item.get("kind") == "stop":
+                return
+            text = str(item.get("text") or "")
+            if not text:
+                continue
+            try:
+                await cl.Message(content=f"⏳ {text}").send()
+                self._sent += 1
+            except Exception as e:                          # noqa: BLE001 - 推送坏不影响任务
+                print(f"[进度] 推送失败（忽略）：{type(e).__name__}: {e}")
+
+    # -- 心跳线程 ----------------------------------------------------------
+    def _heartbeat(self) -> None:
+        while True:
+            time.sleep(_PROGRESS_TICK)
+            with self._lock:
+                if self._stopped:
+                    return
+                gap = time.monotonic() - self._last_any
+            if gap >= self.heartbeat_gap:
+                self.push_heartbeat("仍在处理中，请稍候…（这一步比较慢，不会断线）")
+
+
+def _long_task_run(message: str) -> bool:
+    """这条消息是不是预期 > 20s 的长任务（决定推不推进度）。
+
+    `react_agent_lg.is_slow_route` 是唯一判据（它只看用户原话，不调 LLM / 不碰会话态），
+    这里只做**延迟导入 + 兜底**：判不出来就按短任务处理 —— 不推是安全的那一侧。
+    AGENT_ENGINE=react 的退路也在里面判（旧引擎不推，行为与改造前一致）。
+    """
+    from agent.react_agent_lg import is_slow_route
+
+    return bool(is_slow_route(message))
+
+
+def _make_progress(message: str):
+    """给这条用户消息造 (progress_cb, pusher)。
+
+    * 长任务：`pusher.start()` 起常驻 sender + 心跳，回调把文案塞进队列；
+    * 短任务 / 判不出来：返回 `(no-op, None)` —— 调用方（图节点）不用自己判，
+      精确搜索、追问这些 20s 内的操作一条进度都不会推。
+
+    必须传**用户原话**（不要带 app 追加的 `[系统提示]` 块）：那些提示里写着
+    「不要重新搜索」，会让意图判定跑偏（见 react_agent_lg._user_text）。
+    """
+    try:
+        if not _long_task_run(message):
+            return (lambda *_a, **_k: None), None
+    except Exception as e:                              # noqa: BLE001 - 判不出来就不推
+        print(f"[进度] 长任务判定失败（按短任务处理）：{type(e).__name__}: {e}")
+        return (lambda *_a, **_k: None), None
+    try:
+        pusher = _ProgressPusher().start()
+    except Exception as e:                              # noqa: BLE001 - 没有循环就退化成不推
+        print(f"[进度] 推送器启动失败（本轮不推进度）：{type(e).__name__}: {e}")
+        return (lambda *_a, **_k: None), None
+    return pusher.push, pusher
+
+
+def _progress_cb_for(message: str):
+    """只要回调（给单测 / 简单调用方用，不需要手动停心跳时）。"""
+    return _make_progress(message)[0]
+
+
+def _stop_progress(cb_or_pusher) -> None:
+    """任务结束：停掉心跳与 sender。
+
+    兼容两种入参：`_make_progress` 返回的 pusher，或它返回的那个回调
+    （回调的闭包里能找到 pusher —— 短任务的 no-op 里没有，直接忽略）。
+    """
+    if isinstance(cb_or_pusher, _ProgressPusher):
+        cb_or_pusher.stop()
+        return
+    for cell in (getattr(cb_or_pusher, "__closure__", None) or ()):
+        try:
+            self_obj = cell.cell_contents
+        except ValueError:                              # 空单元格
+            continue
+        if isinstance(self_obj, _ProgressPusher):
+            self_obj.stop()
+            return
 
 
 def _off_loop(func, *args, **kwargs):
@@ -1879,17 +2094,31 @@ async def on_message(message: cl.Message):
     # 提示只进给模型的那一份输入；落库/历史里仍然是用户原话。
     agent_input = content + _pasted_entry_hint(content) + _ordinal_job_hint(content)
 
+    # 长任务（匹配打分 / 复杂任务）进度回调：拿**用户原话**判，不看注入的提示块
+    # —— 提示块里写着「不要重新搜索」，会让意图判定跑偏（见 react_agent_lg._user_text）。
+    # 短任务拿到的是 no-op（且 pusher 为 None），一条都不会推。
+    # ⚠️ 必须在这里（事件循环里）创建：pusher 的 sender 协程要从 on_message
+    # 这一层继承 Chainlit 会话上下文，否则 send 会抛 ChainlitContextException。
+    progress_cb, progress_pusher = _make_progress(content)
+
     async with _semaphore():
         async with cl.Step(name="Agent 工作中", type="tool") as step:
             step.output = "正在分析..."
             try:
                 # 丢进子线程跑：run_agent 是同步的（多轮 LLM + 工具调用，动辄
                 # 几十秒），留在事件循环里会卡住 socket.io 心跳 → 前端「无法连接」。
+                # progress_cb 让这条长链路在**每一步开始时**推一条进度，
+                # 中间不再有 60s 的静默窗口（修：超时断连 → 刷新才有结果）。
                 result = await _off_loop(run_agent, agent_input, resume_data=resume,
-                                         verbose=False, history=history)
+                                         verbose=False, history=history,
+                                         progress_cb=progress_cb)
             except Exception as e:
                 await cl.Message(content=f"❌ 出错了：{e}").send()
                 return
+            finally:
+                # 任务结束（无论成败）就停心跳：否则线程会一直往这条会话推
+                # 「仍在处理中」，把下一轮的回答也搅乱。
+                _stop_progress(progress_pusher)
 
             # **必须在 `with` 里写回 step.output**：Step.__aexit__ 会调一次
             # update()（chainlit/step.py:471-483）把当时的 output 推给前端；
