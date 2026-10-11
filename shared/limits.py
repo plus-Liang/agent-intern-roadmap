@@ -246,6 +246,59 @@ def max_concurrency() -> int:
     return _env_int("MAX_CONCURRENCY", 3, 1)
 
 
+def quota_pct(used, limit) -> float:
+    """用量占额度的百分比（0~999.9）；limit<=0（不限）时返回 0.0。"""
+    try:
+        used = float(used or 0)
+        limit = float(limit or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if limit <= 0:
+        return 0.0
+    return min(999.9, used * 100.0 / limit)
+
+
+def daily_reset_text() -> str:
+    """日额度的恢复时间：次日 00:00（用量按自然日统计，见 token_tracker）。"""
+    from datetime import date, timedelta
+    tomorrow = date.today() + timedelta(days=1)
+    return f"{tomorrow.isoformat()} 00:00"
+
+
+def format_quota_message(status: str, *, used: int = 0, limit: int = 0,
+                         reset_at: str = "", note: str = "") -> str:
+    """日额度触顶/降级时给用户的完整信息（第一层：信息透明）。
+
+    为什么必须一次说全（用多少 / 限额多少 / 何时恢复）：
+    老话术只有一句「今日服务总额度已用完，明天再试」——用户既不知道自己
+    用了多少、也不知道限额是多少，更不知道精确的恢复时间，只能靠猜。
+    这里把三个数字一次给全，并按状态区分「全拒」与「降级」（第二层）。
+
+    status: "user"（单用户额度用完）/ "global"（全站额度用完）。
+    """
+    pct = quota_pct(used, limit)
+    reset = reset_at or daily_reset_text()
+    if status == "global":
+        head = (f"📵 今日全站服务额度已用完"
+                f"（{used:,} / {limit:,} token，已超 {pct - 100:.1f}%）。"
+                f"{reset} 自动重置。")
+        return head + (f"\n{note}" if note else "")
+    head = (f"📵 今日额度已用 {used:,} / {limit:,}（超 {pct - 100:.1f}%）。"
+            f"{reset} 自动重置。")
+    body = note or ("查询类操作（查投递记录 / 看岗位详情 / 看已生成的投递包）仍可用；"
+                    "生成投递包等贵操作暂不可用。")
+    return f"{head}\n{body}"
+
+
+def quota_warn_text(used: int, limit: int) -> str:
+    """接近额度（>80%）时挂在回复尾部的那一行；未达阈值返回空串。"""
+    pct = quota_pct(used, limit)
+    if pct <= 80.0:
+        return ""
+    return (f"⚠️ 今日额度已用 {pct:.0f}%（{used:,} / {limit:,} token，"
+            f"{daily_reset_text()} 重置），注意节约")
+
+
 def quota_verdict(used: int, user_limit: int,
                   global_used: int, global_limit: int) -> str:
     """第 4 道闸门的判定（纯逻辑，查询在 agent/app.py 里做）。
@@ -259,6 +312,126 @@ def quota_verdict(used: int, user_limit: int,
     if global_limit > 0 and global_used >= global_limit:
         return "global"
     return "ok"
+
+
+# ========== 日额度「降级态」：便宜操作照走，贵操作降级/拒绝（第二层） ==========
+#
+# 为什么放在 limits 层而不是 app 层：工具的调用点在 agent/tools_registry.py，
+# app 层只负责「判定」。ContextVar 跟着一次请求生灭（与单次预算同一套做法），
+# 不需要清理，也不会串到别的用户；工具子线程由 call_tool 显式 copy_context
+# 带过去，所以工具里读得到。
+
+_quota_status: contextvars.ContextVar = contextvars.ContextVar(
+    "daily_quota_status", default="ok")
+_quota_note: contextvars.ContextVar = contextvars.ContextVar(
+    "daily_quota_note", default="")
+
+#: 额度用完时仍然放行的「便宜操作」（查库 / 读文件，不调 LLM）。
+QUOTA_CHEAP_TOOLS = frozenset({
+    "list_tracking", "get_job_detail", "list_resumes", "get_resume",
+    "get_preferences", "list_memories", "check_reminders", "lookup_job_ordinal",
+})
+
+
+def set_quota_status(status: str, note: str = "") -> None:
+    """入口闸门判定出「额度触顶」时调用；status: "ok"/"user"/"global"。"""
+    _quota_status.set(str(status or "ok"))
+    _quota_note.set(str(note or ""))
+
+
+def quota_status() -> str:
+    """当前请求的日额度状态；"ok" 表示没触顶。"""
+    return str(_quota_status.get() or "ok")
+
+
+def quota_note() -> str:
+    """给用户/模型的降级说明（怎么降级、为什么）。"""
+    return str(_quota_note.get() or "")
+
+
+def quota_limited() -> bool:
+    """日额度是否已触顶（贵操作必须降级/拒绝）。
+
+    两条判据，取或：
+    1. 入口闸门挂上的降级态（ContextVar，零 IO）；
+    2. **按真实用量兜底**：闸门没跑过（或 ContextVar 没传进子线程）时直接查一次
+       `token_tracker.usage_today()`。没有这条兜底，降级就只在「闸门跑过的那条
+       上下文」里生效，别处照样会去调 LLM —— 降级必须是**结果级**的。
+    """
+    if quota_status() in ("user", "global"):
+        return True
+    if not _quota_from_usage():
+        return False
+    _quota_status.set("user")
+    return True
+
+
+def _quota_from_usage() -> bool:
+    """按 token_usage 表的真实用量判断单用户日额度是否用完（查询失败 = 没超）。"""
+    limit = daily_tokens_per_user()
+    if limit <= 0:
+        return False
+    try:
+        from shared import token_tracker
+        from shared.user_context import get_current_user
+        return token_tracker.usage_today(get_current_user()) >= limit
+    except Exception as e:                          # noqa: BLE001 - 判定失败按没超
+        print(f"[限流] 兜底额度查询失败（按未超处理）：{type(e).__name__}: {e}")
+        return False
+
+
+def quota_forces_keyword_search() -> bool:
+    """搜索是否必须降级到本地关键词/缓存路（不调 LLM 重排）。"""
+    return quota_limited()
+
+
+def quota_degrades_match() -> bool:
+    """匹配打分是否降级成「只给关键词匹配度」。"""
+    return quota_limited()
+
+
+def quota_blocks_package() -> str:
+    """生成投递包是否被拒；被拒时返回给用户的原因（含恢复时间），否则空串。"""
+    if not quota_limited():
+        return ""
+    tail = f"（{_quota_note.get()}）" if _quota_note.get() else ""
+    return f"今日额度已用完，生成投递包（自荐信 + 简历定制）暂时不可用{tail}"
+
+def quota_agent_note() -> str:
+    """注入给模型的一行系统提示：告诉它哪些工具已降级/不可用（别反复试）。
+
+    刻意写成一行：这段会进每次请求的输入，多写就是多花 token。
+    """
+    if quota_status() == "global":
+        return ("【额度】今日全站额度已用完：**只能**回答不调工具的问题，"
+                "不要调用任何工具，直接说明额度与恢复时间。")
+    if quota_status() == "user":
+        return ("【额度】今日额度已用完：只许调便宜查询工具（list_tracking / "
+                "get_job_detail / list_resumes），search_jobs 已降级为本地关键词"
+                "（semantic 无效），match_resume 只给关键词匹配度，"
+                "generate_application_package 会被拒 —— 必须如实说明降级原因。")
+    return ""
+
+
+def cheap_tool_allowed(name: str) -> bool:
+    """额度用完时，这个工具是否仍放行（便宜操作白名单）。"""
+    return str(name or "") in QUOTA_CHEAP_TOOLS
+
+
+def quota_blocks_tool(name: str) -> str:
+    """工具级降级判定：返回拒绝原因（空串 = 放行）。
+
+    贵操作（生成投递包 / 自荐信类）一律拒；省钱路（关键词搜索）、
+    有兜底路（关键词打分）的工具不在这里拦，由工具内部降级实现，
+    这样「降级」而不是「报错」。
+    """
+    if not quota_limited() or not name:
+        return ""
+    if cheap_tool_allowed(name):
+        return ""
+    if str(name) == "generate_application_package":
+        return quota_blocks_package()
+    return ""
 
 
 # ========== 第 3 道闸门：单用户频率（内存令牌桶） ==========

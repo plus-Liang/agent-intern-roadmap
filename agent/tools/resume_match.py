@@ -6,6 +6,7 @@
 """
 from dataclasses import dataclass, field
 import json
+import re
 import time
 from shared.llm_client import chat
 from shared.limits import match_max_tokens, match_reasoning_effort
@@ -137,6 +138,97 @@ def match_resume_to_jd(resume: Resume, job_detail) -> MatchResult:
                 time.sleep(attempt * 2)
 
     raise RuntimeError("匹配打分失败")
+
+
+def _keywords(text) -> set:
+    """把一段文本切成可比较的关键片段（英文/数字整词 + 中文 2 字滑窗）。
+
+    刻意不引依赖、不做同义扩展：这是**降级路**的兜底匹配度，宁可少给分，
+    也不要因为"猜"同义词而虚高（虚高的分数比不报分数更糟）。
+    """
+    raw = str(text or "")
+    terms = {t.lower() for t in re.findall(r"[A-Za-z][A-Za-z0-9+#.\-]{1,}", raw)}
+    for run in re.findall(r"[\u4e00-\u9fff]{2,}", raw):
+        for i in range(len(run) - 1):
+            terms.add(run[i:i + 2])
+    return terms
+
+
+_DEGREE_RANK = {"专科": 1, "大专": 1, "本科": 2, "学士": 2, "硕士": 3, "研究生": 3, "博士": 4}
+
+
+def _degree_rank(text) -> int:
+    """从文本里读学历档位（读不到返回 0）。"""
+    for key, rank in _DEGREE_RANK.items():
+        if key in str(text or ""):
+            return rank
+    return 0
+
+
+def keyword_match(resume: Resume, job_detail) -> MatchResult:
+    """额度不足时的降级打分：**纯关键词/规则**，不调 LLM。
+
+    为什么必须有这条兜底路：额度用完后老的入口闸门是**全拒** —— 用户连
+    「这份简历跟这个岗位像不像」都问不了。降级成关键词匹配度至少保住
+    「能不能投」的判断，且明确标注这是降级结果（score 前说明 + degraded 字段）。
+
+    维度口径与 LLM 路一致（技能 40 / 经历 30 / 学历 15 / 城市 15），
+    但每项都用可解释的字面依据：
+    - 技能：JD 原文里的技能片段被简历覆盖的比例（没有可判定项时按 0 计，
+      并在 gaps 里说明是降级结果，不假装满分）；
+    - 经历：简历经历/项目的字面片段与 JD 的重合度；
+    - 学历：按档位比较（JD 没写要求 = 达标）；
+    - 城市：完全一致满分，JD 未写城市按满分（不因数据缺失扣分）。
+    """
+    jd_text = " ".join(str(getattr(job_detail, f, "") or "") for f in
+                       ("company", "title", "city", "salary", "education",
+                        "description", "requirements", "bonus"))
+    jd_text += " " + " ".join(str(t) for t in (getattr(job_detail, "tags", None) or []))
+    jd_terms = _keywords(jd_text) - {"岗位", "职责", "要求", "工作", "公司", "我们", "以及", "相关"}
+
+    skills = [s for s in (resume.skills or []) if str(s).strip()]
+    hit = [s for s in skills if str(s).lower() in jd_text.lower()]
+    missing = [s for s in skills if s not in hit]
+    # 覆盖率只看「有交集的技能」：简历里的技能 JD 一个字没提就不进分母，
+    # 否则「简历写了 20 个技能、JD 只要求 3 个」会被算成 15% 的假低分。
+    coverage = len(hit) + len(missing)
+    skill_score = min(40, int(round(40 * len(hit) / coverage))) if coverage else 0
+
+    exp_text = json.dumps(
+        {"experience": resume.experience, "projects": resume.projects},
+        ensure_ascii=False)
+    exp_terms = _keywords(exp_text)
+    overlap = len(jd_terms & exp_terms)
+    exp_score = min(30, int(round(30 * overlap / max(1, min(len(jd_terms), 40)))))
+
+    jd_rank, resume_rank = _degree_rank(getattr(job_detail, "education", "")), \
+        _degree_rank(resume.education)
+    if jd_rank == 0 or resume_rank == 0:
+        edu_score = 15
+    elif resume_rank >= jd_rank:
+        edu_score = 15
+    else:
+        edu_score = 8
+
+    jd_city = str(getattr(job_detail, "city", "") or "")
+    resume_city = str(resume.city or "")
+    city_score = 15 if (not jd_city or not resume_city
+                        or resume_city[:2] in jd_city or jd_city[:2] in resume_city) else 6
+
+    dimensions = {"skills": skill_score, "experience": exp_score,
+                  "education": edu_score, "location": city_score}
+    score = max(0, min(100, sum(dimensions.values())))
+    # gaps 只列「JD 里明确写过、简历技能表里没有」的技术词，按字面取，
+    # 不做同义扩展（降级路的差距必须能在原文里指出来）。
+    gaps = [t for t in sorted(jd_terms)
+            if re.search(r"[a-z]", t) and t not in {str(s).lower() for s in skills}][:5]
+    return MatchResult(
+        score=score,
+        dimensions=dimensions,
+        gaps=gaps,
+        highlights=[f"命中技能：{', '.join(hit[:6])}"] if hit else [],
+        suggestions=["本条为降级结果：只做关键词比对，未经过模型分析。"],
+    )
 
 
 if __name__ == "__main__":

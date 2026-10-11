@@ -809,6 +809,46 @@ def _off_loop(func, *args, **kwargs):
     return asyncio.to_thread(ctx.run, func, *args, **kwargs)
 
 
+class SessionStatus:
+    """一次请求的额度判定结果（第一层：信息透明）。
+
+    以前这里只返回 True/False，被拒时用户只看到一句「今日服务总额度已用完，
+    明天再试」——不知道用了多少、限额多少、几点恢复（现象 1/2）。
+    现在把「判定 + 数字 + 恢复时间 + 护栏提示」一起交给调用方。
+    """
+
+    def __init__(self, used: int = 0, limit: int = 0, scope: str = "none",
+                 global_used: int = 0, global_limit: int = 0, reason: str = ""):
+        self.used = int(used or 0)
+        self.limit = int(limit or 0)
+        self.scope = str(scope or "none")          # ok / user / global / rate / none
+        self.global_used = int(global_used or 0)
+        self.global_limit = int(global_limit or 0)
+        self.reason = reason
+        self.quota_message = ""                    # 触顶/降级时给用户的那段话
+
+    @property
+    def exhausted(self) -> bool:
+        return self.scope in ("user", "global")
+
+    @property
+    def pct(self) -> float:
+        return limits.quota_pct(self.used, self.limit)
+
+    @property
+    def warn_line(self) -> str:
+        """>80% 时挂在回复尾部的一行预警；未达阈值返回空串（第三层）。"""
+        return limits.quota_warn_text(self.used, self.limit)
+
+    def __bool__(self) -> bool:
+        """True = 这条消息的**贵路径**被拒（频率超限 / 全站额度用完）。
+
+        单用户额度用完是 **False**：那是「降级」不是「拒绝」——调用方要接着看
+        `exhausted` 去走便宜操作直连（见 `on_message` 与 `_cheap_only_answer`）。
+        """
+        return self.scope in ("global", "rate")
+
+
 def _quota_warning(scope: str, user_id: str, used: int, limit: int) -> None:
     """日额度触顶时记一条告警（结构化日志 + 一行控制台输出）。"""
     log_event("quota", "quota_exceeded", scope=scope, user_id=user_id,
@@ -816,14 +856,18 @@ def _quota_warning(scope: str, user_id: str, used: int, limit: int) -> None:
     print(f"[限流] 日额度触顶（{scope}）：user={user_id} {used}/{limit} token")
 
 
-async def _deny_if_throttled(stage: str) -> bool:
-    """入口串第 3、4 道闸门；返回 True 表示**应当拒绝**这条消息。
+async def _deny_if_throttled(stage: str) -> SessionStatus:
+    """入口串第 3、4 道闸门；返回 SessionStatus。
 
-    只做两件便宜的事：内存桶判断 + 两次 SUM 查询（单用户 / 全局，都有索引）。
+    `bool(status)` 为 True 表示**整条消息的贵路径被拒**（频率超限 / 全局额度用完）；
+    单用户日额度用完返回 `bool=False` 但 `exhausted=True` —— 交给第二层降级：
+    便宜操作照走、贵操作在工具层降级或拒绝（见 `_cheap_only_answer`）。
+    只做两件便宜的事：内存桶判断 + 两次 SUM 查询（都有索引）。
     查询异常一律放行（限流是保护措施，不能因为记账库坏了把人挡在门外）。
     """
+    status = SessionStatus(scope="ok")
     if not limits.rate_limit_enabled():
-        return False
+        return status
 
     user_id = _user_id()
 
@@ -831,13 +875,14 @@ async def _deny_if_throttled(stage: str) -> bool:
     allowed, retry_after = limits.check_rate(user_id)
     if not allowed:
         wait = int(retry_after) + 1
+        status.scope = "rate"
         print(f"[限流] 频率超限：user={user_id} stage={stage} 建议等待 {wait}s")
         await cl.Message(
             content=(f"⏳ 请求太频繁了（每分钟 {limits.rate_per_min()} 次、"
                      f"最多连发 {limits.rate_burst()} 次），请 {wait} 秒后再试。"
                      "刚才那条没有被处理。")
         ).send()
-        return True
+        return status
 
     # ---- 闸门 4：单用户日 token + 全局日 token ----
     # 判定与「回话」分开写：查不到额度时异常兜底为放行，但**判定已经得出**的结论
@@ -855,24 +900,155 @@ async def _deny_if_throttled(stage: str) -> bool:
         print(f"[限流] 日额度查询失败（放行）：{type(e).__name__}: {e}")
         verdict = "ok"
 
-    if verdict == "user":
-        _quota_warning("user", user_id, used, user_limit)
-        await cl.Message(
-            content=(f"📵 今日额度已用完（{used}/{user_limit} token），明天再试。"
-                     "已达上限的请求不会被处理。")
-        ).send()
-        return True
-    if verdict == "global":
-        _quota_warning("global", user_id, global_used, global_limit)
-        await cl.Message(content="📵 今日服务总额度已用完，明天再试。").send()
-        return True
+    status.used, status.limit = used, user_limit
+    status.global_used, status.global_limit = global_used, global_limit
+    status.scope = verdict
+    reset_at = limits.daily_reset_text()
 
-    return False
+    if verdict == "user":
+        # 第二层：不再整条硬拒 —— 话术里说清「哪些还能用、哪些降级了」，
+        # 状态同时交给工具层去做真正的降级（见 limits.set_quota_status）。
+        status.quota_message = limits.format_quota_message(
+            "user", used=used, limit=user_limit, reset_at=reset_at)
+        status.reason = f"单用户日额度用完：{used:,}/{user_limit:,} token"
+        _quota_warning("user", user_id, used, user_limit)
+        return status
+
+    if verdict == "global":
+        # 全局额度用完是真·全站熔断：连便宜操作也一并不再处理（额度是共享的）。
+        status.quota_message = limits.format_quota_message(
+            "global", used=global_used, limit=global_limit, reset_at=reset_at)
+        status.reason = f"全站日额度用完：{global_used:,}/{global_limit:,} token"
+        _quota_warning("global", user_id, global_used, global_limit)
+        await cl.Message(content=status.quota_message).send()
+        return status
+
+    return status
 
 
 # --------------------------------------------------------------------------
 # D2：用户反馈（👍 / 👎 → logs/feedback.db）
 # --------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------
+# 第二层：降级而非硬拒 —— 额度用完时「便宜操作」直连工具，不跑 Agent
+# --------------------------------------------------------------------------
+
+#: 额度用完时可以直接回答的便宜操作（查库 / 读文件，零 LLM 调用）。
+#: 命中任意一条就走直连路径：不跑 ReAct（不花 token），回答里说明降级原因。
+_CHEAP_INTENT_PATTERNS = (
+    (re.compile(r"投递(记录|情况|状态|历史)|投了哪些|投了哪几家|查.*投递|看.*投递"),
+     "list_tracking"),
+    (re.compile(r"(岗位|职位)\s*(详情|详情页|JD)|JD\s*(详情|内容)"), "get_job_detail"),
+    (re.compile(r"(我的|所有|有哪几份|列一下).*简历|简历列表"), "list_resumes"),
+)
+
+_STATUS_LABEL = {
+    "applied": "已投递", "viewed": "已查看", "interview": "面试中",
+    "interviewing": "面试中", "offer": "已offer", "accepted": "已接受",
+    "rejected": "已拒绝", "withdrawn": "已撤回",
+}
+
+
+def _cheap_tracking_answer(tool, args) -> str:
+    rows = tool(args) or []
+    if not rows:
+        return "你目前还没有投递记录（一条都没有）。"
+    lines = [f"你目前有 {len(rows)} 条投递记录（降级查询：直接读库，未走模型）："]
+    for i, r in enumerate(rows, 1):
+        status = _STATUS_LABEL.get(str(r.get("status", "")), str(r.get("status", "")))
+        date = str(r.get("applied_at", ""))[:10]
+        lines.append(f"{i}. {r.get('company', '')} · {r.get('title', '')}｜{status}｜{date}")
+    return "\n".join(lines)
+
+
+def _cheap_detail_answer(tool, args, content: str) -> str:
+    from agent import tools_registry as _tr
+    job_id = (args or {}).get("job_id")
+    if not job_id:
+        found = re.findall(r"\b(\d{3,})\b", content)
+        if found:
+            job_id = found[0]
+    if not job_id:
+        # 会话里正在看的岗位（刚搜过 / 刚粘贴过 / 刚生成过投递包）
+        focus, _src = _tr.get_focus_job()
+        job_id = getattr(focus, "job_id", "") if focus is not None else ""
+    if not job_id:
+        return ("想看哪个岗位的详情？直接把岗位链接或岗位 ID 发我"
+                "（也可以先说「找北京的 Python 实习」）。")
+    d = tool(job_id)
+    return "\n".join([
+        f"{d.get('company', '')} · {d.get('title', '')}（降级查询：直接读岗位库）",
+        f"城市：{d.get('city', '') or '—'}｜薪资：{d.get('salary', '') or '—'}"
+        f"｜学历：{d.get('education', '') or '—'}",
+        f"岗位职责：{(d.get('description') or '（无）')[:400]}",
+        f"任职要求：{(d.get('requirements') or '（无）')[:400]}",
+    ])
+
+
+def _cheap_resume_answer(tool, args) -> str:
+    rows = tool() or []
+    if not rows:
+        return "简历库里还没有简历，先在对话框里发一份 PDF / 文本简历给我吧。"
+    lines = [f"简历库里有 {len(rows)} 份（降级查询：直接读库，未走模型）："]
+    for i, r in enumerate(rows, 1):
+        lines.append(f"{i}. {r.get('name', '未命名')}（id={r.get('id', '')}）")
+    return "\n".join(lines)
+
+
+async def _cheap_only_answer(content: str, status: SessionStatus) -> str:
+    """额度用完时尽量用便宜操作回答（零 LLM）；答不了返回空串，交给贵路径判定。
+
+    为什么必须绕开 Agent：ReAct 每一轮都要调 LLM —— 「查投递记录」也走 Agent
+    就等于额度用完还照样烧 token。这里只做两次字符串匹配 + 一次工具调用。
+    """
+    matched = ""
+    for pattern, tool_name in _CHEAP_INTENT_PATTERNS:
+        if pattern.search(content or ""):
+            matched = tool_name
+            break
+    if not matched:
+        return ""
+
+    from agent import tools_registry as _tr
+    dispatch = {
+        "list_tracking": _cheap_tracking_answer,
+        "get_job_detail": _cheap_detail_answer,
+        "list_resumes": _cheap_resume_answer,
+    }
+    func = _tr.TOOLS[matched]["func"]
+    try:
+        if matched == "get_job_detail":
+            body = _cheap_detail_answer(func, {}, content)
+        else:
+            body = dispatch[matched](func, {})
+    except Exception as e:                          # noqa: BLE001 - 便宜路失败也要给理由
+        print(f"[限流] 便宜操作直连失败（{matched}）：{type(e).__name__}: {e}")
+        return ""
+
+    prefix = status.quota_message or limits.format_quota_message(
+        "user", used=status.used, limit=status.limit)
+    return f"{prefix}\n\n{body}"
+
+
+def _take_quota_warn(user_id: str, status: SessionStatus) -> str:
+    """第三层预警：额度 >80% 时给一行提示，且**一天只提示一次**（不刷屏）。
+
+    标记落库（storage.quota_warned_today）：内存标记在重启 / 多 worker 下会失效，
+    那样用户一天会被反复提醒。取用顺序是「先查再写」：查库失败按已提示处理。
+    """
+    line = status.warn_line
+    if not line or status.exhausted:
+        return ""
+    day = time.strftime("%Y-%m-%d")
+    try:
+        if storage.quota_warned_today(user_id, day):
+            return ""
+        storage.mark_quota_warned(user_id, day)
+    except Exception as e:                          # noqa: BLE001 - 预警是旁路，不该挡主流程
+        print(f"[限流] 预警标记失败（本次照常提示）：{type(e).__name__}: {e}")
+    return line
+
 
 FEEDBACK_ACTION = "agent_feedback"
 
@@ -2170,9 +2346,25 @@ async def on_message(message: cl.Message):
         return
 
     # 正常对话：走 Agent
-    # 入口闸门 3（频率）→ 4（日额度）：被拒就直接返回，不落库、不进 Agent。
-    if await _deny_if_throttled("agent"):
+    # 入口闸门 3（频率）→ 4（日额度）。频率超限 / 全局额度用完：整条拒绝，不落库、
+    # 不进 Agent；**单用户**日额度用完：不整条拒，转「降级态」（第二层）——
+    # 便宜操作直接读库回答，贵操作在工具层降级或明确拒绝。
+    status = await _deny_if_throttled("agent")
+    if bool(status):
         return
+
+    quota_notice = ""
+    if status.exhausted:
+        # 先把降级态挂进 ContextVar：工具在子线程里也读得到（call_tool 会带上下文）
+        limits.set_quota_status("user", limits.daily_reset_text())
+        cheap = await _cheap_only_answer(content, status)
+        if cheap:
+            # 便宜操作直连：不跑 ReAct、不花 token，回答里说明降级原因与恢复时间
+            await cl.Message(content=cheap).send()
+            return
+        quota_notice = "\n\n" + limits.quota_agent_note()
+    else:
+        limits.set_quota_status("ok")
 
     resume = cl.user_session.get(_resume_key())
     thread_id = cl.user_session.get("thread_id") or _thread_id()
@@ -2183,7 +2375,8 @@ async def on_message(message: cl.Message):
 
     # 「我想投第 N 个」：序号一律以工具给的 index 为准（见 _ordinal_job_hint）。
     # 提示只进给模型的那一份输入；落库/历史里仍然是用户原话。
-    agent_input = content + _pasted_entry_hint(content) + _ordinal_job_hint(content)
+    agent_input = (content + _pasted_entry_hint(content)
+                   + _ordinal_job_hint(content) + quota_notice)
 
     # 长任务（匹配打分 / 复杂任务）进度回调：拿**用户原话**判，不看注入的提示块
     # —— 提示块里写着「不要重新搜索」，会让意图判定跑偏（见 react_agent_lg._user_text）。
@@ -2223,11 +2416,15 @@ async def on_message(message: cl.Message):
     msg = cl.Message(content="", actions=_build_feedback_actions())
     for token in result["answer"]:
         await msg.stream_token(token)
+    # 第三层：额度 >80% 时在回复尾部加一行提示（一天一次，不刷屏）
+    warn = _take_quota_warn(_user_id(), status)
+    if warn:
+        await msg.stream_token(f"\n\n{warn}")
     await msg.send()
 
     # 本轮落库（必须在 msg.send() 之后：落库失败也不能影响用户已经看到的回答），
     # 然后把内存里的历史同步成"库的样子"，下一轮才带得上这一轮。
-    answer = result.get("answer", "")
+    answer = result.get("answer", "") + (f"\n\n{warn}" if warn else "")
     turn_index = _record_turn(thread_id, content, answer, result.get("steps"))
     if turn_index is not None:
         try:

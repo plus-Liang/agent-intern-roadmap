@@ -331,6 +331,42 @@ def mark_job(job: dict, mark: str):
     conn.close()
 
 
+def mark_quota_warned(user_id: str, day: str, when: str = "") -> None:
+    """记下「今天已经就该用户的接近额度提示过一次」。
+
+    必须落库而不是只在内存里记：Chainlit 的 user_session 是纯内存的，
+    进程重启 / 多 worker 下内存标记会失效，warning 就会重复刷屏。
+    """
+    conn = _get_conn()
+    conn.execute("CREATE TABLE IF NOT EXISTS quota_warnings"
+                 " (user_id TEXT NOT NULL, day TEXT NOT NULL, created_at TEXT NOT NULL,"
+                 " PRIMARY KEY (user_id, day))")
+    conn.execute(
+        "INSERT OR REPLACE INTO quota_warnings (user_id, day, created_at) VALUES (?, ?, ?)",
+        (str(user_id or "local"), str(day), when or now()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def quota_warned_today(user_id: str, day: str) -> bool:
+    """今天是否已经提示过（查库失败按「已提示」处理：宁可不提示，也不刷屏）。"""
+    try:
+        conn = _get_conn()
+        conn.execute("CREATE TABLE IF NOT EXISTS quota_warnings"
+                     " (user_id TEXT NOT NULL, day TEXT NOT NULL, created_at TEXT NOT NULL,"
+                     " PRIMARY KEY (user_id, day))")
+        row = conn.execute(
+            "SELECT 1 FROM quota_warnings WHERE user_id = ? AND day = ?",
+            (str(user_id or "local"), str(day)),
+        ).fetchone()
+        conn.close()
+        return row is not None
+    except Exception as e:                          # noqa: BLE001 - 旁路标记，不挡主流程
+        print(f"[额度] 预警标记查询失败（按已提示处理）：{type(e).__name__}: {e}")
+        return True
+
+
 def get_marked_jobs(mark: str = None) -> list[dict]:
     """获取已标记的岗位"""
     conn = _get_conn()

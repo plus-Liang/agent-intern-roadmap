@@ -20,7 +20,7 @@ from agent.tools.job_detail import JobDetail, get_job_detail
 from agent.tools.url_parser import parse_pasted_jd
 from agent.tools.pdf_export import (available_backend, export_resume_pdf, fix_tech_terms,
                                     normalize_resume)
-from agent.tools.resume_match import match_resume_to_jd, Resume
+from agent.tools.resume_match import match_resume_to_jd, Resume, keyword_match
 from agent.resume.tailor import strip_self_praise, tailor_resume
 from shared.llm_client import chat
 from shared import limits
@@ -727,6 +727,12 @@ def _search(keyword, city=None, limit=20, semantic=False, job_type=None,
     `_search_summary` 提供，展示层（langgraph_flow）负责如实报告。
     """
     wanted_cities = _agent_cities(cities) or _agent_cities(city)
+    # 【降级路】日额度用完时不再走语义重排（embedding + 重排比关键词贵），
+    # 直接走本地关键词 / 24h 缓存路（`_search_rows` 的 semantic=False 分支，
+    # 命中缓存时不查库）。降级是**照常出结果**，不是拒绝搜索。
+    if semantic and limits.quota_forces_keyword_search():
+        semantic = False
+        print("[限流] 额度已用完：search_jobs 降级为本地关键词/缓存路")
     # 记下本轮条件（见 `_remember_last_search`）：**工具层是唯一的必经之路** ——
     # 搜索图、多智能体 Executor、ReAct 三条路最后都调到这里，只记在搜索图节点里
     # 会漏掉后两条（实测：「帮我找这个类型的岗位」走 complex → Executor 直接调
@@ -995,6 +1001,20 @@ def _match(job_id, resume_json):
                     if isinstance(e, dict)],
     )
     detail = _resolve_match_detail(job_id)
+    # 【降级路】额度用完时不调 LLM：返回纯关键词匹配度，并在结果里**说明原因**，
+    # 而不是抛错或返回 0 分（0 分会被当成真实结论，比不给分数更误导）。
+    if limits.quota_degrades_match():
+        kw = keyword_match(resume, detail)
+        return {
+            "score": kw.score,
+            "dimensions": kw.dimensions,
+            "gaps": kw.gaps,
+            "general_advice": kw.suggestions,
+            "highlights": kw.highlights,
+            "degraded": True,
+            "degraded_reason": "今日额度已用完：本次只给关键词匹配度（未经模型分析），"
+                               f"{limits.daily_reset_text()} 后恢复完整打分。",
+        }
     result = match_resume_to_jd(resume, detail)
     # gaps 溯源过滤：模型写的差距必须先过「JD 原文里有对应关键词」这一关，
     # 过不了的移进 general_advice（通用建议），不再当成岗位差距报给用户。
@@ -2333,6 +2353,16 @@ def generate_application_package(company, job_id=None, title=""):
     全程只读，不写 applications（见 _record_from_job_library）。
     """
     warnings = []
+    # 【降级路】投递包要跑自荐信 + 简历定制两次 LLM 调用，是最贵的一条路：
+    # 额度用完时在**这里**就明确拒绝（而不是让它跑到 LLM 层再报错），
+    # 并给出恢复时间；返回结构化结果，由模型如实转述给用户。
+    blocked = limits.quota_blocks_package()
+    if blocked:
+        return {
+            "blocked": True,
+            "reason": "quota_exhausted",
+            "degraded_reason": f"{blocked}；{limits.daily_reset_text()} 自动恢复。",
+        }
     record = storage.find_application(company)
     if record:
         detail, job_warnings = _resolve_job(record, job_id)
@@ -2832,6 +2862,16 @@ def call_tool(name: str, args: dict = None, confirmed: bool = False):
     spec = TOOLS[name]
     risk = spec.get("risk_level", "read")
     timeout = float(spec.get("timeout", DEFAULT_TIMEOUT) or DEFAULT_TIMEOUT)
+
+    # 1.5 额度降级：日额度用完时贵操作直接返回结构化拒绝（不执行、不报错），
+    # 便宜操作（白名单）照常放行 —— 这是「降级而非硬拒」的最后一道保险。
+    if limits.quota_limited():
+        block_reason = limits.quota_blocks_tool(name)
+        if block_reason:
+            _log_tool(name, risk, "quota_blocked")
+            return {"blocked": True, "reason": "quota_exhausted",
+                    "degraded_reason": f"{block_reason}；"
+                                       f"{limits.daily_reset_text()} 自动恢复。"}
 
     # 2. 参数校验：必须是 dict、不带未声明参数、值类型可 JSON 表达
     safe_args = _validate_args(name, args, spec)

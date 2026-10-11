@@ -24,6 +24,7 @@ import os
 import re
 import sqlite3
 import sys
+import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -647,7 +648,7 @@ def _disabled_payload_unchanged():
 
 def _disabled_gate_short_circuit():
     src = (REPO / "agent" / "app.py").read_text(encoding="utf-8")
-    marker = "if not limits.rate_limit_enabled():\n        return False"
+    marker = "if not limits.rate_limit_enabled():\n        return status"
     if marker not in src:
         _fail("入口闸门没有在总开关关闭时短路")
     return "app.py 闸门入口：开关关闭直接放行"
@@ -679,7 +680,7 @@ class _FakeCL:
 
 
 def _run_gate(user_id):
-    """在指定用户上下文里跑一次入口闸门，返回 (是否拒绝, 回话列表, 告警列表)。"""
+    """在指定用户上下文里跑一次入口闸门，返回 (状态对象, 回话列表, 告警列表)。"""
     warnings = []
     real_cl, real_warn = APP.cl, APP.log_event
     APP.cl = _FakeCL
@@ -687,18 +688,20 @@ def _run_gate(user_id):
     _FakeCL.sent = []
     try:
         with user_scope(user_id):
-            denied = asyncio.run(APP._deny_if_throttled("test"))
+            status = asyncio.run(APP._deny_if_throttled("test"))
     finally:
         APP.cl, APP.log_event = real_cl, real_warn
-    return denied, list(_FakeCL.sent), warnings
+    return status, list(_FakeCL.sent), warnings
 
 
 def _gate_allows_normal():
     os.environ["RATE_LIMIT_ENABLED"] = "true"
     L.reset_rate_limits()
-    denied, sent, _ = _run_gate("gate_ok")
-    if denied:
+    status, sent, _ = _run_gate("gate_ok")
+    if bool(status):
         _fail(f"正常请求不该被拒：{sent}")
+    if status.quota_message:
+        _fail(f"正常请求不该带额度话术：{status.quota_message}")
     return "放行，无回话"
 
 
@@ -706,10 +709,12 @@ def _gate_rate_rejects_and_no_agent():
     os.environ["RATE_LIMIT_ENABLED"] = "true"
     L.reset_rate_limits()
     results = [_run_gate("gate_rate") for _ in range(7)]
-    denied = [r[0] for r in results]
+    denied = [bool(r[0]) for r in results]
     if denied[6] is not True:
         _fail(f"连发第 7 次应当被拒：{denied}")
-    if results[6][1] and "太频繁" not in results[6][1][0]:
+    if results[6][0].scope != "rate":
+        _fail(f"拒绝口径不对：{results[6][0].scope}")
+    if not results[6][1] or "太频繁" not in results[6][1][0]:
         _fail(f"拒绝话术不对：{results[6][1]}")
     if not results[6][1]:
         _fail("被拒时应当回一句话")
@@ -717,22 +722,29 @@ def _gate_rate_rejects_and_no_agent():
 
 
 def _gate_daily_rejects_with_warning():
-    """把单用户日额度调到 1，用量已经远超 → 拒绝 + 告警日志。"""
+    """把单用户日额度调到 1，用量已经远超 → 降级态 + 告警日志 + 完整信息话术。"""
     os.environ["RATE_LIMIT_ENABLED"] = "true"
     os.environ["DAILY_TOKENS_PER_USER"] = "1"
     L.reset_rate_limits()
     try:
         T.record_usage("m", 500, 0, source="test", user_id="gate_daily")
-        denied, sent, warnings = _run_gate("gate_daily")
-        if not denied:
-            _fail("日额度超限应当被拒")
+        status, sent, warnings = _run_gate("gate_daily")
+        if status.scope != "user" or not status.exhausted:
+            _fail(f"日额度超限应当进入降级态：{status.scope}")
+        if bool(status):
+            _fail("单用户额度用完不该整条硬拒（要留给第二层降级）")
         if not warnings or warnings[0][0] != "quota_exceeded":
             _fail(f"没有记 quota_exceeded 告警：{warnings}")
         if warnings[0][1].get("scope") != "user":
             _fail(f"告警口径不对：{warnings[0][1]}")
-        if not sent or "今日额度已用完" not in sent[0]:
-            _fail(f"拒绝话术不对：{sent}")
-        return f"拒绝（{warnings[0][1]['used_tokens']}/{warnings[0][1]['limit']}）+ 告警"
+        # 第一层：必须给出「用了多少 / 限额多少 / 几点恢复」
+        msg = status.quota_message
+        for need in ("500", "1", "今日额度已用", "00:00 自动重置"):
+            if need not in msg:
+                _fail(f"拒绝话术缺「{need}」：{msg}")
+        if "降级" not in msg and "仍可用" not in msg:
+            _fail(f"话术没说清哪些还能用：{msg}")
+        return f"降级态（{warnings[0][1]['used_tokens']}/{warnings[0][1]['limit']}）+ 透明话术"
     finally:
         os.environ["DAILY_TOKENS_PER_USER"] = "200000"
 
@@ -743,10 +755,15 @@ def _gate_global_rejects():
     os.environ["GLOBAL_DAILY_TOKENS"] = "1"
     L.reset_rate_limits()
     try:
-        denied, sent, warnings = _run_gate("gate_global")
-        if not denied or warnings[0][1].get("scope") != "global":
-            _fail(f"全局额度触顶应当拒绝并告警：{denied} {warnings}")
-        return "全局触顶 → 拒绝 + global 告警"
+        status, sent, warnings = _run_gate("gate_global")
+        if not bool(status) or status.scope != "global":
+            _fail(f"全局额度触顶应当拒绝并告警：{status.scope} {warnings}")
+        if warnings[0][1].get("scope") != "global":
+            _fail(f"告警口径不对：{warnings[0][1]}")
+        # 全局触顶是真熔断：话术里同样要有数字与恢复时间
+        if "00:00 自动重置" not in (sent[0] if sent else ""):
+            _fail(f"全局拒绝话术没给恢复时间：{sent}")
+        return "全局触顶 → 拒绝 + global 告警 + 恢复时间"
     finally:
         os.environ["DAILY_TOKENS_PER_USER"] = "200000"
         os.environ["GLOBAL_DAILY_TOKENS"] = "2000000"
@@ -757,7 +774,7 @@ def _gate_disabled_allows():
     L.reset_rate_limits()
     try:
         results = [_run_gate("gate_off") for _ in range(7)]
-        if any(r[0] for r in results):
+        if any(bool(r[0]) for r in results):
             _fail("开关关闭时入口闸门不该拒绝任何请求")
         return "7 连发全放行（与改造前一致）"
     finally:
@@ -766,9 +783,153 @@ def _gate_disabled_allows():
 
 check("入口闸门：正常请求放行", _gate_allows_normal)
 check("入口闸门：连发 7 次第 7 次被拒（不落库不调 Agent）", _gate_rate_rejects_and_no_agent)
-check("入口闸门：日 token 超限被拒 + 告警", _gate_daily_rejects_with_warning)
-check("入口闸门：全局日 token 超限被拒", _gate_global_rejects)
+check("入口闸门：日 token 超限 → 降级态 + 完整信息话术", _gate_daily_rejects_with_warning)
+check("入口闸门：全局日 token 超限被拒 + 恢复时间", _gate_global_rejects)
 check("入口闸门：开关关闭时全放行", _gate_disabled_allows)
+
+# ---------------------------------------------------------------------------
+section("8b. 日额度降级（第二层）：便宜放行 / 搜索降级 / 匹配兜底 / 投递包拒绝")
+# ---------------------------------------------------------------------------
+
+import agent.tools_registry as TR                            # noqa: E402
+
+
+class _QuotaScope:
+    """把「额度已用完」这个降级态挂上（等价于入口闸门 set_quota_status）。"""
+
+    def __init__(self, status: str = "user"):
+        self.status = status
+
+    def __enter__(self):
+        L.set_quota_status(self.status, "2026-01-02 00:00")
+        return self
+
+    def __exit__(self, *exc):
+        L.set_quota_status("ok")
+        return False
+
+
+def _degrade_cheap_ops_still_work():
+    """便宜操作照走：查投递记录在额度用完时仍可用（且真的读到了库）。"""
+    os.environ["RATE_LIMIT_ENABLED"] = "true"
+    with user_scope("degrade_cheap"):
+        TR._add_tracking("额度测试公司", "后端实习生")
+        with _QuotaScope():
+            rows = TR.call_tool("list_tracking", {})
+            if not isinstance(rows, list):
+                _fail(f"额度用完时查投递记录被拦了：{rows}")
+            if not any("额度测试公司" == r.get("company") for r in rows):
+                _fail(f"没有读到刚写入的投递记录：{rows}")
+    return f"list_tracking 仍可用（{len(rows)} 条，直连读库）"
+
+
+def _degrade_search_keyword_only():
+    """搜索降级：semantic=True 在额度用完时被强制成关键词路（语义召回被短路）。"""
+    with user_scope("degrade_search"):
+        real = TR._semantic_rows
+        called = []
+
+        def boom(*a, **k):
+            called.append(1)
+            raise AssertionError("降级路不该走语义召回")
+
+        TR._semantic_rows = boom
+        try:
+            with _QuotaScope():
+                if not L.quota_forces_keyword_search():
+                    _fail("降级态没有要求搜索走关键词路")
+                rows = TR.call_tool("search_jobs", {"keyword": "Python", "semantic": True})
+        finally:
+            TR._semantic_rows = real
+    if called:
+        _fail("额度用完时仍走了语义召回（没有降级）")
+    if not isinstance(rows, list):
+        _fail(f"降级搜索没有返回列表：{rows}")
+    return f"semantic 请求被降级为本地关键词路（{len(rows)} 条）"
+
+
+def _degrade_match_keyword_fallback():
+    """匹配打分降级：不调 LLM，返回关键词匹配度并说明原因（不报错）。"""
+    with user_scope("degrade_match"):
+        rows = TR._search_rows("Python", None, 1, False, None)
+        if not rows:
+            _fail("岗位库为空，无法验证匹配降级路")
+        job_id = rows[0].get("job_id")
+        real = TR.match_resume_to_jd
+        called = []
+
+        def boom(*a, **k):
+            called.append(1)
+            raise AssertionError("降级路不该调用 LLM 打分")
+
+        TR.match_resume_to_jd = boom
+        try:
+            with _QuotaScope():
+                out = TR.call_tool("match_resume", {
+                    "job_id": job_id,
+                    "resume_json": json.dumps({"name": "李四", "skills": ["Python"],
+                                               "city": "北京", "education": "本科"},
+                                              ensure_ascii=False),
+                })
+        finally:
+            TR.match_resume_to_jd = real
+    if called:
+        _fail("额度用完时仍调了 LLM 打分")
+    if not isinstance(out, dict) or not out.get("degraded"):
+        _fail(f"匹配没有降级标记：{out}")
+    if "degraded_reason" not in out or "00:00" not in out["degraded_reason"]:
+        _fail(f"降级原因没给恢复时间：{out.get('degraded_reason')}")
+    if not isinstance(out.get("score"), int):
+        _fail(f"降级结果没有分数：{out}")
+    return f"关键词匹配度 {out['score']} 分 + 降级原因（未调 LLM）"
+
+
+def _degrade_package_blocked():
+    """贵操作明确拒绝：投递包返回 quota_exhausted + 恢复时间，且不产生副作用。"""
+    with user_scope("degrade_package"):
+        with _QuotaScope():
+            out = TR.call_tool("generate_application_package", {"company": "任何公司"})
+    if not isinstance(out, dict) or not out.get("blocked"):
+        _fail(f"投递包没有被拦：{out}")
+    if out.get("reason") != "quota_exhausted":
+        _fail(f"拒绝原因口径不对：{out}")
+    reason = out.get("degraded_reason", "")
+    for need in ("额度已用完", "投递包", "00:00"):
+        if need not in reason:
+            _fail(f"拒绝话术缺「{need}」：{reason}")
+    return "generate_application_package → 明确拒绝 + 恢复时间"
+
+
+def _quota_warn_once_per_day():
+    """第三层：>80% 提示一次，两分钟内第二次为空；未达阈值恒为空。"""
+    os.environ["RATE_LIMIT_ENABLED"] = "true"
+    os.environ["DAILY_TOKENS_PER_USER"] = "1000"
+    os.environ["GLOBAL_DAILY_TOKENS"] = "0"
+    try:
+        uid, day = "warn_once", time.strftime("%Y-%m-%d")
+        if APP.storage.quota_warned_today(uid, day):
+            APP.storage.mark_quota_warned(uid, "1970-01-01")   # 清历史标记
+        status = APP.SessionStatus(used=900, limit=1000, scope="ok")
+        first = APP._take_quota_warn(uid, status)
+        second = APP._take_quota_warn(uid, status)
+        low = APP._take_quota_warn("warn_low", APP.SessionStatus(used=100, limit=1000))
+    finally:
+        os.environ["DAILY_TOKENS_PER_USER"] = "200000"
+        os.environ["GLOBAL_DAILY_TOKENS"] = "2000000"
+    if not first or "90%" not in first or "900" not in first:
+        _fail(f"预警文案不对：{first!r}")
+    if second:
+        _fail(f"一天提示了两次：{second!r}")
+    if low:
+        _fail(f"未达 80% 也提示了：{low!r}")
+    return "900/1000 → 提示一次（第二次静默），100/1000 → 不提示"
+
+
+check("降级：便宜操作（查投递记录）仍可用", _degrade_cheap_ops_still_work)
+check("降级：搜岗位走本地关键词/缓存（不调 LLM 重写）", _degrade_search_keyword_only)
+check("降级：匹配打分只给关键词匹配度（不报错）", _degrade_match_keyword_fallback)
+check("降级：生成投递包明确拒绝 + 恢复时间", _degrade_package_blocked)
+check("预警：>80% 一天只提示一次", _quota_warn_once_per_day)
 
 # ---------------------------------------------------------------------------
 section("9. react_agent 两档额度：日常轮走全局默认 / 长输出轮给足")
