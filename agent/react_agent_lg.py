@@ -19,7 +19,9 @@ LangGraph 版 Agent 入口（阶段 1：固定基础流程 + 反思节点）。
 | 「找岗位 + 匹配 + 生成投递包」这类**一次说了多个需求**的话 | `COMPLEX_TASK_GRAPH`（批次 1 多智能体） | 单条链路装不下，需要 Planner 拆步骤、Executor 执行、Critic 审查打回 |
 | 「我要投墨泊可士的 AI Agent 岗位」（投递意向） | 确定性出包（点名定位 → `generate_application_package`） | 「投」不是「搜」：要的是**那一条**岗位的投递包，搜出 20 条列表毫无意义 |
 | 「看日志 / 系统日志 / docker 日志」 | 确定性引导（提示去终端跑 docker compose logs） | 系统日志不在对话里，也不是投递记录（防误判成 list_tracking） |
-| 投递 / 投递包 / 面试 / 记忆 / 其它 | `react_agent.run` 原样兜底 | 这些是多步决策，本期不动 |
+| 「我的简历比较匹配哪些岗位 / 我适合什么岗位 / 帮我分析一下我的定位」 | `CONSULT_GRAPH`（咨询分析） | 要的是**岗位类型清单 + 匹配理由**，不是某一条岗位的分数（含「匹配」二字，必须**先于** match 判） |
+| 一点求职域信息都没有的话（「今天天气」「你是谁」…） | `OTHER_GRAPH`（开放式兜底，**零工具调用**） | 意图识别失败时不该硬套流程 / 空转工具循环，基于已有上下文直接回答 |
+| 投递 / 投递包 / 面试 / 记忆 / 其它**求职域内**的话 | `react_agent.run` 原样兜底 | 这些是多步决策，本期不动 |
 
 开关
 ----
@@ -35,6 +37,7 @@ import uuid
 from agent import react_agent
 from agent import tools_registry
 from agent import complex_task_flow as ma
+from agent.consult_flow import CONSULT_GRAPH, OTHER_GRAPH
 from agent.langgraph_flow import (FOLLOWUP_GRAPH, MATCH_GRAPH, SEARCH_GRAPH,
                                   _JOB_ID_HINT_RE, _ORDINAL_HINT_RE,
                                   _designation_from_text,
@@ -238,6 +241,96 @@ def is_application_intent(question: str) -> bool:
     return any(word in text for word in _FOLLOWUP_REF_WORDS)
 
 
+# ==========================================================================
+# 「咨询分析」与「开放式兜底」两类意图（修「只会走预设意图，开放问题答非所问」）
+#
+# 现象：用户问「我的简历比较匹配哪些岗位？」—— 句子里有「匹配」二字，被
+# `is_match_intent` 抢走 → 落 `MATCH_GRAPH` → 没点名岗位 → `locate_job` 按
+# 「最近一次搜索的第 1 条」兜底 → 对一条**不相干**的岗位打分。用户要的是
+# 「岗位类型清单 + 匹配理由」，拿到的是「某条岗位的分数」。
+#
+# 所以「咨询分析」必须**先于**匹配判：它的问点是「哪些 / 什么类型 / 我是什么定位」，
+# 匹配打分的问点才是「这一条怎么样」。
+# ==========================================================================
+
+_CONSULT_ASK_WORDS = ("哪些", "哪种", "哪类", "哪个", "什么", "啥")
+_CONSULT_TARGET_WORDS = ("岗位", "职位", "方向", "领域", "赛道", "工作")
+_CONSULT_PROFILE_WORDS = ("强项", "优势", "亮点", "长板", "短板", "弱项", "不足", "卖点")
+_CONSULT_ANALYZE_WORDS = ("分析", "评估", "诊断", "盘一下", "看看", "给个定位")
+_CONSULT_OBJECT_WORDS = ("简历", "定位", "竞争力", "画像", "背景", "方向")
+
+
+def _within(text: str, left: tuple, right: tuple, span: int = 6) -> bool:
+    """text 里是否存在「左边某个词 …（最多 span 字）… 右边某个词」的组合。
+
+    用**窗口**而不是整句包含：「帮我用简历匹配一下金蝶软件的 Agent 开发工程师」
+    里 `匹配` 与句尾隔了十几个字，整句包含会把它误判成「要岗位清单」。
+    """
+    for word in left:
+        start = text.find(word)
+        while start >= 0:
+            window = text[start + len(word):start + len(word) + span]
+            if any(other in window for other in right):
+                return True
+            start = text.find(word, start + 1)
+    return False
+
+
+def is_consult_intent(question: str) -> bool:
+    """是不是「咨询分析」：要**岗位类型清单 / 定位分析**，而不是给某一条岗位打分。
+
+    识别模式（任务书三类 + 常见变体）：
+      * 「我适合什么岗位」/「我的简历比较匹配哪些岗位」——匹配/适合 + 哪些/什么 + 岗位类名词；
+      * 「我该投什么方向」——投/走/选 + 哪些/什么 + 方向类名词；
+      * 「我的简历强项是什么」——简历/我 + 强项类名词；
+      * 「帮我分析一下我的定位」——分析/评估/看看 + 简历/定位/竞争力。
+
+    ⚠️ 必须在 `is_match_intent` **之前**判：「匹配哪些岗位」同样命中 `_MATCH_WORDS`，
+    后判就会被打分流程抢走（本轮故障的根因）。
+    """
+    text = _user_text((question or "").strip())
+    if not text or text.startswith("/"):
+        return False
+    has_target = any(noun in text for noun in _CONSULT_TARGET_WORDS)
+    if has_target and _within(text, ("匹配", "适合", "对口", "契合"), _CONSULT_ASK_WORDS):
+        return True
+    if has_target and _within(text, ("投", "走", "选", "做", "干"), _CONSULT_ASK_WORDS):
+        return True
+    if any(word in text for word in _CONSULT_PROFILE_WORDS) and \
+            any(word in text for word in ("我", "简历")):
+        return True
+    if any(word in text for word in _CONSULT_ANALYZE_WORDS) and \
+            any(word in text for word in _CONSULT_OBJECT_WORDS):
+        return True
+    return _within(text, ("我的",), ("定位", "竞争力", "画像", "背景"), span=4)
+
+
+#: 命中任一即说明这句**还在求职域内**（该进 ReAct 那条多步链路）
+_DOMAIN_HINTS = (
+    "岗位", "职位", "实习", "招聘", "工作", "机会", "简历", "投递", "投", "面试",
+    "匹配", "打分", "评分", "求职", "就业", "公司", "jd", "技术栈", "薪资", "offer",
+    "内推", "秋招", "春招", "校招", "社招", "兼职", "全职", "转正", "自荐信", "推荐信",
+    "大模型", "算法", "agent", "python", "开发", "程序员", "代码", "数据", "产品",
+    "运营", "测试", "前端", "后端", "运维", "城市", "北京", "上海", "广州", "深圳",
+)
+
+
+def is_other_intent(question: str) -> bool:
+    """开放式兜底：这句话**一点求职域信息都没有** → 不走工具，让 LLM 直接回答。
+
+    这是「意图识别失败」的**出口**（以前只能丢给带工具的 ReAct 循环空转）：
+    「今天天气」「你是谁」「讲个笑话」都归这类。判据刻意保守 —— 只要句子里出现
+    任何求职域词（岗位 / 简历 / 投递 / 面试 / 大模型 / 城市…），就仍然交给 ReAct，
+    免得把「帮我看下投递记录」这种工具型请求也变成不带工具的闲聊。
+    以 `/` 开头的命令一律不归这类（走原命令链）。
+    """
+    text = _user_text((question or "").strip())
+    if not text or text.startswith("/"):
+        return False
+    low = text.lower()
+    return not any(hint in low for hint in _DOMAIN_HINTS)
+
+
 def _route(question: str) -> str:
     if is_log_intent(question):
         return "log"                                   # 看日志：确定性引导，不调 LLM
@@ -249,6 +342,10 @@ def _route(question: str) -> str:
     # 搜岗位那条路的词表挡不住它（见 _BLOCK_WORDS 的注释）。
     if is_application_intent(question):
         return "package"
+    # 咨询分析要先于匹配判：「我的简历比较匹配哪些岗位？」含「匹配」二字，
+    # 被 is_match_intent 抢走就会变成「对最近一次搜索第 1 条打分」（本轮故障）。
+    if is_consult_intent(question):
+        return "consult"
     if is_match_intent(question):
         return "match"                                   # 先判匹配：它比搜岗位更具体
     # 追问必须**先于**搜岗位判（Bug 1）：有指代时「第 1 个岗位要求什么技术？」
@@ -257,6 +354,10 @@ def _route(question: str) -> str:
         return "followup"
     if is_search_intent(question):
         return "search"
+    # 上面全没命中：句子里还有求职域信息 → ReAct 多步兜底；
+    # 一点求职域信息都没有（闲聊 / 常识 / 问系统）→ other：**不调工具**直接回答。
+    if is_other_intent(question):
+        return "other"
     return "react"
 
 
@@ -531,6 +632,24 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
              "resume_data": resume_data, "_graph_name": "complex"},
             question, verbose, return_messages, progress_cb,
         )
+    if kind == "consult":
+        # 咨询分析：简历画像 → 全库岗位类别统计 → 岗位类型清单 + 匹配度 + 建议。
+        # **不是**对某一条岗位打分（那才是 match 那条路）。
+        return _run_graph(
+            CONSULT_GRAPH,
+            {"question": question, "history": history, "verbose": verbose,
+             "resume_data": resume_data, "_graph_name": "consult"},
+            question, verbose, return_messages, progress_cb,
+        )
+    if kind == "other":
+        # 开放式兜底：**一个工具都不调**，基于上下文（简历 / 最近一次搜索摘要）
+        # 直接让 LLM 回答；prompt 里写死不许编造、需要数据先说「我需要先搜岗位」。
+        return _run_graph(
+            OTHER_GRAPH,
+            {"question": question, "history": history, "verbose": verbose,
+             "resume_data": resume_data, "_graph_name": "other"},
+            question, verbose, return_messages, progress_cb,
+        )
     if kind == "search":
         # 不推进度：精确搜索实测 6s，模糊搜索的进度由 search 节点按 semantic 自行推
         return _run_graph(
@@ -585,4 +704,5 @@ def engine_name(question: str) -> str:
     return {"search": "langgraph:search", "match": "langgraph:match",
             "log": "langgraph:log", "followup": "langgraph:followup",
             "package": "langgraph:package",
+            "consult": "langgraph:consult", "other": "langgraph:other",
             "complex": "multi_agent:complex"}.get(kind, "react")

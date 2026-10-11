@@ -854,7 +854,14 @@ def _route_table():
         ("查看我的完整简历", "react"),
         ("帮我模拟面试字节跳动的 Agent 开发实习生", "react"),
         ("删掉快手的投递记录", "react"),
-        ("今天天气真好，出去走走吧", "react"),
+        # 本轮新增：咨询分析（要岗位类型清单，不是某一条的分数）
+        ("我的简历比较匹配哪些岗位？", "consult"),
+        ("我适合什么岗位", "consult"),
+        ("我该投什么方向", "consult"),
+        ("我的简历强项是什么", "consult"),
+        ("帮我分析一下我的定位", "consult"),
+        # 本轮新增：开放式兜底（一点求职域信息都没有 → 不调工具，直接回答）
+        ("今天天气真好，出去走走吧", "other"),
         ("/pin", "react"),
     ]
     bad = []
@@ -878,13 +885,19 @@ def _engine_switch():
         raise AssertionError("默认引擎不是 langgraph:search")
     if LG.engine_name("帮我匹配简历") != "langgraph:match":
         raise AssertionError("匹配意图没有走 langgraph:match")
-    if LG.engine_name("今天天气真好") != "react":
-        raise AssertionError("无关问题应兜底回 react")
+    if LG.engine_name("我的简历比较匹配哪些岗位？") != "langgraph:consult":
+        raise AssertionError("咨询分析没有走 langgraph:consult")
+    if LG.engine_name("今天天气真好") != "langgraph:other":
+        raise AssertionError("无关问题应走开放式兜底 langgraph:other")
     return "AGENT_ENGINE=react 可整体切回；默认 langgraph"
 
 
 def _react_fallback_still_works():
-    """兜底路径：不属两条固定流程时，仍然交给 react_agent.run。"""
+    """兜底路径：求职域内、但不属那几条固定流程时，仍然交给 react_agent.run。
+
+    ⚠️ 用例**不能**再用「今天天气真好」：那句现在走**开放式兜底**
+    (`OTHER_GRAPH`，零工具调用)，是另一条路（见 `_route_table`）。
+    """
     called = {}
     real_run = LG.react_agent.run
 
@@ -893,8 +906,8 @@ def _react_fallback_still_works():
         return {"answer": "兜底回答", "steps": []}
 
     with _patched((LG.react_agent, "run", _fake_run)):
-        result = LG.run("今天天气真好", verbose=False)
-    if called.get("q") != "今天天气真好":
+        result = LG.run("帮我生成投递包", verbose=False)
+    if called.get("q") != "帮我生成投递包":
         raise AssertionError("没有把问题交给 react_agent")
     if result["answer"] != "兜底回答":
         raise AssertionError("兜底返回被改动")
