@@ -2419,7 +2419,13 @@ _ARG_TYPES = (str, int, float, bool, list, dict, type(None))
 
 
 def _validate_args(name: str, args, spec: dict) -> dict:
-    """参数校验：必须是 dict、不能带未声明参数、值必须是 JSON 能表达的类型。"""
+    """参数校验：必须是 dict、不能带未声明参数、**必填参数必须给**、值类型要 JSON 友好。
+
+    「必填」是补上的：以前只挡未知参数，缺必填参数就一路传到 `func(**args)`，
+    报的是 `_search() missing 1 required positional argument: 'keyword'` ——
+    调用方（Planner / Critic / 模型）看不懂，还会把它当成瞬时故障白重试。
+    现在按工具声明好的 `required` 提前给出可读、可重试判定的错误。
+    """
     if args is None:
         args = {}
     if not isinstance(args, dict):
@@ -2431,6 +2437,14 @@ def _validate_args(name: str, args, spec: dict) -> dict:
         raise TypeError(
             "工具「{}」不支持参数：{}；可用参数：{}".format(
                 name, "、".join(unknown), "、".join(sorted(declared)) or "（无）"
+            )
+        )
+
+    missing = [str(k) for k in (spec.get("required") or ()) if args.get(k) is None]
+    if missing:
+        raise TypeError(
+            "工具「{}」缺少必填参数：{}；可用参数：{}".format(
+                name, "、".join(missing), "、".join(sorted(declared)) or "（无）"
             )
         )
 
@@ -2508,6 +2522,10 @@ TOOLS = {
             ),
         },
         "func": _search,
+        #: `_search(keyword, ...)` 的 keyword 是必填形参，而 `call_tool` 走
+        #: `func(**args)`：少了它只会抛「missing 1 required positional argument」。
+        #: 在这里声明出来，缺参数时就能给一句人话（见 `_validate_args`）。
+        "required": ("keyword",),
         "risk_level": "read",
         "timeout": 30,
         "requires_confirmation": False,

@@ -317,20 +317,25 @@ _PLAN_PROMPT = """你是「复杂任务编排」里的**规划者（Planner）**
 3. `generate_application_package` 参数：company(公司) / title(岗位名) / job_id(岗位ID)
 
 只输出一个 JSON，不要任何其他内容：
-{{"steps": [{{"id": 1, "action": "search_jobs", "args": {{}}, "desc": "一句话说明这一步干什么", "when": ""}}], "reason": "为什么这么拆"}}
+{{"steps": [{{"id": 1, "action": "search_jobs", "args": {{"keyword": "Agent", "city": "广州"}}, "desc": "搜索 Agent 相关的岗位", "when": ""}}], "reason": "为什么这么拆"}}
 
 规则：
 1. **按依赖顺序排**：必须先搜到岗位，才能匹配；必须先匹配，才能生成投递包。
-2. **后一步引用前一步的结果用占位符**（运行时才知道具体值）：
+2. **`search_jobs` 的 `args.keyword` 必须有值**（从用户话里的岗位方向 / 技术名抽，
+   如「Agent」「大模型」「后端」；用户说了「这个类型 / 这类岗位」时用上下文里的
+   类型名，如「Agent / 智能体开发」）。**没有 keyword 的搜索步骤等于没写**。
+   `args` 的参数名只能是 `keyword` / `city` / `cities` / `limit` / `job_type` /
+   `semantic` —— **不要**写 `query` / `keywords` / `q` / `args.text`，写了会被摘掉。
+3. **后一步引用前一步的结果用占位符**（运行时才知道具体值）：
    job_id 写 `"$prev.job_id"` 或 `"$step1.job_id"`，公司写 `"$step1.company"`，
    岗位名写 `"$step1.title"`，分数写 `"$prev.score"`。**不要自己编 job_id**。
-3. **`when` 是可选的前置条件**，只支持 `score > 70` / `score >= 70` 这类单向数值比较。
+4. **`when` 是可选的前置条件**，只支持 `score > 70` / `score >= 70` 这类单向数值比较。
    用户说「分数够了再生成投递包」时，把条件写在生成投递包那一步上；
    用户没提前置条件时 `when` 留空串。
-4. 用户**只要一部分**需求（例如只说找岗位）时，**只排那部分步骤**，别擅自多做。
-5. 步骤数不超过 {max_steps} 步。用户的话里没有涉及的能力（改简历文件、
+5. 用户**只要一部分**需求（例如只说找岗位）时，**只排那部分步骤**，别擅自多做。
+6. 步骤数不超过 {max_steps} 步。用户的话里没有涉及的能力（改简历文件、
    发邮件、投递到平台等）**不要排**，排了也做不成。
-6. `resume_json` 一律填 `"current"`（系统会自动替换成当前简历）。
+7. `resume_json` 一律填 `"current"`（系统会自动替换成当前简历）。
 
 用户需求：{question}"""
 
@@ -374,6 +379,78 @@ def fallback_plan(question: str) -> dict:
     }
 
 
+#: 规则层在「句子没给具体方向」时抽出来的**无意义关键词**（「搜岗位」→「搜」、
+#: 「执行搜索」→「执行」、整句请求「帮我找岗位」）。拿它们当关键词搜等于没搜，
+#: 宁可退回「请说明关键词」，也不要搜出一堆无关岗位（那又是答非所问）。
+_JUNK_SEARCH_KEYWORDS = ("搜", "找", "查", "搜索", "查找", "查看", "看看", "推荐",
+                         "列出", "列一下", "岗位", "职位", "工作", "执行", "相关",
+                         "类型", "这个", "这类", "帮我", "帮忙", "给我", "请", "一下")
+
+
+def _usable_search_keyword(keyword: str) -> bool:
+    """补出来的关键词值不值得用。
+
+    判据：**剥掉泛化词后还得剩至少 2 个实义字符**。「帮我找岗位」剥完什么都不剩 →
+    不算关键词；「Agent / 智能体开发」剥完仍是「agent智能体开发」→ 可用。
+    """
+    text = str(keyword or "").strip()
+    if len(text) < 2:
+        return False
+    cleaned = text.lower()
+    for junk in _JUNK_SEARCH_KEYWORDS:
+        cleaned = cleaned.replace(junk, " ")
+    return len("".join(ch for ch in cleaned if ch.isalnum())) >= 2
+
+
+def repair_search_args(action: str, args: dict, step: dict = None,
+                       question: str = "") -> tuple:
+    """搜索步骤**缺 keyword** 时，从步骤描述 / 用户原话里把关键词补回来。
+
+    根因（本轮修复）：Planner 有时给 `"args": {}`（改前的提示词示例就是空对象），
+    或者把关键词写成 `query` / `keywords`（会被 `_clean_args` 按白名单摘掉），
+    或者只给 `city`。而 `search_jobs` 的 `keyword` 是**必填形参**，
+    `call_tool(action, args)` 走的是 `func(**args)` —— 于是抛
+    `TypeError: _search() missing 1 required positional argument: 'keyword'`，
+    Critic 又把它当瞬时故障，白打回 2 次再降级。
+
+    这里用与「搜岗位图」**同一条规则链**（`_extract_params_rules`）从步骤描述与
+    用户原话里抽参数：步骤描述通常就写着「搜索 Agent / 智能体开发相关的岗位」，
+    信息量足够。
+
+    只处理**「keyword 键不存在」**（= 根本没给条件）：`keyword: ""` 是**故意**的
+    「不限关键词搜索」（搜岗位图的空条件路径、以及 Critic 逐级放宽到"不限关键词"
+    都是这个语义），不能拿描述里的词把它顶回去，否则 0 条 → 放宽 → 再搜的收敛路径
+    会被改成别的行为。
+
+    只补**缺失**的字段，不覆盖已经给好的值。返回 `(args, note)`。
+    """
+    merged = dict(args or {})
+    if action != "search_jobs" or "keyword" in merged:
+        return merged, ""
+
+    from agent.langgraph_flow import _extract_params_rules
+
+    candidates = (
+        ((step or {}).get("desc") or "", "步骤描述"),
+        (question or "", "用户原话"),
+    )
+    for text, label in candidates:
+        params = _extract_params_rules(text)
+        keyword = str(params.get("keyword") or "").strip()
+        if not _usable_search_keyword(keyword):
+            continue
+        merged["keyword"] = keyword
+        for key in ("city", "job_type"):
+            if not str(merged.get(key) or "").strip() and str(params.get(key) or "").strip():
+                merged[key] = params[key]
+        if params.get("cities") and not merged.get("cities"):
+            merged["cities"] = params["cities"]
+        # **故意不补 semantic**：语义路要走一次 LLM 查询理解（实测 25-30s，还会撞
+        # 工具 30s 超时），而补出来的就是个现成关键词，精确匹配更快也更可预期。
+        return merged, f"搜索步骤没给 keyword，已从{label}补出关键词「{keyword}」"
+    return merged, ""
+
+
 def _normalize_plan(raw: dict, question: str) -> tuple:
     """校验并规整 Planner 的计划，返回 `(plan, reason, dropped, dropped_args)`。
 
@@ -409,11 +486,16 @@ def _normalize_plan(raw: dict, question: str) -> tuple:
             continue
         args, bad_args = _clean_args(action, args)
         dropped_args.extend(f"{action}.{k}" for k in bad_args)
+        desc = str(item.get("desc") or "").strip() or action
+        # 搜索步骤被摘掉 `query` / `keywords` 之后可能**一个参数都不剩**，
+        # 直接进 Executor 就是那个 `missing 1 required positional argument` 崩溃。
+        # 在这里先按同一条规则链补出 keyword（补不出来也不丢步，交给 Executor 如实说）。
+        args, _note = repair_search_args(action, args, {"desc": desc}, question)
         steps.append({
             "id": len(steps) + 1,
             "action": action,
             "args": args,
-            "desc": str(item.get("desc") or "").strip() or action,
+            "desc": desc,
             "when": str(item.get("when") or "").strip(),
         })
         if len(steps) >= MAX_PLAN_STEPS:
@@ -632,6 +714,34 @@ def execute_node(state: ComplexState) -> dict:
     args, bad_args = _clean_args(action, args)
     if bad_args and state.get("verbose"):
         print(f"[ma_executor] 已摘掉 {action} 不支持的参数：{bad_args}")
+    if action == "search_jobs":
+        # 补一次：Critic 打回时写的参数覆盖会走到这里（那条路没经过计划校验），
+        # 也可能把 keyword 顶没了。
+        args, note = repair_search_args(action, args, step, state.get("question") or "")
+        if note and state.get("verbose"):
+            print(f"[ma_executor] {note}")
+        if "keyword" not in args:
+            # 补不出来就**不调工具**：`_search(keyword, ...)` 的 keyword 是必填形参，
+            # `call_tool` 走 `func(**args)`，缺了它只会抛
+            # `TypeError: _search() missing 1 required positional argument: 'keyword'`
+            # —— 用户看不懂，Critic 还会当瞬时故障白打回 2 次再降级。
+            # 这里如实说清缺什么、怎么补；同样的参数重做结果一样 → 交给 Critic
+            # 判「不可重试」，直接降级（`_FATAL_ARG_MARKERS` 里有这条标记）。
+            note = ("搜索步骤缺少关键词（keyword），没有可搜的条件 —— "
+                    "请说明关键词（如「帮我找广州的 Agent 岗位」）。")
+            log_event(state.get("trace_id") or "-", "ma_node", node="executor",
+                      engine="multi_agent", action=action, status="no_keyword")
+            return {
+                "executions": executions,
+                "step_args": args,
+                "step_output": None,
+                "step_error": note,
+                "steps": _step_trace(
+                    state, "Executor 执行",
+                    f"第 {cursor + 1} 步「{step['desc']}」→ 这一步没有关键词，未调用 {action}",
+                    payload={"action": action, "args": args},
+                    observation=note),
+            }
     if action == "match_resume":
         # `resume_json` 写 `"current"` 时必须**在这里替换成真实简历**。
         # ReAct 那条链路是在 react_agent 的循环里做的替换（见 reap_agent 的
@@ -703,7 +813,10 @@ def execute_node(state: ComplexState) -> dict:
 
 #: 这些报错来自 `tools_registry._validate_args` / `call_tool` 的**确定性**校验，
 #: 重做同样的输入必然得到同样的结果 —— 判为不可重试，直接降级。
-_FATAL_ARG_MARKERS = ("不支持参数", "参数必须是 dict", "未知工具")
+#: 「缺少必填参数 / missing required positional argument」是同一类：参数根本没传
+#: （Planner 给了空 args，或 Critic 覆盖把 keyword 顶没了），重做也补不出来。
+_FATAL_ARG_MARKERS = ("不支持参数", "参数必须是 dict", "未知工具",
+                      "缺少必填参数", "缺少关键词", "required positional argument")
 
 
 _CRITIC_PROMPT = """你是「复杂任务编排」里的**审查者（Critic）**。执行者刚做完一步，
@@ -1025,8 +1138,12 @@ def degrade_node(state: ComplexState) -> dict:
     plan = state.get("plan") or []
     desc = plan[cursor].get("desc", "") if cursor < len(plan) else ""
     critique = state.get("critique") or {}
-    reason = (f"第 {cursor + 1} 步「{desc}」重做 {MAX_STEP_RETRIES} 次后仍不合格："
-              f"{critique.get('理由', '')}")
+    # 重做次数**照实报**：不可执行的打回（例如「缺少关键词」）会**一次都不重做**
+    # 直接降级，以前这里写死 `MAX_STEP_RETRIES`，会谎报成「重做 2 次后仍不合格」。
+    retries = len(state.get("reworks") or [])
+    reason = (f"第 {cursor + 1} 步「{desc}」"
+              + (f"重做 {retries} 次后仍不合格：" if retries else "不合格：")
+              + f"{critique.get('理由', '')}")
     log_event(state.get("trace_id") or "-", "ma_node", node="degrade",
               engine="multi_agent", reason=reason[:200])
     return {
