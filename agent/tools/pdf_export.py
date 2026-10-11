@@ -167,6 +167,24 @@ _TECH_TERMS = (
     ("Github", "GitHub"), ("Gitlab", "GitLab"),
 )
 
+# 大小写被抹平、必须**不区分大小写**纠回的术语（问题 2 追加）：
+# 「SubproceSS」「SUBPROCESS」这类混写一律纠成规范写法。单独一张表是因为上面那张
+# 是「拼错」（大小写敏感、只在写错时替换），这张是「写法不规范」，IGNORECASE 全量归一。
+_TECH_TERMS_CI = (
+    ("Subprocess", "Subprocess"),
+    ("LlamaIndex", "LlamaIndex"),
+    ("LangChain", "LangChain"),
+    ("LangGraph", "LangGraph"),
+    ("FastAPI", "FastAPI"),
+)
+
+# 上下文相关的缩写纠错：单个「IT」是合法英文词，**绝不能全局替换**，
+# 只有紧跟着「按需加载 / 按需编译 / 即时编译」时才是 JIT 被吞掉了 J
+# （实测简历里「实现IT 按需加载代码探索工具」）。
+_TECH_CONTEXT_TERMS = (
+    (re.compile(r"(?<![A-Za-z0-9])IT(?=\s*(?:按需加载|按需编译|即时编译|即时加载))"), "JIT"),
+)
+
 
 def fix_tech_terms(text) -> str:
     """文本清洗的唯一入口：形近字/断空格 + 常见技术名词错拼（问题 3+4 合并）。
@@ -192,6 +210,11 @@ def fix_tech_terms(text) -> str:
     text = re.sub(r"(?<=\d[a-zA-Z])\s+(?=[a-zA-Z]\b)", "", text)
     for wrong, right in _TECH_TERMS:
         text = re.sub(r"(?<![A-Za-z])" + re.escape(wrong) + r"(?![A-Za-z])", right, text)
+    for wrong, right in _TECH_TERMS_CI:
+        text = re.sub(r"(?<![A-Za-z])" + re.escape(wrong) + r"(?![A-Za-z])",
+                      right, text, flags=re.IGNORECASE)
+    for pattern, right in _TECH_CONTEXT_TERMS:
+        text = pattern.sub(right, text)
     return text
 
 
@@ -293,6 +316,21 @@ def _experience_blocks(item) -> list:
     return [{"kind": "body", "text": _tidy(str(item))}]
 
 
+def _split_points(text, limit: int = 3) -> list:
+    """把一段多要点描述切成若干条（问题 2 追加：项目描述不许压成 1 条）。
+
+    简历原文的项目描述本就是「；」分号串起来的多条要点（实测：
+    「…优化检索成本；实现 JIT 按需加载…；设计四层上下文压缩机制…」），
+    以前整段当一个 bullet 排出去，4 条要点在 PDF 里看起来只有 1 条。
+    这里按「换行 / 分号 / 中文分号」切开，最多保留 limit 条。
+    """
+    if text is None:
+        return []
+    parts = re.split(r"[\n；;]+", str(text))
+    points = [p.strip(" 　·•-—") for p in parts]
+    return [p for p in points if p][:limit]
+
+
 def _project_blocks(item) -> list:
     if isinstance(item, dict):
         name = _pick(item, "name", "项目名", "title")
@@ -312,8 +350,8 @@ def _project_blocks(item) -> list:
             head = f"{head}　|　技术栈：{tech_text}" if head else f"技术栈：{tech_text}"
 
         blocks = [{"kind": "body", "text": _tidy(head)}] if head else []
-        if desc:
-            blocks.append({"kind": "bullet", "text": f"· {_tidy(desc)}"})
+        for point in _split_points(desc):
+            blocks.append({"kind": "bullet", "text": f"· {_tidy(point)}"})
         return blocks
     return [{"kind": "body", "text": _tidy(str(item))}]
 

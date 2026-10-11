@@ -426,6 +426,98 @@ def test_e2e():
                   f" / cover_letter.md {len(cover)} 字")
 
 
+def test_named_job_city():
+    print("\n[A11] 问题 1：点名岗位按用户城市偏好定位（简历广州 → 不再出杭州的包）")
+    with user_scope("admin"):
+        gz = tools_registry.match_named_job("墨泊可士", "AI Agent", cities=["广州"])
+        check("城市偏好=广州 → 命中广州那条",
+              gz.get("found") and getattr(gz.get("detail"), "city", "") == "广州",
+              f"{gz.get('found')} / {getattr(gz.get('detail'), 'city', None)}")
+
+        none_pref = tools_registry.match_named_job("墨泊可士", "AI Agent", cities=[])
+        check("没有城市偏好 + 多城市都有 → 问用户投哪个",
+              (not none_pref.get("found")) and "你要投哪个" in (none_pref.get("ask") or ""),
+              str(none_pref.get("ask")))
+
+        miss = tools_registry.match_named_job("墨泊可士", "AI Agent", cities=["深圳"])
+        check("偏好城市没有该岗位 → 明说「深圳没有、别处有」",
+              (not miss.get("found")) and "深圳没有" in (miss.get("ask") or ""),
+              str(miss.get("ask")))
+
+        one = tools_registry.match_named_job("墨泊可士", "AI产品经理", cities=[])
+        check("只在一个城市有 → 直接用",
+              one.get("found") and getattr(one.get("detail"), "city", "") == "广州",
+              str(one.get("ask") or one.get("reason")))
+
+        detail, why = tools_registry.resolve_named_job("墨泊可士", "AI Agent")
+        check("旧入口兼容（二元组）仍然可用",
+              detail is not None and getattr(detail, "city", "") == "广州", why)
+
+        # 无 job_id 的兜底路径同样要按城市偏好挑
+        real_pref = tools_registry.preferred_cities
+        try:
+            tools_registry.preferred_cities = lambda: ["广州"]
+            _rec, det = tools_registry._record_from_job_library(
+                "墨泊可士", None, "AI Agent开发（可转正）")
+            check("岗位库兜底路径按城市偏好取广州",
+                  getattr(det, "city", "") == "广州", getattr(det, "city", ""))
+        finally:
+            tools_registry.preferred_cities = real_pref
+
+
+def test_problem2_terms_and_points():
+    print("\n[A12] 问题 2：术语纠错（Subprocess / JIT）+ 项目要点不被压成 1 条")
+    check("SubproceSS → Subprocess",
+          pdf_export.fix_tech_terms("使用 SubproceSS 白名单机制") == "使用 Subprocess 白名单机制")
+    check("subprocess → Subprocess",
+          pdf_export.fix_tech_terms("调用 subprocess 模块") == "调用 Subprocess 模块")
+    check("IT 按需加载 → JIT 按需加载",
+          pdf_export.fix_tech_terms("实现IT 按需加载代码探索工具") == "实现JIT 按需加载代码探索工具")
+    check("单独的 IT 不许乱改", pdf_export.fix_tech_terms("IT 行业实习") == "IT 行业实习")
+
+    data = {"name": "梁家浩", "projects": [
+        {"name": "代码维护助手", "desc": "冷热记忆架构；JIT 按需加载；四层上下文压缩"}]}
+    bullets = [b for b in pdf_export.resume_blocks(data) if b.get("kind") == "bullet"]
+    check("项目 3 条要点 → PDF 里 3 个 bullet（不是 1 个）",
+          len(bullets) == 3, str([b.get("text") for b in bullets]))
+
+    src = resume_parser._dict_to_resume({
+        "name": "梁家浩",
+        "projects": [{"name": "代码维护助手",
+                      "desc": "冷热记忆架构；JIT 按需加载；四层上下文压缩"}]})
+    out = resume_tailor._ensure_project_points(
+        {"tailored": {"projects": [{"name": "代码维护助手", "desc": "只有一条要点"}]}}, src)
+    desc = out["tailored"]["projects"][0]["desc"]
+    check("定制把要点压成 1 条时确定性补回（>=2 条）",
+          len([p for p in desc.split("；") if p.strip()]) >= 2, desc)
+
+
+def test_problem3_cover_letter():
+    print("\n[A13] 问题 3：自荐信署名 + 数据补完整")
+    signed = tools_registry._ensure_cover_signature("我做过 RAG 项目。", "梁家浩")
+    check("结尾自动补「此致/敬礼」+ 姓名",
+          signed.rstrip().endswith("此致\n敬礼\n梁家浩"), signed)
+    again = tools_registry._ensure_cover_signature(
+        "我做过 RAG 项目。\n\n此致\n敬礼\n梁家浩", "梁家浩")
+    check("已有署名不重复", again.count("梁家浩") == 1, again)
+
+    resume = {"projects": [{"name": "P", "desc": "召回率从 65% 提升至 86%"}]}
+    got = tools_registry._complete_metrics("在项目里把召回率提升至 86%。", resume)
+    check("残缺数据补回起点（从 65%）", "从 65%" in got and "86%" in got, got)
+    keep = tools_registry._complete_metrics(
+        "提升至 86%。", {"projects": [{"name": "P", "desc": "召回率提升至 86%"}]})
+    check("简历本身没有起点就不编造", "65" not in keep, keep)
+
+    real_chat = tools_registry.chat
+    try:
+        tools_registry.chat = lambda *a, **k: "尊敬的 A 公司：\n\n我做过 RAG 项目。\n\n期待面试。"
+        body, _warn = tools_registry._generate_cover_letter(
+            {"name": "梁家浩"}, {"company": "A", "title": "B"}, None)
+    finally:
+        tools_registry.chat = real_chat
+    check("生成路径同样带署名", body.rstrip().endswith("梁家浩"), body)
+
+
 def main() -> int:
     print("=" * 68)
     print("投递包三问题修复验证")
@@ -440,6 +532,9 @@ def main() -> int:
     test_problem2_tidy_all_paths()
     test_problem3_4_dedup_and_terms()
     test_font_glyph()
+    test_named_job_city()
+    test_problem2_terms_and_points()
+    test_problem3_cover_letter()
     if "--e2e" in sys.argv:
         test_e2e()
     print("\n" + "=" * 68)

@@ -30,6 +30,8 @@ TAILOR_PROMPT = """你是简历优化专家。根据岗位 JD 调整简历的表
 【任务】
 1. 重排技能顺序：JD 要求的技能放前面。
 2. 重写实习/项目描述：用 JD 的语言表达，突出与岗位相关的部分。
+   **项目的 desc 要保留 2-3 条要点，用「；」分隔**：原文一个项目有多条要点时，
+   不许并成一句话（并成一句会让投递包里的项目只剩 1 条）。
 3. **只写客观事实，不写自我评价**：每条描述 = 做了什么（技术 / 方法 / 动作）+ 可量化结果。
    严禁主观自夸句式，例如「体现了较强的效果调优能力」「展现了出色的学习方法与架构抽象
    能力」「具备独立完成工作并持续改进方案的能力」「注重系统安全性与工程规范」
@@ -102,7 +104,8 @@ def tailor_resume(resume: Resume, job_detail) -> dict:
                 reasoning_effort=limits.cover_letter_reasoning_effort(),
             )
             data = _parse_json(raw)
-            return _sanitize_result(_restore_source_fields(data, resume))
+            return _ensure_project_points(
+                _sanitize_result(_restore_source_fields(data, resume)), resume)
         except Exception as e:
             print(f"[第{attempt}次失败] {e}")
             if attempt == 3:
@@ -199,6 +202,41 @@ def _restore_source_fields(result: dict, resume: Resume) -> dict:
 
     if not str(tailored.get("education") or "").strip() and resume.education:
         tailored["education"] = resume.education
+    return result
+
+
+def _points(text) -> list:
+    """按「换行 / 分号 / 中文分号」把描述切成要点列表。"""
+    return [p.strip() for p in re.split(r"[\n；;]+", str(text or "")) if p.strip()]
+
+
+def _ensure_project_points(result: dict, resume: Resume) -> dict:
+    """项目描述不许被压成 1 条要点（问题 2）。
+
+    实测：原简历里一个项目有 3 条「；」分开的要点（冷热记忆 / JIT 按需加载 /
+    四层上下文压缩），LLM 定制后并成 1 句，PDF 里就只剩 1 个 bullet。这里做
+    确定性兜底：定制结果少于 2 条要点、而原简历同一个项目有 >= 2 条时，
+    原样补回原简历的要点（最多 3 条）—— 宁可少改措辞，也不许把事实压没。
+    """
+    tailored = (result or {}).get("tailored")
+    if not isinstance(tailored, dict):
+        return result
+
+    src = {}
+    for proj in (getattr(resume, "projects", None) or []):
+        if isinstance(proj, dict) and str(proj.get("name") or "").strip():
+            src.setdefault(re.sub(r"\s+", "", str(proj["name"])).lower(), proj)
+
+    for proj in (tailored.get("projects") or []):
+        if not isinstance(proj, dict):
+            continue
+        key = re.sub(r"\s+", "", str(proj.get("name") or "")).lower()
+        origin = src.get(key)
+        if not origin:
+            continue
+        src_points = _points(origin.get("desc"))
+        if len(src_points) >= 2 and len(_points(proj.get("desc"))) < 2:
+            proj["desc"] = "；".join(src_points[:3])
     return result
 
 

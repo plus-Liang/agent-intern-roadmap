@@ -210,7 +210,8 @@ def is_application_intent(question: str) -> bool:
     """「我要投墨泊可士的 AI Agent 岗位」这类**投递意向**。
 
     与「帮我找广州的 Agent 岗位」是两条完全不同的路：找岗位要的是**一份列表**，
-    投递意向要的是**一条已点名岗位的投递包**（复用点名定位 `resolve_named_job`）。
+    投递意向要的是**一条已点名岗位的投递包**（复用点名定位 `match_named_job`，
+    带城市偏好）。
     以前没有这条意图，那句话被 `is_search_intent` 的「岗位」名词 + 长度兜底抢走，
     于是拿关键词「AI」搜出 20 条无关岗位。
 
@@ -264,7 +265,8 @@ def _route(question: str) -> str:
 # 不进任何图、不让模型自决，因为这条路上最容易出的错是**认错岗位**：
 # 用户说「投墨泊可士的 AI Agent 岗位」，系统却拿关键词「AI」搜出 20 条别的公司。
 #
-# 链路：点名定位（复用 `resolve_named_job`，与匹配打分同一条精确链路）
+# 链路：点名定位（复用 `match_named_job`，与匹配打分同一条精确链路 + 城市偏好）
+#       → 多城市同名 → **先问用户投哪个**（不按库里遍历顺序替他挑）
 #       → 拿到 job_id → `generate_application_package`
 #       → 定位失败 → **如实说没找到 + 三条路径**，绝不拿别的岗位凑数、绝不改去搜岗位。
 # ==========================================================================
@@ -323,19 +325,29 @@ def _run_package(question: str, verbose: bool = True, progress_cb=None,
         company, title = _designation_from_text(text)
         if company or title:
             try:
-                detail, why = tools_registry.resolve_named_job(company, title)
+                located = tools_registry.match_named_job(company, title)
             except Exception as e:                        # noqa: BLE001 - 查库失败=没找到
-                detail, why = None, f"岗位库查询失败（{type(e).__name__}）"
-            if detail is not None:
-                note = why or "按你点名的岗位定位"
+                located = {"found": False,
+                           "reason": f"岗位库查询失败（{type(e).__name__}）"}
+            if located.get("found"):
+                detail = located.get("detail")
+                note = located.get("note") or "按你点名的岗位定位"
             else:
                 label = f"{company} · {title}" if company and title else (company or title)
-                reply = _named_job_not_found_reply({}, label, why, for_package=True)
+                ask = located.get("ask") or ""
+                if ask:
+                    # 问题 1：同名岗位在多个城市都有 → 先问用户投哪个城市，
+                    # 绝不按库里遍历顺序替他挑一条（那正是「简历广州、包是杭州」的病根）。
+                    reply, thought = ask, (f"点名的「{label}」在多个城市都有"
+                                           f" → 先问用户投哪个，不替他猜")
+                else:
+                    reply = _named_job_not_found_reply({}, label, located.get("reason") or "",
+                                                       for_package=True)
+                    thought = (f"投递意向点名的「{label}」库里没有 → 如实说没找到，"
+                               f"不换别的岗位、也不改去搜岗位列表")
                 steps.append({"turn": 1, "type": "route", "engine": "langgraph",
-                              "node": "定位岗位",
-                              "thought": f"投递意向点名的「{label}」库里没有 → 如实说没找到，"
-                                         f"不换别的岗位、也不改去搜岗位列表",
-                              "observation": why or f"未找到 {label}"})
+                              "node": "定位岗位", "thought": thought,
+                              "observation": ask or located.get("reason") or f"未找到 {label}"})
                 log_event(trace_id, "run_end", total_turns=1, found=False,
                           final_answer_len=len(reply), engine="langgraph")
                 result = {"answer": reply, "steps": steps}

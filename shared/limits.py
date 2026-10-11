@@ -165,7 +165,7 @@ def match_reasoning_effort() -> str:
 
 
 def cover_letter_max_tokens() -> int:
-    """投递包（自荐信 + 简历定制）的单次输出上限，默认 4096。
+    """投递包（自荐信 + 简历定制）的单次输出上限，默认 8192。
 
     为什么要单独给：与简历解析 / 匹配同源 —— `glm-5.3-flash` 是思考模型，
     `max_tokens` 同时卡住思考（`reasoning_content`）与正文，且**工具内部的
@@ -176,9 +176,12 @@ def cover_letter_max_tokens() -> int:
       4096 + `low` 一次出全、`finish_reason=stop`；
     - 简历定制（返回 JSON）：默认 1024 档正文为空、`json.loads` 报
       `Expecting value: line 1 column 1 (char 0)`，连试 3 次都失败 → 投递包被迫用原简历。
-    4096 只是上限、不花额外 token。总开关关闭时为 0（不注入），与改造前一致。
+    为什么抬到 8192：自荐信的要求从「200-300 字一段」提到「**3-4 段、250-400 字、
+    数据写完整、此致敬礼 + 署名**」后，实测同一份简历在 4096 档**思考把额度吃光、
+    正文为空**（回落到模板兜底），8192 档一次写出 406 字完整正文。8192 只是上限、
+    不花额外 token。总开关关闭时为 0（不注入），与改造前一致。
     """
-    return _env_int("COVER_LETTER_LLM_MAX_TOKENS", 4096, 0) if rate_limit_enabled() else 0
+    return _env_int("COVER_LETTER_LLM_MAX_TOKENS", 8192, 0) if rate_limit_enabled() else 0
 
 
 def cover_letter_reasoning_effort() -> str:

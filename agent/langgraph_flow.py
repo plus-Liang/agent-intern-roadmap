@@ -1035,18 +1035,22 @@ def locate_job(state: MatchState) -> dict:
     if detail is None:
         named_company, named_title = _designation_from_text(question)
         if named_company or named_title:
-            named_detail, why = None, ""
+            located = {}
             try:
-                named_detail, why = reg.resolve_named_job(named_company, named_title)
+                located = reg.match_named_job(named_company, named_title)
             except Exception as e:                      # noqa: BLE001 - 查库失败=没找到
-                why = f"岗位库查询失败（{type(e).__name__}）"
-            if named_detail is not None:
-                detail = named_detail
-                note = why or "按用户点名的岗位定位"
+                located = {"found": False,
+                           "reason": f"岗位库查询失败（{type(e).__name__}）"}
+            if located.get("found"):
+                detail = located.get("detail")
+                note = located.get("note") or "按用户点名的岗位定位"
             else:
-                label = f"{named_company} · {named_title}" if named_company and named_title \
-                    else (named_company or named_title)
-                reply = _named_job_not_found_reply(state, label, why)
+                label = f"{named_company} · {named_title}" \
+                    if named_company and named_title else (named_company or named_title)
+                ask = located.get("ask") or ""
+                # 问题 1：同名岗位多城市都有 → 直接把问题抛给用户（不替他挑城市）
+                reply = ask or _named_job_not_found_reply(
+                    state, label, located.get("reason") or "")
                 log_event(state.get("trace_id") or "-", "lg_node", node="locate",
                           engine="langgraph", graph="match", found=False, named=True)
                 return {
@@ -1054,8 +1058,11 @@ def locate_job(state: MatchState) -> dict:
                     "job_id": "",
                     "locate_error": reply,
                     "steps": _step(state, "定位岗位",
-                                   f"用户点名的岗位「{label}」在库里没有 → 如实报错，不换别的岗位",
-                                   observation=why or f"未找到 {label}"),
+                                   (f"用户点名的「{label}」在多个城市都有 → 先问用户投哪个"
+                                    if ask else
+                                    f"用户点名的「{label}」在库里没有 → 如实报错，不换别的岗位"),
+                                   observation=ask or located.get("reason")
+                                   or f"未找到 {label}"),
                 }
 
     if detail is None:

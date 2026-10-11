@@ -1298,7 +1298,12 @@ section("8. 点名岗位：指定不存在的岗位必须如实报错（绝不 f
 
 
 def _run_named_case(question, focus_n=10):
-    """跑一次匹配图：假打分器记账（有没有被打分），池子里有 10 条"最近搜索"。"""
+    """跑一次匹配图：假打分器记账（有没有被打分），池子里有 10 条"最近搜索"。
+
+    `preferred_cities` 钉成「广州」：问题 1 之后，用户没给城市偏好时
+    「墨泊可士 · AI Agent」在杭州 / 广州各有一条会**先问用户投哪个**，
+    这条用例考的是「点名命中后正常打分」，所以必须先给出城市偏好。
+    """
     calls = []
     detail = _FocusDetail("focus_01", "墨泊可士", "AI Agent开发")
     graph = LF.build_match_graph(scorer=lambda job_id, resume_json: (
@@ -1306,6 +1311,7 @@ def _run_named_case(question, focus_n=10):
     with user_scope(f"named-{abs(hash(question)) % 10000}"):
         LF.reg._number_jobs(_focus_rows(focus_n))       # 最近一次搜索：第 1 条是墨泊可士
         with _patched((LF.reg, "_resolve_match_detail", lambda job_id: detail),
+                      (LF.reg, "preferred_cities", lambda: ["广州"]),
                       (LF, "_llm_json", _fake_llm(
                           {"合理": True, "理由": "分数与证据匹配", "建议修正": 0}))):
             state = graph.invoke({"question": question, "resume_data": RESUME_WITH_RAG,
@@ -1559,8 +1565,11 @@ check("进度：app 侧短任务 no-op + 长任务节流", _progress_app_gate_an
 section("10. 投递意向（「我要投 <公司> 的 <岗位>」）：出包，不是搜岗位")
 
 
-def _run_package_case(question):
-    """跑投递意向链路：搜索图一旦被调用就记下来（它**不该**被调用）。"""
+def _run_package_case(question, cities=("广州",)):
+    """跑投递意向链路：搜索图一旦被调用就记下来（它**不该**被调用）。
+
+    `cities` 默认钉成广州：问题 1 之后，没有城市偏好时同名岗位跨城市会先问用户。
+    """
     called = {"search": 0}
     real_invoke = LG.SEARCH_GRAPH.invoke
 
@@ -1578,6 +1587,7 @@ def _run_package_case(question):
 
     with user_scope(f"package-{os.getpid()}"), \
             _patched((LG.SEARCH_GRAPH, "invoke", _spy),
+                     (LG.tools_registry, "preferred_cities", lambda: list(cities)),
                      (LG.tools_registry, "generate_application_package", _fake_generate)):
         result = LG.run(question, verbose=False)
     return result, called, pkg_calls
@@ -1631,9 +1641,42 @@ def _package_intent_does_not_eat_search():
     return "「帮我找广州的 Agent 岗位」→ search（未被投递意向劫走）"
 
 
+def _package_city_ambiguity_asks():
+    """问题 1：没有城市偏好 + 同名岗位跨城市 → **先问用户投哪个**，不替他挑一个。
+
+    旧行为是取库里遍历顺序的第一条（杭州），于是简历写着「期望城市：广州」、
+    包里却是杭州的岗位。现在没偏好就必须问。
+    """
+    result, called, pkg_calls = _run_package_case(
+        "我要投墨泊可士的 AI Agent 岗位", cities=())
+    answer = result.get("answer") or ""
+    if called["search"]:
+        raise AssertionError("城市歧义时居然改去搜列表了")
+    if pkg_calls:
+        raise AssertionError(f"城市没确认就出包了：{pkg_calls}")
+    for hint in ("你要投哪个", "杭州", "广州"):
+        if hint not in answer:
+            raise AssertionError(f"没问清投哪个城市（缺「{hint}」）：{answer[:200]}")
+    return "无城市偏好 + 多城市同名 → 问用户投哪个（不出包、不搜列表）"
+
+
+def _package_prefers_resume_city():
+    """问题 1：简历写「期望城市：广州」→ 直接取广州那条（不再出杭州的包）。"""
+    result, _called, pkg_calls = _run_package_case(
+        "我要投墨泊可士的 AI Agent 岗位", cities=("广州",))
+    if not pkg_calls:
+        raise AssertionError("有城市偏好却没出包")
+    got = pkg_calls[0]
+    if str(got.get("job_id") or "") != "inn_qpa38aa45nvn":
+        raise AssertionError(f"没有命中广州那条：{got}")
+    return f"偏好广州 → job_id={got['job_id']}（广州）"
+
+
 check("投递意向：出投递包且不搜岗位（搜索图 0 调用）", _package_intent_is_not_search)
 check("投递意向：点名岗位不存在 → 如实说没找到、不出包", _package_missing_job_is_honest)
 check("投递意向：不误伤正常搜岗位", _package_intent_does_not_eat_search)
+check("问题1：无城市偏好 + 多城市同名 → 先问用户投哪个", _package_city_ambiguity_asks)
+check("问题1：简历城市偏好 → 命中广州那条", _package_prefers_resume_city)
 
 
 # ---------------------------------------------------------------------------

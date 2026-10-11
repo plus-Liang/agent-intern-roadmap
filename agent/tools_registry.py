@@ -1387,20 +1387,23 @@ COVER_LETTER_PROMPT = """你是求职者本人，正在写一封投递用的自�
 {requirements}
 
 【要求】
-1. 第一人称，正文 200-300 个中文字符。
-2. 结构：开头点明应聘的岗位 → 中间用简历里真实存在的技能/实习/项目说明为什么匹配
-   （尽量呼应上面的任职要求）→ **再写一句「为什么对这个岗位/这家公司感兴趣」**：
-   必须落到上面【目标岗位】里的**具体一点**（业务方向 / 技术栈 / 职责里的某个点 /
-   城市），并写明这就是你想加入的原因，例如「这个岗位要在 XX 方向做 XX，这正是我
-   上一段实习在解决的问题，也是我最想继续做的方向」；
-   **不许写「平台大」「发展前景好」「氛围好」「重视人才」这类放到任何公司都成立的
-   套话**，也不许只写「与岗位方向一致」这种没有具体信息的附和，更不许借这句自夸；
-   JD 里确实没有可依据的信息时才省掉这一句 → 结尾表达期待面试。
-3. **绝对不能编造简历里没有的经历、技能、成绩或数字**。
-4. **只写客观事实，不写自我评价**：说「做过什么 + 可量化结果」，不要写
+1. 第一人称，**3-4 段，正文 250-400 个中文字符**（写不满 250 字就是没写到位）。
+2. 结构（按顺序，一段一个意思，不许揉成一段）：
+   ① 开头：点明应聘的岗位 + **为什么是这家公司 / 这个岗位**：必须落到【目标岗位】里的
+      具体一点（业务方向 / 技术栈 / 职责里的某个点 / 城市），不要让这句飘在空里；
+   ② 主体：用简历里**真实存在**的经历 / 项目 / 技能说明为什么匹配（尽量呼应任职要求）；
+   ③ 收尾：表达期待面试，然后换行写「此致」、再换行写「敬礼」、再换行署上姓名
+      {name}。
+3. **数据照抄简历的完整写法**：简历写「召回率从 65% 提升至 86%」就写全，
+   不许省成「提升至 86%」这种缺一半的写法；简历只写「提升至 86%」就照抄
+   「提升至 86%」，**不许自己补一个起点数字**，也不许改任何数字。
+4. **绝对不能编造简历里没有的经历、技能、成绩或数字**。
+5. **只写客观事实，不写自我评价**：说「做过什么 + 可量化结果」，不要写
    「具备快速学习与团队协作能力」「沟通顺畅」「责任心强」「注重工程质量」这类
    自我评价，也不要写「体现了…能力」「展现了…精神」。宁可少写一句，也不许自夸。
-5. 直接输出自荐信正文（可以有称呼和结尾问候），不要标题、不要 markdown 围栏、不要解释。
+6. **不许写「平台大」「发展前景好」「氛围好」「重视人才」「行业领先」这类放到任何
+   公司都成立的套话**，也不许只写「这些经验与岗位要求匹配」这种没有具体信息的空话。
+7. 直接输出自荐信正文（含称呼与落款），不要标题、不要 markdown 围栏、不要解释。
 """
 
 
@@ -1585,7 +1588,7 @@ def _recover_educations_from_library(orig: dict) -> list:
     return []
 
 
-def _fallback_cover_letter(company: str, title: str) -> str:
+def _fallback_cover_letter(company: str, title: str, name: str = "") -> str:
     return (
         f"尊敬的{company}招聘负责人：\n\n"
         f"您好！我希望应聘贵公司的「{title}」岗位。\n\n"
@@ -1593,18 +1596,87 @@ def _fallback_cover_letter(company: str, title: str) -> str:
         f"能够较快上手实际工作，并在过程中持续补充岗位所需的技能。\n"
         f"很期待有机会与您进一步沟通，也希望能为团队做出贡献。\n\n"
         f"（注：本段为模板兜底版本，LLM 生成失败，请手动补充项目细节后再投递。）\n\n"
-        f"此致\n敬礼"
+        f"此致\n敬礼" + (f"\n{name}" if str(name or "").strip() else "")
     )
+
+
+# ---------------------------------------------------------------------------
+# 自荐信的确定性收口（问题 3）：署名 + 数据完整
+# ---------------------------------------------------------------------------
+
+#: 简历里完整写法的量化区间：「从 65% 提升至 86%」「从 120ms 降到 80ms」。
+_METRIC_RANGE_RE = re.compile(
+    r"从\s*(?P<frm>\d+(?:\.\d+)?\s*[%％]?)\s*"
+    r"(?P<verb>提升|提高|增长|上升|降低|下降|减少|缩短)\s*至\s*(?P<to>\d+(?:\.\d+)?\s*[%％]?)"
+)
+#: 只有结果没有起点的残缺写法：「…提升到 86%」（动词与「至」之间可能夹着主语）。
+_METRIC_TAIL_RE = (
+    r"(?:提升|提高|增长|上升|降低|下降|减少|缩短)[^，,。；;\n]{{0,12}}?至\s*{to}"
+)
+
+
+def _complete_metrics(text: str, resume_data) -> str:
+    """把自荐信里被写残的量化数据补回完整写法（问题 3）。
+
+    实测模型会把简历里的「召回率从 65% 提升至 86%」省成「提升至 86%」——
+    起点丢了，数据就不是数据了。这里以**简历原文**为准做确定性回补：
+    只有当正文出现了同一个终点值、却完全没有起点值时，才把那半句换成
+    简历里的完整写法，绝不改数字、也不动其它句子。
+    """
+    if not text:
+        return text
+    try:
+        source = json.dumps(resume_data or {}, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return text
+    for match in _METRIC_RANGE_RE.finditer(source):
+        frm = re.sub(r"\s+", "", match.group("frm"))
+        to = re.sub(r"\s+", "", match.group("to"))
+        if not frm or not to or frm == to:
+            continue
+        if frm in text:                             # 起点已经在正文里，没什么可补
+            continue
+        if to not in text:
+            continue
+        pattern = re.compile(_METRIC_TAIL_RE.format(to=re.escape(to)))
+        hit = pattern.search(text)
+        if not hit:
+            continue
+        # 「…提升召回率至 86%」→「召回率从 65% 提升至 86%」：把动词前的主语挪到「从」前面
+        fragment = hit.group(0)
+        head = re.match(r"(提升|提高|增长|上升|降低|下降|减少|缩短)(.*?)至", fragment)
+        subject = (head.group(2) if head else "").strip()
+        full = f"{subject}从 {frm} {match.group('verb')}至 {to}" if subject \
+            else f"从 {frm} {match.group('verb')}至 {to}"
+        text = text[:hit.start()] + full + text[hit.end():]
+    return text
+
+
+def _ensure_cover_signature(text: str, name: str) -> str:
+    """自荐信结尾必须有「此致 / 敬礼」+ 姓名（问题 3）。"""
+    body = str(text or "").rstrip()
+    if "敬礼" not in body:
+        body = body + ("\n敬礼" if "此致" in body else "\n\n此致\n敬礼")
+    name = str(name or "").strip()
+    if name:
+        tail = body.rsplit("此致", 1)[-1]
+        if name not in tail:
+            body = f"{body}\n{name}"
+    return body.strip()
 
 
 def _generate_cover_letter(resume_data, record, detail) -> tuple:
     """用 LLM 生成自荐信，返回 (正文, 警告或空串)"""
     company = record.get("company", "")
     title = record.get("title", "")
+    name = ""
+    if isinstance(resume_data, dict):
+        name = str(resume_data.get("name") or "").strip()
     prompt = COVER_LETTER_PROMPT.format(
         resume=json.dumps(resume_data, ensure_ascii=False, default=str)[:2000],
         company=company,
         title=title,
+        name=name or "（我的姓名）",
         city=getattr(detail, "city", "") if detail else "",
         requirements=(getattr(detail, "requirements", "") or "（未获取到）")[:1500]
         if detail else "（未获取到岗位详情）",
@@ -1626,10 +1698,13 @@ def _generate_cover_letter(resume_data, record, detail) -> tuple:
         if text:
             # LLM 有时还是收不住嘴，再过一遍确定性清洗（问题 2 同源）；
             # 拼错的专有名词（Llamalndex）也在这里确定性纠回（问题 4）
-            return fix_tech_terms(strip_self_praise(text)), ""
+            text = fix_tech_terms(strip_self_praise(text))
+            text = _complete_metrics(text, resume_data)     # 数据补完整（问题 3）
+            text = _ensure_cover_signature(text, name)      # 此致敬礼 + 署名（问题 3）
+            return text, ""
         raise ValueError("模型返回空内容")
     except Exception as e:                          # noqa: BLE001 - 生成失败也要让投递包落地
-        return (_fallback_cover_letter(company, title),
+        return (_fallback_cover_letter(company, title, name),
                 f"自荐信生成失败（{type(e).__name__}: {e}），已用模板兜底")
 
 
@@ -1697,7 +1772,103 @@ def _job_info_text(record: dict, detail, job_id_used: str) -> str:
 
 
 def resolve_named_job(company, title=""):
-    """用户**点名**了「公司 + 岗位名」时，在岗位库里精确定位那**一条**。
+    """（兼容入口）点名定位岗位，返回 (JobDetail 或 None, 说明)。
+
+    内部走 `match_named_job`（点名 + 城市偏好）。需要区分「需要问用户城市」与
+    「真的没有这条岗位」的调用方请直接用 `match_named_job` —— 这里把城市歧义
+    的问题文本放在第二个返回值里，保持老的二元组契约不变。
+    """
+    result = match_named_job(company, title)
+    if result.get("found"):
+        return result.get("detail"), result.get("note") or ""
+    return None, (result.get("ask") or result.get("reason") or "")
+
+
+# ---------------------------------------------------------------------------
+# 城市偏好（问题 1）：同名岗位在多个城市都有时，先按用户偏好挑，挑不出来才问
+# ---------------------------------------------------------------------------
+
+def _city_norm(value) -> str:
+    """城市名归一化：去掉空白与结尾「市」，让「广州」/「广州市」互认。"""
+    return re.sub(r"[\s　]+", "", str(value or "")).rstrip("市").lower()
+
+
+def preferred_cities() -> list:
+    """用户的期望城市：画像 target_cities 优先，其次是当前简历的 city 字段。
+
+    读不到就返回空列表 —— 没有偏好时走「同名多城市 → 问用户」那条路，
+    绝不替用户猜一个城市（真实故障：简历写「期望城市：广州」，包却是杭州的）。
+    """
+    cities = []
+    try:
+        from agent import user_profile
+        profile = user_profile.load_profile() or {}
+        cities = [str(c).strip() for c in (profile.get("target_cities") or [])
+                  if str(c).strip()]
+    except Exception:                                   # noqa: BLE001 - 画像坏了不算偏好
+        cities = []
+    if not cities:
+        try:
+            resume = get_current_resume()
+            if isinstance(resume, dict):
+                city = str(resume.get("city") or "").strip()
+                if city:
+                    cities = [city]
+        except Exception:                               # noqa: BLE001 - 读不到简历就算没偏好
+            cities = []
+    return cities
+
+
+def _city_matches(city, cities) -> bool:
+    """岗位城市是否落在偏好城市里（双向包含，「广州市」≈「广州」）。"""
+    key = _city_norm(city)
+    if not key:
+        return False
+    for want in cities or []:
+        want_key = _city_norm(want)
+        if want_key and (want_key in key or key in want_key):
+            return True
+    return False
+
+
+def _job_city(job) -> str:
+    return str(getattr(job, "city", "") or "").strip()
+
+
+def _choose_by_city(top: list, company: str, title: str, cities: list):
+    """在并列候选里按城市偏好挑一条；挑不出来就返回要问用户的问题。
+
+    返回 (row, "") 或 (None, 问题文本)。规则：
+      - 候选只落在一个城市 → 直接用（没得选）；
+      - 偏好城市里正好有一处有 → 用那一处（问题 1 的正解）；
+      - 偏好城市里有多处（如目标城市 = 广州 + 深圳）→ 问用户；
+      - 偏好城市一处都没有、别处有 → 说明偏好城市没这条岗，问要不要投别处；
+      - 压根没设偏好 → 直接问用户投哪个城市。
+    """
+    by_city = {}
+    for row in top:
+        by_city.setdefault(_city_norm(row.get("city")), []).append(row)
+    label = (f"{company} {title}".strip() or company or title)
+    if len(by_city) <= 1:
+        return top[0], ""
+
+    shown = {key: (rows[0].get("city") or "（未标城市）") for key, rows in by_city.items()}
+    hits = [key for key in by_city if _city_matches(key, cities)]
+    if len(hits) == 1:
+        return by_city[hits[0]][0], ""
+    if len(hits) > 1:
+        names = "、".join(shown[key] for key in hits)
+        return None, f"「{label}」在{names}都有这个岗位，你要投哪个？"
+
+    others = "、".join(dict.fromkeys(shown[key] for key in by_city))
+    if cities:
+        want = "、".join(str(c).strip() for c in cities if str(c).strip())
+        return None, f"「{label}」在{want}没有这个岗位，{others}有，你要投吗？"
+    return None, f"「{label}」在{'和'.join(dict.fromkeys(shown.values()))}都有这个岗位，你要投哪个？"
+
+
+def match_named_job(company, title="", cities=None) -> dict:
+    """用户**点名**了「公司 + 岗位名」时的完整定位：精确匹配 + 城市偏好。
 
     与 `_record_from_job_library` 的三档兜底不同：**这里绝不退而取别的岗位**。
     用户说了公司 + 岗位名就已经限定了目标，返回别的岗位 = 用户以为在评估他点名的
@@ -1707,14 +1878,56 @@ def resolve_named_job(company, title=""):
     匹配口径：
       - 公司名：归一化后双向子串（库里的写法常带「有限公司」等后缀）；
       - 岗位名：完全相等 > 互相包含；本轮 `last_job_list` 里的那条优先（用户刚看过）；
-      - 同一档并列且**岗位名不同** → 判为歧义，返回 (None, 原因)，让上层去问用户。
+      - 同一档并列且**岗位名不同** → 判为歧义，让上层去问用户；
+      - 同一档并列、岗位名相同但**城市不同** → 按 `cities`（默认用户城市偏好）挑；
+        挑不出来就把问题放进 `ask`，由上层原样问用户（问题 1）。
 
-    返回 (JobDetail 或 None, 说明)；拿不到时第二个值是「为什么没拿到」。
+    返回 dict：
+      found   bool
+      detail  JobDetail 或 None
+      note    命中说明（found=True）
+      ask     需要用户先确认城市的问题（非空 = 不要出包 / 不要打分）
+      reason  没定位到的原因（found=False 且 ask 为空）
+    """
+    ranked, err = _named_job_ranked(company, title)
+    if err:
+        return {"found": False, "detail": None, "note": "", "ask": "", "reason": err}
+
+    best = max(rank for rank, _row in ranked)
+    top = [row for rank, row in ranked if rank == best]
+    if len(top) > 1 and len({_norm_text(r["title"]) for r in top}) > 1:
+        names = "、".join(f"{r['company']} · {r['title']}" for r in top[:5])
+        wanted = f"{company} {title}".strip()
+        return {"found": False, "detail": None, "note": "", "ask": "",
+                "reason": f"「{wanted}」有好几条候选，需要你确认是哪一条：{names}"}
+
+    if cities is None:
+        cities = preferred_cities()
+    row, ask = _choose_by_city(top, company, title, cities)
+    if ask:
+        return {"found": False, "detail": None, "note": "", "ask": ask, "reason": ""}
+
+    try:
+        detail = get_job_detail("mock", row["job_id"])
+    except Exception as e:                              # noqa: BLE001 - 详情读不到 = 没找到
+        return {"found": False, "detail": None, "note": "", "ask": "",
+                "reason": f"岗位 {row['job_id']} 的详情读取失败（{type(e).__name__}）"}
+    note = f"按你点名的「{row['company']} · {row['title']}」精确定位"
+    if row.get("city"):
+        note += f"（{row['city']}）"
+    return {"found": True, "detail": detail, "note": note, "ask": "", "reason": ""}
+
+
+def _named_job_ranked(company, title):
+    """点名候选的排序结果：[ (分数, row), ... ]；定位不到时第二个值是原因。
+
+    row 里带 company / title / city / job_id / recent —— city 是问题 1
+    （多城市同名岗位）判歧义的依据。
     """
     comp_key = _norm_text(company)
     title_key = _norm_text(title)
     if not comp_key and not title_key:
-        return None, "没有给出公司名或岗位名"
+        return [], "没有给出公司名或岗位名"
 
     rows, seen = [], set()
     for item in (_session_state().get("last_job_list") or []):
@@ -1723,7 +1936,8 @@ def resolve_named_job(company, title=""):
             continue
         seen.add(job_id)
         rows.append({"job_id": job_id, "company": str(item.get("company") or ""),
-                     "title": str(item.get("title") or ""), "recent": True})
+                     "title": str(item.get("title") or ""),
+                     "city": str(item.get("city") or ""), "recent": True})
     try:
         library = search_jobs("", None, 0, platform="mock")
     except Exception:                                   # noqa: BLE001 - 库坏了就是"没找到"
@@ -1734,7 +1948,8 @@ def resolve_named_job(company, title=""):
             continue
         seen.add(job_id)
         rows.append({"job_id": job_id, "company": str(getattr(job, "company", "") or ""),
-                     "title": str(getattr(job, "title", "") or ""), "recent": False})
+                     "title": str(getattr(job, "title", "") or ""),
+                     "city": _job_city(job), "recent": False})
 
     if comp_key:
         def _company_ok(row) -> bool:
@@ -1743,7 +1958,7 @@ def resolve_named_job(company, title=""):
 
         candidates = [r for r in rows if _company_ok(r)]
         if not candidates:
-            return None, f"岗位库里没有「{company}」这家公司的岗位"
+            return [], f"岗位库里没有「{company}」这家公司的岗位"
     else:
         candidates = rows
 
@@ -1762,21 +1977,8 @@ def resolve_named_job(company, title=""):
         ranked.append((rank + (0.5 if row["recent"] else 0.0), row))
     if not ranked:
         where = f"「{company}」名下" if comp_key else "岗位库里"
-        return None, f"{where}没有叫「{title}」的岗位"
-
-    best = max(rank for rank, _row in ranked)
-    top = [row for rank, row in ranked if rank == best]
-    if len(top) > 1 and len({_norm_text(r["title"]) for r in top}) > 1:
-        names = "、".join(f"{r['company']} · {r['title']}" for r in top[:5])
-        wanted = f"{company} {title}".strip()
-        return None, f"「{wanted}」有好几条候选，需要你确认是哪一条：{names}"
-
-    row = top[0]
-    try:
-        detail = get_job_detail("mock", row["job_id"])
-    except Exception as e:                              # noqa: BLE001 - 详情读不到 = 没找到
-        return None, f"岗位 {row['job_id']} 的详情读取失败（{type(e).__name__}）"
-    return detail, f"按你点名的「{row['company']} · {row['title']}」精确定位"
+        return [], f"{where}没有叫「{title}」的岗位"
+    return ranked, ""
 
 
 def _record_from_job_library(company, job_id=None, title=""):
@@ -1819,6 +2021,9 @@ def _record_from_job_library(company, job_id=None, title=""):
 
     comp_key = _norm_text(company)
     title_key = _norm_text(title)
+    # 问题 1：用户的期望城市（画像 target_cities → 当前简历 city），用于在
+    # 同名多城市的命中里优先挑对城市的那条。
+    pref_cities = preferred_cities()
 
     def _accepts(company_name, title_name) -> bool:
         """详情本身是否就是用户要的那条：给了什么就核什么，两者都给了就都要对上。
@@ -1866,7 +2071,13 @@ def _record_from_job_library(company, job_id=None, title=""):
         tried.append("会话里有粘贴的岗位，但与请求的公司 / 岗位名不符")
 
     def _find(match_fn):
-        """按谓词在库里找第一条；命中返回 (record, detail)，一条都没命中返回 None。"""
+        """按谓词在库里找第一条；命中返回 (record, detail)，一条都没命中返回 None。
+
+        ⚠️ 问题 1：库里同名岗位常在多个城市各挂一条（墨泊可士「AI Agent开发」
+        杭州 / 广州各一条），以前这里返回**遍历顺序的第一条** —— 简历写着
+        「期望城市：广州」，包里的 job_id 却是杭州那条。现在有城市偏好时
+        先在偏好城市的命中里挑，挑不到才回落到全部命中。
+        """
         try:
             # 空关键词 + limit=0 = 读全库：公司名不一定出现在岗位标题/描述里，
             # 靠 search_jobs 的关键词过滤会漏，这里必须自己按字段比对。
@@ -1874,9 +2085,14 @@ def _record_from_job_library(company, job_id=None, title=""):
         except Exception as e:                      # noqa: BLE001 - 库坏了就报"没找到"
             tried.append(f"岗位库（{type(e).__name__}）")
             return None
-        for job in jobs:
-            if not match_fn(_norm_text(job.company), _norm_text(job.title)):
-                continue
+        matches = [j for j in jobs
+                   if match_fn(_norm_text(j.company), _norm_text(j.title))]
+        if pref_cities:
+            preferred = [j for j in matches
+                         if _city_matches(_job_city(j), pref_cities)]
+            if preferred:
+                matches = preferred
+        for job in matches:
             try:
                 detail = get_job_detail("mock", job.job_id)
             except Exception:                       # noqa: BLE001 - 换下一条候选
@@ -1972,7 +2188,7 @@ def generate_application_package(company, job_id=None, title=""):
 
     目录：agent/data/packages/{company}_{时间戳}/
       - resume.pdf       按岗位定制后的简历（定制失败则用当前简历）
-      - cover_letter.md  LLM 生成的自荐信（200-300 字）
+      - cover_letter.md  LLM 生成的自荐信（3-4 段、250-400 字、此致敬礼 + 署名）
       - job_info.txt     岗位信息 + 链接 + 投递记录
 
     返回：{"company", "job_id", "package_dir", "files": {...}, "warnings": [...]}
