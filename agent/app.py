@@ -1004,7 +1004,7 @@ INTERVIEW_PROMPT = """你是一位资深面试官，正在对候选人做一场�
    再问下一个问题。不要长篇大论。
 4. 问满 {min_q} 题后（最多 {max_q} 题）就收尾：给一段综合评价，
    包含「整体表现 / 亮点 / 待改进 / 与岗位的匹配度 / 下一步建议」。
-   **收尾前先自查三种追问（第 8 条的 A / B / C）是不是都出现了**：
+   **收尾前先自查四种追问（第 8 条的 A / B / C / D）是不是都出现了**：
    只要还没到 {max_q} 题、还有类别没出现，就先把缺的那类问出来，不要提前收尾
    （A/B/C 都没出现就收尾，等于整场没深挖）。
 5. 绝对不要编造候选人简历里没有的经历。
@@ -1039,8 +1039,18 @@ INTERVIEW_PROMPT = """你是一位资深面试官，正在对候选人做一场�
    找不到同类工具时，改成问「这套选型在这个量级下的代价 / 什么时候会换成别的方案」。
    追问不是为了难住人：候选人答得清楚的，点评里要认；答得空的，才继续往下一层问。
 
-   【节奏（最重要）】5-8 题大致这样分配：项目细节 2-3 题 + 空白区 1-2 题
-   + 压力测试 1-2 题 + 横向对比 1-2 题。**不要每题都追问，也不要连续 3 题都是追问**：
+   【D 类 · JD 差距】对照【岗位 JD】的任职要求，挑一条**JD 明确要求、简历里却没有**的
+   技能 / 经验 / 语言（例如 JD 要求 Llamalndex、Java、知识图谱，简历只写了
+   LangChain、Python、RAG），把差距摆出来问他怎么看、怎么补。
+   例：「JD 里要求深入掌握 LlamaIndex，你简历里没写，这块你是什么情况？」
+   「JD 要求 Python/Java/Go 至少一种，你项目都是 Python，你怎么看这个差距？」
+   时机：项目题之后自然引出，占掉一题岗位技术题。整场**最多 1 次**。
+   问法里必须点出「JD 要求 X、你简历里没写」这层对照，不要缩成「你了解 X 吗」。
+   **只在有 JD 的场次用**：没有 JD 时不许凭岗位名推测要求，这一类直接跳过。
+
+   【节奏（最重要）】5-8 题大致这样分配：项目细节 2-3 题 + 常规岗位技术 / 动机 1-2 题
+   + 追问 3-4 题（A 空白区 / B 压力测试 / C 横向对比 / D JD 差距，每类最多 1 次）。
+   **不要每题都追问，也不要连续 3 题都是追问**：
    追问之间至少夹 1 题常规的项目 / 岗位技术 / 动机题，否则像审讯不像面试；
    同一个数据、同一项技术不要反复追，B 类与 C 类之间也要交替，不要一段里全是压力测试。
 
@@ -1236,12 +1246,17 @@ def _interview_messages(session: dict) -> list:
     # 这里按「已经问过几题」给出本轮该不该追、还剩哪几类没问，把节奏变成外部约束。
     done = len(asked)
     remaining = INTERVIEW_MAX_QUESTIONS - done - 1        # 收尾题也要占一格
-    # 三类追问是否出现过（只按关键词粗判，判漏了只是多给一次机会，不误伤节奏）
+    # 四类追问是否出现过（只按关键词粗判，判漏了只是多给一次机会，不误伤节奏）
     kind_a_done = ("没有实习" in asked_text or "没有大厂" in asked_text
                    or "没有相关实习" in asked_text)
     kind_b_done = any(w in asked_text for w in ("怎么算", "怎么计算", "测试集", "过拟合", "数据来源"))
     kind_c_done = any(w in asked_text for w in ("而不是", "不用", "为什么选", "为什么用", "选型"))
-    done_all_kinds = kind_a_done and kind_b_done and kind_c_done
+    # D 类（JD 差距）只在有 JD 的场次要求；关键词盯「JD 要求 / JD 里写」这类对照说法。
+    want_kind_d = bool(str(session.get("job_id") or "").strip())
+    kind_d_done = any(w in asked_text for w in ("JD 要求", "JD要求", "JD 里要求", "JD里要求",
+                                                "JD 里写", "JD里写", "JD 中要求", "JD中要求"))
+    done_all_kinds = (kind_a_done and kind_b_done and kind_c_done
+                      and (kind_d_done or not want_kind_d))
     if done:
         left = []
         if not kind_a_done:
@@ -1250,11 +1265,14 @@ def _interview_messages(session: dict) -> list:
             left.append("B 类（压力测试：追问某个量化数据的算法与测试集）")
         if not kind_c_done:
             left.append("C 类（横向对比：为什么选 Milvus / LangGraph 而不是同类方案）")
+        if want_kind_d and not kind_d_done:
+            left.append("D 类（JD 差距：JD 明确要求但简历里没写的技能，问他怎么看这个差距）")
         if not left:
-            left.append("三类都已覆盖，不欠账")
+            left.append("四类都已覆盖，不欠账")
         hint = (f"\n\n【本轮节奏】你已经问了 {done} 题，现在要出第 {done + 1} 题"
                 f"（最晚第 {INTERVIEW_MAX_QUESTIONS} 题收尾，后面大概还剩 {max(remaining, 0)} 格）。"
-                "**整场必须覆盖 A / B / C 三类追问，每类至少 1 次**；还没出现的类别："
+                "**整场必须覆盖 A / B / C 三类追问（有 JD 时还要加上 D 类 JD 差距），"
+                "每类至少 1 次**；还没出现的类别："
                 + "、".join(left) + "。")
         if done < 2:
             hint += "这一题按常规来：自我介绍 / 项目细节，**不要追问**，先建立节奏。"
@@ -1272,7 +1290,7 @@ def _interview_messages(session: dict) -> list:
                 f"{INTERVIEW_MIN_QUESTIONS} 个）。")
         if not done_all_kinds and len(asked) < INTERVIEW_MAX_QUESTIONS:
             # 题数够但三类追问还有缺口，且还没到上限：允许再补一题
-            hint += ("但三种追问（A 简历空白 / B 压力测试 / C 横向对比）还没覆盖完，"
+            hint += ("但四种追问（A 简历空白 / B 压力测试 / C 横向对比 / D JD 差距）还没覆盖完，"
                      "而题数还没到上限：**这一次不要 finished**，先把缺的那一类问出来。")
         else:
             hint += ("请这一次就收尾：feedback 照常写，"
