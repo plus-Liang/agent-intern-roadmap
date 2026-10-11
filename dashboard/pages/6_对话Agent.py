@@ -198,7 +198,7 @@ INTERVIEW_SOURCE = "mock_interview"
 INTERVIEW_NO_JD = "（岗位库里没有收录这个岗位的 JD，下面没有任何岗位要求可参考）"
 
 #: 拿不到 JD 时追加的硬约束（关键：岗位名只当背景，不许由岗位名反推技术栈）
-INTERVIEW_NO_JD_RULE = """8. **这一场没有 JD**（岗位库里查不到「{company} · {title}」）：
+INTERVIEW_NO_JD_RULE = """9. **这一场没有 JD**（岗位库里查不到「{company} · {title}」）：
    只根据上面的【候选人简历】出题 —— 自我介绍、简历里写过的项目/实习细节、
    简历里出现过的技术栈，再加求职动机 / 职业规划这类**不依赖行业**的通用题。
    **岗位名称只是背景，不是技术要求**：不许由岗位名里的领域词（例如「量子芯片」）
@@ -225,6 +225,8 @@ INTERVIEW_PROMPT = """你是一位资深面试官，正在对候选人做一场�
    再问下一个问题。不要长篇大论。
 4. 问满 {min_q} 题后（最多 {max_q} 题）就收尾：给一段综合评价，
    包含「整体表现 / 亮点 / 待改进 / 与岗位的匹配度 / 下一步建议」。
+   **收尾前先自查三种追问（第 8 条的 A / B / C）是不是都出现了**：
+   只要还没到 {max_q} 题、还有类别没出现，就先把缺的那类问出来，不要提前收尾。
 5. 绝对不要编造候选人简历里没有的经历。
 6. 只围绕【岗位】里的公司 / 岗位名出题。JD 节选只用来理解业务方向：
    绝不要提 JD 里出现的其它公司名、产品或项目。
@@ -233,6 +235,36 @@ INTERVIEW_PROMPT = """你是一位资深面试官，正在对候选人做一场�
    简历和 JD 里都没有的，一个字都不许问、不许提，也不要把【岗位】名称里的领域词当成考点。
    注意：这条只禁止「凭空编」，**不禁止按 JD 问岗位技术问题** ——
    JD 里写明的技术栈正是该问的，必须问到。
+8. **追问要有三种，也要有节奏**（只问"做了什么"是问不出深度的）：
+
+   【A 类 · 简历空白】只能问简历上**真的没有**的东西：没写实习经历 / 工作经历、
+   没有大厂经历、没有竞赛获奖、没有论文发表。问的是"你怎么补这个短板"，不是贬低。
+   例：「你的简历里没有实习经历，怎么保证能适应企业节奏？」「简历里没有大厂经历，你怎么看？」
+   时机：候选人讲完项目之后再自然引出。整场**最多 1 次**。
+
+   【B 类 · 压力测试】盯简历里出现过的**量化数据**（百分比、延迟毫秒数、召回率、
+   "提升至 86%"、"低于 5ms"、"超 50%" 这类），问它的来路和可信度。
+   例：「86% 这个数字是怎么算出来的？测试集多大、怎么标注的？」
+   「你怎么保证不是过拟合？」
+   时机：他刚讲完那个数据就追，不要隔几题再回头翻。
+   **同一个数据最多追 1 次；整场最多追 2 个数据。**
+
+   【C 类 · 横向对比】盯简历里写过的**具体技术选型**（Milvus / Chroma / LangGraph /
+   ReAct / OpenAI Agents SDK / LangChain 等），问他为什么选它、换一个会怎样。
+   例：「为什么用 Milvus 不用 Chroma？」「为什么选 LangGraph 而不是纯 ReAct？」
+   时机：他刚讲完那个技术就问。**同一个技术最多追 1 次、整场最多追 2 个技术。**
+   问对比不能自己编新技术：对比项必须是 JD 或简历里出现过的同类工具；
+   找不到同类工具时，改成问「这套选型在这个量级下的代价 / 什么时候会换成别的方案」。
+   追问不是为了难住人：候选人答得清楚的，点评里要认；答得空的，才继续往下一层问。
+
+   【节奏（最重要）】5-8 题大致这样分配：项目细节 2-3 题 + 空白区 1-2 题
+   + 压力测试 1-2 题 + 横向对比 1-2 题。**不要每题都追问，也不要连续 3 题都是追问**：
+   追问之间至少夹 1 题常规的项目 / 岗位技术 / 动机题，否则像审讯不像面试；
+   同一个数据、同一项技术不要反复追，B 类与 C 类之间也要交替，不要一段里全是压力测试。
+
+   【追问后必须点评】每次追问之后，点评要指出他这条回答的薄弱点**加示范**。
+   例：「你的回答没有提到测试集怎么标注的，这是面试官会继续追的点——
+   如果补上'500 条人工标注、两条基线对照'这层，可信度会高很多。」
 {jd_rule}
 【已经问过的问题】
 {asked}
@@ -309,13 +341,50 @@ def _interview_messages(session: dict) -> list:
         history=_interview_history_text(session),
         jd_rule=no_jd_rule,
     )
+    # 节奏闸门：与 agent/app.py 的 _interview_messages 保持一致
+    done = len(asked)
+    remaining = INTERVIEW_MAX_QUESTIONS - done - 1
+    asked_text = "、".join(asked)
+    kind_a_done = ("没有实习" in asked_text or "没有大厂" in asked_text
+                   or "没有相关实习" in asked_text)
+    kind_b_done = any(w in asked_text for w in ("怎么算", "怎么计算", "测试集", "过拟合", "数据来源"))
+    kind_c_done = any(w in asked_text for w in ("而不是", "不用", "为什么选", "为什么用", "选型"))
+    done_all_kinds = kind_a_done and kind_b_done and kind_c_done
+    if done:
+        left = []
+        if not kind_a_done:
+            left.append("A 类（简历空白：没实习 / 没大厂）")
+        if not kind_b_done:
+            left.append("B 类（压力测试：追问某个量化数据的算法与测试集）")
+        if not kind_c_done:
+            left.append("C 类（横向对比：为什么选 Milvus / LangGraph 而不是同类方案）")
+        if not left:
+            left.append("三类都已覆盖，不欠账")
+        hint = (f"\n\n【本轮节奏】你已经问了 {done} 题，现在要出第 {done + 1} 题"
+                f"（最晚第 {INTERVIEW_MAX_QUESTIONS} 题收尾，后面大概还剩 {max(remaining, 0)} 格）。"
+                "**整场必须覆盖 A / B / C 三类追问，每类至少 1 次**；还没出现的类别："
+                + "、".join(left) + "。")
+        if done < 2:
+            hint += "这一题按常规来：自我介绍 / 项目细节，**不要追问**，先建立节奏。"
+        elif done >= INTERVIEW_MAX_QUESTIONS - 1:
+            hint += ("题数快到上限了，以收尾和综合评价为主；"
+                     + ("**最后一题必须补上还欠的那一类追问**，不要再问常规题。"
+                        if not done_all_kinds else "**不要再起新的追问**。"))
+        else:
+            hint += ("本轮**优先**补上面还没出现的类别，用一次追问（也可以不用）——"
+                     "但上一题如果是追问，这一题必须换常规题，绝不能连着追。")
+        prompt += hint
     # 已经问够最少题数时，明确催一次收尾：靠模型自己数题数不如直接告诉它
     if len(asked) >= INTERVIEW_MIN_QUESTIONS:
-        prompt += (
-            f"\n\n【本轮特别指令】你已经问够 {len(asked)} 个问题了（最少 "
-            f"{INTERVIEW_MIN_QUESTIONS} 个）。请这一次就收尾：feedback 照常写，"
-            'next_question 留空，finished 设成 true，summary 里给出综合评价。'
-        )
+        hint = (f"\n\n【本轮特别指令】你已经问够 {len(asked)} 个问题了（最少 "
+                f"{INTERVIEW_MIN_QUESTIONS} 个）。")
+        if not done_all_kinds and len(asked) < INTERVIEW_MAX_QUESTIONS:
+            hint += ("但三种追问（A 简历空白 / B 压力测试 / C 横向对比）还没覆盖完，"
+                     "而题数还没到上限：**这一次不要 finished**，先把缺的那一类问出来。")
+        else:
+            hint += ("请这一次就收尾：feedback 照常写，"
+                     'next_question 留空，finished 设成 true，summary 里给出综合评价。')
+        prompt += hint
     return [{"role": "user", "content": prompt}]
 
 
