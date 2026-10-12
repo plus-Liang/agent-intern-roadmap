@@ -530,6 +530,73 @@ def test_problem3_cover_letter():
     check("生成路径同样带署名", body.rstrip().endswith("梁家浩"), body)
 
 
+def test_dedupe_points():
+    print("\n[A14] 本轮 Bug 1：补回要点时按语义去重，不留「总结版 + 详细版」重叠")
+    check("包含关系判为同一件事",
+          resume_tailor._same_point("RAG 检索优化", "RAG 检索优化：召回率从 65% 提升至 86%"))
+    check("改写后事实相同也判重复（召回率）",
+          resume_tailor._same_point("把召回率从 65% 提升至 86%",
+                                    "检索链路优化，召回率从 65% 提升至 86%"))
+    check("不同要点不误并（冷热记忆 vs JIT）",
+          not resume_tailor._same_point("冷热记忆架构，命中率提升 30%",
+                                        "JIT 按需加载代码探索工具，首包体积降 40%"))
+    check("不同大类不误并（Agent 编排 vs 质量工程）",
+          not resume_tailor._same_point("Agent 编排：多智能体协同与工具路由",
+                                        "质量工程：评测集 200 条，bad case 下降 40%"))
+
+    got = resume_tailor._dedupe_points([
+        "RAG 检索优化",                                   # 总结版
+        "RAG 检索优化：召回率从 65% 提升至 86%，P95 120ms",   # 详细版
+        "冷热记忆架构，命中率提升 30%",
+    ])
+    check("只留详细那条且位置不乱", got == [
+        "RAG 检索优化：召回率从 65% 提升至 86%，P95 120ms",
+        "冷热记忆架构，命中率提升 30%"], str(got))
+
+    src = resume_parser._dict_to_resume({"name": "梁家浩", "projects": [
+        {"name": "RAG 客服系统", "desc": "RAG 检索优化：召回率从 65% 提升至 86%，P95 120ms；"
+                                         "冷热记忆架构，命中率提升 30%"}]})
+    out = resume_tailor._ensure_all_points({"tailored": {"projects": [
+        {"name": "RAG 客服系统",
+         "desc": "RAG 检索优化：召回率从 65% 提升至 86%，P95 120ms"}]}}, src)
+    desc = out["tailored"]["projects"][0]["desc"]
+    check("原样保留的详细要点不被补成两条", desc.count("召回率") == 1, desc)
+    check("真缺的那条照样补回来", "冷热记忆" in desc, desc)
+
+
+def test_cover_letter_paragraphs():
+    print("\n[A15] 本轮 Bug 2：自荐信 3-4 段、每段 <=100 字")
+    long_para = ("您好！我在项目里搭过 RAG 问答链路并做过引用溯源，把召回率从 65% 提升至 86%，"
+                 "也做过上下文压缩与限流降级这类工程实现。另外我做过冷热记忆架构，"
+                 "命中率提升 30%，还做过 JIT 按需加载，首包体积降 40%。")
+    shaped = tools_registry._reshape_cover_letter(
+        f"尊敬的 A 公司招聘负责人：\n\n{long_para}\n\n此致\n敬礼\n梁家浩")
+    paras = [p for p in shaped.split("\n\n") if p.strip() and p not in ("此致", "敬礼")]
+    lens = tools_registry._cover_paragraph_lens(shaped)
+    check("长段落被切成多段", len(paras) >= 3, shaped)
+    check("每段 <=100 字", all(n <= tools_registry._COVER_PARA_MAX for n in lens), str(lens))
+    check("切分不丢字（内容一字不改）",
+          "".join(long_para.split()) == "".join("".join(p.split()) for p in paras
+                                                if p.startswith(("您好", "也做", "另外"))),
+          shaped)
+    check("署名行不被揉进正文", shaped.rstrip().endswith("梁家浩"), shaped)
+    check("短文不动", tools_registry._reshape_cover_letter("短句。\n\n此致\n敬礼\n某") ==
+          "短句。\n\n此致\n\n敬礼\n\n某")
+
+
+def test_heartbeat_gap():
+    print("\n[A16] 本轮 Bug 3：心跳 30s 一条 + 上限 4 条（90 秒不刷屏）")
+    from agent import app as APP
+    check("心跳间隔为 30s", APP._PROGRESS_HEARTBEAT_GAP == 30.0,
+          str(APP._PROGRESS_HEARTBEAT_GAP))
+    check("90 秒窗口内心跳 < 5 条",
+          90 / APP._PROGRESS_HEARTBEAT_GAP < 5, str(90 / APP._PROGRESS_HEARTBEAT_GAP))
+    check("有心跳条数上限", APP._PROGRESS_HEARTBEAT_MAX <= 5,
+          str(APP._PROGRESS_HEARTBEAT_MAX))
+    check("心跳文案轮播（不重复同一句）", len(set(APP._HEARTBEAT_TEXTS)) >= 3,
+          str(APP._HEARTBEAT_TEXTS))
+
+
 def main() -> int:
     print("=" * 68)
     print("投递包三问题修复验证")
@@ -547,6 +614,9 @@ def main() -> int:
     test_named_job_city()
     test_problem2_terms_and_points()
     test_problem3_cover_letter()
+    test_dedupe_points()
+    test_cover_letter_paragraphs()
+    test_heartbeat_gap()
     if "--e2e" in sys.argv:
         test_e2e()
     print("\n" + "=" * 68)

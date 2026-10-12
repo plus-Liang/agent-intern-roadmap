@@ -1623,12 +1623,16 @@ COVER_LETTER_PROMPT = """你是求职者本人，正在写一封投递用的自�
 
 【要求】
 1. 第一人称，**3-4 段，正文 250-400 个中文字符**（写不满 250 字就是没写到位）。
-2. 结构（按顺序，一段一个意思，不许揉成一段）：
-   ① 开头：点明应聘的岗位 + **为什么是这家公司 / 这个岗位**：必须落到【目标岗位】里的
-      具体一点（业务方向 / 技术栈 / 职责里的某个点 / 城市），不要让这句飘在空里；
-   ② 主体：用简历里**真实存在**的经历 / 项目 / 技能说明为什么匹配（尽量呼应任职要求）；
-   ③ 收尾：表达期待面试，然后换行写「此致」、再换行写「敬礼」、再换行署上姓名
-      {name}。
+2. **每段不超过 100 字，段与段之间空一行**。一段只说一个意思：宁可分 4 段，
+   也**不许把所有经历堆进一段**（实测有 300+ 字一段的写法，HR 读不下去）。
+   结构（按顺序）：
+   ① 第 1 段（为什么这家）：点明应聘的岗位 + **为什么是这家公司 / 这个岗位**：必须落到
+      【目标岗位】里的具体一点（业务方向 / 技术栈 / 职责里的某个点 / 城市），不许飘在空里；
+   ② 第 2 段（核心经历）：只挑**1-2 个与 JD 最相关**的经历 / 项目，写清做了什么 +
+      可量化结果，不要把所有项目都列一遍；
+   ③ 第 3 段（其他匹配点）：用一两句补上其余相关技能 / 经历，简短带过即可；
+   ④ 第 4 段（期待）：表达期待面试，然后换行写「此致」、再换行写「敬礼」、
+      再换行署上姓名 {name}。
 3. **数据照抄简历的完整写法**：简历写「召回率从 65% 提升至 86%」就写全，
    不许省成「提升至 86%」这种缺一半的写法；简历只写「提升至 86%」就照抄
    「提升至 86%」，**不许自己补一个起点数字**，也不许改任何数字。
@@ -1972,6 +1976,10 @@ def _cover_letter_findings(path, resume_data, name: str) -> list:
         findings.append("自荐信里没找到与简历经历对应的具体内容，建议人工核对后再投")
     if name and name not in raw:
         findings.append(f"自荐信结尾没有署上「{name}」")
+    long_paras = [n for n in _cover_paragraph_lens(raw) if n > _COVER_PARA_MAX + 10]
+    if long_paras:
+        findings.append(f"自荐信有 {len(long_paras)} 段偏长（最长 {max(long_paras)} 字，"
+                        f"建议每段 ≤{_COVER_PARA_MAX} 字），HR 阅读体验会打折扣")
     return findings
 
 
@@ -2044,6 +2052,70 @@ def _resume_findings(original: dict, final: dict, pdf_path) -> list:
     return []
 
 
+#: 自荐信每段的字数上限（超过就按句子边界切开，本轮 P1 修复 Bug 2）。
+_COVER_PARA_MAX = 100
+
+
+def _split_long_paragraph(para: str, limit: int = _COVER_PARA_MAX) -> list:
+    """把一段超长文字按句子边界切成每段 <= limit 字（不改一个字）。
+
+    为什么在生成后做（而不是只靠 prompt）：prompt 是软约束，实测模型会把所有项目
+    bullet 一路写进同一段（300+ 字）。这里做确定性兜底：只在「。！？；」后断句，
+    连标点一起带走，段落之间插入空行 —— 内容一字不改，只是好读。
+    """
+    text = str(para or "").strip()
+    if not text or len(text) <= limit:
+        return [text] if text else []
+
+    chunks: list = []
+    current = ""
+    for piece in re.findall(r"[^。！？；;]+[。！？；;]?", text):
+        piece = piece.strip()
+        if not piece:
+            continue
+        if current and len(current) + len(piece) > limit:
+            chunks.append(current)
+            current = piece
+        else:
+            current += piece
+        while len(current) > limit:             # 单句自身就超长 → 按字数硬切
+            chunks.append(current[:limit])
+            current = current[limit:]
+    if current:
+        chunks.append(current)
+    return [c for c in chunks if c]
+
+
+def _reshape_cover_letter(text: str) -> str:
+    """规范自荐信排版：段落之间空一行 + 超长段落按句子切开（Bug 2）。"""
+    src = str(text or "").replace("\r\n", "\n").strip()
+    if not src:
+        return ""
+    blocks = [b.strip() for b in re.split(r"\n\s*\n", src) if b.strip()]
+    out: list = []
+    for block in blocks:
+        if "\n" not in block and len(block) <= _COVER_PARA_MAX:
+            out.append(block)                   # 单段短句（含「此致」「敬礼」署名）原样保留
+            continue
+        for line in block.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            out.extend(_split_long_paragraph(line))
+    return "\n\n".join(out)
+
+
+def _cover_paragraph_lens(text: str) -> list:
+    """自荐信正文各段字数（排除「此致 / 敬礼 / 姓名」这类落款短行），给投递包告警用。"""
+    lens = []
+    for block in re.split(r"\n\s*\n", str(text or "").strip()):
+        para = block.strip()
+        if not para or para in ("此致", "敬礼") or len(para) <= 6:
+            continue
+        lens.append(len(para))
+    return lens
+
+
 def _generate_cover_letter(resume_data, record, detail) -> tuple:
     """用 LLM 生成自荐信，返回 (正文, 警告或空串)"""
     company = record.get("company", "")
@@ -2085,6 +2157,7 @@ def _generate_cover_letter(resume_data, record, detail) -> tuple:
                 text = fix_tech_terms(strip_self_praise(text))
                 text = _complete_metrics(text, resume_data)     # 数据补完整（问题 3）
                 text = _ensure_cover_signature(text, name)      # 此致敬礼 + 署名（问题 3）
+                text = _reshape_cover_letter(text)              # 每段 <=100 字（本轮 Bug 2）
                 problems = _cover_body_problems(text, name)
                 if not problems:
                     return text, ""
@@ -2664,6 +2737,7 @@ def generate_application_package(company, job_id=None, title=""):
         return _generate_cover_letter(resume_data, _cover_record, detail)
 
     tailored = False
+    _progress(f"正在按「{_cover_record['company']}」岗位定制简历 / 写自荐信…")
     if detail is not None and "_plain" not in resume_data:
         (final_resume, tailor_warnings), (cover_letter, cover_warning) = \
             _run_jobs_parallel([_tailor_job, _cover_job])
@@ -2692,6 +2766,7 @@ def generate_application_package(company, job_id=None, title=""):
     package_dir.mkdir(parents=True, exist_ok=True)
 
     resume_pdf = package_dir / "resume.pdf"
+    _progress("正在导出简历 PDF / 落盘自荐信…")
     export_resume_pdf(final_resume, str(resume_pdf))
 
     # 简历 PDF 保真校验（本轮 P1）：内容被压掉 20% 以上就报警，并把原简历

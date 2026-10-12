@@ -599,12 +599,24 @@ def _semaphore():
 
 #: 两条进度之间至少隔这么久（节点挨着开始时只留第一条，不刷屏）
 _PROGRESS_MIN_GAP = 20.0
-#: 距上一条进度超过这么久还没有新进度 → 自动补一条心跳（保证空闲 < 20s）
-_PROGRESS_HEARTBEAT_GAP = 15.0
+#: 距上一条进度超过这么久还没有新进度 → 自动补一条心跳（保证空闲 < 32s）
+#: 本轮 P1 修复：15s→30s。实测 90s 的操作按 15s 会刷 6 条「仍在处理中，请稍候…」，
+#: 用户观感是刷屏；30s 同窗口最多 3 条，且仍远小于前端 60s 的静默超时阈值。
+_PROGRESS_HEARTBEAT_GAP = 30.0
+#: 单次任务最多推这么多条心跳（前几条兜住静默窗口，之后不再刷）
+_PROGRESS_HEARTBEAT_MAX = 4
 #: 心跳线程的检查间隔
 _PROGRESS_TICK = 1.0
 #: 等待队列消费的间隔（也是 sender 任务的轮询粒度）
 _PROGRESS_IDLE = 0.5
+
+#: 心跳文案轮播（Bug 3）：不再一直重复同一句，按顺序给出「还在做什么」。
+_HEARTBEAT_TEXTS = (
+    "仍在处理中，请稍候…（这一步比较慢，不会断线）",
+    "仍在处理中：正在整理岗位要求与你的经历…",
+    "仍在处理中：正在生成简历 / 自荐信，请稍候…",
+    "仍在处理中：模型还在写，马上就好…",
+)
 
 
 class _ProgressPusher:
@@ -637,6 +649,7 @@ class _ProgressPusher:
         self._last_nudge = 0.0            # 上一条**步骤**进度（节流用）
         self._last_any = 0.0              # 上一条任何消息（心跳用）
         self._last_text = ""
+        self._heartbeats = 0              # 已推心跳条数（Bug 3：到上限就不推了）
         self._stopped = False
         self._lock = threading.Lock()
 
@@ -669,13 +682,16 @@ class _ProgressPusher:
             print(f"[进度] 推送失败（忽略）：{type(e).__name__}: {e}")
 
     def push_heartbeat(self, text: str) -> None:
-        """塞一条心跳（只要距上一条**任何**消息超过 heartbeat_gap 就推）。"""
+        """塞一条心跳（距上一条**任何**消息超过 heartbeat_gap，且未到条数上限才推）。"""
         try:
             now = time.monotonic()
             with self._lock:
                 if self._stopped or now - self._last_any < self.heartbeat_gap:
                     return
+                if self._heartbeats >= _PROGRESS_HEARTBEAT_MAX:
+                    return
                 self._last_any = now
+                self._heartbeats += 1
             self.queue.put_nowait({"kind": "progress", "text": str(text)})
         except Exception as e:                              # noqa: BLE001
             print(f"[进度] 心跳失败（忽略）：{type(e).__name__}: {e}")
@@ -730,7 +746,8 @@ class _ProgressPusher:
                     return
                 gap = time.monotonic() - self._last_any
             if gap >= self.heartbeat_gap:
-                self.push_heartbeat("仍在处理中，请稍候…（这一步比较慢，不会断线）")
+                idx = min(self._heartbeats, len(_HEARTBEAT_TEXTS) - 1)
+                self.push_heartbeat(_HEARTBEAT_TEXTS[idx])
 
 
 def _long_task_run(message: str) -> bool:

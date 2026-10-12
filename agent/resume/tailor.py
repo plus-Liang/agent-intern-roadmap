@@ -268,6 +268,77 @@ def _covered(point: str, haystack: str) -> bool:
     return hits * 2 >= len(probes)
 
 
+#: 语义重复的两条要点，bigram 重合度至少这么高才算「说的是同一件事」。
+#: 0.45 是保守档：实测同一个项目的两条不同要点（冷热记忆 vs JIT 按需加载）
+#: bigram 重合度都在 0.2 以下，而「总结版 + 详细版」这类改写能到 0.6+。
+_DUP_BIGRAM = 0.45
+#: 语义重复还必须共享至少这么多「实词」（英文词 / 数字 / 中文词段），
+#: 防止纯虚词（的 / 并 / 了）堆出来的高重合两句话被误并。
+_DUP_MIN_KEYS = 2
+
+
+def _keywords(text: str) -> set:
+    """要点里的「实词」：英文词 / 数字 / 中文二字词段，给重复判定当锚点。"""
+    norm = re.sub(r"[\s\u3000]+", "", str(text or ""))
+    words = set(re.findall(r"[A-Za-z][A-Za-z0-9+.#_-]+|\d+(?:\.\d+)?%?", norm))
+    han = "".join(re.findall(r"[\u4e00-\u9fff]", norm))
+    words |= {han[i:i + 2] for i in range(len(han) - 1)}
+    return {w for w in words if w}
+
+
+def _bigrams(text: str) -> set:
+    norm = re.sub(r"[\s\u3000，,。.；;、：:！!？?（）()【】\[\]“”\"'’‘—\-~]+", "", str(text or ""))
+    if len(norm) < 2:
+        return {norm} if norm else set()
+    return {norm[i:i + 2] for i in range(len(norm) - 1)}
+
+
+def _same_point(a: str, b: str) -> bool:
+    """两条要点是不是「说的同一件事」（语义级，不是字符串级）。
+
+    两条判据，任一命中即算重复：
+      ① 包含：一条归一化后是另一条的子串 —— 总结版往往就是详细版的「前半句」；
+      ② 相似：bigram 重合度 >= `_DUP_BIGRAM`，且共享 >= `_DUP_MIN_KEYS` 个实词 ——
+         挡住「召回率从 65% 提升至 86%」和「检索链路优化，召回率从 65% 提升至 86%」
+         这类改写过、字面不包含但事实同一的条目。
+    """
+    na = re.sub(r"[\s\u3000]+", "", str(a or ""))
+    nb = re.sub(r"[\s\u3000]+", "", str(b or ""))
+    if not na or not nb:
+        return False
+    if na in nb or nb in na:
+        return True
+    ga, gb = _bigrams(na), _bigrams(nb)
+    if not ga or not gb:
+        return False
+    inter = len(ga & gb)
+    if inter / max(1, len(ga | gb)) < _DUP_BIGRAM:
+        return False
+    shared_keys = _keywords(na) & _keywords(nb)
+    return len(shared_keys) >= _DUP_MIN_KEYS
+
+
+def _dedupe_points(points: list) -> list:
+    """去掉描述同一件事的重复要点，保留更详细的那条（本轮 P1 修复）。
+
+    为什么必须有这一步：`_covered` 只按「6 字片段命中率过半」判要点还在不在，
+    定制结果把 10 条写成 3 条**总结版**时（措辞改得多、命中率不过半），兜底会把
+    9 条**详细版**原样补回去 —— 用户看到的就是「前 3 条总结 + 后 9 条详细」的重叠。
+    字符串去重挡不住（两条字面不同），所以按语义判：同一件事只留信息量大的那条。
+    """
+    kept: list = []
+    for point in (points or []):
+        text = str(point or "").strip()
+        if not text:
+            continue
+        dup_at = next((i for i, old in enumerate(kept) if _same_point(text, old)), None)
+        if dup_at is None:
+            kept.append(text)
+        elif len(text) > len(kept[dup_at]):
+            kept[dup_at] = text                 # 详细的替换总结的，位置不变
+    return kept
+
+
 def _append_missing_points(new_desc, src_desc) -> str:
     """把定制结果里丢掉的原简历要点行，原样补回到描述末尾。
 
@@ -284,12 +355,11 @@ def _append_missing_points(new_desc, src_desc) -> str:
     if len(src_points) < 2:
         return new_desc
     if not str(new_desc or "").strip():
-        return "；".join(src_points)
+        return "；".join(_dedupe_points(src_points))
     haystack = re.sub(r"\s+", "", str(new_desc))
     missing = [p for p in src_points if not _covered(p, haystack)]
-    if not missing:
-        return new_desc
-    return str(new_desc).rstrip("；; \n") + "； " + "； ".join(missing)
+    merged = _dedupe_points(_points(new_desc) + missing)   # 总结版/详细版同一件事只留详细那条
+    return "； ".join(merged)
 
 
 def _ensure_all_points(result: dict, resume: Resume) -> dict:
