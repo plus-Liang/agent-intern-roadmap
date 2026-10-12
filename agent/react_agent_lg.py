@@ -31,6 +31,7 @@ LangGraph 版 Agent 入口（阶段 1：固定基础流程 + 反思节点）。
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import uuid
@@ -67,6 +68,35 @@ _MATCH_BLOCK_WORDS = ("投递包", "生成", "简历定制", "删除", "删掉",
 #: 「看日志」意图的词表（问题 3）：用户说的日志是**系统运行日志**，
 #: 不是投递记录 —— 以前模型以为「日志」=投递记录，跑去 list_tracking。
 _LOG_WORDS = ("日志", "log", "logs", "log 文件")
+
+#: 「前 N 个岗位」这种**批量指代**（本轮修复）。
+#:
+#: 现象：用户搜完「北京，广州的 Agent 实习岗位」拿到 20 条，接着说
+#: 「我要投前面三个岗位」—— 这句话里既没有公司名、也没有「第 N 个」，
+#: `is_application_intent` 认不出来 → 落回 ReAct → 模型把「前面三个」
+#: 当成**新的搜索条件**又搜了一遍（实测拿关键词「岗位」重搜，返回杭州的
+#: 策略开发实习 + 成都 / 深圳的算法正式岗），与用户刚看的 20 条毫无关系；
+#: 接着三条 match_resume 又都引用同一条搜索结果，于是三次打出同一个分。
+#:
+#: 正确语义是**指代上文**：「前面三个」= 上一轮搜索结果的 index 1~3。
+#: 判据刻意收紧，三道都要满足：
+#:   1. 有指前词（前 / 前面 / 上面 / 刚才）+ 数量词（三个 / 3 个 / 两条…）；
+#:   2. 带投递 / 匹配这类**动作**（否则「前面的岗位怎么样」是追问，不是批量操作）；
+#:   3. 会话态里有上一轮搜索结果（没搜过就没什么可指的，交回原有链路）。
+_BATCH_PREFIX_WORDS = ("前面", "前", "上面", "上述", "刚才", "之前", "头")
+_BATCH_ORDINAL_RE = re.compile(
+    r"(?P<prefix>" + "|".join(_BATCH_PREFIX_WORDS) + r")\s*"
+    r"(?P<count>[0-9]{1,2}|[一二两三四五六七八九十]+)\s*个"
+)
+_BATCH_ACTION_WORDS = ("投", "投递")
+#: 「前面 N 个」后面紧跟这些词说明它不是在指代搜索结果（「前三个月」「前两个阶段」），
+#: 别抢。⚠️ 只判**紧跟其后**的一小段，不判整句 —— 否则「前面三个岗位」里的「位」
+#: （岗位）会把整句误杀（实测踩过）。
+_BATCH_TAIL_BLOCK = ("月", "周", "年", "天", "小时", "分钟", "阶段", "版本", "轮",
+                     "次", "题", "页", "项目", "面试")
+
+_NUM_CN = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
+           "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
 
 #: 追问的**指代**词（Bug 1）：用户指着上文那条岗位说事，而不是要一份新列表。
 #: 两类：① 序号指代「第 N 个 / 第一条」；② 指示代词「这个 / 它 / 该岗位 / 上面那个」。
@@ -278,7 +308,105 @@ def is_application_intent(question: str) -> bool:
     # 同样不该去搜岗位。
     if _ORDINAL_HINT_RE.search(text) or _FOLLOWUP_REF_RE.search(text):
         return True
+    # 「我要投前面三个岗位」：批量指代，同样是投递意向（见 _batch_count）。
+    if batch_apply_count(text) > 0:
+        return True
     return any(word in text for word in _FOLLOWUP_REF_WORDS)
+
+
+# ==========================================================================
+# 批量投递：「我要投前面三个岗位」（本轮修复）
+#
+# 根因（实测 trace fb679bd3）：这句话被判回 ReAct → 模型重新 search_jobs
+# （关键词「岗位」）→ Planner 拿到 4 步计划，其中 3 个 match_resume 的
+# job_id 都是**同一个占位符** `$step1.job_id` → 三次打的是同一条岗位、
+# 同一个 36 分。用户明确说的是「前面三个」，语义上就是上一轮
+# `last_job_list` 的 index 1~3，**不该重搜、也不该共用一条**。
+#
+# 修法：确定性路由 + 按序号逐个取 job_id，逐个出包 / 逐个打分。
+# ==========================================================================
+
+def _cn_number(raw: str):
+    """「三」→3、「12」→12；认不出来返回 0。"""
+    text = str(raw or "").strip()
+    if not text:
+        return 0
+    if text.isdigit():
+        return int(text)
+    if text == "十":
+        return 10
+    if text.startswith("十"):
+        return 10 + _NUM_CN.get(text[1:], 0)
+    if text.endswith("十"):
+        return _NUM_CN.get(text[:-1], 0) * 10
+    if "十" in text:
+        head, _, tail = text.partition("十")
+        return _NUM_CN.get(head, 0) * 10 + _NUM_CN.get(tail, 0)
+    return _NUM_CN.get(text, 0)
+
+
+def batch_apply_count(question: str) -> int:
+    """这句话在说「投前面 N 个岗位」时返回 N（1~10），否则 0。
+
+    ⚠️ 只看**用户原话**（剥掉 app 追加的系统提示块）：提示块里也有「第 N 个」，
+    拿它判会把普通追问也判成批量投递。
+    """
+    text = _user_text((question or "").strip())
+    if not text or text.startswith("/"):
+        return 0
+    match = _BATCH_ORDINAL_RE.search(text)
+    if not match:
+        return 0
+    tail = text[match.end():match.end() + 2]
+    if any(word in tail for word in _BATCH_TAIL_BLOCK):
+        return 0
+    if not any(word in text for word in _BATCH_ACTION_WORDS):
+        return 0
+    number = _cn_number(match.group("count"))
+    if not 1 <= number <= 10:
+        return 0
+    try:
+        if not (tools_registry._session_state().get("last_job_list") or []):
+            return 0
+    except Exception:                                     # noqa: BLE001 - 读不到就不抢
+        return 0
+    return number
+
+
+def batch_job_ids(question: str) -> list:
+    """「前面 N 个岗位」→ 上一轮 `last_job_list` 里 **index 1..N 的真实 job_id**。
+
+    **绝不重新搜索**：用户指的是他刚看过的那份列表，重搜出来的 757 条
+    （丢掉城市 / 实习过滤）跟他说的话毫无关系 —— 那正是本轮要修的故障。
+    返回 `[{index, job_id, company, title, city}]`，按 index 升序、去重、跳过空 job_id。
+    """
+    count = batch_apply_count(question)
+    if count <= 0:
+        return []
+    try:
+        rows = list(tools_registry._session_state().get("last_job_list") or [])
+    except Exception:                                     # noqa: BLE001
+        return []
+    by_index = {}
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        job_id = str(item.get("job_id") or "").strip()
+        if not job_id:
+            continue
+        try:
+            index = int(item.get("index") or 0)
+        except (TypeError, ValueError):
+            continue
+        if index <= 0 or index in by_index:
+            continue
+        by_index[index] = {
+            "index": index, "job_id": job_id,
+            "company": str(item.get("company") or ""),
+            "title": str(item.get("title") or ""),
+            "city": str(item.get("city") or ""),
+        }
+    return [by_index[i] for i in sorted(by_index)][:count]
 
 
 # ==========================================================================
@@ -374,6 +502,10 @@ def is_other_intent(question: str) -> bool:
 def _route(question: str) -> str:
     if is_log_intent(question):
         return "log"                                   # 看日志：确定性引导，不调 LLM
+    # 「我要投前面三个岗位」要先于 complex / 搜索判（本轮修复）：它不需要 Planner，
+    # 也不需要重搜 —— 三个 job_id 从会话态 last_job_list 的 index 1~3 直接取。
+    if batch_apply_count(question) > 0:
+        return "package_batch"
     # 复杂任务放在最前面判：它是"多种意图的并集"，必须先于单意图分流，
     # 否则「找岗位 + 匹配 + 出投递包」会被 is_match_intent 抢走、只做匹配那一步。
     if ma.is_complex_task(question):
@@ -579,6 +711,175 @@ def _run_package(question: str, verbose: bool = True, progress_cb=None,
     return result
 
 
+# ==========================================================================
+# 批量投递：「前面 N 个岗位」—— 逐个 job_id 分别出包、分别打分
+#
+# 为什么单独一条路（而不是交给 ReAct / multi_agent）：
+#   1. ReAct 那条实测会**重新搜索**：用户说的「前面三个」被当成搜索条件，
+#      拿关键词「岗位」搜出杭州 / 成都的无关岗位（757 条是关键词「Agent」
+#      丢了城市与实习过滤时的总数），与上文 20 条完全脱节；
+#   2. Planner 那条实测把三个 match_resume 写成**同一个占位符**
+#      （`$step1.job_id`），于是三次打的是同一条岗位、同分同差距；
+#   3. 用户要的是"这三条各自怎么样"，答案必须是**逐条对照**（分数不同），
+#      而不是"某一條的 36 分重复三遍"。
+#
+# 所以这里做成确定性的：job_id 全部来自会话态 last_job_list 的 index 1~N，
+# 逐个出包 + 逐个打分，一条都不重搜。
+# ==========================================================================
+
+_BATCH_SCORE_CAP = 10          # 「前面十个」也认，但不做更大的批量（防误判 / 防超时）
+
+
+def _batch_resume_data():
+    """批量打分用的当前简历（读不到返回 None → 只出包、如实说没打分）。"""
+    try:
+        record = tools_registry.get_current_resume()
+    except Exception as e:                                # noqa: BLE001 - 读不到就不打分
+        print(f"[lg_package_batch] 读取当前简历失败：{type(e).__name__}: {e}")
+        return None
+    if not record:
+        return None
+    try:
+        return tools_registry.normalize_resume(record)
+    except Exception as e:                                # noqa: BLE001
+        print(f"[lg_package_batch] 简历归一化失败：{type(e).__name__}: {e}")
+        return None
+
+
+def _batch_score(job_id: str, resume_data) -> dict:
+    """给**指定的这一条**岗位打分（job_id 必传，绝不落到会话态兜底那条）。
+
+    额度用完时 `tools_registry._match` 自己会走关键词降级路（`keyword_match`），
+    降级路同样按**该 job_id 的实际岗位关键词**算分 —— 所以降级后三条岗位
+    的分数依然各不相同，不会退化成"同一个分重复三遍"。
+    """
+    try:
+        return tools_registry._match(job_id, json.dumps(resume_data, ensure_ascii=False,
+                                                        default=str))
+    except Exception as e:                                # noqa: BLE001 - 打分失败不影响出包
+        return {"score": None, "gaps": [], "general_advice": [],
+                "error": f"{type(e).__name__}: {e}"}
+
+
+def _batch_reply(entries: list, total: int) -> str:
+    """逐条回执：每条岗位独立的分数 / 差距 / 投递包目录 + 末行对照表。"""
+    head = f"按上一轮搜索结果的顺序，为**前 {len(entries)} 个岗位**分别出了投递包"
+    if total > len(entries):
+        head += f"（你说的是前 {total} 个，这里只处理到前 {_BATCH_SCORE_CAP} 个）"
+    lines = [head + "：", ""]
+    scored = [e for e in entries if isinstance(e.get("score"), int)]
+    for seq, item in enumerate(entries, start=1):
+        label = f"{item.get('company') or ''} · {item.get('title') or ''}".strip(" ·")
+        lines.append(f"**{seq}. {label}**（列表第 {item.get('index')} 条 · "
+                     f"job_id={item.get('job_id')}）")
+        if item.get("city"):
+            lines.append(f"- 城市：{item['city']}")
+        score = item.get("score")
+        if isinstance(score, int):
+            note = "（额度已用完，这是关键词匹配度）" if item.get("degraded") else ""
+            lines.append(f"- 匹配得分：**{score}/100**{note}")
+            gaps = [str(g) for g in (item.get("gaps") or []) if str(g).strip()]
+            if gaps:
+                lines.append("- 主要差距：" + "；".join(gaps[:3]))
+        elif item.get("score_error"):
+            lines.append(f"- 匹配得分：没打成（{item['score_error']}）")
+        else:
+            lines.append("- 匹配得分：会话里没有可用简历，未打分")
+        if item.get("package_dir"):
+            lines.append(f"- 投递包：`{item['package_dir']}`")
+        elif item.get("package_error"):
+            lines.append(f"- 投递包：生成失败（{item['package_error']}）")
+        lines.append("")
+    if len(scored) >= 2:
+        board = "、".join(f"{e.get('company') or e.get('job_id')} {e.get('score')} 分"
+                          for e in scored)
+        lines.append(f"三条岗位是**分别调用、分别打分**的，分数互不相同：{board}。")
+    lines += ["", "**还没有写投递记录** —— 真投出去了再说一句「我已投递 <公司>」，"
+                  "我再落库（想投 ≠ 投了）。"]
+    return "\n".join(lines)
+
+
+def _run_package_batch(question: str, verbose: bool = True, progress_cb=None,
+                       return_messages: bool = False) -> dict:
+    """批量投递：会话态前 N 个 job_id → 逐个出包 + 逐个打分（**零搜索**）。"""
+    trace_id = str(uuid.uuid4())[:8]
+    jobs = batch_job_ids(question)[:_BATCH_SCORE_CAP]
+    log_event(trace_id, "run_start", question=question[:50], engine="langgraph",
+              graph="package_batch", jobs=len(jobs))
+    steps = []
+    if not jobs:
+        reply = ("我没能在上一轮搜索结果里定位到你要投的那几条岗位。\n\n"
+                 "「前面 N 个」指代的是**上一次搜索返回的列表** —— 我不会替你重新搜一遍"
+                 "（重搜会丢城市 / 实习过滤，搜出来的不是你看过的那批）。"
+                 "可以先让我搜一次（如「帮我找北京、广州的 Agent 实习岗位」），"
+                 "再说「我要投前面三个岗位」。")
+        steps.append({"turn": 1, "type": "route", "engine": "langgraph",
+                      "node": "定位岗位",
+                      "thought": "批量投递但会话态里没有上一轮搜索结果 → 如实说明，不重搜"})
+        log_event(trace_id, "run_end", total_turns=1, jobs=0, engine="langgraph")
+        result = {"answer": reply, "steps": steps}
+        if return_messages:
+            result["messages"] = [{"role": "assistant", "content": reply}]
+            result["trace_id"] = trace_id
+        return result
+
+    outline = "；".join(f"第 {j['index']} 条 {j.get('company', '')}·{j.get('title', '')}"
+                        for j in jobs)
+    steps.append({"turn": 1, "type": "route", "engine": "langgraph", "node": "定位岗位",
+                  "thought": f"「前面 {len(jobs)} 个岗位」→ 从 last_job_list 逐个取 job_id"
+                             f"（不重新搜索）：{outline}",
+                  "observation": f"{len(jobs)} 条"})
+    resume_data = _batch_resume_data()
+    entries = []
+    for seq, job in enumerate(jobs, start=1):
+        if progress_cb is not None:
+            try:
+                progress_cb(f"正在处理第 {seq}/{len(jobs)} 个岗位："
+                            f"{job.get('company', '')} · {job.get('title', '')}…")
+            except Exception:                             # noqa: BLE001 - 推不动不影响处理
+                pass
+        item = dict(job)
+        if resume_data:
+            score = _batch_score(job["job_id"], resume_data)
+            item["score"] = score.get("score")
+            item["gaps"] = score.get("gaps") or []
+            item["degraded"] = bool(score.get("degraded"))
+            if score.get("error"):
+                item["score_error"] = score["error"]
+        try:
+            package = tools_registry.generate_application_package(
+                job.get("company") or "", job_id=job["job_id"],
+                title=job.get("title") or "")
+        except Exception as e:                            # noqa: BLE001 - 单条失败不拖垮其余
+            package = {}
+            item["package_error"] = f"{type(e).__name__}: {e}"
+        if package.get("blocked"):
+            item["package_error"] = package.get("degraded_reason") or "额度已用完"
+        elif package.get("package_dir"):
+            item["package_dir"] = package["package_dir"]
+        entries.append(item)
+        steps.append({
+            "turn": seq + 1, "type": "action", "engine": "langgraph",
+            "node": f"第 {seq} 条",
+            "thought": f"对 job_id={job['job_id']} 单独出包"
+                       + ("并单独打分" if resume_data else "（无简历，未打分）"),
+            "action": "generate_application_package",
+            "action_input": {"company": job.get("company"), "title": job.get("title"),
+                             "job_id": job["job_id"]},
+            "observation": f"得分 {item.get('score')}；投递包 "
+                           f"{item.get('package_dir') or item.get('package_error') or '无'}",
+        })
+
+    reply = _batch_reply(entries, len(jobs))
+    log_event(trace_id, "run_end", total_turns=len(steps), jobs=len(jobs),
+              scores=[e.get("score") for e in entries], engine="langgraph")
+    result = {"answer": reply, "steps": steps}
+    if return_messages:
+        result["messages"] = [{"role": "assistant", "content": reply}]
+        result["trace_id"] = trace_id
+    return result
+
+
 def _run_refine(question: str, verbose: bool, return_messages: bool,
                 progress_cb=None) -> dict:
     """筛选句：「筛选出广州的」→ 继承上一轮关键词 + 本轮城市，走**同一条搜索图**。
@@ -651,6 +952,13 @@ def run(question: str, resume_data: dict = None, verbose: bool = True,
                                history=history, return_messages=return_messages)
 
     kind = _route(question)
+    if kind == "package_batch":
+        # 「我要投前面三个岗位」→ 从会话态 last_job_list 逐个取 job_id，逐个出包 +
+        # 逐个打分。**不重搜、不共用同一条**（见 _run_package_batch 的注释）。
+        limits.start_run_budget()
+        limits.reset_truncated()
+        return _run_package_batch(question, verbose=verbose, progress_cb=progress_cb,
+                                  return_messages=return_messages)
     if kind == "package":
         # 投递意向：「我要投墨泊可士的 AI Agent 岗位」→ 点名定位 → 出投递包。
         # **不搜岗位**：要的是那一条，不是 20 条列表（见 _run_package 的注释）。
@@ -765,7 +1073,7 @@ def is_slow_route(question: str) -> bool:
     try:
         if _engine() in ("react", "react_agent", "legacy"):
             return False
-        return _route(question) in ("match", "package", "complex")
+        return _route(question) in ("match", "package", "package_batch", "complex")
     except Exception as e:                              # noqa: BLE001 - 判不出来就不推
         print(f"[progress] 长任务判定失败（按短任务处理）：{type(e).__name__}: {e}")
         return False
@@ -780,5 +1088,6 @@ def engine_name(question: str) -> str:
             "log": "langgraph:log", "followup": "langgraph:followup",
             "refine": "langgraph:search",
             "package": "langgraph:package",
+            "package_batch": "langgraph:package_batch",
             "consult": "langgraph:consult", "other": "langgraph:other",
             "complex": "multi_agent:complex"}.get(kind, "react")

@@ -1976,6 +1976,227 @@ check("问题1：简历城市偏好 → 命中广州那条", _package_prefers_re
 
 
 # ---------------------------------------------------------------------------
+section("11. 批量投递（「我要投前面三个岗位」）：从 last_job_list 逐个取，不重搜")
+
+
+def _eq(name, actual, expect):
+    if actual != expect:
+        raise AssertionError(f"{name}：期望 {expect!r}，实际 {actual!r}")
+    return f"{name}={actual!r}"
+
+
+class _BatchJob:
+    """假岗位详情（批量打分只需要 job_id / 公司 / 岗位名这几个字段）。"""
+
+    def __init__(self, job_id, company, title, city="广州", requirements="Python RAG"):
+        self.job_id = job_id
+        self.company = company
+        self.title = title
+        self.city = city
+        self.salary = "200-300/天"
+        self.education = "本科"
+        self.description = "负责 Agent 应用开发。"
+        self.requirements = requirements
+        self.bonus = ""
+        self.tags = []
+        self.url = ""
+
+
+_BATCH_DETAILS = {
+    "J1": _BatchJob("J1", "甲公司", "Agent 开发实习生", requirements="Python RAG Milvus"),
+    "J2": _BatchJob("J2", "乙公司", "算法工程师", city="北京", requirements="C++ 推荐系统"),
+    "J3": _BatchJob("J3", "丙公司", "产品运营实习生", city="北京", requirements="Excel 数据分析"),
+}
+_BATCH_RESUME = {
+    "name": "张三",
+    "skills": ["Python", "RAG", "LangGraph", "向量数据库", "Agent"],
+    "projects": [{"name": "RAG 问答机器人", "tech": ["RAG", "Milvus"],
+                  "desc": "基于 RAG 检索增强的岗位问答系统"}],
+    "education": "本科",
+    "city": "广州",
+}
+
+
+def _register_batch_jobs():
+    """把三条岗位写进会话态 last_job_list（模拟「刚搜完的 20 条里的前 3 条」）。"""
+    LG.tools_registry._session_state()["last_job_list"] = [
+        {"index": i + 1, "job_id": jid, "company": d.company, "title": d.title,
+         "city": d.city, "url": ""}
+        for i, (jid, d) in enumerate(_BATCH_DETAILS.items())
+    ]
+
+
+def _batch_intent_and_job_ids():
+    """「我要投前面三个岗位」→ 分流到 package_batch，且 job_id 按 index 1~3 取。"""
+    _register_batch_jobs()
+    if LG._route("我要投前面三个岗位") != "package_batch":
+        raise AssertionError("批量投递没有被分流到 package_batch")
+    if LG.engine_name("我要投前面三个岗位") != "langgraph:package_batch":
+        raise AssertionError("engine_name 没跟上 package_batch 路由")
+    got = [j["job_id"] for j in LG.batch_job_ids("我要投前面三个岗位")]
+    _eq("按 index 取前三个 job_id", got, ["J1", "J2", "J3"])
+    # 指代词要收紧，别把「前三个月」「上面两条」这类抢过来
+    for bad in ("前三个月我的投递记录", "我要投前三家公司", "上面两条岗位分别打分"):
+        if LG.batch_apply_count(bad):
+            raise AssertionError(f"{bad!r} 被误判成批量投递")
+    return "3 个 job_id 全部来自会话态（无重搜）"
+
+
+def _batch_does_not_search_and_scores_differ():
+    """核心用例：**不重搜** + 三个岗位**分别打分**（分数互不相同）。
+
+    旧行为（真实 trace fb679bd3）：又搜一遍（关键词「岗位」→ 杭州 / 成都的
+    无关岗位），三个 match_resume 还都引用 `$step1.job_id` → 三次同一个 36 分。
+    """
+    seen = []
+    scores = {"J1": 82, "J2": 55, "J3": 31}
+    fake_mod = type("M", (), {})()
+    real = LG.tools_registry
+    fake_mod._session_state = real._session_state
+    fake_mod.get_current_resume = lambda: _BATCH_RESUME
+    fake_mod.normalize_resume = real.normalize_resume
+
+    def _fake_match(job_id, resume_json):
+        """假打分器：按 job_id 给不同分并记录（不碰 LLM / 不碰岗位库）。"""
+        seen.append(str(job_id))
+        return {"score": scores[str(job_id)], "dimensions": {}, "gaps": [],
+                "general_advice": [], "highlights": []}
+
+    fake_mod._match = _fake_match
+
+    def _fake_generate(company, job_id=None, title=""):
+        return {"company": company, "title": title, "job_id": job_id,
+                "package_dir": str(_TMP_DIR / f"pkg_{job_id}"), "files": {},
+                "has_job_detail": True, "warnings": []}
+
+    fake_mod.generate_application_package = _fake_generate
+    search_calls = {"n": 0}
+
+    def _spy_search(*a, **k):
+        search_calls["n"] += 1
+        return []
+
+    fake_mod._search = _spy_search
+    with _patched((LG, "tools_registry", fake_mod),
+                  # 额度状态显式钉住：本用例验的是**正常额度**下的打分路，
+                  # 不钉的话宿主机 token_usage 库里当天用超就会走降级路，用例随环境飘。
+                  (L, "quota_limited", lambda: False)):
+        with user_scope(f"batch-scores-{os.getpid()}"):
+            _register_batch_jobs()                       # ⚠️ 必须在 user_scope 内注册
+            result = LG.run("我要投前面三个岗位", verbose=False)
+    answer = result.get("answer") or ""
+    _eq("没有重新搜索", search_calls["n"], 0)
+    _eq("逐个 job_id 分别打分", seen, ["J1", "J2", "J3"])
+    for score in ("82", "55", "31"):
+        if score not in answer:
+            raise AssertionError(f"回执里没有 {score} 分：{answer[:200]}")
+    if "36" in answer:
+        raise AssertionError("又出现了三份一模一样的分数")
+    if "分别调用、分别打分" not in answer:
+        raise AssertionError(f"没说清是逐条分别打分：{answer[:200]}")
+    return "82 / 55 / 31 三档不同分数，搜索 0 次"
+
+
+def _batch_degraded_still_distinguishes_jobs():
+    """额度用完（降级路）也必须**区分岗位**：关键词匹配度按**各自岗位**算。
+
+    修法 3 的验证点：降级后不再退化成"同一个分重复三遍"。
+    这条走的是**真实**降级链路（`tools_registry._match` → `keyword_match`），
+    只把岗位详情的定位换成本地假岗位，不替换打分器本身。
+    """
+    real_mod = LF.reg
+    seen = []
+
+    def _fake_detail(job_id):
+        detail = _BATCH_DETAILS[str(job_id)]
+        seen.append(str(job_id))
+        return detail
+
+    def _fake_generate(company, job_id=None, title=""):
+        return {"company": company, "title": title, "job_id": job_id,
+                "package_dir": str(_TMP_DIR / f"pkg_{job_id}"), "files": {},
+                "has_job_detail": True, "warnings": []}
+
+    with _patched((real_mod, "_resolve_match_detail", _fake_detail),
+                  (real_mod, "get_current_resume", lambda: _BATCH_RESUME),
+                  (real_mod, "generate_application_package", _fake_generate),
+                  # 额度用完：`_match` 走关键词降级路，并在结果里带 degraded
+                  (L, "quota_limited", lambda: True)):
+        with user_scope(f"batch-degraded-{os.getpid()}"):
+            _register_batch_jobs()                       # ⚠️ 必须在 user_scope 内注册
+            result = LG.run("我要投前面三个岗位", verbose=False)
+    answer = result.get("answer") or ""
+    _eq("降级路也对上三条岗位", seen, ["J1", "J2", "J3"])
+    if "额度已用完" not in answer or "关键词匹配度" not in answer:
+        raise AssertionError(f"降级没说清原因：{answer[:240]}")
+    got_scores = [int(x) for x in re.findall(r"匹配得分：\*\*(\d+)/100\*\*", answer)]
+    if len(got_scores) != 3:
+        raise AssertionError(f"没有三条各自的分数：{answer[:240]}")
+    if len(set(got_scores)) < 2:
+        raise AssertionError(f"降级后三条分数相同，没区分岗位：{got_scores}")
+    return f"降级路按各岗位关键词分别算分：{got_scores}"
+
+
+def _explicit_job_id_failure_is_honest():
+    """指名 job_id 却查不到 → **如实报错**，绝不静默换成会话里正在看的岗位。
+
+    旧行为是回退到 `get_focus_job()`：于是三个 job_id 只要都查不到，三次打分
+    全都落在同一条岗位（同一个分数）—— 用户还以为是三条各自的分。
+    """
+    real = LF.reg._resolve_match_detail
+
+    def _boom(job_id):
+        raise ValueError(f"job_id={job_id} 查不到（测试桩）")
+
+    with _patched((LF.reg, "_resolve_match_detail", _boom)):
+        state = LF.MATCH_GRAPH.invoke({"question": "帮我匹配简历", "job_id": "J_NOPE",
+                                       "verbose": False})
+    answer = state.get("answer") or ""
+    if "J_NOPE" not in answer or "查不到" not in answer:
+        raise AssertionError(f"没有如实说这个 job_id 查不到：{answer[:200]}")
+    if "别的岗位" not in answer and "顶替" not in answer:
+        raise AssertionError(f"没说清「没有拿别的岗位顶替」：{answer[:200]}")
+    if state.get("detail") is not None:
+        raise AssertionError("查不到 job_id 却仍然定位到了一条岗位（会投错岗）")
+    return "指名 job_id 查不到 → 报错，不换岗"
+
+
+def _batch_without_context_is_honest():
+    """没搜过就问「投前面三个」→ 如实说明怎么补，**不重搜、不报错**。
+
+    这条只钉"批量链路拿到空列表时的回执"（不跑 LLM）：用桩把
+    `react_agent.run` 顶掉，确保它**没有**被当成兜底链路走。
+    """
+    real_run = LG.react_agent.run
+    called = {}
+
+    def _fake_run(question, **kwargs):                    # 不该被调用
+        called["q"] = question
+        return {"answer": "兜底回答", "steps": []}
+
+    with user_scope(f"batch-empty-{os.getpid()}"), \
+            _patched((LG.react_agent, "run", _fake_run)):
+        LG.tools_registry._session_state()["last_job_list"] = []
+        result = LG._run_package_batch("我要投前面三个岗位", verbose=False)
+    answer = result.get("answer") or ""
+    if called:
+        raise AssertionError(f"缺上文时被交给 ReAct 兜底（会重搜）：{called}")
+    if "上一次搜索" not in answer:
+        raise AssertionError(f"没说清「前面 N 个」指上一次搜索：{answer}")
+    if result.get("steps") and result["steps"][0].get("action"):
+        raise AssertionError("缺上文时居然调了工具")
+    return "无上文 → 说明「前面 N 个」指上一次搜索，零工具调用"
+
+
+check("批量投递：路由 + job_id 全来自会话态", _batch_intent_and_job_ids)
+check("批量投递：不重搜 + 三个岗位分别打分（分数不同）",
+      _batch_does_not_search_and_scores_differ)
+check("批量投递：额度用完降级后仍区分岗位", _batch_degraded_still_distinguishes_jobs)
+check("匹配打分：指名 job_id 查不到 → 如实报错不换岗", _explicit_job_id_failure_is_honest)
+check("批量投递：没有上一轮搜索结果 → 如实说明", _batch_without_context_is_honest)
+
+
+# ---------------------------------------------------------------------------
 print()
 print("=" * 74)
 print(f"结果：{len(PASS)} 通过 / {len(FAIL)} 失败")

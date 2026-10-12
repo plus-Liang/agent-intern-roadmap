@@ -995,6 +995,189 @@ check("STATIC_PREFIX 仍是合法 format 模板", _static_prefix_format_safe)
 
 
 # ===========================================================================
+section("9. 批量投递（「我要投前面三个岗位」）：Planner 不许重搜、不许复用同一条")
+
+#: 假会话态：用户刚搜完，前三条就是这三个 job_id
+_BATCH_JOBS = [
+    {"index": 1, "job_id": "J1", "company": "甲公司", "title": "Agent 开发实习生",
+     "city": "北京"},
+    {"index": 2, "job_id": "J2", "company": "乙公司", "title": "大模型算法实习生",
+     "city": "广州"},
+    {"index": 3, "job_id": "J3", "company": "丙公司", "title": "算法工程师",
+     "city": "广州"},
+]
+
+
+def _with_batch_session(fn):
+    """在同一个用户作用域里铺好 `last_job_list` 再跑 fn（会话态按用户分桶）。"""
+    from shared.user_context import user_scope
+    with user_scope(f"ma-batch-{os.getpid()}"):
+        ma.reg._session_state()["last_job_list"] = [dict(j) for j in _BATCH_JOBS]
+        return fn()
+
+
+def _batch_hint_carries_every_job_id():
+    """会话态提示块必须逐条给出 job_id，并写死「不要再调 search_jobs」。"""
+    def _run():
+        jobs = ma._session_job_list()
+        _eq("会话态读出三条", [j["job_id"] for j in jobs], ["J1", "J2", "J3"])
+        hint = ma._batch_hint("我要投前面三个岗位", jobs)
+        for jid in ("J1", "J2", "J3"):
+            if jid not in hint:
+                raise AssertionError(f"提示块缺 {jid}：{hint}")
+        for token in ("绝对不要再调 search_jobs", "不要**用 `$step1.job_id`"):
+            if token not in hint:
+                raise AssertionError(f"提示块缺少硬规则「{token}」")
+        # 不是批量时不能塞提示（否则正常问答会被污染）
+        _eq("非批量不给提示", ma._batch_hint("帮我找岗位", jobs), "")
+        return "3 个 job_id + 2 条硬规则"
+    return _with_batch_session(_run)
+
+
+check("批量：会话态提示块逐条给出 job_id 且禁止重搜", _batch_hint_carries_every_job_id)
+
+
+def _batch_plan_expanded_one_per_job():
+    """Planner 写成「重搜 + 三次引用 $step1.job_id」→ **扩写成逐条**、各用自己的 id。"""
+    def _run():
+        jobs = ma._session_job_list()
+        broken = {"steps": [
+            {"id": 1, "action": "search_jobs",
+             "args": {"keyword": "岗位", "limit": 3}, "desc": "搜索岗位以获取前三个岗位ID",
+             "when": ""},
+            {"id": 2, "action": "match_resume",
+             "args": {"job_id": "$step1.job_id"}, "desc": "匹配第一个", "when": ""},
+            {"id": 3, "action": "match_resume",
+             "args": {"job_id": "$step1.job_id"}, "desc": "匹配第二个", "when": ""},
+            {"id": 4, "action": "match_resume",
+             "args": {"job_id": "$step1.job_id"}, "desc": "匹配第三个", "when": ""},
+        ], "reason": "先搜再取前三个"}
+        plan, note = ma._expand_batch_plan("我要投前面三个岗位", broken["steps"], jobs)
+        _truthy("给出了扩写说明", note)
+        matches = [s for s in plan if s["action"] == "match_resume"]
+        _eq("match 步数 = 岗位数（按计划上限截）", len(matches),
+            min(3, max(1, ma.MAX_PLAN_STEPS // 2)))
+        got_ids = [s["args"]["job_id"] for s in matches]
+        _eq("每条各自用自己的 job_id", got_ids, ["J1", "J2", "J3"][:len(got_ids)])
+        if len(set(got_ids)) != len(got_ids):
+            raise AssertionError(f"扩写后仍然复用同一个 job_id：{got_ids}")
+        if any(s["action"] == "search_jobs" for s in plan):
+            raise AssertionError("扩写后仍然保留了重搜步")
+        # 出包步引用**本组** match 的输出（match 的输出自带 job_id）
+        pkgs = [s for s in plan if s["action"] == "generate_application_package"]
+        for pkg in pkgs:
+            ref = str(pkg["args"]["job_id"])
+            if not ref.startswith("$step") or ".job_id" not in ref:
+                raise AssertionError(f"出包没引用本组 match 的输出：{ref}")
+            idx = int(ref[5:].split(".")[0]) - 1
+            if not (0 <= idx < len(plan)) or plan[idx]["action"] != "match_resume":
+                raise AssertionError(f"出包引用的不是 match 步：{ref}")
+            # 出包步的 job_id 必须来自**本组** match（各组 match 的 job_id 互不相同）
+        return f"{len(got_ids)} 条各自独立：{got_ids}"
+    return _with_batch_session(_run)
+
+
+check("批量：Planner 写重搜/复用同一条 → 扩写为逐条各自 job_id",
+      _batch_plan_expanded_one_per_job)
+
+
+def _batch_plan_does_not_touch_single_job():
+    """单条岗位的正常计划（哪怕带搜索步）**不许**被扩写。"""
+    def _run():
+        jobs = ma._session_job_list()
+        single = [
+            {"id": 1, "action": "search_jobs", "args": {"keyword": "Agent"},
+             "desc": "搜", "when": ""},
+            {"id": 2, "action": "match_resume",
+             "args": {"job_id": "$step1.job_id"}, "desc": "匹配", "when": ""},
+        ]
+        plan, note = ma._expand_batch_plan("我要投前面三个岗位", single, jobs)
+        _eq("原样返回", plan, single)
+        _eq("没有扩写说明", note, "")
+        # 没提到「前面 N 个」时也不扩写
+        plan2, note2 = ma._expand_batch_plan("帮我匹配简历", single, jobs)
+        _eq("非批量不改计划", plan2, single)
+        _eq("非批量无说明", note2, "")
+        return "单条计划与普通语句都不动"
+    return _with_batch_session(_run)
+
+
+check("批量：不误伤单条岗位的普通计划", _batch_plan_does_not_touch_single_job)
+
+
+def _batch_plan_prompt_is_format_safe():
+    """`_PLAN_PROMPT` 新增的批量规则里不许有裸 `{}`（.format 会 KeyError）。"""
+    rendered = ma._PLAN_PROMPT.format(question="我要投前面三个岗位", max_steps=6)
+    if "前面 N 个" not in rendered:
+        raise AssertionError("批量规则没进 Planner 提示词")
+    return f"{len(rendered)} 字"
+
+
+check("批量：Planner 提示词仍是合法 format 模板", _batch_plan_prompt_is_format_safe)
+
+
+def _batch_executor_uses_each_job_id():
+    """端到端：扩写后的计划执行时，**三次 match_resume 拿到三个不同 job_id**。"""
+    def _run():
+        jobs = ma._session_job_list()
+        broken = {"steps": [
+            {"id": 1, "action": "search_jobs",
+             "args": {"keyword": "岗位", "limit": 3}, "desc": "搜前三个岗位ID", "when": ""},
+            {"id": 2, "action": "match_resume",
+             "args": {"job_id": "$step1.job_id", "resume_json": "current"},
+             "desc": "匹配1", "when": ""},
+            {"id": 3, "action": "match_resume",
+             "args": {"job_id": "$step1.job_id", "resume_json": "current"},
+             "desc": "匹配2", "when": ""},
+        ], "reason": "先搜再取前两个"}
+        seen = []
+
+        def _responder(name, args, nth):
+            if name == "search_jobs":
+                return [{"job_id": "J1", "title": "t", "company": "c", "city": "北京"}]
+            if name == "match_resume":
+                seen.append(str(args.get("job_id") or ""))
+                return {"score": 40 + len(seen), "dimensions": {}, "gaps": [],
+                        "general_advice": [], "highlights": []}
+            if name == "generate_application_package":
+                # 三件套必须真实存在且非空，否则 Critic 事实层会判"投递包不完整"
+                # → 打回 → 整条链路提前降级，后面的岗位根本轮不到。
+                out_dir = _TMP_DIR / f"pkg_{args.get('job_id')}"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                files = {}
+                for fname in ("resume.pdf", "cover_letter.md", "job_info.txt"):
+                    path = out_dir / fname
+                    path.write_text("x", encoding="utf-8")
+                    files[fname] = str(path)
+                return {"company": args.get("company") or "c",
+                        "title": args.get("title") or "t",
+                        "job_id": str(args.get("job_id") or ""),
+                        "package_dir": str(out_dir), "files": files,
+                        "has_job_detail": True, "warnings": []}
+            raise AssertionError(name)
+
+        fake = FakeCall(_responder)
+        with _patched((ma, "_llm_json", lambda messages, source, verbose=False: dict(broken)),
+                      (ma, "CRITIC_LLM_ENABLED", False),
+                      # Executor 打分前要读当前简历；不铺就有"缺少简历"直接把步骤判死
+                      (ma.reg, "get_current_resume",
+                       lambda: {"name": "张三", "skills": ["Python"], "projects": [],
+                                "education": "本科", "city": "广州"}),
+                      (ma.reg, "call_tool", fake)):
+            state = ma.COMPLEX_TASK_GRAPH.invoke({"question": "我要投前面两个岗位",
+                                                  "verbose": False})
+        _eq("两次 match 拿到两个不同 job_id", seen, ["J1", "J2"])
+        scores = [r["output"].get("score") for r in (state.get("results") or [])
+                  if r.get("action") == "match_resume"]
+        _eq("分数各不相同", len(set(scores)), len(scores))
+        return f"job_id={seen}，分数={scores}"
+    return _with_batch_session(_run)
+
+
+check("批量：Executor 逐个 job_id 分别打分（分数不同）", _batch_executor_uses_each_job_id)
+
+
+# ===========================================================================
 print()
 print("=" * 74)
 print(f"通过 {len(PASS)} / 失败 {len(FAIL)}")

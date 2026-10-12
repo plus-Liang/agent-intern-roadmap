@@ -1449,13 +1449,38 @@ def locate_job(state: MatchState) -> dict:
             note = f"按用户说的「第 {ordinal.group(1)} 个」定位"
 
     detail = None
+    explicit_fail = ""
     if job_id:
         try:
             detail = reg._resolve_match_detail(job_id)
-        except Exception as e:                          # noqa: BLE001 - 落到会话态
+        except Exception as e:                          # noqa: BLE001 - 显式 fail，不再换岗
             if state.get("verbose"):
                 print(f"[lg_match] job_id={job_id} 定位失败：{e}")
-            detail = None
+            # ⚠️ 用户**已经指名了具体那一条**（序号 / 系统提示里的 job_id），查不到时
+            # 绝不静默换成「会话里正在看的岗位」（那会让用户以为评的是他点的那条，
+            # 实际评的是另一条 —— 本轮「三次都打 36 分」就是同一个病）。如实报错。
+            explicit_fail = (
+                f"你指的是这一条岗位（job_id={job_id}），但我按这个 job_id 查不到它的"
+                f"详情（{type(e).__name__}）—— 可能它已下架，或被重新抓取后换了 id。\n\n"
+                "为避免拿别的岗位顶替（那样你会以为评的是你点的那条），我没有继续打分。\n\n"
+                "可以：\n"
+                "- 让我**重新搜一次**（如「帮我找北京、广州的 Agent 实习岗位」），"
+                "再按新的序号说一次；\n"
+                "- 或把这条岗位的链接 / JD 文本粘贴过来，我按粘贴的那条打分。"
+            )
+
+    if explicit_fail:
+        log_event(state.get("trace_id") or "-", "lg_node", node="locate",
+                  engine="langgraph", graph="match", found=False, explicit=True)
+        return {
+            "detail": None,
+            "job_id": "",
+            "locate_error": explicit_fail,
+            "steps": _step(state, "定位岗位",
+                           f"用户指名了 job_id={job_id}，但库里查不到 → 如实报错，"
+                           f"不换成别的岗位",
+                           observation=f"job_id={job_id} 未命中"),
+        }
 
     if detail is None:
         named_company, named_title = _designation_from_text(question)

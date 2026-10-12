@@ -860,26 +860,35 @@ def _detail(job_id):
 
 
 def _resolve_match_detail(job_id):
-    """定位要匹配的岗位：显式 job_id（先查库）→ 会话里当前在看的岗位 → 正常查库。
+    """定位要匹配的岗位：显式 job_id（先查库）→ 会话里当前在看的岗位。
 
     优先级与需求一致：显式 job_id > 会话态岗位（投递包写下的 current_job /
-    粘贴的 JD，取更近的那个）> 正常查库。
-    显式 id 查不到、而会话里有会话态岗位时用它（用户多半就是接着说它），
-    两边都没有才报错，并把「怎么给我一个岗位」说清楚。
+    粘贴的 JD，取更近的那个，见 `get_focus_job`）。
+
+    ⚠️ **显式 job_id 查不到时不再静默换成"会话里正在看的岗位"**（本轮修复）：
+    以前这里会兜底到 `get_focus_job()`，于是「批量投前面三个岗位」里三个
+    job_id 只要有一个查不到（或拿到的本就是同一条），三次打分都会落到**同一个
+    岗位**上，用户看到"三份投递包、三个一模一样的 36 分"，却不知道打的是哪条。
+    静默换岗在打分场景里等于**投错岗**，比报错危险得多 —— 宁可如实说
+    "这个 job_id 我查不到"，也不拿另一条岗位顶替。
+    id 为空（用户没点名，"就这个岗位"）时才走会话态兜底，那是设计内的语义。
     """
     wanted = str(job_id or "").strip()
     if wanted:
         try:
             return get_job_detail("mock", wanted)
-        except Exception as e:                      # noqa: BLE001 - 换会话态兜底
-            problem = "job_id={} 查不到（{}）".format(wanted, type(e).__name__)
-    else:
-        problem = "没有传 job_id"
+        except Exception as e:                      # noqa: BLE001 - 查不到就如实报错
+            raise ValueError(
+                "job_id={} 查不到（{}）。为避免拿别的岗位顶替（那会造成投错岗），"
+                "这里不再回退到「会话里正在看的岗位」；请用 search_jobs 重新取一次"
+                "带 job_id 的结果，或把该岗位的链接 / JD 文本粘贴过来。".format(
+                    wanted, type(e).__name__)
+            ) from e
     focus, _source = get_focus_job()
     if focus is not None:
         return focus
     raise ValueError(
-        problem + "，会话里也没有正在看的岗位。"
+        "没有传 job_id，会话里也没有正在看的岗位。"
         "请先用 search_jobs 搜一个岗位，或把岗位链接（实习僧 / 牛客 / ncss）"
         "或该岗位的 JD 文本粘贴过来。"
     )

@@ -72,8 +72,11 @@ from shared.logger import log_event
 
 #: 同一步骤最多被 Critic 打回重做几次。超过就降级（返回部分结果 + 说明）。
 MAX_STEP_RETRIES = int(os.getenv("MULTI_AGENT_MAX_RETRIES", "2") or 2)
-#: 计划最多几步（Planner 是模型，必须防它写出 20 步）
-MAX_PLAN_STEPS = int(os.getenv("MULTI_AGENT_MAX_PLAN_STEPS", "5") or 5)
+#: 计划最多几步（Planner 是模型，必须防它写出 20 步）。
+#: 6 而不是 5：批量投递（「前面三个岗位」）的**正常写法**是「一岗两步」
+#: （match_resume → generate_application_package），三个岗位就是 6 步 ——
+#: 卡在 5 会让第三条岗位拿不到投递包，用户看到"只做了两条"却不知道为什么。
+MAX_PLAN_STEPS = int(os.getenv("MULTI_AGENT_MAX_PLAN_STEPS", "6") or 6)
 #: 全局执行次数上限（"步骤数 × 重试次数"的组合爆炸兜底）
 MAX_TOTAL_EXECUTIONS = int(os.getenv("MULTI_AGENT_MAX_EXECUTIONS", "12") or 12)
 #: 是否让 Critic 额外投一票（LLM 语义复核）。关掉后 Critic 只走确定性事实层。
@@ -214,6 +217,168 @@ def _flatten(results: list) -> dict:
     return flat
 
 
+def _session_job_list() -> list:
+    """会话态里「上一轮 search_jobs 结果」的岗位清单（index / job_id / 公司 / 岗位 / 城市）。
+
+    这是本轮修法的**唯一数据来源**：「前面 N 个岗位」指的是用户刚看过的那份列表，
+    不是再搜一遍的结果。读不到就返回空列表（Planner 仍走原来的「先搜索」链路）。
+    """
+    try:
+        rows = reg._session_state().get("last_job_list") or []
+    except Exception:                                     # noqa: BLE001 - 会话态不可用不算错
+        return []
+    out = []
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        job_id = str(item.get("job_id") or "").strip()
+        if not job_id:
+            continue
+        try:
+            index = int(item.get("index") or 0)
+        except (TypeError, ValueError):
+            continue
+        if index <= 0:
+            continue
+        out.append({"index": index, "job_id": job_id,
+                    "company": str(item.get("company") or ""),
+                    "title": str(item.get("title") or ""),
+                    "city": str(item.get("city") or "")})
+    out.sort(key=lambda x: x["index"])
+    return out
+
+
+def _batch_prefix_count(question: str) -> int:
+    """这句话是不是在指「**前面 N 个**岗位」（返回 N，否则 0）。
+
+    用与 `react_agent_lg.batch_apply_count` **同一套判据**（转发过去，不重写一份）：
+    两份词表迟早漂移，而"几分之几算批量"必须是同一个答案。
+    """
+    try:
+        from agent.react_agent_lg import batch_apply_count
+        return int(batch_apply_count(question) or 0)
+    except Exception:                                     # noqa: BLE001 - 判不出来不认批量
+        return 0
+
+
+def _batch_targets(question: str, jobs: list) -> list:
+    """「前面 N 个」→ 本批次要处理的岗位列表（按 index 取前 N 条）。
+
+    再按计划长度截一刀：每岗要两步（match + 出包），所以最多 `MAX_PLAN_STEPS // 2`
+    个岗位 —— 宁可在计划里少排一个，也不排一个注定被截断（用户看不到结果）
+    的步骤。截断情况由提示词与回执如实说明。
+    """
+    count = _batch_prefix_count(question)
+    if count <= 0 or not jobs:
+        return []
+    return jobs[:min(count, max(1, MAX_PLAN_STEPS // 2))]
+
+
+def _batch_hint(question: str, jobs: list) -> str:
+    """给 Planner 的**会话态提示块**：这一轮该拿哪些 job_id，以及哪些事不能做。
+
+    为什么必须有（本轮根因）：Planner 之前**看不到**上一轮搜到了什么，于是
+    「我要投前面三个岗位」被它理解成「用关键词『岗位』搜一次、再取前三条」——
+    实测搜出杭州的策略开发实习 + 成都 / 深圳的算法正式岗（用户看的是北京 /
+    广州的 Agent 实习），而且三个 `match_resume` 写成同一个占位符
+    `$step1.job_id`，三次打的是同一条岗位、同分同差距。
+
+    把「已在会话态、不许重搜、每条岗位各自的 job_id」写进提示，Planner 才有
+    可能写对；真写错还有 `_expand_batch_plan` 兜底（见那里的注释）。
+    """
+    targets = _batch_targets(question, jobs)
+    if not targets:
+        return ""
+    lines = []
+    for job in targets:
+        label = " · ".join(x for x in (job.get("company"), job.get("title")) if x)
+        lines.append(f'- index={job["index"]}｜job_id={job["job_id"]}｜{label}'
+                     f'{"｜" + job["city"] if job.get("city") else ""}')
+    return (
+        "\n\n【会话态 · 上一轮搜索结果的岗位（用户说的「前面 N 个」就是这些）】\n"
+        + "\n".join(lines)
+        + "\n\n⚠️ 硬规则（针对本句）：\n"
+          "1. **绝对不要再调 search_jobs**：这几个 job_id 已经在会话态里了，"
+          "用户指的就是他刚看过的那份列表，重搜会搜出另一批岗位（城市与实习"
+          "过滤都会丢）。\n"
+          "2. **每条岗位要各自排一步**：match_resume / generate_application_package "
+          "各写一步，一岗一步；`job_id` **直接照抄上面给出的 job_id 字面量**，"
+          "**不要**用 `$step1.job_id` / `$prev.job_id` 这类占位符（那会让每一条都变成"
+          "同一条岗位），也**不要自己编 job_id**。\n"
+          "3. `generate_application_package` 的 company / title 照抄对应那一行的口径。"
+    )
+
+
+def _expand_batch_plan(question: str, plan: list, jobs: list) -> tuple:
+    """Planner 把批量投递写成「一次搜索 + 反复引用同一条」时，**扩写成逐条**的计划。
+
+    这是兜底（提示词已经写明了正确写法，但 Planner 是模型，仍可能写错）。
+    三条判据同时满足才动手，避免误伤正常计划：
+      1. 本句确有「前面 N 个」且会话态里有对应岗位；
+      2. 计划里出现了 `search_jobs`（= 又想重搜），或**多个** match_resume /
+         generate_application_package 指到**同一个** job_id（= 会重复打同一条）。
+
+    产物：丢掉重搜步，按 `前面 N 个` 的顺序**一岗一组**排
+    （match_resume → generate_application_package），组内用 `$stepK.job_id`
+    引用**该组** match 的输出 —— `match_resume` 的输出自带 job_id
+    （见 `_normalize_output`），所以后一步能拿到正确的那一条。
+
+    返回 `(plan, note)`；没动手时 plan 原样返回、note 为空串。
+    """
+    targets = _batch_targets(question, jobs)
+    if len(targets) < 2 or not plan:
+        return plan, ""
+
+    same_target = 0
+    seen_ids = set()
+    for step in plan:
+        if step.get("action") not in ("match_resume", "generate_application_package"):
+            continue
+        jid = str((step.get("args") or {}).get("job_id") or "").strip()
+        if not jid:
+            continue
+        if jid in seen_ids:
+            same_target += 1
+        seen_ids.add(jid)
+    matched = [s for s in plan if s.get("action") == "match_resume"]
+    # 触发条件只有一条：**至少两条 match 撞同一个 job_id**（= 会重复打同一条岗位）。
+    # 这是本轮故障的确定性指纹，与"有没有搜索步"无关；正常计划里每条岗位的
+    # job_id 各不相同，不会命中。单条岗位的普通计划（哪怕带搜索步）也**不**扩写。
+    if len(matched) < 2 or same_target < 1:
+        return plan, ""
+
+    new_steps: list = []
+    for job in targets:
+        match_id = len(new_steps) + 1
+        new_steps.append({
+            "id": match_id,
+            "action": "match_resume",
+            "args": {"job_id": job["job_id"], "resume_json": "current"},
+            "desc": f"用当前简历给第 {job['index']} 条岗位打分"
+                    f"（{job.get('company', '')} · {job.get('title', '')}）",
+            "when": "",
+        })
+        if len(new_steps) >= MAX_PLAN_STEPS:
+            break
+        new_steps.append({
+            "id": len(new_steps) + 1,
+            "action": "generate_application_package",
+            "args": {"company": job.get("company") or "",
+                     "title": job.get("title") or "",
+                     "job_id": f"$step{match_id}.job_id"},
+            "desc": f"为第 {job['index']} 条岗位出投递包"
+                    f"（{job.get('company', '')} · {job.get('title', '')}）",
+            "when": "",
+        })
+        if len(new_steps) >= MAX_PLAN_STEPS:
+            break
+    if not new_steps:
+        return plan, ""
+    note = ("Planner 把「前面 N 个岗位」写成了重搜 / 复用同一个 job_id，"
+            f"已扩写为逐条处理：{len(targets)} 个岗位、各用自己的 job_id")
+    return new_steps[:MAX_PLAN_STEPS], note
+
+
 def _lookup(results: list, which: str, field: str):
     """按 `$stepN` / `$prev` / `$best` / `$last` 取字段（取不到返回 None）。
 
@@ -336,6 +501,12 @@ _PLAN_PROMPT = """你是「复杂任务编排」里的**规划者（Planner）**
 6. 步骤数不超过 {max_steps} 步。用户的话里没有涉及的能力（改简历文件、
    发邮件、投递到平台等）**不要排**，排了也做不成。
 7. `resume_json` 一律填 `"current"`（系统会自动替换成当前简历）。
+8. **用户指「前面 N 个 / 上面几条岗位」时（如「我要投前面三个岗位」）**：
+   那是**指代上一轮搜索结果**，不是新的搜索条件 —— 按下面【会话态】里给出的
+   每一条 job_id **逐条**排步骤（一岗一步的 match_resume +
+   generate_application_package），`job_id` 照抄字面量，
+   **绝对不要**再排 search_jobs，也**不要**用 `$step1.job_id` 之类占位符复用同一条
+   （那会让三条岗位都变成第一条，打分完全相同）。
 
 用户需求：{question}"""
 
@@ -507,13 +678,18 @@ def plan_node(state: ComplexState) -> dict:
     """**[Planner]** 出计划：LLM 拆解 + 白名单校验 + 规则兜底。"""
     question = (state.get("question") or "").strip()
     plan, reason, source, dropped, dropped_args = [], "", "llm", 0, []
+    # 会话态里上一轮搜索到的岗位：本句说「前面 N 个」时，Planner 必须**照它写**，
+    # 而不是重新搜一遍（见 `_batch_hint` 与本轮根因）。
+    session_jobs = _session_job_list()
+    batch_hint = _batch_hint(question, session_jobs)
+    batch_note = ""
     # 复杂任务是「一图多步」，每步都可能打 LLM：每个节点的**开始**推一条，
     # 60s 窗口内就不会一直没有数据往来（修的是前端 websocket 超时）。
     _progress(state, "正在拆解任务计划…")
     try:
         data = _llm_json(
             [{"role": "user", "content": _PLAN_PROMPT.format(
-                question=question, max_steps=MAX_PLAN_STEPS)}],
+                question=question + batch_hint, max_steps=MAX_PLAN_STEPS)}],
             source="ma_planner",
             verbose=bool(state.get("verbose")),
         )
@@ -530,10 +706,18 @@ def plan_node(state: ComplexState) -> dict:
         plan = fallback_plan(question)["steps"]
         source = "rules"
 
+    # 兜底：Planner 仍写成「重搜 + 反复引用同一条 job_id」时，扩写成逐条处理。
+    plan, batch_note = _expand_batch_plan(question, plan, session_jobs)
+    if batch_note:
+        if source == "rules":
+            source = "rules+batch"
+        else:
+            source = "llm+batch"
+
     outline = "；".join(f"{s['id']}. {s['desc']}" for s in plan)
     log_event(state.get("trace_id") or "-", "ma_node", node="planner",
               engine="multi_agent", source=source, steps=len(plan), dropped=dropped,
-              dropped_args="、".join(dropped_args))
+              dropped_args="、".join(dropped_args), batch=batch_note)
     return {
         "plan": plan,
         "plan_reason": reason,

@@ -436,7 +436,7 @@ docker compose down && docker compose up -d   # 本地 pip 方式：Ctrl+C 后�
 |---|---|
 | `MULTI_AGENT_ENABLED` | 多智能体总开关，默认 `1`；置 `0` 后复杂任务退回单流程 / ReAct（等于改造前行为） |
 | `MULTI_AGENT_MAX_RETRIES` | 同一步最多被 Critic 打回重做几次，默认 2；用完仍不合格就**降级**（返回已完成部分 + 如实说明） |
-| `MULTI_AGENT_MAX_PLAN_STEPS` | 计划最多几步，默认 5（Planner 也是模型，必须防它写 20 步） |
+| `MULTI_AGENT_MAX_PLAN_STEPS` | 计划最多几步，默认 6（Planner 也是模型，必须防它写 20 步；批量投递「前面三个岗位」的正常写法就是 3 岗 × 2 步 = 6 步） |
 | `MULTI_AGENT_MAX_EXECUTIONS` | 全局执行次数上限，默认 12（防「步骤多 × 每步重试多」的组合爆炸） |
 | `MULTI_AGENT_CRITIC_LLM` | Critic 是否额外投一票（LLM 语义复核），默认 `1`；事实层判据永远不依赖模型，且事实层已判不合格时不再调 LLM |
 | `MULTI_AGENT_PACKAGE_THRESHOLD` | 生成投递包的分数门槛，默认 70（计划里 `when: score >= N` 的默认值） |
