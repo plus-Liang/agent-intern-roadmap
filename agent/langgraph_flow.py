@@ -1450,9 +1450,20 @@ def locate_job(state: MatchState) -> dict:
 
     detail = None
     explicit_fail = ""
+    pasted_gone = False
     if job_id:
         try:
             detail = reg._resolve_match_detail(job_id)
+        except reg.PastedJobExpired as e:
+            # 粘贴岗位（pasted_<hash>）是临时岗位，只在会话态里 —— 会话态里没了就是没了。
+            # 这不是「岗位库里查不到」，话术也不同：直接请用户**重新粘贴**。
+            if state.get("verbose"):
+                print(f"[lg_match] 粘贴岗位已失效 job_id={job_id}：{e}")
+            pasted_gone = True
+            explicit_fail = (
+                "{}\n\n"
+                "为避免拿别的岗位顶替（那样你会以为评的是你贴的那条），我没有继续打分。"
+            ).format(e)
         except Exception as e:                          # noqa: BLE001 - 显式 fail，不再换岗
             if state.get("verbose"):
                 print(f"[lg_match] job_id={job_id} 定位失败：{e}")
@@ -1471,15 +1482,21 @@ def locate_job(state: MatchState) -> dict:
 
     if explicit_fail:
         log_event(state.get("trace_id") or "-", "lg_node", node="locate",
-                  engine="langgraph", graph="match", found=False, explicit=True)
+                  engine="langgraph", graph="match", found=False, explicit=True,
+                  pasted_expired=pasted_gone or None)
         return {
             "detail": None,
             "job_id": "",
             "locate_error": explicit_fail,
             "steps": _step(state, "定位岗位",
-                           f"用户指名了 job_id={job_id}，但库里查不到 → 如实报错，"
-                           f"不换成别的岗位",
-                           observation=f"job_id={job_id} 未命中"),
+                           (f"用户指名的粘贴岗位 job_id={job_id} 已从会话态失效 → "
+                            f"如实请用户重新粘贴，不换成别的岗位"
+                            if pasted_gone else
+                            f"用户指名了 job_id={job_id}，但库里查不到 → 如实报错，"
+                            f"不换成别的岗位"),
+                           observation=(f"job_id={job_id} 粘贴岗位已失效"
+                                        if pasted_gone else
+                                        f"job_id={job_id} 未命中")),
         }
 
     if detail is None:

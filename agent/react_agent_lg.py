@@ -591,13 +591,39 @@ def _run_package(question: str, verbose: bool = True, progress_cb=None,
         if entry and entry.get("job_id"):
             job_id = str(entry["job_id"])
             note = f"按你说的「第 {ordinal.group(1)} 个」定位"
+    pasted_gone = ""
     if job_id:
         try:
             detail = tools_registry._resolve_match_detail(job_id)
+        except tools_registry.PastedJobExpired as e:
+            # 粘贴岗位是临时岗位（pasted_<hash>，不落库）：会话态里没了就请用户重新粘贴，
+            # 不要假装还能出包，也不要改去搜岗位列表（那会出成另一条岗位的包）。
+            if verbose:
+                print(f"[lg_package] 粘贴岗位已失效 job_id={job_id}：{e}")
+            pasted_gone = str(e)
+            detail = None
         except Exception as e:                            # noqa: BLE001 - 拿不到就往下找
             if verbose:
                 print(f"[lg_package] job_id={job_id} 定位失败：{e}")
             detail = None
+    if pasted_gone:
+        # 指名的那条粘贴岗位没了 → 如实请用户重新粘贴；**不**落到「会话里正在看的岗位」
+        # 上（那会拿另一条岗位出包，用户以为是这条的）。
+        reply = (pasted_gone + "\n\n"
+                 "**我没有改去搜别的岗位，也没有拿别的岗位出包** —— "
+                 "你说的是要投这一条，搜出一堆别家公司的岗位对你没有用。")
+        steps.append({"turn": 1, "type": "route", "engine": "langgraph",
+                      "node": "定位岗位",
+                      "thought": "系统提示里的粘贴岗位已从会话态失效 → 如实请用户重新粘贴，"
+                                 "不换别的岗位、也不改去搜岗位列表",
+                      "observation": f"job_id={job_id} 粘贴岗位已失效"})
+        log_event(trace_id, "run_end", total_turns=1, found=False, pasted_expired=True,
+                  final_answer_len=len(reply), engine="langgraph")
+        result = {"answer": reply, "steps": steps}
+        if return_messages:
+            result["messages"] = [{"role": "assistant", "content": reply}]
+            result["trace_id"] = trace_id
+        return result
     if detail is None:
         company, title = _designation_from_text(text)
         if company or title:

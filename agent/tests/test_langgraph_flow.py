@@ -121,6 +121,19 @@ RESUME_WITH_RAG = {
 }
 
 
+#: 粘贴的实习僧 JD（「AI应用开发（可转正）」）：>100 字且带招聘分节词，
+#: 用来复现「粘贴 JD → 帮我匹配这个岗位」这条路（临时 job_id = pasted_<hash>）。
+PASTED_JD_TEXT = """AI应用开发（可转正）
+公司：某某科技有限公司
+岗位职责：
+1. 参与 AI 应用（Agent / RAG）的需求分析与落地开发；
+2. 用 LangGraph 编排多步 Agent 流程，接向量数据库做检索增强；
+任职要求：
+1. 熟悉 Python，了解 FastAPI 与常见后端框架；
+2. 有 RAG / 向量数据库使用经验者优先；
+3. 本科及以上，每周到岗 4 天以上。"""
+
+
 def _fake_llm(payload: dict):
     def _inner(messages, source, verbose=False):
         return dict(payload)
@@ -1927,6 +1940,77 @@ def _package_missing_job_is_honest():
     return "没找到火星科技 · 量子芯片 → 如实说没找到 + 可行路径"
 
 
+def _pasted_job_package_flows_through():
+    """粘贴 JD → 「帮我生成投递包」：仍正常出包，且出包用的就是那条临时岗位。
+
+    与匹配打分同一套分流：`pasted_<hash>` 不在库里，只能从会话态取。
+    """
+    called = {"search": 0}
+    pkg_calls = []
+
+    def _boom_search(*args, **kwargs):
+        called["search"] += 1
+        raise AssertionError("粘贴岗位出包不该重搜岗位列表")
+
+    def _fake_generate(company, job_id=None, title=""):
+        pkg_calls.append({"company": company, "job_id": job_id, "title": title})
+        return {"company": company, "title": title, "job_id": job_id,
+                "package_dir": str(_TMP_DIR / "pkg_pasted"), "files": {},
+                "has_job_detail": True, "warnings": []}
+
+    with user_scope(f"package-pasted-{os.getpid()}"):
+        entry = LF.reg.analyze_pasted_jd(PASTED_JD_TEXT)
+        job_id = str(entry["job_id"])
+        hint = ("\n\n[系统提示 · 当前粘贴的岗位] 本次会话里用户粘贴过的岗位仍然是："
+                f"job_id={job_id}。用户没点名别的岗位时「生成投递包」默认指这一条 —— "
+                f"**直接调对应工具、job_id 传 {job_id}，不要再调 search_jobs 重搜**。")
+        with _patched((LG.SEARCH_GRAPH, "invoke", _boom_search),
+                      (LG.tools_registry, "generate_application_package", _fake_generate)):
+            result = LG._run_package("帮我生成投递包" + hint, verbose=False)
+    answer = result.get("answer") or ""
+    if called["search"]:
+        raise AssertionError("粘贴岗位出包居然重搜了岗位列表")
+    if not pkg_calls:
+        raise AssertionError("没有调用 generate_application_package")
+    got = pkg_calls[0]
+    if got["job_id"] != job_id:
+        raise AssertionError(f"出包用的不是粘贴的那条岗位：{got}（期望 {job_id}）")
+    if "投递包" not in answer:
+        raise AssertionError(f"回执里没有出包说明：{answer[:160]}")
+    return f"{job_id} → 出包沿用临时岗位（搜索图 0 次调用）"
+
+
+def _pasted_job_package_expired_is_honest():
+    """粘贴岗位已失效时说要投它 → 请用户重新粘贴，**不出包、不搜列表**。"""
+    called = {"search": 0}
+    pkg_calls = []
+
+    def _boom_search(*args, **kwargs):
+        called["search"] += 1
+        raise AssertionError("失效粘贴岗位不该改去搜列表")
+
+    def _fake_generate(company, job_id=None, title=""):
+        pkg_calls.append({"company": company, "job_id": job_id, "title": title})
+        raise AssertionError("失效粘贴岗位不该出包")
+
+    hint = ("\n\n[系统提示 · 当前粘贴的岗位] 本次会话里用户粘贴过的岗位仍然是："
+            "job_id=pasted_0d994013ea9a。用户没点名别的岗位时「生成投递包」默认指这一条。")
+    with user_scope(f"package-pasted-gone-{os.getpid()}"), \
+            _patched((LG.SEARCH_GRAPH, "invoke", _boom_search),
+                     (LG.tools_registry, "generate_application_package", _fake_generate)):
+        result = LG._run_package("帮我生成投递包" + hint, verbose=False)
+    answer = result.get("answer") or ""
+    if called["search"]:
+        raise AssertionError("失效粘贴岗位居然改去搜列表了")
+    if pkg_calls:
+        raise AssertionError(f"失效粘贴岗位却出了包：{pkg_calls}")
+    if "重新粘贴" not in answer or "失效" not in answer:
+        raise AssertionError(f"没有说清「粘贴岗位已失效，请重新粘贴」：{answer[:220]}")
+    if "别的岗位" not in answer:
+        raise AssertionError(f"没说清「没有拿别的岗位出包」：{answer[:220]}")
+    return "失效粘贴岗位 → 请重新粘贴，不出包、不搜列表"
+
+
 def _package_intent_does_not_eat_search():
     """「帮我找广州的 Agent 岗位」仍是搜岗位，不能被投递意向抢走。"""
     bad = [q for q in ("帮我找广州的 Agent 岗位", "搜一下北京的大模型实习",
@@ -2161,6 +2245,66 @@ def _explicit_job_id_failure_is_honest():
     return "指名 job_id 查不到 → 报错，不换岗"
 
 
+def _pasted_job_match_scores_without_error():
+    """粘贴 JD → 临时 job_id（`pasted_<hash>`）→ 匹配打分必须正常跑通、不报错。
+
+    故障：粘贴岗位不落库，`pasted_*` 拿去 `get_job_detail` 必然查不到，
+    「粘贴 JD 后说帮我匹配这个岗位」整条路以 `ValueError: job_id=pasted_... 查不到` 崩掉。
+    修法：定位时先认 `pasted_` 前缀 → 直接读会话态里的临时岗位。
+    """
+    graph = LF.build_match_graph(scorer=lambda j, r: {
+        "score": 77, "dimensions": {"skills": 30}, "gaps": [], "highlights": ["Python"]})
+    with user_scope(f"pasted-match-{os.getpid()}"):
+        entry = LF.reg.analyze_pasted_jd(PASTED_JD_TEXT)
+        job_id = str(entry["job_id"])
+        if not job_id.startswith("pasted_"):
+            raise AssertionError(f"粘贴岗位的 job_id 不是 pasted_ 前缀：{job_id}")
+        with _patched((LF, "_llm_json",
+                       _fake_llm({"合理": True, "理由": "", "建议修正": 0}))):
+            state = graph.invoke({
+                "question": f"[系统提示 · 当前粘贴的岗位] 用户粘贴过的岗位 job_id={job_id}",
+                "job_id": job_id, "resume_data": RESUME_WITH_RAG,
+                "verbose": False, "steps": [],
+            })
+    if state.get("locate_error"):
+        raise AssertionError(f"粘贴岗位被当成「查不到」：{state['locate_error'][:160]}")
+    detail = state.get("detail")
+    if detail is None or str(getattr(detail, "job_id", "")) != job_id:
+        raise AssertionError(f"没有定位到会话态里那条粘贴岗位：{detail}")
+    if int(state.get("score") or 0) != 77:
+        raise AssertionError(f"没有打出分数：{state.get('score')}")
+    if "77" not in (state.get("answer") or ""):
+        raise AssertionError(f"回答里没有分数：{(state.get('answer') or '')[:200]}")
+    return f"{job_id} 读到会话态临时岗位并正常打分 77"
+
+
+def _pasted_job_expired_is_honest():
+    """粘贴岗位已从会话态消失（换会话 / 被新的粘贴顶掉）→ 请用户重新粘贴。
+
+    要求：不抛 ValueError、不说成「岗位库里查不到」、不给分数、不拿别的岗位顶替。
+    """
+    graph = LF.build_match_graph(scorer=lambda j, r: {
+        "score": 99, "dimensions": {}, "gaps": [], "highlights": []})
+    with user_scope(f"pasted-gone-{os.getpid()}"):
+        # 会话态里**故意没有**粘贴岗位：模拟临时岗位已失效
+        state = graph.invoke({
+            "question": "", "job_id": "pasted_0d994013ea9a",
+            "resume_data": RESUME_WITH_RAG, "verbose": False, "steps": [],
+        })
+    answer = state.get("answer") or ""
+    if "重新粘贴" not in answer or "失效" not in answer:
+        raise AssertionError(f"没有说清「粘贴岗位已失效，请重新粘贴」：{answer[:220]}")
+    if "查不到" in answer:
+        raise AssertionError("把「粘贴岗位失效」说成了「岗位库里查不到」")
+    if "顶替" not in answer:
+        raise AssertionError(f"没说清「没有拿别的岗位顶替」：{answer[:220]}")
+    if state.get("detail") is not None:
+        raise AssertionError("粘贴岗位失效却仍然定位到了一条岗位（会打错岗）")
+    if int(state.get("score") or 0) != 0:
+        raise AssertionError("粘贴岗位失效却给了分数")
+    return "粘贴岗位失效 → 请重新粘贴，零分数、不换岗"
+
+
 def _batch_without_context_is_honest():
     """没搜过就问「投前面三个」→ 如实说明怎么补，**不重搜、不报错**。
 
@@ -2193,6 +2337,14 @@ check("批量投递：不重搜 + 三个岗位分别打分（分数不同）",
       _batch_does_not_search_and_scores_differ)
 check("批量投递：额度用完降级后仍区分岗位", _batch_degraded_still_distinguishes_jobs)
 check("匹配打分：指名 job_id 查不到 → 如实报错不换岗", _explicit_job_id_failure_is_honest)
+check("粘贴 JD → 匹配打分：临时 job_id 读会话态、正常打分",
+      _pasted_job_match_scores_without_error)
+check("粘贴 JD 已失效 → 请用户重新粘贴，不报错、不换岗",
+      _pasted_job_expired_is_honest)
+check("粘贴 JD → 生成投递包：沿用临时岗位，不重搜",
+      _pasted_job_package_flows_through)
+check("粘贴 JD 已失效 → 出包路也请用户重新粘贴，不出包",
+      _pasted_job_package_expired_is_honest)
 check("批量投递：没有上一轮搜索结果 → 如实说明", _batch_without_context_is_honest)
 
 

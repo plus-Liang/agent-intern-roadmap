@@ -846,7 +846,10 @@ def _semantic_rows(keyword: str, city, limit: int, job_type=None) -> list[dict]:
 
 
 def _detail(job_id):
-    d = get_job_detail("mock", job_id)
+    # 粘贴岗位的临时 id（pasted_<hash>）不在库里 —— 先读会话态，别再走一次"查不到"。
+    d = find_pasted_job(job_id) if is_pasted_job_id(job_id) else None
+    if d is None:
+        d = get_job_detail("mock", job_id)
     return {
         "job_id": d.job_id,
         "title": d.title,
@@ -859,8 +862,53 @@ def _detail(job_id):
     }
 
 
+#: 粘贴岗位（岗位链接 / 粘贴的 JD 文本）的临时 job_id 前缀（见 url_parser.parse_pasted_jd）。
+#: ⚠️ 这类 id **不在岗位库里**，只活在会话态 —— 任何按 id 定位岗位的地方都必须先认这个
+#: 前缀再去决定"查库还是读会话态"，否则 `pasted_<hash>` 直接进 get_job_detail 必然查不到。
+PASTED_JOB_ID_PREFIX = "pasted_"
+
+
+class PastedJobExpired(Exception):
+    """粘贴岗位的临时 job_id 已经不在会话态里了（换了会话 / 被新的粘贴顶掉）。
+
+    刻意与「库里查不到」的 `ValueError` 分开：两者对用户的话术完全不同 ——
+    前者只能请用户**重新粘贴**，后者可以引导重新搜索。调用方据此分流。
+    """
+
+
+def is_pasted_job_id(job_id) -> bool:
+    """这个 job_id 是不是「粘贴出来的临时岗位」（`pasted_<hash>`）。"""
+    return str(job_id or "").strip().startswith(PASTED_JOB_ID_PREFIX)
+
+
+def pasted_job_expired_message(job_id) -> str:
+    """粘贴岗位失效时给用户看的话术（不抛裸异常，直接可回执）。"""
+    return (
+        "你指的这条岗位（job_id={}）是之前**粘贴 JD 时生成的临时岗位** —— "
+        "它不落库，只存在本次会话里。现在会话里已经找不到它了"
+        "（会话重启过，或期间又粘贴/搜索了别的岗位把它顶掉了）。\n\n"
+        "这份粘贴的岗位信息已经失效，请把那份 JD 文本（岗位职责 / 任职要求）"
+        "**重新粘贴一次**，我再按新的粘贴内容处理。".format(str(job_id or "").strip())
+    )
+
+
+def find_pasted_job(job_id=""):
+    """按临时 job_id 取会话态里的粘贴岗位；没有 / 与 id 对不上都返回 None。
+
+    只读会话态、**不查库**（`pasted_<hash>` 本来就不在库里）。
+    id 不传（空）表示"只要会话里有粘贴岗位就行"，是「用当前粘贴的岗位」的语义。
+    """
+    detail = get_current_pasted_job()
+    if detail is None:
+        return None
+    wanted = str(job_id or "").strip()
+    if wanted and str(getattr(detail, "job_id", "") or "") != wanted:
+        return None
+    return detail
+
+
 def _resolve_match_detail(job_id):
-    """定位要匹配的岗位：显式 job_id（先查库）→ 会话里当前在看的岗位。
+    """定位要匹配的岗位：显式 job_id（先看粘贴 / 再查库）→ 会话里当前在看的岗位。
 
     优先级与需求一致：显式 job_id > 会话态岗位（投递包写下的 current_job /
     粘贴的 JD，取更近的那个，见 `get_focus_job`）。
@@ -875,6 +923,16 @@ def _resolve_match_detail(job_id):
     """
     wanted = str(job_id or "").strip()
     if wanted:
+        # ⚠️ 粘贴岗位（链接 / JD 文本）走的是**临时 job_id**（`pasted_<hash>`，不落库）：
+        # 这里必须先认前缀、只读会话态、**不查库** —— 拿它去 get_job_detail 必然查不到，
+        # 「粘贴 JD → 帮我匹配这个岗位」整条路就会以 ValueError 崩掉（本轮 P1 故障）。
+        if is_pasted_job_id(wanted):
+            detail = find_pasted_job(wanted)
+            if detail is not None:
+                return detail
+            # 会话态里也没有（换会话 / 被新的粘贴顶掉）→ 明确请用户重新粘贴，
+            # 而不是抛「查不到」这种让人以为岗位下架了的错。
+            raise PastedJobExpired(pasted_job_expired_message(wanted))
         try:
             return get_job_detail("mock", wanted)
         except Exception as e:                      # noqa: BLE001 - 查不到就如实报错
@@ -1607,10 +1665,18 @@ def _resolve_job(record, job_id=None):
     for candidate in candidates:
         if not candidate or not str(candidate).strip():
             continue
+        cand = str(candidate).strip()
+        if is_pasted_job_id(cand):
+            # 粘贴岗位不落库：只读会话态，读不到就换下一个办法（不抛异常）。
+            detail = find_pasted_job(cand)
+            if detail is not None:
+                return detail, []
+            tried.append(f"{cand}（粘贴岗位已失效）")
+            continue
         try:
-            return get_job_detail("mock", str(candidate).strip()), []
+            return get_job_detail("mock", cand), []
         except Exception as e:                      # noqa: BLE001 - id 不对就换下一个办法
-            tried.append(f"{candidate}（{type(e).__name__}）")
+            tried.append(f"{cand}（{type(e).__name__}）")
 
     keywords = []
     for value in (record.get("title", ""), record.get("company", "")):
@@ -2215,11 +2281,16 @@ def _record_from_job_library(company, job_id=None, title=""):
         return ok
 
     if job_id and str(job_id).strip():
-        try:
-            detail = get_job_detail("mock", str(job_id).strip())
-        except Exception as e:                      # noqa: BLE001 - id 不对就再往下找
-            tried.append(f"job_id={job_id}（{type(e).__name__}）")
-        else:
+        # 粘贴岗位的临时 id（pasted_<hash>）**不在库里**，先读会话态 —— 与匹配打分路径
+        # 同一口径；否则这里必然走「id 不对」分支，白记一条 tried 并退化到名称匹配。
+        detail = find_pasted_job(job_id) if is_pasted_job_id(job_id) else None
+        if detail is None:
+            try:
+                detail = get_job_detail("mock", str(job_id).strip())
+            except Exception as e:                  # noqa: BLE001 - id 不对就再往下找
+                tried.append(f"job_id={job_id}（{type(e).__name__}）")
+                detail = None
+        if detail is not None:
             if _accepts(getattr(detail, "company", ""), getattr(detail, "title", "")):
                 return _record_from(detail), detail
             tried.append(
