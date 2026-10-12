@@ -35,6 +35,19 @@ from agent import storage
 # 再跑一次 embedding + BM25 既费时又不会改变排序质量。
 SEMANTIC_MAX_CANDIDATES = 80
 
+# ---------------------------------------------------------------------------
+# 投递包产物的保真底线（本轮 P1 修复）
+# ---------------------------------------------------------------------------
+#: 自荐信正文的最短字数：prompt 要求 3-4 段、250-400 字，这里只卡到 150 ——
+#: 阈值卡在 prompt 下限之下，是「截断看门狗」而不是「文风警察」：实测被 max_tokens
+#: 吃光思考时模型回的是 30~80 字的残句，150 已经能全部挡住；配合「必须含称呼 +
+#: 此致敬礼 + 署名」三条硬判据，也不会误伤合法产出。定太高会把「模型写了 180 字就
+#: 收尾」这种可用的信误判成失败，反而让用户拿到模板兜底。
+_COVER_MIN_CHARS = 150
+#: resume.pdf 抽出的正文至少要保留原简历的这么多（缩水超过 20% 就报警）。
+#: 实测故障里是 447 / 1100 ≈ 0.41 —— 缩到 1/5 的那一档。
+_RESUME_MIN_KEEP = 0.8
+
 
 # ---------------------------------------------------------------------------
 # 长任务进度回调（修：60s websocket 超时 → 中间没有数据往来）
@@ -1895,6 +1908,142 @@ def _ensure_cover_signature(text: str, name: str) -> str:
     return body.strip()
 
 
+def _cover_body_problems(text: str, name: str = "") -> list:
+    """自荐信正文的确定性体检（本轮 P1 修复：不许静默产出空文件）。
+
+    判据只有三条，都是「内容在不在」这种无法靠模型心情漂移的事实：
+      ① 长度：正文（不含标题行）至少 `_COVER_MIN_CHARS` 字 —— 实测被 max_tokens
+         吃光思考后模型会回一段 30~80 字残句，旧代码认为「非空 = 成功」照写不误；
+      ② 称呼：必须有「尊敬的 / 您好 / 你好」起头，否则是没写完的碎片；
+      ③ 署名：结尾必须有「此致 / 敬礼」（`_ensure_cover_signature` 会补，这里复核）。
+
+    「经历匹配」不在这里判：简历里有没有可引用的经历是事实问题，靠 `_cover_match`
+    用简历关键词核对，不靠语感。返回问题列表，空列表 = 合格。
+    """
+    body = str(text or "").strip()
+    problems = []
+    if len(body) < _COVER_MIN_CHARS:
+        problems.append(f"正文只有 {len(body)} 字（至少 {_COVER_MIN_CHARS} 字）")
+    if not any(mark in body for mark in ("尊敬的", "您好", "你好", "敬启者")):
+        problems.append("缺少称呼")
+    if "敬礼" not in body and "此致" not in body:
+        problems.append("缺少结尾敬语与署名")
+    if name and name not in body:
+        problems.append(f"缺少署名「{name}」")
+    return problems
+
+
+def _cover_match(body: str, resume_data) -> str:
+    """核对自荐信里有没有真的呼应简历经历，返回命中的简历关键词（逗号分隔）。
+
+    用「简历里的技能名 / 项目分段」当探针去正文里找：一条都找不到，说明这封信
+    放在任何候选人身上都成立 —— 与 prompt 里「用真实经历说明匹配」的要求不符。
+    只做核查 + 提醒，**不替模型编内容**（自动补事实就是造假）。
+    """
+    try:
+        source = json.dumps(resume_data or {}, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return ""
+    probes = []
+    for token in re.findall(r"[\u4e00-\u9fffA-Za-z][\u4e00-\u9fffA-Za-z0-9+.#/]{2,}", source):
+        if token not in probes:
+            probes.append(token)
+    hits = [p for p in probes if p in str(body or "")][:8]
+    return "、".join(hits)
+
+
+def _cover_letter_findings(path, resume_data, name: str) -> list:
+    """自荐信落盘后的最终校验（读回文件本身，而不是信内存里的变量）。
+
+    为什么读回文件：要挡住的正是「文件是空的、流程却报成功」这种故障 ——
+    只有真读一遍磁盘上的字节才能证明它不空。返回给用户看的警告列表。
+    """
+    findings = []
+    try:
+        raw = Path(path).read_text(encoding="utf-8")
+    except OSError as e:
+        return [f"自荐信文件读不回来（{type(e).__name__}: {e}），请重新生成投递包"]
+    size = len(raw.encode("utf-8"))
+    if len(raw.strip()) < _COVER_MIN_CHARS or size < 300:
+        findings.append(
+            f"自荐信内容过短（{len(raw.strip())} 字 / {size} B），可能是模型截断，"
+            "请重新生成或手动补充")
+    if not _cover_match(raw, resume_data):
+        findings.append("自荐信里没找到与简历经历对应的具体内容，建议人工核对后再投")
+    if name and name not in raw:
+        findings.append(f"自荐信结尾没有署上「{name}」")
+    return findings
+
+
+def _resume_text_len(data) -> int:
+    """简历的「正文字数」：结构化字段拼起来算，_plain 纯文本直接用。
+
+    刻意不 `json.dumps` 整个 dict —— 那会带上字段名和转义符，跟 PDF 抽出来的
+    纯正文不是一个量纲，比出来的「缩水率」没有意义（见 `_resume_findings`）。
+    """
+    text = _resume_plain_text(data)
+    return len(text)
+
+
+def _resume_plain_text(data) -> str:
+    """把简历还原成「一段正文」：技能 / 学历 / 城市 / 实习 / 项目描述全在内。"""
+    if not isinstance(data, dict):
+        return str(data or "")
+    if data.get("_plain"):
+        return str(data["_plain"])
+    chunks = [str(data.get("name") or ""), str(data.get("city") or ""),
+              str(data.get("education") or "")]
+    for edu in (data.get("educations") or []):
+        if isinstance(edu, dict):
+            chunks += [str(edu.get(k) or "") for k in ("school", "major", "degree",
+                                                       "start", "end")]
+        else:
+            chunks.append(str(edu))
+    chunks += [str(s) for s in (data.get("skills") or [])]
+    for exp in (data.get("experience") or []):
+        if isinstance(exp, dict):
+            chunks += [str(exp.get(k) or "") for k in ("company", "role", "start", "end")]
+            chunks.append(str(exp.get("description") or exp.get("desc") or ""))
+        else:
+            chunks.append(str(exp))
+    for proj in (data.get("projects") or []):
+        if isinstance(proj, dict):
+            chunks += [str(proj.get("name") or ""),
+                       "".join(str(t) for t in (proj.get("tech") or [])),
+                       str(proj.get("desc") or proj.get("description") or "")]
+        else:
+            chunks.append(str(proj))
+    return re.sub(r"[\s\u3000]+", "", "".join(chunks))
+
+
+def _pdf_text_len(path) -> int:
+    """PDF 抽回来的正文字数；抽不出来返回 0（调用方按「丢了内容」处理）。"""
+    try:
+        from agent.resume.extractor import _extract_pdf
+        text = _extract_pdf(Path(path))
+    except Exception as e:                          # noqa: BLE001 - 抽不出来就是没内容
+        print(f"[投递包校验] PDF 文本抽取失败：{type(e).__name__}: {e}")
+        return 0
+    return len(re.sub(r"[\s\u3000]+", "", text or ""))
+
+
+def _resume_findings(original: dict, final: dict, pdf_path) -> list:
+    """简历 PDF 的「缩水」校验（本轮 P1 修复：内容不许被压到 1/5）。
+
+    判据：**PDF 里抽回来的正文不得少于原简历正文的 `_RESUME_MIN_KEEP`**。
+    实测故障（同一段粘贴 JD）：原简历项目描述有 5 个大类，定制后只剩 3 条要点，
+    PDF 正文 447 字 vs 原简历约 1100 字 —— 缩水 60%，用户看到的是一份残缺简历。
+    """
+    src_len = _resume_text_len(original)
+    got_len = _pdf_text_len(pdf_path)
+    if src_len and got_len < src_len * _RESUME_MIN_KEEP:
+        return [f"resume.pdf 内容疑似被压缩：抽出正文 {got_len} 字，"
+                f"原简历 {src_len} 字（低于 {int(_RESUME_MIN_KEEP * 100)}% 的保底线）"]
+    if src_len and not got_len:
+        return ["resume.pdf 抽不出任何文字（可能是渲染失败），请重新生成投递包"]
+    return []
+
+
 def _generate_cover_letter(resume_data, record, detail) -> tuple:
     """用 LLM 生成自荐信，返回 (正文, 警告或空串)"""
     company = record.get("company", "")
@@ -1912,30 +2061,44 @@ def _generate_cover_letter(resume_data, record, detail) -> tuple:
         if detail else "（未获取到岗位详情）",
     )
 
-    try:
-        # 必须显式带额度与思考档：chat() 不传就是全局默认额度（现为 4096），而
-        # glm-5.3-flash 是思考模型、思考与正文共用 max_tokens —— 实测 1024 档
-        # finish_reason=length、正文只写出 168 字（自荐信都没写完），
-        # 4096 + low 一次出全（术语见 shared/limits.cover_letter_max_tokens）。
-        text = (chat([{"role": "user", "content": prompt}],
-                     source="application_package",
-                     max_tokens=limits.cover_letter_max_tokens(),
-                     reasoning_effort=limits.cover_letter_reasoning_effort()) or "").strip()
-        if text.startswith("```"):                  # 模型偶尔会套一层围栏
-            match = re.search(r"```(?:markdown|md|text)?\s*(.*?)\s*```", text, re.DOTALL)
-            if match:
-                text = match.group(1).strip()
-        if text:
-            # LLM 有时还是收不住嘴，再过一遍确定性清洗（问题 2 同源）；
-            # 拼错的专有名词（Llamalndex）也在这里确定性纠回（问题 4）
-            text = fix_tech_terms(strip_self_praise(text))
-            text = _complete_metrics(text, resume_data)     # 数据补完整（问题 3）
-            text = _ensure_cover_signature(text, name)      # 此致敬礼 + 署名（问题 3）
-            return text, ""
-        raise ValueError("模型返回空内容")
-    except Exception as e:                          # noqa: BLE001 - 生成失败也要让投递包落地
-        return (_fallback_cover_letter(company, title, name),
-                f"自荐信生成失败（{type(e).__name__}: {e}），已用模板兜底")
+    # 本轮 P1：一次不够就再来一次。实测 max_tokens 被思考吃光时模型会回一段
+    # 30~80 字的残句（非空！），旧代码认为「非空 = 成功」直接落盘 —— 产物看着
+    # 是空的，流程却报成功。重试一次再走模板兜底，并把原因写进 warnings。
+    last = ""
+    for attempt in (1, 2):
+        try:
+            # 必须显式带额度与思考档：chat() 不传就是全局默认额度（现为 4096），而
+            # glm-5.3-flash 是思考模型、思考与正文共用 max_tokens —— 实测 1024 档
+            # finish_reason=length、正文只写出 168 字（自荐信都没写完），
+            # 4096 + low 一次出全（术语见 shared/limits.cover_letter_max_tokens）。
+            text = (chat([{"role": "user", "content": prompt}],
+                         source="application_package",
+                         max_tokens=limits.cover_letter_max_tokens(),
+                         reasoning_effort=limits.cover_letter_reasoning_effort()) or "").strip()
+            if text.startswith("```"):              # 模型偶尔会套一层围栏
+                match = re.search(r"```(?:markdown|md|text)?\s*(.*?)\s*```", text, re.DOTALL)
+                if match:
+                    text = match.group(1).strip()
+            if text:
+                # LLM 有时还是收不住嘴，再过一遍确定性清洗（问题 2 同源）；
+                # 拼错的专有名词（Llamalndex）也在这里确定性纠回（问题 4）
+                text = fix_tech_terms(strip_self_praise(text))
+                text = _complete_metrics(text, resume_data)     # 数据补完整（问题 3）
+                text = _ensure_cover_signature(text, name)      # 此致敬礼 + 署名（问题 3）
+                problems = _cover_body_problems(text, name)
+                if not problems:
+                    return text, ""
+                last = "；".join(problems)
+                print(f"[自荐信] 第 {attempt} 次产出不合格（{last}）")
+                continue
+            last = "模型返回空内容"
+            print(f"[自荐信] 第 {attempt} 次返回空内容")
+        except Exception as e:                      # noqa: BLE001 - 生成失败也要让投递包落地
+            last = f"{type(e).__name__}: {e}"
+            print(f"[自荐信] 第 {attempt} 次生成异常：{last}")
+
+    return (_fallback_cover_letter(company or "贵公司", title, name),
+            f"自荐信 LLM 生成失败（{last}），已用模板兜底，请手动补充项目细节后再投递")
 
 
 def _source_platform(record: dict, detail) -> str:
@@ -1955,9 +2118,33 @@ def _source_platform(record: dict, detail) -> str:
     return platform or str(record.get("platform", "") or "")
 
 
+def _company_label(record, detail=None, job=None, empty_ok: bool = False) -> str:
+    """投递包统一用的「公司名」标签（本轮 P2 修复）。
+
+    粘贴的 JD 常常没写公司名（实测那条实习僧文案首行就是岗位名），旧代码让空串
+    一路走到 `_safe_name`，于是产物目录叫 `unknown_20261012_133216`，job_info.txt
+    里印「公司：」空值，用户根本分不清这是哪家公司。
+
+    取值优先级：岗位详情 > 搜索结果行 > 投递记录 > 「未知公司」。
+    **绝不去 JD 正文里瞎抠一个词当公司名**（那是在编造事实）；取不到就明说未知，
+    且 `empty_ok=True`（job_info.txt 里想写成一句可操作的话）时返回空串交给调用方。
+    """
+    for source in (detail, job):
+        value = str(getattr(source, "company", "") or "").strip()
+        if value:
+            return value
+    value = str((record or {}).get("company") or "").strip()
+    if value:
+        return value
+    return "" if empty_ok else "未知公司"
+
+
 def _job_info_text(record: dict, detail, job_id_used: str) -> str:
     """岗位信息 + 链接 + 投递记录，写进 job_info.txt"""
-    lines = ["投递岗位信息", "=" * 40, f"公司：{record.get('company', '')}",
+    label = _company_label(record, detail, empty_ok=True)
+    lines = ["投递岗位信息", "=" * 40,
+             # 粘贴的 JD 常没写公司名：这时给出可操作的话（而不是印一个空值）
+             f"公司：{label or '（JD 里没有写明公司名）'}",
              f"岗位：{record.get('title', '')}"]
 
     url = record.get("url", "")
@@ -2464,11 +2651,17 @@ def generate_application_package(company, job_id=None, title=""):
     # 简历定制与自荐信**互不依赖**：两者都只读 resume_data / record / detail，
     # 谁先跑完都不影响另一个，串行执行等于白等一次 LLM 往返（实测各约 6s，
     # 见交接单 5.11 / 5.16）。改成并行 —— 与 rag.retriever 的双路召回同一套做法。
+    #
+    # ⚠️ 自荐信用的是 `_cover_record`：公司名为空时先补成「未知公司」再进 prompt，
+    # 否则模型会写出「尊敬的招聘负责人」这种不带公司信息的称呼（本轮 P2）。
+    _cover_record = dict(record or {})
+    _cover_record["company"] = _company_label(record, detail, empty_ok=True) or "未知公司"
+
     def _tailor_job():
         return _tailor_resume(resume_data, detail)
 
     def _cover_job():
-        return _generate_cover_letter(resume_data, record, detail)
+        return _generate_cover_letter(resume_data, _cover_record, detail)
 
     tailored = False
     if detail is not None and "_plain" not in resume_data:
@@ -2488,24 +2681,45 @@ def generate_application_package(company, job_id=None, title=""):
     if cover_warning:
         warnings.append(cover_warning)
 
+    # 公司名兜底（本轮 P2 修复）：粘贴的 JD 常常没写公司名，旧代码把「unknown」
+    # 直接当公司名用 —— 目录叫 unknown_20261012_133216、文件名与正文里也印着
+    # 「公司：」（空）。这里统一取一个**人话标签**：岗位详情 > 投递记录 > 岗位名
+    # > 「未知公司」，目录名 / 标题行 / 模板兜底信都用它。
+    company_label = _company_label(record, detail)
+
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    package_dir = PACKAGE_DIR / f"{_safe_name(record.get('company'))}_{stamp}"
+    package_dir = PACKAGE_DIR / f"{_safe_name(company_label)}_{stamp}"
     package_dir.mkdir(parents=True, exist_ok=True)
 
     resume_pdf = package_dir / "resume.pdf"
     export_resume_pdf(final_resume, str(resume_pdf))
 
+    # 简历 PDF 保真校验（本轮 P1）：内容被压掉 20% 以上就报警，并把原简历
+    # 重导一份把内容救回来 —— 定制只该换措辞，不该让经历消失。
+    resume_findings = _resume_findings(resume_data, final_resume, resume_pdf)
+    if resume_findings and final_resume is not resume_data:
+        export_resume_pdf(resume_data, str(resume_pdf))
+        final_resume = resume_data
+        tailored = False
+        resume_findings = _resume_findings(resume_data, final_resume, resume_pdf) or \
+            ["简历定制把内容改少了，已改用原简历导出（保内容优先）"]
+    warnings += resume_findings
+
     cover_path = package_dir / "cover_letter.md"
     cover_path.write_text(
-        f"# 自荐信 · {record.get('company', '')} {record.get('title', '')}\n\n{cover_letter}\n",
+        f"# 自荐信 · {company_label} {record.get('title', '')}\n\n{cover_letter}\n",
         encoding="utf-8",
     )
+    # 落盘后再读回文件复核一次（本轮 P1）：空文件 / 残句绝不允许静默通过。
+    warnings += _cover_letter_findings(
+        cover_path, resume_data, str(resume_data.get("name") or "")
+        if isinstance(resume_data, dict) else "")
 
     info_path = package_dir / "job_info.txt"
     info_path.write_text(_job_info_text(record, detail, job_id_used), encoding="utf-8")
 
     return {
-        "company": record.get("company", ""),
+        "company": company_label,
         "title": record.get("title", ""),
         "job_id": job_id_used,
         "package_dir": str(package_dir),

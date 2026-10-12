@@ -286,9 +286,17 @@ def test_problem3_4_dedup_and_terms():
 
     real_chat = tools_registry.chat
     try:
-        tools_registry.chat = lambda *a, **k: "我熟悉 Llamalndex 和 Langchain，也用过 Milvus。"
+        # 假模型必须回一封**够长的正常信**：本轮 P1 加了口径校验（正文 <150 字视为
+        # 截断→重试→模板兜底），40 字的假回复会被判不合格、走兜底，就测不到纠错了。
+        fake = ("尊敬的 A 公司招聘负责人：\n\n您好！我熟悉 Llamalndex 和 Langchain，"
+                "也用过 Milvus 做向量检索，在项目里搭过 RAG 问答链路并做过引用溯源，"
+                "把召回率从 65% 提升至 86%，也做过上下文压缩与限流降级这类工程实现。"
+                "我关注的是 AI 应用真正落到业务里的效果，这一点与贵公司岗位的方向一致。\n\n"
+                "这些经历与岗位要求的技术栈一致，因此特别希望加入团队。\n\n"
+                "此致\n敬礼\n梁家浩")
+        tools_registry.chat = lambda *a, **k: fake
         body, _warn = tools_registry._generate_cover_letter(
-            {}, {"company": "A", "title": "B"}, None)
+            {"name": "梁家浩"}, {"company": "A", "title": "B"}, None)
     finally:
         tools_registry.chat = real_chat
     check("自荐信路径纠错 LlamaIndex", "LlamaIndex" in body and "Llamalndex" not in body, body)
@@ -510,7 +518,11 @@ def test_problem3_cover_letter():
 
     real_chat = tools_registry.chat
     try:
-        tools_registry.chat = lambda *a, **k: "尊敬的 A 公司：\n\n我做过 RAG 项目。\n\n期待面试。"
+        # 同 A10：假模型要回够长的信，否则会被长度校验判不合格而走模板兜底
+        tools_registry.chat = lambda *a, **k: (
+            "尊敬的 A 公司招聘负责人：\n\n您好！我做过 RAG 项目，负责检索召回优化，"
+            "把召回率从 65% 提升至 86%，并搭过一套引用溯源链路。\n\n"
+            "这些经历与岗位方向一致，期待有机会面试详谈。\n\n此致\n敬礼\n梁家浩")
         body, _warn = tools_registry._generate_cover_letter(
             {"name": "梁家浩"}, {"company": "A", "title": "B"}, None)
     finally:

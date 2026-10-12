@@ -316,19 +316,65 @@ def _experience_blocks(item) -> list:
     return [{"kind": "body", "text": _tidy(str(item))}]
 
 
-def _split_points(text, limit: int = 3) -> list:
+#: 项目描述里的「大类标题」词表：LLM/人写简历时这些标题会**直接贴在上一条末尾**
+#: （「…跨线程传递） 成本与稳定性：四道限流闸门…」）。只按分号切的话，标题会被
+#: 吞进上一条的中间，用户在 PDF 里搜不到这些关键词，看上去就是「内容被压缩」。
+#: 词表刻意收窄到大类这一档（不泛化匹配「…：」），避免把一句话从中间劈开。
+_POINT_LABELS = (
+    "数据层", "数据", "数据与工程", "RAG 检索", "RAG检索", "检索层", "检索",
+    "Agent 编排", "Agent编排", "编排层", "智能体编排", "模型层",
+    "成本与稳定性", "成本稳定性", "成本", "稳定性", "性能与稳定性",
+    "质量工程", "工程质量", "质量与评测", "评测", "工程化",
+)
+_POINT_LABEL_RE = "(?:" + "|".join(re.escape(x) for x in _POINT_LABELS) + ")"
+#: 形态一：句子已经收尾（句末标点 / 右括号）→ 空格后的标题必然是新的要点起点。
+_POINT_SPLIT_AFTER = (
+    r"(?<=[）)。！？；;])[ \t\u3000]+(?=" + _POINT_LABEL_RE + r"[：:])"
+)
+#: 形态二：前一个字是**汉字**（不含英文/数字）→ 中文没有词间空格，这个空格只能是
+#: 标题起点（`GitHub Actions 每日自动更新 RAG 检索：…`）。要求前一字是汉字而不是
+#: 「非空格」，正是为了不把「更新 RAG 检索：…」从 RAG 中间劈开（实测就是这么错的）。
+_POINT_SPLIT_CJK = (
+    r"(?<=[\u4e00-\u9fff])[ \t\u3000]+(?=" + _POINT_LABEL_RE + r"[：:])"
+)
+
+
+def _split_points(text, limit: int = 16) -> list:
     """把一段多要点描述切成若干条（问题 2 追加：项目描述不许压成 1 条）。
 
     简历原文的项目描述本就是「；」分号串起来的多条要点（实测：
     「…优化检索成本；实现 JIT 按需加载…；设计四层上下文压缩机制…」），
     以前整段当一个 bullet 排出去，4 条要点在 PDF 里看起来只有 1 条。
-    这里按「换行 / 分号 / 中文分号」切开，最多保留 limit 条。
+
+    切分规则（本轮 P1 修复）：
+    1) 换行 / 中英文分号（原有规则）；
+    2) **大类标题另起一条**：真实简历的项目描述是大类标题直接贴在上一条末尾的
+       —— 「…幻觉抓取率 100%） Agent 编排：LangGraph 工作流…」「…跨线程传递）
+       成本与稳定性：四道限流闸门…」。只按分号切时「Agent 编排 / 成本与稳定性 /
+       质量工程」这几个标题会被吞进上一条的中间，用户在 PDF 里**搜不到**这些
+       关键词，看上去就是「内容被压缩到 1/5」。
+    3) limit 从 3 抬到 16：真实简历一个项目有 5 个大类、10 余条事实，旧上限 3 会
+       硬砍掉后面的事实 —— 那是丢内容而不是压缩，砍掉的东西再也回不来。
+       上限只是「防跑飞」的闸门，正常简历（个位数要点）永远碰不到。
+
+    为什么标题词表要收窄 + 前置条件要苛刻：泛化的「空白 + 任意名字 + 冒号」会把
+    「更新 RAG 检索：BM25…」从 RAG 中间劈开（实测），也会把「更新」单独切出来。
+    真正的人写标题只有两类形态，分别用两条正则精确命中：
+      · 前一个字是句末标点 / 右括号（`_POINT_SPLIT_AFTER`）—— 句子已经收尾；
+      · 前一个字是汉字（`_POINT_SPLIT_CJK`）—— 中文没有词间空格，标题与该汉字
+        之间这个空格只可能是标题起点（`GitHub Actions 每日自动更新 RAG 检索：…`）。
     """
     if text is None:
         return []
-    parts = re.split(r"[\n；;]+", str(text))
-    points = [p.strip(" 　·•-—") for p in parts]
-    return [p for p in points if p][:limit]
+    raw = str(text)
+    points = []
+    for segment in re.split(_POINT_SPLIT_AFTER, raw):
+        for chunk in re.split(_POINT_SPLIT_CJK, segment):
+            for part in re.split(r"[\n；;]+", chunk):
+                cleaned = part.strip(" 　·•-—")
+                if cleaned:
+                    points.append(cleaned)
+    return points[:limit]
 
 
 def _project_blocks(item) -> list:

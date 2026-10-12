@@ -104,8 +104,10 @@ def tailor_resume(resume: Resume, job_detail) -> dict:
                 reasoning_effort=limits.cover_letter_reasoning_effort(),
             )
             data = _parse_json(raw)
-            return _ensure_project_points(
-                _sanitize_result(_restore_source_fields(data, resume)), resume)
+            return _ensure_all_points(
+                _ensure_project_points(
+                    _sanitize_result(_restore_source_fields(data, resume)), resume),
+                resume)
         except Exception as e:
             print(f"[第{attempt}次失败] {e}")
             if attempt == 3:
@@ -237,6 +239,89 @@ def _ensure_project_points(result: dict, resume: Resume) -> dict:
         src_points = _points(origin.get("desc"))
         if len(src_points) >= 2 and len(_points(proj.get("desc"))) < 2:
             proj["desc"] = "；".join(src_points[:3])
+    return result
+
+
+#: 覆盖率判据：原简历里一段描述被切成要点后，某条要点有多少字符能在定制结果里
+#: 找到连续原文，就算「这条事实还在」。
+#: 取 6 而不是更长：实测定制把「抓取实习僧（Playwright/牛客/…」（后半段整段照抄）
+#: 改写成「抓取实习僧/牛客/ncss 三个平台」时，8 字的探针只有 88% 命中、会被判成
+#: 丢失 → 兜底把同一条要点**重复补一遍**（实测产物里出现两条「数据层：…」）。
+#: 探针越短越不容易误判丢失，同时仍然能挡住"整条被删掉"。
+_COVER_MIN_CHARS = 6
+
+
+def _covered(point: str, haystack: str) -> bool:
+    """这条原简历要点是否还活在定制结果里。
+
+    按「要点里的短片段在定制结果里的命中比例」判，而不是整条严格相等 ——
+    定制本来就该改措辞（改过的要点整条匹配不上，会被误判成丢失）。
+    逐段滑动取 `_COVER_MIN_CHARS` 长的片段来查，命中过半即算在。
+    """
+    norm = re.sub(r"\s+", "", str(point or ""))
+    if not norm:
+        return True
+    if len(norm) <= _COVER_MIN_CHARS:
+        return norm in haystack
+    probes = [norm[i:i + _COVER_MIN_CHARS] for i in range(0, len(norm), _COVER_MIN_CHARS)]
+    hits = sum(1 for p in probes if p in haystack)
+    return hits * 2 >= len(probes)
+
+
+def _append_missing_points(new_desc, src_desc) -> str:
+    """把定制结果里丢掉的原简历要点行，原样补回到描述末尾。
+
+    为什么在 tailor 层做（而不是只靠 PDF 层切分）：定制结果本身就不该丢要点 ——
+    丢了的话后续任何消费者（PDF / Markdown / 匹配打分）看到的都是残缺简历。
+    措辞被定制改过的要点（命中率高）原样留着，只有真正缺失的才从原简历补回，
+    所以这里**不新增任何事实**，补的都是候选人自己写过的内容。
+
+    补回的要点前面会垫一个分号 + 空格：渲染层按「句子边界 + 空格 + 大类标题 + 冒号」
+    另起 bullet，垫上空格才能让「质量工程：…」这类标题落在 bullet 开头 ——
+    否则它会被嵌在上一条中段，用户在 PDF 里照样搜不到（本轮 P1 的观感根因）。
+    """
+    src_points = _points(src_desc)
+    if len(src_points) < 2:
+        return new_desc
+    if not str(new_desc or "").strip():
+        return "；".join(src_points)
+    haystack = re.sub(r"\s+", "", str(new_desc))
+    missing = [p for p in src_points if not _covered(p, haystack)]
+    if not missing:
+        return new_desc
+    return str(new_desc).rstrip("；; \n") + "； " + "； ".join(missing)
+
+
+def _ensure_all_points(result: dict, resume: Resume) -> dict:
+    """要点级保真：定制结果里每一条原简历要点都必须还在（本轮 P1 修复）。
+
+    与 `_ensure_project_points` 的区别：那个只在「被压成 <2 条」时整段回退，
+    这个逐条核对 —— 实测定制结果写了 3 条、原简历有 10 条（5 个大类）时，
+    旧兜底认为「>=2 条就算正常」，于是 RAG 检索 / Agent 编排 / 成本与稳定性 /
+    质量工程 四个大类在产物里直接消失。这里按项目名配对，缺哪条补哪条。
+    """
+    tailored = (result or {}).get("tailored")
+    if not isinstance(tailored, dict):
+        return result
+
+    def _key(item):
+        return re.sub(r"\s+", "", str((item or {}).get("name") or "")).lower()
+
+    src = {}
+    for proj in (getattr(resume, "projects", None) or []):
+        if isinstance(proj, dict) and str(proj.get("name") or "").strip():
+            src.setdefault(_key(proj), proj)
+
+    for proj in (tailored.get("projects") or []):
+        if not isinstance(proj, dict):
+            continue
+        origin = src.get(_key(proj))
+        if not origin:
+            continue
+        before = str(proj.get("desc") or "")
+        proj["desc"] = _append_missing_points(before, origin.get("desc"))
+        if proj["desc"] != before:
+            print(f"[要点保真] 项目「{proj.get('name')}」补回被定制丢掉的要点")
     return result
 
 
